@@ -1,0 +1,3343 @@
+./
+├── .github
+│   └── workflows
+│       └── npm-publish.yml
+├── .gitignore
+├── build-shims
+│   └── empty.cjs
+├── LICENSE
+├── package.json
+├── README.md
+├── src
+│   ├── api
+│   │   └── http.ts
+│   ├── cli
+│   │   └── index.ts
+│   ├── core
+│   │   ├── config.ts
+│   │   ├── constants.ts
+│   │   └── platform-config.ts
+│   ├── index.ts
+│   ├── lib
+│   │   ├── browser-files.js
+│   │   ├── browser-files.ts
+│   │   ├── env.js
+│   │   ├── env.ts
+│   │   ├── junk.ts
+│   │   ├── md5.ts
+│   │   ├── node-files.js
+│   │   ├── node-files.ts
+│   │   ├── path.ts
+│   │   ├── prepare-input.js
+│   │   ├── prepare-input.ts
+│   │   └── text.ts
+│   ├── resources.ts
+│   └── types.ts
+├── tsconfig.json
+├── tsup.config.ts
+└── vitest.config.ts
+
+9 directories, 29 files
+
+
+--- START OF FILE: ./LICENSE ---
+MIT License
+
+Copyright (c) 2025 shipstatic
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--- END OF FILE: ./LICENSE ---
+
+
+--- START OF FILE: ./build-shims/empty.cjs ---
+// This is an empty module to shim Node.js built-ins for browser builds
+// where the full functionality is not applicable or polyfilled.
+module.exports = {};
+
+--- END OF FILE: ./build-shims/empty.cjs ---
+
+
+--- START OF FILE: ./README.md ---
+# Ship CLI & SDK
+
+A modern, lightweight SDK and CLI for deploying static files, designed for both **Node.js** and **Browser** environments with a clean resource-based API.
+
+## Features
+
+- **🚀 Modern Resource API**: Clean `ship.deployments.create()` interface - no legacy wrappers
+- **🌍 Universal**: Automatic environment detection (Node.js/Browser) with optimized implementations  
+- **🔧 Dynamic Configuration**: Automatically fetches platform limits from API
+- **📁 Flexible Input**: File paths (Node.js) or File objects (Browser/drag-drop)
+- **🔐 Secure**: MD5 checksums and data integrity validation
+- **📊 Progress Tracking**: Real-time deployment progress and statistics
+- **⚡ Cancellable**: AbortSignal support for deployment cancellation
+- **🛠️ CLI Ready**: Command-line interface for automation and CI/CD
+- **📦 Bundle Optimized**: Lightweight builds (16KB Node, 275KB Browser)
+- **🎯 Unified Error System**: Consistent `ShipError` handling across all components
+
+## Installation
+
+### CLI Usage
+
+```bash
+npm install -g @shipstatic/ship
+```
+
+### SDK Usage
+
+```bash
+npm install @shipstatic/ship
+```
+
+## Quick Start
+
+### SDK Usage
+
+```typescript
+import { Ship } from '@shipstatic/ship';
+
+const ship = new Ship({
+  apiUrl: 'https://api.shipstatic.com',
+  apiKey: 'ship-your-64-char-hex-string'  // API key: ship- prefix + 64-char hex (69 chars total)
+});
+
+// Deploy files - SDK automatically fetches platform configuration
+const result = await ship.deployments.create(['./dist'], {
+  onProgress: (progress) => console.log(`${progress}%`)
+});
+
+console.log(`Deployed: ${result.deployment}`);
+```
+
+### CLI Usage
+
+```bash
+# Deploy shortcut - deploy a directory
+ship ./dist
+
+# Or deploy current directory
+ship
+
+# Explicit commands
+ship deploy ./build          # Deploy files from path
+ship list                    # List deployments
+ship get abc123              # Get deployment details
+ship remove abc123           # Remove deployment
+
+# Manage aliases
+ship aliases                 # List aliases
+ship alias staging abc123    # Set alias to deployment
+
+# Account
+ship account                 # Get account details
+
+# Connectivity
+ship ping                    # Check API connectivity
+```
+
+## Dynamic Platform Configuration
+
+Ship SDK automatically fetches platform configuration from the API on initialization:
+
+```typescript
+// SDK automatically calls GET /config and applies limits
+const ship = new Ship({ apiKey: 'ship-your-key' });
+
+// Platform limits are now available for validation:
+// - maxFileSize: Dynamic file size limit
+// - maxFilesCount: Dynamic file count limit  
+// - maxTotalSize: Dynamic total size limit
+```
+
+**Benefits:**
+- **Single source of truth** - Limits only need to be changed on the API side
+- **Automatic updates** - SDK always uses current platform limits
+- **Fail fast** - SDK fails if unable to fetch valid configuration
+
+## API Reference
+
+### Ship Class
+
+```typescript
+const ship = new Ship(options?: ShipOptions)
+```
+
+#### Options
+
+```typescript
+interface ShipOptions {
+  apiUrl?: string;        // API endpoint (default: https://api.shipstatic.com)
+  apiKey?: string;        // API key: ship- prefix + 64-char hex (69 chars total)
+  timeout?: number;       // Request timeout (ms)
+}
+```
+
+#### Methods
+
+- `ship.ping()` - Check API connectivity
+- `ship.deployments` - Access deployment resource
+- `ship.aliases` - Access alias resource  
+- `ship.account` - Access account resource
+
+### Deployments Resource
+
+```typescript
+// Deploy files
+await ship.deployments.create(input, options?)
+
+// List deployments
+await ship.deployments.list()
+
+// Remove deployment
+await ship.deployments.remove(id)
+
+// Get deployment details
+await ship.deployments.get(id)
+```
+
+#### Deploy Input Types
+
+**Node.js Environment:**
+```typescript
+type NodeDeployInput = string[];  // File paths
+```
+
+**Browser Environment:**
+```typescript
+type BrowserDeployInput = FileList | File[] | HTMLInputElement;
+```
+
+#### Deploy Options
+
+```typescript
+interface DeployOptions {
+  apiUrl?: string;
+  apiKey?: string;                  // API key: ship- prefix + 64-char hex (69 chars total)
+  signal?: AbortSignal;           // Cancellation
+  subdomain?: string;             // Custom subdomain
+  onCancel?: () => void;
+  onProgress?: (progress: number) => void;
+  progress?: (stats: ProgressStats) => void;
+  maxConcurrency?: number;
+  timeout?: number;
+  stripCommonPrefix?: boolean;    // Remove common path prefix
+}
+```
+
+### Environment-Specific Examples
+
+#### Node.js File Deployment
+
+```typescript
+import { Ship } from '@shipstatic/ship';
+
+const ship = new Ship({
+  apiUrl: 'https://api.shipstatic.com',
+  apiKey: process.env.SHIP_API_KEY  // ship-abc123...
+});
+
+// Deploy files and directories
+const result = await ship.deployments.create([
+  './dist/index.html',
+  './dist/assets',
+  './public'
+], {
+  stripCommonPrefix: true,
+  onProgress: (progress) => {
+    console.log(`Deployment: ${progress}% complete`);
+  }
+});
+
+console.log(`✅ Deployed: ${result.deployment}`);
+```
+
+#### Browser File Upload
+
+```typescript
+import { Ship } from '@shipstatic/ship';
+
+const ship = new Ship({
+  apiUrl: 'https://api.shipstatic.com',
+  apiKey: 'ship-your-64-char-hex-string'  // 69 chars total
+});
+
+// From file input
+const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+const result = await ship.deployments.create(fileInput, {
+  onProgress: (progress) => {
+    document.getElementById('progress').textContent = `${progress}%`;
+  }
+});
+
+// From File objects
+const files: File[] = Array.from(fileInput.files || []);
+const result2 = await ship.deployments.create(files);
+```
+
+## Unified Error Handling
+
+The Ship SDK uses a unified error system with a single `ShipError` class:
+
+```typescript
+import { ShipError } from '@shipstatic/ship';
+
+try {
+  await ship.deployments.create(['./dist']);
+} catch (error) {
+  if (error instanceof ShipError) {
+    console.error(`Ship Error: ${error.message}`);
+    
+    // Type-safe error checking
+    if (error.isClientError()) {
+      console.error(`Client Error: ${error.message}`);
+    } else if (error.isNetworkError()) {
+      console.error(`Network Error: ${error.message}`);
+    } else if (error.isAuthError()) {
+      console.error(`Auth Error: ${error.message}`);
+    } else if (error.isValidationError()) {
+      console.error(`Validation Error: ${error.message}`);
+    }
+  }
+}
+```
+
+### Error Types
+
+```typescript
+// Factory methods for creating errors
+ShipError.validation(message, details)    // Validation failed (400)
+ShipError.notFound(resource, id)          // Resource not found (404)
+ShipError.rateLimit(message)              // Rate limit exceeded (429)
+ShipError.authentication(message)         // Authentication required (401)
+ShipError.business(message, status)       // Business logic error (400)
+ShipError.network(message, cause)         // Network/connection error
+ShipError.cancelled(message)              // Operation was cancelled
+ShipError.file(message, filePath)         // File operation error
+ShipError.config(message)                 // Configuration error
+
+// Type checking methods
+error.isClientError()       // Client-side errors
+error.isNetworkError()      // Network/connection issues
+error.isAuthError()         // Authentication problems
+error.isValidationError()   // Input validation failures
+error.isFileError()         // File operation errors
+error.isConfigError()       // Configuration problems
+```
+
+## Authentication
+
+The Ship SDK uses **Bearer token authentication** with API keys that have a `ship-` prefix:
+
+```typescript
+const ship = new Ship({
+  apiKey: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+});
+```
+
+### API Requests
+
+The SDK automatically sends API keys using standard Bearer token format:
+
+```
+Authorization: Bearer ship-your-64-char-hex-string  // 69 chars total
+```
+
+## Configuration
+
+Configuration is loaded hierarchically (highest precedence first):
+
+1. **Constructor options** - Direct parameters to `new Ship()`
+2. **Environment variables** - `SHIP_API_URL`, `SHIP_API_KEY` (Node.js only)  
+3. **Config files** - `.shiprc` or `package.json` (ship key) in project directory (Node.js only)
+
+### Config File Format
+
+**.shiprc:**
+```json
+{
+  "apiUrl": "https://api.shipstatic.com",
+  "apiKey": "ship-your-api-key"
+}
+```
+
+**package.json:**
+```json
+{
+  "ship": {
+    "apiUrl": "https://api.shipstatic.com",
+    "apiKey": "ship-your-api-key"
+  }
+}
+```
+
+### Environment Variables
+
+```bash
+export SHIP_API_URL="https://api.shipstatic.com"
+export SHIP_API_KEY="ship-your-api-key"
+```
+
+## CLI Commands
+
+### Deployment Commands
+
+```bash
+ship                    # List deployments (no args)
+ship ./dist             # Deploy specific directory  
+ship deploy ./build     # Explicit deploy command
+ship list               # List deployments
+ship get abc123         # Get deployment details
+ship remove abc123      # Remove deployment
+```
+
+### Alias Commands
+
+```bash
+ship aliases            # List aliases
+ship alias staging abc123  # Set alias to deployment
+```
+
+### Account Commands
+
+```bash
+ship account            # Get account details
+```
+
+### Global Options
+
+```bash
+-u, --apiUrl <URL>     # API endpoint
+-k, --apiKey <KEY>    # API key  
+--json              # JSON output
+```
+
+## Bundle Sizes
+
+**Optimized for production:**
+- **Node.js**: 16KB (ESM), 17KB (CJS)
+- **Browser**: 275KB (ESM with dependencies)
+- **CLI**: 25KB (CJS)
+
+**Recent Optimizations:**
+- ✅ **Unified error system** - Single `ShipError` class for all components
+- ✅ **Dynamic platform configuration** - Fetches limits from API
+- ✅ **Replaced axios with native fetch** - Bundle size reduction
+- ✅ **Simplified configuration loading** - Removed async complexity
+- ✅ **Streamlined multipart uploads** - `files[]` + JSON checksums format
+- ✅ **Direct validation throwing** - Eliminated verbose ValidationResult pattern
+
+## TypeScript Support
+
+Full TypeScript support with exported types from shared `@shipstatic/types`:
+
+```typescript
+import type { 
+  ShipOptions,
+  NodeDeployInput,
+  BrowserDeployInput, 
+  DeployOptions,
+  DeploySuccessResponse,
+  ProgressStats,
+  StaticFile,
+  ShipError,
+  ErrorType
+} from '@shipstatic/ship';
+```
+
+## Architecture
+
+### Modern SDK Design
+- **Class-based API**: `new Ship()` with resource properties
+- **Environment detection**: Automatic Node.js/Browser optimizations
+- **Native dependencies**: Uses built-in `fetch`, `crypto`, and `fs` APIs
+- **Type safety**: Strict TypeScript with comprehensive error types
+- **Dynamic configuration**: Platform limits fetched from API
+- **Unified DTOs**: Shared type definitions from `@shipstatic/types`
+
+### Codebase Organization
+```
+src/
+├── core/                    # Cross-cutting concerns
+│   ├── config.ts           # Configuration loading and merging
+│   └── constants.ts        # Platform constants and defaults
+├── lib/                    # Utility libraries (renamed from utils/)
+│   ├── env.js              # Environment detection
+│   ├── node-files.ts       # Node.js file system operations
+│   ├── prepare-input.ts    # Input preparation (renamed from input-conversion.ts)
+│   └── path.ts             # Path utilities (renamed from path-helpers.ts)
+├── cli.ts                  # CLI implementation (moved from cli/index.ts)
+├── index.ts                # Main SDK exports
+└── types.ts                # All SDK types (consolidated from types/)
+
+### File Processing Pipeline
+**Node.js:**
+```
+File Paths → Discovery → Junk Filtering → Base Directory → Content Processing → StaticFile[]
+```
+
+**Browser:**
+```
+File Objects → Path Extraction → Junk Filtering → Content Processing → StaticFile[]
+```
+
+### Configuration System
+- **Synchronous loading**: No async complexity for file config
+- **Dynamic platform config**: Fetched from API on first use
+- **Minimal search**: Only `.shiprc` and `package.json`
+- **Simple validation**: Native type checking
+- **Environment variables**: `SHIP_*` prefix for clarity
+
+### Error System Architecture
+- **Single source of truth**: All errors use `ShipError` from `@shipstatic/types`
+- **Type-safe factories**: Specific factory methods for each error type
+- **Wire format support**: Automatic serialization/deserialization
+- **Helper methods**: Easy type checking with `is*Error()` methods
+
+## Development Status
+
+This is an **unlaunched project** optimized for modern development:
+
+- ✅ **Deployment Resource**: Full implementation (create, list, get, remove)
+- ✅ **Alias Resource**: Full implementation (set, get, list, remove)  
+- ✅ **Account Resource**: Full implementation (get account details)
+- ✅ **Unified Error System**: Single `ShipError` class with factory methods
+- ✅ **Dynamic Platform Config**: Automatic limit fetching from API
+- ✅ **Ultra-Simple CLI**: Deploy shortcut + explicit commands
+- ✅ **Streamlined Multipart**: `files[]` array + JSON checksums format
+- ✅ **Direct Validation**: Functions throw errors instead of returning results
+- ✅ **Shared DTOs**: All types from `@shipstatic/types` package
+- ✅ **Impossible Simplicity**: Maximum functionality with minimal complexity
+- 🎯 No legacy compatibility constraints
+- 🔧 Native fetch API for optimal performance
+- ⚡ Modern ESM modules with TypeScript
+
+## Testing
+
+Comprehensive test coverage with modern tooling:
+
+```bash
+# Run all tests
+pnpm test --run
+
+# Run specific test suites
+pnpm test tests/utils/node-files.test.ts --run
+pnpm test tests/api/http.test.ts --run
+
+# Build and test
+pnpm build && pnpm test --run
+```
+
+**Test Organization:**
+- **Unit tests**: Pure function testing
+- **Integration tests**: Component interaction testing  
+- **Edge case tests**: Boundary condition testing
+- **Browser tests**: FileList and File object handling
+- **Node.js tests**: Filesystem and path manipulation
+- **Error tests**: Unified error handling patterns
+
+**Current Status:** 264 tests passing ✅
+
+## Contributing
+
+The codebase prioritizes simplicity and maintainability:
+
+- **"Do More with Less"** - Built-in over dependencies
+- **No backward compatibility** constraints
+- **Modern ES modules** and TypeScript
+- **Comprehensive test coverage**
+- **Clean resource-based** architecture
+- **Unified error handling** across all components
+- **Shared type system** via `@shipstatic/types`
+- **Declarative code patterns** over imperative complexity
+
+---
+
+**Ship** - Deploy static files with modern tooling ⚡
+--- END OF FILE: ./README.md ---
+
+
+--- START OF FILE: ./.gitignore ---
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Build outputs
+dist/
+build/
+/lib/
+out/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.project
+.classpath
+.settings/
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# npm package files
+npm-debug.log
+.npm/
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# Temporary folders
+tmp/
+temp/
+
+--- END OF FILE: ./.gitignore ---
+
+
+--- START OF FILE: ./package.json ---
+{
+  "name": "@shipstatic/ship",
+  "version": "0.1.0",
+  "description": "SDK & CLI for Shipstatic platform",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "browser": "./dist/index.browser.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.browser.js"
+      },
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "bin": {
+    "ship": "./dist/cli.cjs"
+  },
+  "scripts": {
+    "test": "vitest",
+    "clean": "rm -rf dist",
+    "build": "pnpm run clean && tsup"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "sdk",
+    "cli",
+    "shipstatic"
+  ],
+  "homepage": "https://github.com/shipstatic/ship",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shipstatic/ship.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shipstatic/ship/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "ShipStatic",
+  "license": "MIT",
+  "dependencies": {
+    "@shipstatic/types": "^0.1.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "cosmiconfig": "^9.0.0",
+    "form-data-encoder": "^4.1.0",
+    "formdata-node": "^6.0.3",
+    "junk": "^4.0.1",
+    "mime-types": "^3.0.1",
+    "spark-md5": "^3.0.2",
+    "zod": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^20.15.1",
+    "@types/spark-md5": "^3.0.4",
+    "esbuild": "^0.23.0",
+    "jsdom": "^24.0.0",
+    "memfs": "^4.17.2",
+    "path-browserify": "^1.0.1",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.3"
+  }
+}
+
+--- END OF FILE: ./package.json ---
+
+
+--- START OF FILE: ./tsup.config.ts ---
+import { defineConfig } from 'tsup';
+
+export default defineConfig([
+  // Main SDK
+  {
+    entry: ['src/index.ts'],
+    format: ['cjs', 'esm'],
+    dts: true,
+    clean: true,
+    sourcemap: true,
+    minify: true,
+    external: [
+      'cli-table3',
+      'commander', 
+      'cosmiconfig',
+      'form-data-encoder',
+      'formdata-node',
+      'junk',
+      'mime-types',
+      'spark-md5',
+      'zod'
+    ]
+  },
+  // CLI
+  {
+    entry: { cli: 'src/cli/index.ts' },
+    format: ['cjs'],
+    dts: false,
+    clean: false,
+    sourcemap: true,
+    minify: true,
+    banner: {
+      js: '#!/usr/bin/env node'
+    },
+    external: [
+      'cli-table3',
+      'commander',
+      'cosmiconfig', 
+      'form-data-encoder',
+      'formdata-node',
+      'junk',
+      'mime-types',
+      'spark-md5',
+      'zod'
+    ]
+  },
+  // Browser bundle
+  {
+    entry: ['src/index.ts'],
+    format: ['esm'],
+    dts: false,
+    clean: false,
+    sourcemap: true,
+    minify: true,
+    outExtension: () => ({ js: '.browser.js' }),
+    define: {
+      'process.env.NODE_ENV': '"production"'
+    },
+    noExternal: [
+      'spark-md5',
+      'mime-types',
+      'form-data-encoder',
+      'junk'
+    ]
+  }
+]);
+--- END OF FILE: ./tsup.config.ts ---
+
+
+--- START OF FILE: ./.github/workflows/npm-publish.yml ---
+name: Publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.1'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+      
+      - run: pnpm install
+      
+      - run: pnpm run build
+      
+      - run: pnpm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
+      
+      - if: success()
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: '{"text":"✅ @shipstatic/ship published successfully"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - if: failure()
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: '{"text":"❌ @shipstatic/ship publish failed"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+--- END OF FILE: ./.github/workflows/npm-publish.yml ---
+
+
+--- START OF FILE: ./tsconfig.json ---
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext", 
+    "moduleResolution": "node",
+    "declaration": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["ES2020", "DOM"],
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
+}
+--- END OF FILE: ./tsconfig.json ---
+
+
+--- START OF FILE: ./vitest.config.ts ---
+import { defineConfig } from 'vitest/config';
+import tsconfigPaths from 'vite-tsconfig-paths';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [tsconfigPaths()],
+  test: {
+    globals: true,
+    environment: 'jsdom', // Default environment
+    include: ['tests/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+    },
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'), // Map @ to src directory
+      // We can keep the tsconfigPaths plugin as it might handle other cases or be more robust
+      // but adding a direct @ alias is common.
+    },
+  },
+});
+
+--- END OF FILE: ./vitest.config.ts ---
+
+
+--- START OF FILE: ./src/core/platform-config.ts ---
+/**
+ * @file Platform configuration management for the Ship SDK.
+ * Implements fail-fast dynamic configuration with mandatory API fetch.
+ */
+
+import type { ConfigResponse } from '@shipstatic/types';
+import { ShipError } from '@shipstatic/types';
+
+// Dynamic config - must be fetched from API before operations
+let _config: ConfigResponse | null = null;
+
+/**
+ * Set the current config (called after fetching from API)
+ */
+export function setConfig(config: ConfigResponse): void {
+  _config = config;
+}
+
+/**
+ * Get current config - throws if not initialized (fail-fast approach)
+ * @throws {ShipError.config} If configuration hasn't been fetched from API
+ */
+export function getCurrentConfig(): ConfigResponse {
+  if (_config === null) {
+    throw ShipError.config(
+      'Platform configuration not initialized. The SDK must fetch configuration from the API before performing operations.'
+    );
+  }
+  return _config;
+}
+
+/**
+ * Check if config has been initialized from API
+ */
+export function isConfigInitialized(): boolean {
+  return _config !== null;
+}
+
+/**
+ * Reset config state (primarily for testing)
+ * @internal
+ */
+export function resetConfig(): void {
+  _config = null;
+}
+--- END OF FILE: ./src/core/platform-config.ts ---
+
+
+--- START OF FILE: ./src/core/constants.ts ---
+/**
+ * @file Shared, environment-agnostic constants.
+ */
+
+/** Default API URL if not otherwise configured. */
+export const DEFAULT_API = 'https://api.shipstatic.com';
+
+/** API key prefix for validation and generation */
+export const API_KEY_PREFIX = 'ship-';
+--- END OF FILE: ./src/core/constants.ts ---
+
+
+--- START OF FILE: ./src/core/config.ts ---
+/**
+ * @file Manages loading and validation of client configuration.
+ * This module uses `cosmiconfig` to find and load configuration from various
+ * file sources (e.g., `.shiprc`, `package.json`) and environment variables.
+ * Configuration values are validated using Zod schemas.
+ */
+
+import { z } from 'zod';
+import { cosmiconfigSync } from 'cosmiconfig';
+import { ShipClientOptions, DeploymentOptions, ShipError } from '../types.js';
+import { getENV } from '../lib/env.js';
+import { DEFAULT_API } from './constants.js';
+
+
+
+/** @internal Name of the module, used by cosmiconfig for config file searching. */
+const MODULE_NAME = 'ship';
+
+/**
+ * Zod schema for validating ship configuration.
+ * @internal
+ */
+const ConfigSchema = z.object({
+  apiUrl: z.string().url().optional(),
+  apiKey: z.string().optional()
+}).strict();
+
+/**
+ * Validates configuration using Zod schema.
+ * @param config - Configuration object to validate
+ * @returns Validated configuration or throws error
+ * @internal
+ */
+function validateConfig(config: any): Partial<ShipClientOptions> {
+  try {
+    return ConfigSchema.parse(config);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const firstError = error.issues[0];
+      const path = firstError.path.length > 0 ? ` at ${firstError.path.join('.')}` : '';
+      throw ShipError.config(`Configuration validation failed${path}: ${firstError.message}`);
+    }
+    throw ShipError.config('Configuration validation failed');
+  }
+}
+
+/**
+ * Synchronously loads client configuration from files.
+ * Searches for .shiprc and package.json with ship key.
+ * @returns Configuration object or empty if not found/invalid
+ * @internal
+ */
+function loadConfigFromFile(): Partial<ShipClientOptions> {
+  try {
+    const explorer = cosmiconfigSync(MODULE_NAME, {
+      searchPlaces: [
+        `.${MODULE_NAME}rc`,
+        'package.json',
+      ],
+    });
+    
+    const result = explorer.search();
+    if (result && !result.isEmpty && result.config) {
+      return validateConfig(result.config);
+    }
+  } catch (error) {
+    if (error instanceof ShipError) throw error; // Re-throw all ShipError instances
+    // Silently fail for file loading issues - this is optional config
+  }
+  return {};
+}
+
+/**
+ * Simplified configuration loading prioritizing environment variables.
+ * Only loads file config if environment variables are not set.
+ * Only available in Node.js environments.
+ *
+ * @returns Configuration object with loaded values
+ * @throws {ShipInvalidConfigError} If the configuration is invalid.
+ */
+export function loadConfig(): Partial<ShipClientOptions> {
+  if (getENV() !== 'node') return {};
+
+  // Start with environment variables (highest priority)
+  const envConfig = {
+    apiUrl: process.env.SHIP_API_URL,
+    apiKey: process.env.SHIP_API_KEY,
+  };
+
+  // Always try to load file config for fallback values
+  const fileConfig = loadConfigFromFile();
+
+  // Merge with environment variables taking precedence
+  const mergedConfig = {
+    apiUrl: envConfig.apiUrl ?? fileConfig.apiUrl,
+    apiKey: envConfig.apiKey ?? fileConfig.apiKey,
+  };
+
+  // Validate final config
+  return validateConfig(mergedConfig);
+}
+
+/**
+ * Simplified configuration resolution with clear precedence.
+ * Precedence: user options > environment variables > config files > defaults.
+ * 
+ * @param userOptions - Options provided directly by the user
+ * @param loadedConfig - Configuration loaded from environment/files
+ * @returns Resolved configuration with api and apiKey
+ */
+export function resolveConfig(
+  userOptions: ShipClientOptions = {}, 
+  loadedConfig: Partial<ShipClientOptions> = {}
+): { apiUrl: string; apiKey?: string } {
+  // Build final config with clear precedence
+  const finalConfig = {
+    apiUrl: userOptions.apiUrl || loadedConfig.apiUrl || DEFAULT_API,
+    apiKey: userOptions.apiKey !== undefined ? userOptions.apiKey : loadedConfig.apiKey,
+  };
+
+  // Return with optional apiKey
+  return finalConfig.apiKey !== undefined 
+    ? { apiUrl: finalConfig.apiUrl, apiKey: finalConfig.apiKey }
+    : { apiUrl: finalConfig.apiUrl };
+}
+
+
+// =============================================================================
+// CONFIGURATION MERGING
+// =============================================================================
+
+/**
+ * Merge deployment options with client defaults.
+ * Simple utility function that replaces the unnecessary ConfigMerger class.
+ */
+export function mergeDeployOptions(
+  userOptions: DeploymentOptions = {},
+  clientDefaults: ShipClientOptions
+): DeploymentOptions {
+  const merged: DeploymentOptions = { ...userOptions };
+  
+  // Only set defaults if not already provided
+  if (merged.onProgress === undefined && clientDefaults.onProgress !== undefined) {
+    merged.onProgress = clientDefaults.onProgress;
+  }
+  if (merged.onProgressStats === undefined && clientDefaults.onProgressStats !== undefined) {
+    merged.onProgressStats = clientDefaults.onProgressStats;
+  }
+  if (merged.maxConcurrency === undefined && clientDefaults.maxConcurrentDeploys !== undefined) {
+    merged.maxConcurrency = clientDefaults.maxConcurrentDeploys;
+  }
+  if (merged.timeout === undefined && clientDefaults.timeout !== undefined) {
+    merged.timeout = clientDefaults.timeout;
+  }
+  if (merged.apiKey === undefined && clientDefaults.apiKey !== undefined) {
+    merged.apiKey = clientDefaults.apiKey;
+  }
+  if (merged.apiUrl === undefined && clientDefaults.apiUrl !== undefined) {
+    merged.apiUrl = clientDefaults.apiUrl;
+  }
+  
+  return merged;
+}
+
+--- END OF FILE: ./src/core/config.ts ---
+
+
+--- START OF FILE: ./src/resources.ts ---
+/**
+ * @file All Ship SDK resources in one place - impossibly simple.
+ */
+import type { Deployment, DeploymentListResponse, Alias, AliasListResponse, Account } from '@shipstatic/types';
+import type { ApiHttp } from './api/http.js';
+import type { StaticFile, ShipClientOptions } from './types.js';
+import type { DeploymentOptions, DeployInput } from './types.js';
+import { convertDeployInput } from './lib/prepare-input.js';
+import { mergeDeployOptions } from './core/config.js';
+
+// Re-export DeployInput for external use
+export type { DeployInput };
+
+// =============================================================================
+// DEPLOYMENT RESOURCE
+// =============================================================================
+
+export interface DeploymentResource {
+  create: (input: DeployInput, options?: DeploymentOptions) => Promise<Deployment>;
+  list: () => Promise<DeploymentListResponse>;
+  remove: (id: string) => Promise<void>;
+  get: (id: string) => Promise<Deployment>;
+}
+
+export function createDeploymentResource(
+  api: ApiHttp, 
+  initConfig?: () => Promise<void>,
+  clientDefaults?: ShipClientOptions
+): DeploymentResource {
+  return {
+    create: async (input: DeployInput, options: DeploymentOptions = {}) => {
+      // Initialize config from API before validation
+      if (initConfig) {
+        await initConfig();
+      }
+      
+      // Merge user options with client defaults
+      const mergedOptions = clientDefaults 
+        ? mergeDeployOptions(options, clientDefaults)
+        : options;
+      
+      // Convert input to StaticFile[] using unified utility
+      const staticFiles: StaticFile[] = await convertDeployInput(input, mergedOptions);
+      
+      // Deploy using the API - now returns the full Deployment object directly
+      return await api.deploy(staticFiles, mergedOptions);
+    },
+
+    list: async () => {
+      return api.listDeployments();
+    },
+
+    remove: async (id: string) => {
+      await api.removeDeployment(id);
+      // Return void for deletion operations
+    },
+
+    get: async (id: string) => {
+      return api.getDeployment(id);
+    }
+  };
+}
+
+// =============================================================================
+// ALIAS RESOURCE
+// =============================================================================
+
+export interface AliasResource {
+  set: (aliasName: string, deploymentName: string) => Promise<Alias>;
+  get: (aliasName: string) => Promise<Alias>;
+  list: () => Promise<AliasListResponse>;
+  remove: (aliasName: string) => Promise<void>;
+}
+
+export function createAliasResource(api: ApiHttp): AliasResource {
+  return {
+    set: async (aliasName: string, deploymentName: string) => {
+      // Set alias and return the created/updated alias directly
+      return api.setAlias(aliasName, deploymentName);
+    },
+
+    get: async (aliasName: string) => {
+      return api.getAlias(aliasName);
+    },
+
+    list: async () => {
+      return api.listAliases();
+    },
+
+    remove: async (aliasName: string) => {
+      await api.removeAlias(aliasName);
+      // Return void for deletion operations
+    }
+  };
+}
+
+// =============================================================================
+// ACCOUNT RESOURCE
+// =============================================================================
+
+export interface AccountResource {
+  get: () => Promise<Account>;
+}
+
+export function createAccountResource(api: ApiHttp): AccountResource {
+  return {
+    get: async () => {
+      return api.getAccount();
+    }
+  };
+}
+
+// =============================================================================
+// KEYS RESOURCE
+// =============================================================================
+
+export interface KeysResource {
+  create: () => Promise<{ apiKey: string }>;
+}
+
+export function createKeysResource(api: ApiHttp): KeysResource {
+  return {
+    create: async () => {
+      return api.createApiKey();
+    }
+  };
+}
+--- END OF FILE: ./src/resources.ts ---
+
+
+--- START OF FILE: ./src/cli/index.ts ---
+/**
+ * @file Main entry point for the Ship CLI.
+ * Ultra-simple CLI with explicit commands and deploy shortcut.
+ */
+import { Command } from 'commander';
+import { Ship } from '../index.js';
+import { readFileSync } from 'fs';
+import * as path from 'path';
+
+// Get package.json data for version information
+let packageJson: any = { version: '0.0.0' };
+const possiblePaths = [
+  path.resolve(__dirname, '../package.json'),
+  path.resolve(__dirname, '../../package.json'),
+  path.resolve(__dirname, '../../../package.json')
+];
+
+for (const packageJsonPath of possiblePaths) {
+  try {
+    packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    break;
+  } catch (error) {
+    // Continue to the next path
+  }
+}
+
+const program = new Command();
+
+/**
+ * Simple error handler - just log and exit
+ */
+function handleError(error: any) {
+  console.error('Error:', error.message || error);
+  process.exit(1);
+}
+
+/**
+ * Create Ship client with CLI options
+ */
+function createClient(): Ship {
+  const options = program.opts();
+  return new Ship({
+    apiUrl: options.api,
+    apiKey: options.apiKey
+  });
+}
+
+/**
+ * Human-readable formatters for different result types
+ */
+const formatters = {
+  deployments: (result: any) => {
+    result.deployments.forEach((d: any) => {
+      console.log(`${d.deployment} (${d.status})`);
+    });
+  },
+  aliases: (result: any) => {
+    result.aliases.forEach((a: any) => {
+      console.log(`${a.alias} -> ${a.deployment}`);
+    });
+  },
+  deployment: (result: any) => {
+    console.log(`${result.deployment} (${result.status})`);
+  },
+  alias: (result: any) => {
+    console.log(`${result.alias} -> ${result.deployment}`);
+  },
+  email: (result: any) => {
+    console.log(`${result.email} (${result.subscription})`);
+  }
+};
+
+/**
+ * Format output based on --json flag
+ */
+function output(result: any) {
+  const options = program.opts();
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  
+  // Find appropriate formatter based on result properties
+  for (const [key, formatter] of Object.entries(formatters)) {
+    if (result[key]) {
+      formatter(result);
+      return;
+    }
+  }
+  
+  // Default fallback
+  console.log('Success');
+}
+
+program
+  .name('ship')
+  .description('CLI for Shipstatic')
+  .version(packageJson.version)
+  .option('-u, --api <URL>', 'API URL')
+  .option('-k, --apiKey <KEY>', 'API key')
+  .option('--json', 'JSON output')
+  .addHelpText('after', `
+Examples:
+  ship ./path                    Deploy files (shortcut)
+  ship ping                      Check API connectivity
+  
+  ship deployments list          List all deployments
+  ship deployments create ./app  Deploy app directory
+  ship deployments get abc123    Get deployment details
+  ship deployments remove abc123 Remove deployment
+  
+  ship aliases list              List all aliases
+  ship aliases get staging       Get alias details
+  ship aliases set staging abc123   Set alias to deployment
+  ship aliases remove staging    Remove alias
+  
+  ship account get               Get account details`);
+
+// Ping command
+program
+  .command('ping')
+  .description('Check API connectivity')
+  .action(async () => {
+    try {
+      const client = createClient();
+      const success = await client.ping();
+      console.log(success ? 'Connected' : 'Failed');
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+// Deployments commands
+const deploymentsCmd = program
+  .command('deployments')
+  .description('Manage deployments');
+
+deploymentsCmd
+  .command('list')
+  .description('List all deployments')
+  .action(async () => {
+    try {
+      const client = createClient();
+      const result = await client.deployments.list();
+      output(result);
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+deploymentsCmd
+  .command('create <path>')
+  .description('Deploy files from path')
+  .action(async (path: string) => {
+    try {
+      const client = createClient();
+      const result = await client.deployments.create([path]);
+      output(result);
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+deploymentsCmd
+  .command('get <id>')
+  .description('Get deployment details')
+  .action(async (id: string) => {
+    try {
+      const client = createClient();
+      const result = await client.deployments.get(id);
+      output(result);
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+deploymentsCmd
+  .command('remove <id>')
+  .description('Remove deployment')
+  .action(async (id: string) => {
+    try {
+      const client = createClient();
+      const result = await client.deployments.remove(id);
+      output(result);
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+// Aliases commands
+const aliasesCmd = program
+  .command('aliases')
+  .description('Manage aliases');
+
+aliasesCmd
+  .command('list')
+  .description('List all aliases')
+  .action(async () => {
+    try {
+      const client = createClient();
+      const result = await client.aliases.list();
+      output(result);
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+aliasesCmd
+  .command('get <name>')
+  .description('Get alias details')
+  .action(async (name: string) => {
+    try {
+      const client = createClient();
+      const result = await client.aliases.get(name);
+      output(result);
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+aliasesCmd
+  .command('set <name> <deployment>')
+  .description('Set alias to deployment')
+  .action(async (name: string, deployment: string) => {
+    try {
+      const client = createClient();
+      const result = await client.aliases.set(name, deployment);
+      output(result);
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+aliasesCmd
+  .command('remove <name>')
+  .description('Remove alias')
+  .action(async (name: string) => {
+    try {
+      const client = createClient();
+      const result = await client.aliases.remove(name);
+      output(result);
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+// Account commands
+const accountCmd = program
+  .command('account')
+  .description('Manage account');
+
+accountCmd
+  .command('get')
+  .description('Get account details')
+  .action(async () => {
+    try {
+      const client = createClient();
+      const result = await client.account.get();
+      output(result);
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+// Path shortcut - handle as fallback
+program
+  .argument('[path]', 'Path to deploy (shortcut)')
+  .action(async (path?: string) => {
+    // If no path provided, show help
+    if (!path) {
+      program.help();
+      return;
+    }
+    
+    // Check if looks like a path (shortcut: ship ./path)
+    if (path.startsWith('./') || path.startsWith('/') || path.startsWith('~') || path.includes('/')) {
+      try {
+        const client = createClient();
+        const result = await client.deployments.create([path]);
+        output(result);
+      } catch (error: any) {
+        handleError(error);
+      }
+    } else {
+      console.error('Unknown command:', path);
+      console.error('Use "ship --help" for available commands');
+      process.exit(1);
+    }
+  });
+
+
+if (process.env.NODE_ENV !== 'test') {
+  program.parse(process.argv);
+}
+--- END OF FILE: ./src/cli/index.ts ---
+
+
+--- START OF FILE: ./src/types.ts ---
+/**
+ * @file SDK-specific type definitions
+ * Consolidates all Ship SDK types into a single file for clarity.
+ * Core types come from @shipstatic/types, while SDK-specific types are defined here.
+ */
+
+// Re-export all types from @shipstatic/types for convenience
+export * from '@shipstatic/types';
+
+// =============================================================================
+// ENVIRONMENT-SPECIFIC TYPES
+// =============================================================================
+
+/**
+ * Consolidated input type for all environments
+ */
+export type DeployInput = FileList | File[] | HTMLInputElement | string[];
+
+// =============================================================================
+// DEPLOYMENT OPTIONS
+// =============================================================================
+
+/**
+ * Universal deploy options for both Node.js and Browser environments
+ */
+export interface DeploymentOptions {
+  /** The API URL to use for this specific deploy. Overrides client's default. */
+  apiUrl?: string;
+  /** An AbortSignal to allow cancellation of the deploy operation. */
+  signal?: AbortSignal;
+  /** An optional subdomain to suggest for the deployment. Availability is subject to the API. */
+  subdomain?: string;
+  /** Callback invoked if the deploy is cancelled via the AbortSignal. */
+  onCancel?: () => void;
+  /** Maximum number of concurrent operations. */
+  maxConcurrency?: number;
+  /** Timeout in milliseconds for the deploy request. */
+  timeout?: number;
+  /** The API key to use for this specific deploy. Overrides client's default. */
+  apiKey?: string;
+  /** Whether to strip common prefix from file paths. */
+  stripCommonPrefix?: boolean;
+  /** Callback for overall deploy progress (0-100). */
+  onProgress?: (progress: number) => void;
+  /** Callback for detailed progress statistics. */
+  onProgressStats?: (progressStats: ProgressStats) => void;
+}
+
+/**
+ * Options for configuring an deploy operation via `apiClient.deployFiles`.
+ * Derived from DeploymentOptions but excludes client-side only options.
+ */
+export type ApiDeployOptions = Omit<DeploymentOptions, 'stripCommonPrefix'>;
+
+// =============================================================================
+// PROGRESS TRACKING
+// =============================================================================
+
+/**
+ * Detailed statistics about the progress of an deploy operation.
+ */
+export interface ProgressStats {
+  /** The number of bytes loaded so far. */
+  loaded: number;
+  /** The total number of bytes to be loaded. May be 0 if unknown initially. */
+  total: number;
+  /** The progress as a fraction (loaded/total). Value is between 0 and 1. */
+  progress: number;
+  /** Optional identifier for the file this progress pertains to, if applicable. */
+  file?: string;
+}
+
+// =============================================================================
+// CLIENT CONFIGURATION
+// =============================================================================
+
+/**
+ * Options for configuring a `Ship` instance.
+ * Sets default API host, key, progress callbacks, concurrency, and timeouts for the client.
+ */
+export interface ShipClientOptions {
+  /** Default API URL for the client instance. */
+  apiUrl?: string | undefined;
+  /** Default API key for the client instance. */
+  apiKey?: string | undefined;
+  /**
+   * Default callback for overall deploy progress for deploys made with this client.
+   * @param progress - A number between 0 and 100.
+   */
+  onProgress?: ((progress: number) => void) | undefined;
+  /**
+   * Default callback for detailed progress statistics for deploys made with this client.
+   * @param progressStats - Progress statistics object.
+   */
+  onProgressStats?: ((progressStats: ProgressStats) => void) | undefined;
+  /**
+   * Default for maximum concurrent deploys.
+   * Used if an deploy operation doesn't specify its own `maxConcurrency`.
+   * Defaults to 4 if not set here or in the specific deploy call.
+   */
+  maxConcurrentDeploys?: number | undefined;
+  /**
+   * Default timeout in milliseconds for API requests made by this client instance.
+   * Used if an deploy operation doesn't specify its own timeout.
+   */
+  timeout?: number | undefined;
+}
+
+// =============================================================================
+// FILE REPRESENTATION
+// =============================================================================
+
+/**
+ * Represents a file that has been processed and is ready for deploy.
+ * Used internally by the SDK and in advanced/manual deploy scenarios.
+ */
+export interface StaticFile {
+  /**
+   * The content of the file.
+   * In Node.js, this is typically a `Buffer`.
+   * In the browser, this is typically a `File` or `Blob` object.
+   */
+  content: File | Buffer | Blob;
+  /**
+   * The desired path for the file on the server, relative to the deployment root.
+   * Should include the filename, e.g., `images/photo.jpg`.
+   */
+  path: string;
+  /**
+   * The original absolute file system path (primarily used in Node.js environments).
+   * This helps in debugging or associating the server path back to its source.
+   */
+  filePath?: string;
+  /**
+   * The MD5 hash (checksum) of the file's content.
+   * This is calculated by the SDK before deploy if not provided.
+   */
+  md5?: string;
+  /** The size of the file in bytes. */
+  size: number;
+}
+
+// =============================================================================
+// API RESPONSES
+// =============================================================================
+
+// PingResponse is imported from @shipstatic/types (single source of truth)
+--- END OF FILE: ./src/types.ts ---
+
+
+--- START OF FILE: ./src/lib/md5.ts ---
+/**
+ * @file Simplified MD5 calculation utility with separate environment handlers.
+ */
+import { getENV } from './env';
+import { ShipError } from '@shipstatic/types';
+
+export interface MD5Result {
+  md5: string;
+}
+
+/**
+ * Browser-specific MD5 calculation for Blob/File objects
+ */
+async function calculateMD5Browser(blob: Blob): Promise<MD5Result> {
+  const SparkMD5 = (await import('spark-md5')).default;
+  
+  return new Promise((resolve, reject) => {
+    const chunkSize = 2097152; // 2MB chunks
+    const chunks = Math.ceil(blob.size / chunkSize);
+    let currentChunk = 0;
+    const spark = new SparkMD5.ArrayBuffer();
+    const fileReader = new FileReader();
+
+    const loadNext = () => {
+      const start = currentChunk * chunkSize;
+      const end = Math.min(start + chunkSize, blob.size);
+      fileReader.readAsArrayBuffer(blob.slice(start, end));
+    };
+
+    fileReader.onload = (e) => {
+      const result = e.target?.result as ArrayBuffer;
+      if (!result) {
+        reject(ShipError.business('Failed to read file chunk'));
+        return;
+      }
+      
+      spark.append(result);
+      currentChunk++;
+      
+      if (currentChunk < chunks) {
+        loadNext();
+      } else {
+        resolve({ md5: spark.end() });
+      }
+    };
+
+    fileReader.onerror = () => {
+      reject(ShipError.business('Failed to calculate MD5: FileReader error'));
+    };
+
+    loadNext();
+  });
+}
+
+/**
+ * Node.js-specific MD5 calculation for Buffer or file path
+ */
+async function calculateMD5Node(input: Buffer | string): Promise<MD5Result> {
+  const crypto = await import('crypto');
+  
+  if (Buffer.isBuffer(input)) {
+    const hash = crypto.createHash('md5');
+    hash.update(input);
+    return { md5: hash.digest('hex') };
+  }
+  
+  // Handle file path
+  const fs = await import('fs');
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('md5');
+    const stream = fs.createReadStream(input);
+    
+    stream.on('error', err => 
+      reject(ShipError.business(`Failed to read file for MD5: ${err.message}`))
+    );
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('end', () => resolve({ md5: hash.digest('hex') }));
+  });
+}
+
+/**
+ * Unified MD5 calculation that delegates to environment-specific handlers
+ */
+export async function calculateMD5(input: Blob | Buffer | string): Promise<MD5Result> {
+  const env = getENV();
+  
+  if (env === 'browser') {
+    if (!(input instanceof Blob)) {
+      throw ShipError.business('Invalid input for browser MD5 calculation: Expected Blob or File.');
+    }
+    return calculateMD5Browser(input);
+  }
+  
+  if (env === 'node') {
+    if (!(Buffer.isBuffer(input) || typeof input === 'string')) {
+      throw ShipError.business('Invalid input for Node.js MD5 calculation: Expected Buffer or file path string.');
+    }
+    return calculateMD5Node(input);
+  }
+  
+  throw ShipError.business('Unknown or unsupported execution environment for MD5 calculation.');
+}
+
+--- END OF FILE: ./src/lib/md5.ts ---
+
+
+--- START OF FILE: ./src/lib/path.ts ---
+/**
+ * @file Path helper utilities that work in both browser and Node.js environments.
+ * Provides environment-agnostic path manipulation functions.
+ */
+
+/**
+ * Finds the common parent directory from an array of paths.
+ * This function is the single shared implementation to be used by both browser and Node.js environments.
+ * 
+ * @param paths - Array of paths to analyze for common parent directory.
+ * @param separator - Path separator character (e.g., '/' for browser, path.sep for Node.js).
+ * @returns The common parent directory path, or an empty string if none is found.
+ */
+export function findCommonParentDirectory(paths: string[], separator: string): string {
+  // Validate input
+  if (!paths || !Array.isArray(paths) || paths.length === 0) {
+    return '';
+  }
+  
+  // Filter out empty paths and paths without separators
+  const validPaths = paths.filter(p => p && typeof p === 'string' && p.includes(separator));
+  
+  if (validPaths.length === 0) {
+    return '';
+  }
+
+  // Special case for single path: return the directory containing this path
+  if (validPaths.length === 1) {
+    const path = validPaths[0];
+    const lastSepIndex = path.lastIndexOf(separator);
+    if (lastSepIndex > -1) {
+      // Return the directory part without the file name
+      return path.substring(0, lastSepIndex);
+    }
+    return ''; // No directory part found
+  }
+
+  // Sort paths alphabetically to easily find the common prefix
+  const sortedPaths = [...validPaths].sort();
+  const firstPath = sortedPaths[0];
+  const lastPath = sortedPaths[sortedPaths.length - 1];
+  
+  // Find the length of the common prefix
+  let i = 0;
+  while (i < firstPath.length && i < lastPath.length && firstPath[i] === lastPath[i]) {
+    i++;
+  }
+
+  const commonPrefix = firstPath.substring(0, i);
+
+  // The prefix must be a directory. If it doesn't end with a separator,
+  // find the last separator to get the parent directory.
+  if (commonPrefix.endsWith(separator)) {
+    // It's a full directory path that matches, so return it without the trailing slash
+    return commonPrefix.slice(0, -1);
+  }
+
+  const lastSepIndex = commonPrefix.lastIndexOf(separator);
+  if (lastSepIndex > -1) {
+    return commonPrefix.substring(0, lastSepIndex);
+  }
+
+  return ''; // No common directory
+}
+
+/**
+ * Simple helper to find common parent of absolute paths using the system path separator.
+ * More declarative wrapper around findCommonParentDirectory for Node.js usage.
+ * @param absolutePaths - Array of absolute file paths
+ * @returns Common parent directory path or empty string if none found
+ */
+export function findCommonParent(absolutePaths: string[]): string {
+  if (typeof require === 'undefined') {
+    // Browser environment - use forward slash
+    return findCommonParentDirectory(absolutePaths, '/');
+  }
+  
+  // Node.js environment - use system separator
+  const path = require('path');
+  return findCommonParentDirectory(absolutePaths, path.sep);
+}
+
+
+/**
+ * Converts backslashes to forward slashes for cross-platform compatibility.
+ * Does not remove leading slashes (preserves absolute paths).
+ * @param path - The path to normalize
+ * @returns Path with forward slashes
+ */
+export function normalizeSlashes(path: string): string {
+  return path.replace(/\\/g, '/');
+}
+
+/**
+ * Normalizes a path for web usage by converting backslashes to forward slashes
+ * and removing leading slashes.
+ * @param path - The path to normalize
+ * @returns Normalized path suitable for web deployment
+ */
+export function normalizeWebPath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/^\/+/, '');
+}
+
+/**
+ * Ensures a path is relative by normalizing it and removing any leading slashes.
+ * @param path - The path to make relative
+ * @returns Relative path suitable for web deployment
+ */
+export function ensureRelativePath(path: string): string {
+  return normalizeWebPath(path);
+}
+
+--- END OF FILE: ./src/lib/path.ts ---
+
+
+--- START OF FILE: ./src/lib/prepare-input.js ---
+export * from './prepare-input.ts';
+--- END OF FILE: ./src/lib/prepare-input.js ---
+
+
+--- START OF FILE: ./src/lib/text.ts ---
+/**
+ * Utility functions for string manipulation.
+ */
+
+/**
+ * Simple utility to pluralize a word based on a count.
+ * @param count The number to determine pluralization.
+ * @param singular The singular form of the word.
+ * @param plural The plural form of the word.
+ * @param includeCount Whether to include the count in the returned string. Defaults to true.
+ * @returns A string with the count and the correctly pluralized word.
+ */
+export function pluralize(
+  count: number,
+  singular: string,
+  plural: string,
+  includeCount: boolean = true
+): string {
+  const word = count === 1 ? singular : plural;
+  return includeCount ? `${count} ${word}` : word;
+}
+
+--- END OF FILE: ./src/lib/text.ts ---
+
+
+--- START OF FILE: ./src/lib/junk.ts ---
+/**
+ * @file Utility for filtering out junk files and directories from file paths
+ * 
+ * This module provides functionality to filter out common system junk files and directories
+ * from a list of file paths. It uses the 'junk' package to identify junk filenames and
+ * a custom list to filter out common junk directories.
+ */
+import { isJunk } from 'junk';
+
+/**
+ * List of directory names considered as junk
+ * 
+ * Files within these directories (at any level in the path hierarchy) will be excluded.
+ * The comparison is case-insensitive for cross-platform compatibility.
+ * 
+ * @internal
+ */
+export const JUNK_DIRECTORIES = [
+  '__MACOSX',
+  '.Trashes',
+  '.fseventsd',
+  '.Spotlight-V100',
+] as const;
+
+/**
+ * Filters an array of file paths, removing those considered junk
+ * 
+ * A path is filtered out if either:
+ * 1. The basename is identified as junk by the 'junk' package (e.g., .DS_Store, Thumbs.db)
+ * 2. Any directory segment in the path matches an entry in JUNK_DIRECTORIES (case-insensitive)
+ *
+ * All path separators are normalized to forward slashes for consistent cross-platform behavior.
+ * 
+ * @param filePaths - An array of file path strings to filter
+ * @returns A new array containing only non-junk file paths
+ */
+export function filterJunk(filePaths: string[]): string[] {
+  if (!filePaths || filePaths.length === 0) {
+    return [];
+  }
+
+  return filePaths.filter(filePath => {
+    if (!filePath) {
+      return false; // Exclude null or undefined paths
+    }
+
+    // Normalize path separators to forward slashes and split into segments
+    const parts = filePath.replace(/\\/g, '/').split('/').filter(Boolean);
+    if (parts.length === 0) return true;
+    
+    // Check if the basename is a junk file (using junk package)
+    const basename = parts[parts.length - 1];
+    if (isJunk(basename)) {
+      return false;
+    }
+
+    // Check if any directory segment is in our junk directories list
+    const directorySegments = parts.slice(0, -1);
+    for (const segment of directorySegments) {
+      if (JUNK_DIRECTORIES.some(junkDir => 
+          segment.toLowerCase() === junkDir.toLowerCase())) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+--- END OF FILE: ./src/lib/junk.ts ---
+
+
+--- START OF FILE: ./src/lib/browser-files.js ---
+export * from './browser-files.ts';
+--- END OF FILE: ./src/lib/browser-files.js ---
+
+
+--- START OF FILE: ./src/lib/env.js ---
+export * from './env.ts';
+--- END OF FILE: ./src/lib/env.js ---
+
+
+--- START OF FILE: ./src/lib/node-files.js ---
+export * from './node-files.ts';
+--- END OF FILE: ./src/lib/node-files.js ---
+
+
+--- START OF FILE: ./src/lib/prepare-input.ts ---
+/**
+ * @file Input conversion utilities for deployment
+ * Converts various input types to StaticFile[] for unified processing
+ */
+
+import type { StaticFile, DeploymentOptions, DeployInput } from '../types.js';
+import { ShipError } from '@shipstatic/types';
+import { getENV } from './env.js';
+import { processFilesForNode } from './node-files.js';
+import { processFilesForBrowser } from './browser-files.js';
+import { getCurrentConfig } from '../core/platform-config.js';
+
+/**
+ * Unified validation for file count and size limits
+ * @param fileCount - Number of files 
+ * @param totalSize - Total size in bytes (optional, for size validation)
+ * @throws {ShipError} If limits are exceeded
+ * @internal
+ */
+function validateLimits(fileCount: number, totalSize?: number): void {
+  const config = getCurrentConfig();
+  
+  if (fileCount === 0) {
+    throw ShipError.business('No files to deploy.');
+  }
+  
+  if (fileCount > config.maxFilesCount) {
+    throw ShipError.business(`Too many files to deploy. Maximum allowed is ${config.maxFilesCount}.`);
+  }
+  
+  if (totalSize !== undefined && totalSize > config.maxTotalSize) {
+    throw ShipError.business(`Total deploy size is too large. Maximum allowed is ${config.maxTotalSize / (1024 * 1024)}MB.`);
+  }
+}
+
+/**
+ * Validates individual file size against platform limits
+ * @param fileName - Name of the file for error messages
+ * @param fileSize - Size of the file in bytes
+ * @throws {ShipError} If file is too large
+ * @internal
+ */
+function validateFileSize(fileName: string, fileSize: number): void {
+  const config = getCurrentConfig();
+  
+  if (fileSize > config.maxFileSize) {
+    throw ShipError.business(`File ${fileName} is too large. Maximum allowed size is ${config.maxFileSize / (1024 * 1024)}MB.`);
+  }
+}
+
+/**
+ * Comprehensive file validation for both Node.js and browser environments
+ * @param files - Array of files to validate (can be File[] or file metadata)
+ * @param options - Validation options
+ * @throws {ShipError} If validation fails
+ * @internal
+ */
+function validateFiles(files: Array<{ name: string; size: number }>, options: { skipEmptyCheck?: boolean } = {}): void {
+  const config = getCurrentConfig();
+  
+  // Check for empty file array
+  if (!options.skipEmptyCheck && files.length === 0) {
+    throw ShipError.business('No files to deploy.');
+  }
+  
+  // Check file count limit
+  if (files.length > config.maxFilesCount) {
+    throw ShipError.business(`Too many files to deploy. Maximum allowed is ${config.maxFilesCount}.`);
+  }
+  
+  // Validate individual files and calculate total size
+  let totalSize = 0;
+  for (const file of files) {
+    // Individual file size validation
+    if (file.size > config.maxFileSize) {
+      throw ShipError.business(`File ${file.name} is too large. Maximum allowed size is ${config.maxFileSize / (1024 * 1024)}MB.`);
+    }
+    totalSize += file.size;
+  }
+  
+  // Total size validation
+  if (totalSize > config.maxTotalSize) {
+    throw ShipError.business(`Total deploy size is too large. Maximum allowed is ${config.maxTotalSize / (1024 * 1024)}MB.`);
+  }
+}
+
+/**
+ * Shared post-processing logic for StaticFile arrays
+ * @param files - Array of StaticFile objects to process
+ * @returns Processed StaticFile array
+ * @internal
+ */
+function postProcessFiles(files: StaticFile[]): StaticFile[] {
+  // Validate processed files
+  validateFiles(files, { skipEmptyCheck: true });
+  
+  // Normalize paths to forward slashes
+  files.forEach(f => {
+    if (f.path) f.path = f.path.replace(/\\/g, '/');
+  });
+  
+  return files;
+}
+
+/**
+ * Converts Node.js string[] paths to StaticFile[]
+ */
+export async function convertNodeInput(
+  input: string[], 
+  options: DeploymentOptions = {}
+): Promise<StaticFile[]> {
+  if (!Array.isArray(input) || !input.every(item => typeof item === 'string')) {
+    throw ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.');
+  }
+  
+  // Initial validation - just check input count
+  if (input.length === 0) {
+    throw ShipError.business('No files to deploy.');
+  }
+
+  // Process files for Node.js
+  const processingOptions: { basePath?: string; stripCommonPrefix?: boolean } = {};
+  
+  if (options.stripCommonPrefix !== undefined) {
+    processingOptions.stripCommonPrefix = options.stripCommonPrefix;
+    if (options.stripCommonPrefix) {
+      const path = require('path');
+      const cwd = typeof process !== 'undefined' ? process.cwd() : '/';
+      const resolvedPaths = input.map((inputPath: string) => path.resolve(cwd, inputPath));
+      const { findCommonParent } = await import('./path.js');
+      const commonParent = findCommonParent(resolvedPaths);
+      if (commonParent) {
+        processingOptions.basePath = commonParent;
+      }
+    }
+  }
+
+  const staticFiles: StaticFile[] = await processFilesForNode(input, processingOptions);
+  
+  // Apply shared validation and post-processing
+  return postProcessFiles(staticFiles);
+}
+
+/**
+ * Converts browser FileList/File[]/HTMLInputElement to StaticFile[]
+ */
+export async function convertBrowserInput(
+  input: FileList | File[] | HTMLInputElement,
+  options: DeploymentOptions = {}
+): Promise<StaticFile[]> {
+  let fileArray: File[];
+  
+  if (input instanceof HTMLInputElement) {
+    if (!input.files) throw ShipError.business('No files selected in HTMLInputElement');
+    fileArray = Array.from(input.files);
+  } else if (
+    typeof input === 'object' &&
+    input !== null &&
+    typeof (input as any).length === 'number' &&
+    typeof (input as any).item === 'function'
+  ) {
+    fileArray = Array.from(input as FileList);
+  } else if (Array.isArray(input)) {
+    if (input.length > 0 && typeof input[0] === 'string') {
+      throw ShipError.business('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
+    }
+    fileArray = input as File[];
+  } else {
+    throw ShipError.business('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
+  }
+
+  // Filter out empty files first
+  fileArray = fileArray.filter(file => {
+    if (file.size === 0) {
+      console.warn(`Skipping empty file: ${file.name}`);
+      return false;
+    }
+    return true;
+  });
+
+  // Early validation using shared logic
+  validateFiles(fileArray);
+
+  // Process files for browser
+  const processingOptions: { stripCommonPrefix?: boolean; basePath?: string } = {};
+
+  if (options.stripCommonPrefix !== undefined) {
+    processingOptions.stripCommonPrefix = options.stripCommonPrefix;
+    if (options.stripCommonPrefix) {
+      const { findBrowserCommonParentDirectory } = await import('./browser-files.js');
+      const commonParent = findBrowserCommonParentDirectory(
+        input instanceof HTMLInputElement ? input.files! : input
+      );
+      if (commonParent) {
+        processingOptions.basePath = commonParent;
+      }
+    }
+  }
+
+  const staticFiles: StaticFile[] = await processFilesForBrowser(fileArray as File[], processingOptions);
+  
+  // Apply shared validation and post-processing
+  return postProcessFiles(staticFiles);
+}
+
+/**
+ * Unified input conversion function
+ * Converts any DeployInput to StaticFile[] based on environment
+ */
+export async function convertDeployInput(
+  input: DeployInput,
+  options: DeploymentOptions = {}
+): Promise<StaticFile[]> {
+  const environment = getENV();
+  
+  if (environment === 'node') {
+    if (!Array.isArray(input) || !input.every(item => typeof item === 'string')) {
+      throw ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.');
+    }
+    return convertNodeInput(input as string[], options);
+  } else if (environment === 'browser') {
+    if (!(input instanceof HTMLInputElement || Array.isArray(input) || 
+          (typeof FileList !== 'undefined' && input instanceof FileList))) {
+      throw ShipError.business('In browser, input must be FileList, File[], or HTMLInputElement.');
+    }
+    return convertBrowserInput(input as FileList | File[] | HTMLInputElement, options);
+  } else {
+    throw ShipError.business('Unsupported execution environment.');
+  }
+}
+--- END OF FILE: ./src/lib/prepare-input.ts ---
+
+
+--- START OF FILE: ./src/lib/browser-files.ts ---
+/**
+ * @file Browser-specific file utilities for the Ship SDK.
+ * Provides helpers for processing browser files into deploy-ready objects and extracting common directory info.
+ */
+import { getENV } from './env.js';
+import { StaticFile } from '../types.js';
+import { calculateMD5 } from './md5.js';
+import { ShipError } from '@shipstatic/types';
+import { findCommonParentDirectory, normalizeWebPath } from './path.js';
+import { filterJunk } from './junk.js';
+
+
+/**
+ * Internal structure representing a browser file to be processed for deploy.
+ * @internal
+ */
+interface BrowserFileProcessItem {
+  file: File;
+  relativePath: string;
+}
+
+/**
+ * Processes browser files (FileList or File[]) into an array of StaticFile objects ready for deploy.
+ * Calculates MD5, filters junk files, and determines relative paths (stripping basePath if provided).
+ *
+ * @param browserFiles - FileList or File[] to process for deploy.
+ * @param options - Optional processing options (basePath for path stripping, stripCommonPrefix).
+ * @returns Promise resolving to an array of StaticFile objects.
+ * @throws {ShipClientError} If called outside a browser or with invalid input.
+ */
+export async function processFilesForBrowser(
+  browserFiles: FileList | File[],
+  options: { explicitBaseDirInput?: string; stripCommonPrefix?: boolean } = {}
+): Promise<StaticFile[]> {
+  if (getENV() !== 'browser') {
+    throw ShipError.business('processFilesForBrowser can only be called in a browser environment.');
+  }
+
+  const { explicitBaseDirInput, stripCommonPrefix } = options;
+  const initialFileInfos: BrowserFileProcessItem[] = [];
+  const filesArray = Array.isArray(browserFiles) ? browserFiles : Array.from(browserFiles);
+  
+  // If stripCommonPrefix is true and no explicit basePath is provided,
+  // Determine the parent directory for path stripping if applicable
+  let parentDir = '';
+  if (stripCommonPrefix) {
+    parentDir = findBrowserCommonParentDirectory(browserFiles);
+  } else if (explicitBaseDirInput) {
+    parentDir = explicitBaseDirInput;
+  }
+
+  // Prepare the initial file information with appropriate relative paths
+  for (const file of filesArray) {
+    let relativePath = (file as any).webkitRelativePath || file.name;
+    if (parentDir) {
+      // Normalize all paths to use forward slashes
+      relativePath = normalizeWebPath(relativePath);
+      const basePathWithSlash = parentDir.endsWith('/') ? parentDir : `${parentDir}/`;
+      // Robustly strip deeply nested basePath prefix
+      if (relativePath === parentDir || relativePath === basePathWithSlash || relativePath.startsWith(basePathWithSlash)) {
+        relativePath = relativePath.substring(basePathWithSlash.length);
+      }
+    }
+    // Always normalize output path to forward slashes
+    relativePath = normalizeWebPath(relativePath);
+    initialFileInfos.push({ file, relativePath });
+  }
+
+  // Filter out junk files
+  const allRelativePaths = initialFileInfos.map(info => info.relativePath);
+  const nonJunkRelativePathsArray = filterJunk(allRelativePaths);
+  const nonJunkRelativePathsSet = new Set(nonJunkRelativePathsArray);
+
+  // Create StaticFile objects for each valid file
+  const result: StaticFile[] = [];
+  for (const fileInfo of initialFileInfos) {
+    // Skip junk files and empty files
+    if (!nonJunkRelativePathsSet.has(fileInfo.relativePath) || fileInfo.file.size === 0) {
+      continue;
+    }
+    
+    // Calculate MD5 hash
+    const { md5 } = await calculateMD5(fileInfo.file);
+    
+    // Create and add the StaticFile
+    result.push({
+      content: fileInfo.file,
+      path: fileInfo.relativePath,
+      size: fileInfo.file.size,
+      md5,
+    });
+  }
+  
+  return result;
+}
+
+/**
+ * Finds the common parent directory from a FileList or File[] using webkitRelativePath.
+ * Useful for stripping a common prefix if files are selected from a single folder.
+ *
+ * @param files - FileList or File[] to analyze.
+ * @returns Common parent directory string, or empty string if not consistent.
+ * @throws {ShipClientError} If called outside a browser.
+ */
+export function findBrowserCommonParentDirectory(files: FileList | File[]): string {
+  if (getENV() !== 'browser') {
+    throw ShipError.business('findBrowserCommonParentDirectory can only be called in a browser environment.');
+  }
+  if (!files || files.length === 0) return '';
+  
+  const paths: (string | null | undefined)[] = Array.from(files)
+    .map(file => (file as any).webkitRelativePath);
+
+  // If any file is missing webkitRelativePath, we can't determine a common parent.
+  if (paths.some(p => !p)) {
+    return '';
+  }
+
+  return findCommonParentDirectory(paths as string[], '/');
+}
+
+--- END OF FILE: ./src/lib/browser-files.ts ---
+
+
+--- START OF FILE: ./src/lib/env.ts ---
+/**
+ * @file Environment detection utilities for the Ship SDK.
+ * Helps in determining whether the SDK is running in a Node.js, browser, or unknown environment.
+ */
+
+/**
+ * Represents the detected or simulated JavaScript execution environment.
+ */
+export type ExecutionEnvironment = 'browser' | 'node' | 'unknown';
+
+/** @internal Environment override for testing. */
+let _testEnvironment: ExecutionEnvironment | null = null;
+
+/**
+ * **FOR TESTING PURPOSES ONLY.**
+ *
+ * Allows tests to override the detected environment, forcing the SDK to behave
+ * as if it's running in the specified environment.
+ *
+ * @param env - The environment to simulate ('node', 'browser', 'unknown'),
+ *              or `null` to clear the override and revert to actual environment detection.
+ * @internal
+ */
+export function __setTestEnvironment(env: ExecutionEnvironment | null): void {
+  _testEnvironment = env;
+}
+
+/**
+ * Detects the actual JavaScript execution environment (Node.js, browser, or unknown)
+ * by checking for characteristic global objects.
+ * @returns The detected environment as {@link ExecutionEnvironment}.
+ * @internal
+ */
+function detectEnvironment(): ExecutionEnvironment {
+  // Check for Node.js environment
+  if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+    return 'node';
+  }
+
+  // Check for Browser environment (including Web Workers)
+  if (typeof window !== 'undefined' || typeof self !== 'undefined') {
+    return 'browser';
+  }
+
+  return 'unknown';
+}
+
+/**
+ * Gets the current effective execution environment.
+ *
+ * This function first checks if a test environment override is active via {@link __setTestEnvironment}.
+ * If not, it detects the actual environment (Node.js, browser, or unknown).
+ *
+ * @returns The current execution environment: 'browser', 'node', or 'unknown'.
+ * @public
+ */
+export function getENV(): ExecutionEnvironment {
+  // Return test override if set
+  if (_testEnvironment) {
+    return _testEnvironment;
+  }
+  
+  // Detect actual environment
+  return detectEnvironment();
+}
+
+--- END OF FILE: ./src/lib/env.ts ---
+
+
+--- START OF FILE: ./src/lib/node-files.ts ---
+/**
+ * @file Node.js-specific file utilities for the Ship SDK.
+ * Provides helpers for recursively discovering, filtering, and preparing files for deploy in Node.js.
+ */
+import { getENV } from './env.js';
+import { StaticFile } from '../types.js';
+import { calculateMD5 } from './md5.js';
+import { filterJunk } from './junk.js';
+import { ShipError } from '@shipstatic/types';
+import { getCurrentConfig } from '../core/platform-config.js';
+
+import * as fs from 'fs';
+import * as path from 'path';
+
+
+/**
+ * Simple recursive function to walk directory and return all file paths.
+ * More declarative and focused than the previous implementation.
+ * @param dirPath - Directory path to traverse
+ * @returns Array of absolute file paths in the directory
+ */
+function findAllFilePaths(dirPath: string): string[] {
+  const results: string[] = [];
+  
+  try {
+    const entries = fs.readdirSync(dirPath);
+    
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry);
+      const stats = fs.statSync(fullPath);
+      
+      if (stats.isDirectory()) {
+        const subFiles = findAllFilePaths(fullPath);
+        results.push(...subFiles);
+      } else if (stats.isFile()) {
+        results.push(fullPath);
+      }
+    }
+  } catch (error) {
+    console.error(`Error reading directory ${dirPath}:`, error);
+  }
+  
+  return results;
+}
+
+/**
+ * Clean, declarative function to get files from a source path.
+ * Follows the suggested architectural pattern from the feedback.
+ * @param sourcePath - File or directory path to process
+ * @param options - Options for processing (basePath, stripCommonPrefix)
+ * @returns Promise resolving to array of StaticFile objects
+ */
+export async function getFilesFromPath(
+  sourcePath: string, 
+  options: { basePath?: string; stripCommonPrefix?: boolean } = {}
+): Promise<StaticFile[]> {
+  const absolutePath = path.resolve(sourcePath);
+  
+  // 1. Discover all files
+  const allPaths = (() => {
+    const stats = fs.statSync(absolutePath);
+    if (stats.isFile()) {
+      return [absolutePath];
+    } else if (stats.isDirectory()) {
+      return findAllFilePaths(absolutePath);
+    } else {
+      return [];
+    }
+  })();
+  
+  // 2. Filter out junk
+  const validPaths = allPaths.filter(p => {
+    const basename = path.basename(p);
+    return filterJunk([basename]).length > 0; // Keep files that pass junk filter
+  });
+  
+  // 3. Determine base for relative paths
+  let commonParent: string;
+  if (options.basePath) {
+    commonParent = options.basePath;
+  } else if (options.stripCommonPrefix) {
+    // For stripCommonPrefix, use the parent of the input directory
+    commonParent = path.dirname(absolutePath);
+  } else {
+    // Default behavior: use the source directory
+    const stats = fs.statSync(absolutePath);
+    if (stats.isDirectory()) {
+      commonParent = absolutePath;
+    } else {
+      commonParent = path.dirname(absolutePath);
+    }
+  }
+  
+  // 4. Process into StaticFile objects
+  const results: StaticFile[] = [];
+  let totalSize = 0;
+  
+  for (const filePath of validPaths) {
+    try {
+      // Validate file
+      const stats = fs.statSync(filePath);
+      
+      if (stats.size === 0) {
+        console.warn(`Skipping empty file: ${filePath}`);
+        continue;
+      }
+      
+      const platformLimits = getCurrentConfig();
+      if (stats.size > platformLimits.maxFileSize) {
+        throw ShipError.business(`File ${filePath} is too large. Maximum allowed size is ${platformLimits.maxFileSize / (1024 * 1024)}MB.`);
+      }
+      
+      totalSize += stats.size;
+      if (totalSize > platformLimits.maxTotalSize) {
+        throw ShipError.business(`Total deploy size is too large. Maximum allowed is ${platformLimits.maxTotalSize / (1024 * 1024)}MB.`);
+      }
+      
+      // Read content and calculate metadata
+      const content = fs.readFileSync(filePath);
+      const { md5 } = await calculateMD5(content);
+      const relativePath = path.relative(commonParent, filePath).replace(/\\/g, '/');
+      
+      results.push({
+        path: relativePath,
+        content: content,
+        size: content.length,
+        md5,
+      });
+    } catch (error) {
+      if (error instanceof ShipError && error.isClientError && error.isClientError()) {
+        throw error;
+      }
+      console.error(`Could not process file ${filePath}:`, error);
+    }
+  }
+  
+  // Validate total file count
+  const platformLimits = getCurrentConfig();
+  if (results.length > platformLimits.maxFilesCount) {
+    throw ShipError.business(`Too many files to deploy. Maximum allowed is ${platformLimits.maxFilesCount} files.`);
+  }
+  
+  return results;
+}
+
+
+/**
+ * Processes Node.js file and directory paths into an array of StaticFile objects ready for deploy.
+ * Now uses the simplified, declarative approach suggested in the feedback.
+ * 
+ * @param paths - File or directory paths to scan and process.
+ * @param options - Processing options (basePath, stripCommonPrefix).
+ * @returns Promise resolving to an array of StaticFile objects.
+ * @throws {ShipClientError} If called outside Node.js or if fs/path modules fail.
+ */
+export async function processFilesForNode(
+  paths: string[],
+  options: { basePath?: string; stripCommonPrefix?: boolean } = {}
+): Promise<StaticFile[]> {
+  if (getENV() !== 'node') {
+    throw ShipError.business('processFilesForNode can only be called in a Node.js environment.');
+  }
+
+  // Handle multiple paths by processing each and combining results
+  if (paths.length > 1) {
+    const allResults: StaticFile[] = [];
+    for (const singlePath of paths) {
+      const results = await getFilesFromPath(singlePath, options);
+      allResults.push(...results);
+    }
+    return allResults;
+  }
+
+  // Single path - use the simplified getFilesFromPath function
+  return await getFilesFromPath(paths[0], options);
+}
+
+--- END OF FILE: ./src/lib/node-files.ts ---
+
+
+--- START OF FILE: ./src/api/http.ts ---
+/**
+ * @file Manages HTTP requests to the Ship API using native fetch.
+ */
+import * as _mime from 'mime-types';
+import type { Deployment, DeploymentListResponse, PingResponse, ConfigResponse, DeploymentRemoveResponse, Alias, AliasListResponse, Account } from '@shipstatic/types';
+import { StaticFile, ApiDeployOptions, ShipClientOptions } from '../types.js';
+import { ShipError } from '@shipstatic/types';
+import { getENV } from '../lib/env.js';
+import { DEFAULT_API } from '../core/constants.js';
+
+// FormData and File types for Node.js environment
+/**
+ * Internal type alias for Node.js FormData implementation used during file deploys.
+ * @internal
+ */
+type FormDataNode = any;
+/**
+ * Internal type alias for Node.js File implementation used during file deploys.
+ * @internal
+ */
+type FileNode = any;
+
+/** Default API host URL if not otherwise configured. */
+/** @internal */
+const DEPLOY_ENDPOINT = '/deployments';
+/** @internal */
+const PING_ENDPOINT = '/ping';
+/** @internal */
+const ALIASES_ENDPOINT = '/aliases';
+/** @internal */
+const CONFIG_ENDPOINT = '/config';
+/** @internal */
+const ACCOUNT_ENDPOINT = '/account';
+
+/**
+ * Determines the MIME type for a given file (File object or path string) in browser environments.
+ * Falls back to 'application/octet-stream' if type cannot be determined.
+ * @internal
+ * @param file - File object or file path string.
+ * @returns The MIME type as a string.
+ */
+function getBrowserContentType(file: File | string): string {
+  if (typeof file === 'string') {
+    return _mime.lookup(file) || 'application/octet-stream';
+  } else {
+    return _mime.lookup(file.name) || file.type || 'application/octet-stream';
+  }
+}
+
+/**
+ * Collects all items from an AsyncIterable into an array.
+ * Useful for converting streaming multipart encoders to Buffer arrays.
+ * @internal
+ * @template T - The item type yielded by the iterable.
+ * @param iterable - The async iterable to collect.
+ * @returns A promise resolving to an array of all items.
+ */
+async function collectAsyncIterable<T>(iterable: AsyncIterable<T>): Promise<T[]> {
+  const result: T[] = [];
+  for await (const x of iterable) {
+    result.push(x);
+  }
+  return result;
+}
+
+/**
+ * Handles direct HTTP communication with the Ship API, including deploys and health checks.
+ * Responsible for constructing requests, managing authentication, and error translation.
+ * @internal
+ */
+export class ApiHttp {
+  private readonly apiUrl: string;
+  private readonly apiKey: string;
+
+  /**
+   * Constructs a new ApiHttp instance with the provided client options.
+   * @param options - Client options including API host, apiKey, and timeout settings.
+   */
+  constructor(options: ShipClientOptions) {
+    this.apiUrl = options.apiUrl || DEFAULT_API;
+    this.apiKey = options.apiKey ?? "";
+  }
+
+  /**
+   * Generates common headers for API requests, including the API key if present.
+   * @param customHeaders - Optional additional headers to include.
+   * @returns Object containing merged headers.
+   * @private
+   */
+  #getAuthHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
+    const headers = { ...customHeaders };
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+    return headers;
+  }
+
+  /**
+   * Makes a fetch request with common error handling and authentication.
+   * @param url - Request URL
+   * @param options - Fetch options
+   * @param operationName - Name of operation for error messages
+   * @returns Promise resolving to Response object
+   * @private
+   */
+  async #fetchWithAuth(url: string, options: RequestInit = {}, operationName: string): Promise<Response> {
+    const headers = this.#getAuthHeaders(options.headers as Record<string, string>);
+    
+    const fetchOptions: RequestInit = {
+      ...options,
+      headers,
+      credentials: getENV() === 'browser' ? 'include' : 'same-origin',
+    };
+
+    try {
+      const response = await fetch(url, fetchOptions);
+      return response;
+    } catch (error: any) {
+      this.#handleFetchError(error, operationName);
+      // This line is unreachable because #handleFetchError always throws
+      throw error;
+    }
+  }
+
+  /**
+   * Unified HTTP request helper that handles the complete request lifecycle.
+   * Makes authenticated requests, checks response status, and handles all errors.
+   * Automatically determines whether to parse JSON based on response headers.
+   * @param url - Request URL
+   * @param options - Fetch options  
+   * @param operationName - Name of operation for error messages
+   * @returns Promise resolving to parsed JSON response or undefined for empty responses
+   * @throws {ShipError} Various ShipError types based on the failure mode
+   * @private
+   */
+  async #request<T>(url: string, options: RequestInit = {}, operationName: string): Promise<T> {
+    try {
+      const response = await this.#fetchWithAuth(url, options, operationName);
+      
+      if (!response.ok) {
+        await this.#handleResponseError(response, operationName);
+      }
+      
+      // Check if response has content to parse
+      const contentLength = response.headers.get('Content-Length');
+      if (contentLength === '0' || response.status === 204) {
+        return undefined as T; // Return undefined for empty responses
+      }
+      
+      return await response.json() as T;
+    } catch (error: any) {
+      if (error instanceof ShipError) {
+        throw error;
+      }
+      this.#handleFetchError(error, operationName);
+      // This line is unreachable because #handleFetchError always throws
+      throw error;
+    }
+  }
+  
+  /**
+   * Sends a ping request to the Ship API server to verify connectivity and authentication.
+   * @returns Promise resolving to `true` if the ping is successful, `false` otherwise.
+   * @throws {ShipApiError} If the API returns an error response (4xx, 5xx).
+   * @throws {ShipNetworkError} If a network error occurs (e.g., DNS failure, connection refused).
+   */
+  public async ping(): Promise<boolean> {
+    const data = await this.#request<PingResponse>(`${this.apiUrl}${PING_ENDPOINT}`, { method: 'GET' }, 'Ping');
+    return data?.success || false;
+  }
+
+  /**
+   * Fetches platform configuration from the API.
+   * @returns Promise resolving to the config response.
+   * @throws {ShipError} If the config request fails.
+   */
+  public async getConfig(): Promise<ConfigResponse> {
+    return await this.#request<ConfigResponse>(`${this.apiUrl}${CONFIG_ENDPOINT}`, { method: 'GET' }, 'Config');
+  }
+
+  /**
+   * Deploys an array of StaticFile objects to the Ship API.
+   * Constructs and sends a multipart/form-data POST request, handling both browser and Node.js environments.
+   * Validates files and manages deploy progress and error translation.
+   * @param files - Array of StaticFile objects to deploy (must include MD5 checksums).
+   * @param options - Optional per-deploy configuration (overrides instance defaults).
+   * @returns Promise resolving to a full Deployment object on success.
+   * @throws {ShipFileError} If a file is missing an MD5 checksum or content type is unsupported.
+   * @throws {ShipClientError} If no files are provided or if environment is unknown.
+   * @throws {ShipNetworkError} If a network error occurs during deploy.
+   * @throws {ShipApiError} If the API returns an error response.
+   * @throws {ShipCancelledError} If the deploy is cancelled via an AbortSignal.
+   */
+  public async deploy(
+    files: StaticFile[],
+    options: ApiDeployOptions = {}
+  ): Promise<Deployment> {
+    this.#validateFiles(files);
+
+    const {
+      apiUrl = this.apiUrl,
+      signal
+    } = options;
+
+    try {
+      const { requestBody, requestHeaders } = await this.#prepareRequestPayload(files);
+      
+      const fetchOptions: RequestInit = {
+        method: 'POST',
+        body: requestBody,
+        headers: requestHeaders,
+        signal: signal || null
+      };
+
+      const response = await this.#fetchWithAuth(`${apiUrl}${DEPLOY_ENDPOINT}`, fetchOptions, 'Deploy');
+      
+      if (!response.ok) {
+        await this.#handleResponseError(response, 'Deploy');
+      }
+      
+      return await response.json() as Deployment;
+    } catch (error: any) {
+      if (error instanceof ShipError) {
+        throw error;
+      }
+      this.#handleFetchError(error, 'Deploy');
+      // This line is unreachable because #handleFetchError always throws.
+      // However, TypeScript requires a return statement here.
+      throw ShipError.business('An unexpected error occurred and was not handled.');
+    }
+  }
+  
+  /**
+   * Validates the files array for deploy requirements.
+   * Ensures all files have MD5 checksums and at least one file is present.
+   * @param files - Files to validate.
+   * @throws {ShipFileError} If a file is missing an MD5 checksum.
+   * @throws {ShipClientError} If no files are provided.
+   * @private
+   */
+  #validateFiles(files: StaticFile[]): void {
+    if (!files.length) {
+      throw ShipError.business('No files to deploy.');
+    }
+    
+    for (const file of files) {
+      if (!file.md5) {
+        throw ShipError.file(`MD5 checksum missing for file: ${file.path}`, file.path);
+      }
+    }
+  }
+
+
+  /**
+   * Prepares the request payload (body and headers) for deploy based on execution environment.
+   * Selects browser or Node.js multipart construction as needed.
+   * @param files - Files to deploy.
+   * @returns Promise resolving to request body and headers.
+   * @private
+   */
+  async #prepareRequestPayload(files: StaticFile[]): Promise<{
+    requestBody: FormData | Buffer;
+    requestHeaders: Record<string, string>;
+  }> {
+    let requestBody: FormData | Buffer;
+    let requestHeaders: Record<string, string> = {};
+    
+    if (getENV() === 'browser') {
+      requestBody = this.#createBrowserBody(files);
+    } else if (getENV() === 'node') {
+      const { body, headers } = await this.#createNodeBody(files);
+      requestBody = body;
+      requestHeaders = headers;
+    } else {
+      throw ShipError.business('Unknown or unsupported execution environment');
+    }
+    
+    return { requestBody, requestHeaders };
+  }
+
+  /**
+   * Creates a FormData object for browser environments, populating it with files and checksums.
+   * @param files - Array of StaticFile objects to include in the FormData.
+   * @returns FormData object ready for transmission.
+   * @throws {ShipFileError} If file content is of an unsupported type for browser FormData.
+   * @private
+   */
+  #createBrowserBody(files: StaticFile[]): FormData {
+    const formData = new FormData();
+    const checksums: string[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      let fileContent: File | Blob;
+      if (file.content instanceof File || file.content instanceof Blob) {
+        fileContent = file.content;
+      } else {
+        throw ShipError.file(`Unsupported file.content type for browser FormData: ${file.path}`, file.path);
+      }
+      const contentType = getBrowserContentType(fileContent instanceof File ? fileContent : file.path);
+      const fileWithPath = new File([fileContent], file.path, { type: contentType });
+      formData.append('files[]', fileWithPath);
+      checksums.push(file.md5!);
+    }
+    
+    // Add checksums as JSON array
+    formData.append('checksums', JSON.stringify(checksums));
+    return formData;
+  }
+
+  /**
+   * Creates the multipart request body (Buffer) and headers for Node.js environments using formdata-node and form-data-encoder.
+   * @param files - Array of StaticFile objects to include in the multipart body.
+   * @returns Promise resolving to an object with the body Buffer and headers.
+   * @throws {ShipFileError} If file content is of an unsupported type for Node.js FormData.
+   * @private
+   */
+  async #createNodeBody(files: StaticFile[]): Promise<{body: Buffer, headers: Record<string, string>}> {
+    const { FormData: FormDataNodeClass, File: FileNodeClass } = await import('formdata-node');
+    const { FormDataEncoder: FormDataEncoderClass } = await import('form-data-encoder');
+    const pathImport = await import('path');
+    const formDataNodeInstance: FormDataNode = new FormDataNodeClass();
+    const checksums: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const contentType = _mime.lookup(file.path) || 'application/octet-stream';
+      let fileNodeInstance: FileNode;
+
+      if (Buffer.isBuffer(file.content)) {
+        fileNodeInstance = new FileNodeClass([file.content], pathImport.basename(file.path), { type: contentType });
+      } else if (typeof Blob !== "undefined" && file.content instanceof Blob) {
+        fileNodeInstance = new FileNodeClass([file.content], pathImport.basename(file.path), { type: contentType });
+      } else {
+        throw ShipError.file(`Unsupported file.content type for Node.js FormData: ${file.path}`, file.path);
+      }
+      const preservedPath = file.path.startsWith('/') ? file.path : '/' + file.path;
+      formDataNodeInstance.append('files[]', fileNodeInstance, preservedPath);
+      checksums.push(file.md5!);
+    }
+
+    // Add checksums as JSON array
+    formDataNodeInstance.append('checksums', JSON.stringify(checksums));
+
+    const encoder = new FormDataEncoderClass(formDataNodeInstance);
+    const encodedChunks = await collectAsyncIterable(encoder.encode());
+    const body = Buffer.concat(encodedChunks.map(chunk => Buffer.from(chunk as Uint8Array)));
+
+    const headers = {
+      'Content-Type': encoder.contentType,
+      'Content-Length': Buffer.byteLength(body).toString()
+    };
+    return { body, headers };
+  }
+
+  /**
+   * Handles fetch response errors and throws appropriate ShipError types.
+   * @param response - Fetch Response object with error status
+   * @param operationName - Name of the failed operation
+   * @throws {ShipApiError} Always throws with API error details
+   * @private
+   */
+  async #handleResponseError(response: Response, operationName: string): Promise<never> {
+    let errorData: any = {};
+    try {
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        errorData = await response.json();
+      } else {
+        errorData = { message: await response.text() };
+      }
+    } catch {
+      errorData = { message: 'Failed to parse error response' };
+    }
+
+    // Handle structured error responses (with error field, code, or message)
+    if (errorData.error || errorData.code || errorData.message) {
+      // Use message if available, otherwise use the error field as the message, or fallback
+      const message = errorData.message || errorData.error || `${operationName} failed due to API error`;
+      
+      throw ShipError.api(
+        message,
+        response.status,
+        errorData.code,
+        errorData
+      );
+    }
+
+    // Fallback for completely unstructured errors
+    throw ShipError.api(
+      `${operationName} failed due to API error`,
+      response.status,
+      undefined,
+      errorData
+    );
+  }
+
+  /**
+   * Translates fetch errors into appropriate ShipError types and always throws.
+   * Intended for use in catch blocks of API requests; never returns.
+   * @param error - The error object caught from fetch.
+   * @param operationName - Name of the failed operation (e.g., 'Deploy', 'Ping').
+   * @throws {ShipCancelledError} If the request was cancelled.
+   * @throws {ShipNetworkError} If a network error occurred (DNS failure, connection refused).
+   * @throws {ShipClientError} For other unexpected errors.
+   * @private
+   */
+  #handleFetchError(error: any, operationName: string): never {
+    if (error.name === 'AbortError') {
+      throw ShipError.cancelled(`${operationName} operation was cancelled.`);
+    }
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw ShipError.network(`${operationName} failed due to network error: ${error.message}`, error);
+    }
+    if (error instanceof ShipError) {
+      throw error;
+    }
+    throw ShipError.business(`An unexpected error occurred during ${operationName}: ${error.message || 'Unknown error'}`);
+  }
+
+  /**
+   * Lists all deployments for the authenticated account
+   * @returns Promise resolving to deployment list response
+   */
+  public async listDeployments(): Promise<DeploymentListResponse> {
+    return await this.#request<DeploymentListResponse>(`${this.apiUrl}${DEPLOY_ENDPOINT}`, { method: 'GET' }, 'List Deployments');
+  }
+
+  /**
+   * Gets a specific deployment by ID
+   * @param id - Deployment ID to retrieve
+   * @returns Promise resolving to deployment details
+   */
+  public async getDeployment(id: string): Promise<Deployment> {
+    return await this.#request<Deployment>(`${this.apiUrl}${DEPLOY_ENDPOINT}/${id}`, { method: 'GET' }, 'Get Deployment');
+  }
+
+  /**
+   * Removes a deployment by ID
+   * @param id - Deployment ID to remove
+   * @returns Promise resolving when removal is complete
+   */
+  public async removeDeployment(id: string): Promise<void> {
+    await this.#request<DeploymentRemoveResponse>(`${this.apiUrl}${DEPLOY_ENDPOINT}/${id}`, { method: 'DELETE' }, 'Remove Deployment');
+  }
+
+  /**
+   * Sets an alias (create or update)
+   * @param name - Alias name
+   * @param deploymentName - Deployment name to point to
+   * @returns Promise resolving to the created/updated alias
+   */
+  public async setAlias(name: string, deploymentName: string): Promise<Alias> {
+    return await this.#request<Alias>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deploymentId: deploymentName })
+    }, 'Set Alias');
+  }
+
+  /**
+   * Gets a specific alias by name
+   * @param name - Alias name to retrieve
+   * @returns Promise resolving to alias details
+   */
+  public async getAlias(name: string): Promise<Alias> {
+    return await this.#request<Alias>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'GET' }, 'Get Alias');
+  }
+
+  /**
+   * Lists all aliases for the authenticated account
+   * @returns Promise resolving to alias list response
+   */
+  public async listAliases(): Promise<AliasListResponse> {
+    return await this.#request<AliasListResponse>(`${this.apiUrl}${ALIASES_ENDPOINT}`, { method: 'GET' }, 'List Aliases');
+  }
+
+  /**
+   * Removes an alias by name
+   * @param name - Alias name to remove
+   * @returns Promise resolving to removal confirmation
+   */
+  public async removeAlias(name: string): Promise<void> {
+    await this.#request<void>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'DELETE' }, 'Remove Alias');
+  }
+
+  /**
+   * Gets account details for the authenticated user
+   * @returns Promise resolving to account details
+   */
+  public async getAccount(): Promise<Account> {
+    return await this.#request<Account>(`${this.apiUrl}${ACCOUNT_ENDPOINT}`, { method: 'GET' }, 'Get Account');
+  }
+
+  /**
+   * Creates a new API key for the authenticated user
+   * @returns Promise resolving to the new API key
+   */
+  public async createApiKey(): Promise<{ apiKey: string }> {
+    return await this.#request<{ apiKey: string }>(`${this.apiUrl}/key`, { method: 'POST' }, 'Create API Key');
+  }
+}
+
+--- END OF FILE: ./src/api/http.ts ---
+
+
+--- START OF FILE: ./src/index.ts ---
+/**
+ * @file Main entry point for the Ship SDK.
+ * This module provides a simplified class-based SDK interface similar to Vercel's approach.
+ */
+
+// Core imports
+import { getENV } from './lib/env.js';
+import { loadConfig, resolveConfig } from './core/config.js';
+import { ApiHttp } from './api/http.js';
+import { ShipError } from '@shipstatic/types';
+import { setConfig } from './core/platform-config.js';
+import type { ShipClientOptions } from './types.js';
+
+// Resource imports
+import { createDeploymentResource, createAliasResource, createAccountResource, createKeysResource } from './resources.js';
+import type { DeploymentResource, AliasResource, AccountResource, KeysResource, DeployInput } from './resources.js';
+import type { DeploymentOptions } from './types.js';
+import type { Deployment } from '@shipstatic/types';
+
+
+
+// Re-export types from deploy types
+export type { DeployInput, DeploymentOptions } from './types.js';
+
+
+/**
+ * Ship SDK Client - Universal class-based interface for both Node.js and browser environments.
+ * 
+ * Similar to Vercel's SDK approach:
+ * ```
+ * const ship = new Ship({ apiKey: "your-api-key" });
+ * ```
+ * 
+ * Automatically detects the environment and handles Node.js and browser deploys directly.
+ * In Node.js environments, loads configuration from files and environment variables.
+ * In browser environments, uses only the provided options.
+ */
+/**
+ * Ship SDK Client - Simplified single class supporting both Node.js and browser environments
+ */
+export class Ship {
+  private http: ApiHttp;
+  private environment: 'node' | 'browser';
+  private configInitialized: boolean = false;
+  private readonly clientOptions: ShipClientOptions;
+  
+  // Resource instances (lazy-loaded)
+  private _deployments?: DeploymentResource;
+  private _aliases?: AliasResource;
+  private _account?: AccountResource;
+  private _keys?: KeysResource;
+
+  constructor(options: ShipClientOptions = {}) {
+    this.clientOptions = options;
+    this.environment = getENV() as 'node' | 'browser';
+    
+    if (this.environment !== 'node' && this.environment !== 'browser') {
+      throw ShipError.business('Unsupported execution environment.');
+    }
+    
+    // Load config synchronously and initialize HTTP client
+    const loadedConfig = loadConfig();
+    const config = resolveConfig(options, loadedConfig);
+    this.http = new ApiHttp({ ...options, ...config });
+  }
+
+  /**
+   * Initialize platform config from API (called automatically on first use)
+   */
+  private async initializeConfig(): Promise<void> {
+    if (this.configInitialized) return;
+    
+    const config = await this.http.getConfig();
+    setConfig(config);
+    this.configInitialized = true;
+  }
+
+  /**
+   * Ping the API server to check connectivity
+   */
+  async ping(): Promise<boolean> {
+    return this.http.ping();
+  }
+
+  /**
+   * Get deployments resource (environment-specific)
+   */
+  get deployments() {
+    if (!this._deployments) {
+      this._deployments = createDeploymentResource(this.http, () => this.initializeConfig(), this.clientOptions);
+    }
+    return this._deployments;
+  }
+  
+  /**
+   * Get aliases resource
+   */
+  get aliases(): AliasResource {
+    if (!this._aliases) {
+      this._aliases = createAliasResource(this.http);
+    }
+    return this._aliases;
+  }
+  
+  /**
+   * Get account resource
+   */
+  get account(): AccountResource {
+    if (!this._account) {
+      this._account = createAccountResource(this.http);
+    }
+    return this._account;
+  }
+  
+  /**
+   * Get keys resource
+   */
+  get keys(): KeysResource {
+    if (!this._keys) {
+      this._keys = createKeysResource(this.http);
+    }
+    return this._keys;
+  }
+
+  /**
+   * Deploy files (convenience shortcut to ship.deployments.create())
+   */
+  async deploy(input: DeployInput, options?: DeploymentOptions): Promise<Deployment> {
+    return this.deployments.create(input, options);
+  }
+
+}
+
+// Default export (for import Ship from 'ship')
+export default Ship;
+
+// Export all public types
+export type { StaticFile, ShipClientOptions, ApiDeployOptions, ProgressStats } from './types.js';
+export type { PingResponse } from '@shipstatic/types';
+
+// Export resource types
+export type { DeploymentResource, AliasResource, AccountResource, KeysResource } from './resources.js';
+
+// Export main error class and error type enum
+export { ShipError, ShipErrorType } from '@shipstatic/types';
+
+// Advanced/utility exports (for tests and power users; subject to change)
+export { processFilesForNode } from './lib/node-files.js';
+export { processFilesForBrowser, findBrowserCommonParentDirectory } from './lib/browser-files.js';
+
+// Test utilities
+/**
+ * @internal
+ * Test utility to set the execution environment (e.g., 'node', 'browser').
+ * This should not be used in production code.
+ */
+export { __setTestEnvironment } from './lib/env.js';
+
+--- END OF FILE: ./src/index.ts ---
