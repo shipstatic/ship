@@ -1,0 +1,82 @@
+{
+  "name": "@shipstatic/ship",
+  "version": "0.1.0",
+  "description": "SDK & CLI for Shipstatic platform",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "browser": "./dist/index.browser.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.browser.js"
+      },
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "bin": {
+    "ship": "./dist/cli.cjs"
+  },
+  "scripts": {
+    "test": "vitest",
+    "clean": "rm -rf dist",
+    "build": "pnpm run clean && tsup"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "sdk",
+    "cli",
+    "shipstatic"
+  ],
+  "homepage": "https://github.com/shipstatic/ship",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shipstatic/ship.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shipstatic/ship/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "ShipStatic",
+  "license": "MIT",
+  "dependencies": {
+    "@shipstatic/types": "^0.1.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "cosmiconfig": "^9.0.0",
+    "form-data-encoder": "^4.1.0",
+    "formdata-node": "^6.0.3",
+    "junk": "^4.0.1",
+    "mime-types": "^3.0.1",
+    "spark-md5": "^3.0.2",
+    "zod": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^20.15.1",
+    "@types/spark-md5": "^3.0.4",
+    "esbuild": "^0.23.0",
+    "jsdom": "^24.0.0",
+    "memfs": "^4.17.2",
+    "path-browserify": "^1.0.1",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.3"
+  }
+}
