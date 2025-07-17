@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@shipstatic/types':
-        specifier: ^0.1.1
-        version: 0.1.1
+        specifier: ^0.1.2
+        version: 0.1.2
       cli-table3:
         specifier: ^0.6.5
         version: 0.6.5
@@ -566,8 +566,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shipstatic/types@0.1.1':
-    resolution: {integrity: sha512-JNI/0bwnxANn1J7FxcRyw6TE+VjRg5DXzeQJ8CpF5JFRtMKqGRmCLZL9tBa8K+/yak6N69PLX4jW4iGGe7+p1Q==}
+  '@shipstatic/types@0.1.2':
+    resolution: {integrity: sha512-wcRJH1HJGApFSHfoOav/IEuITfhtyB62tCI0tMb0dx1WPNIWR/L3yrlcPAYl8ldfrjl8fmYXwkLdM7i12WMM/Q==}
     engines: {node: '>=20.0.0'}
 
   '@tsconfig/node10@1.0.11':
@@ -1812,7 +1812,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.44.0':
     optional: true
 
-  '@shipstatic/types@0.1.1': {}
+  '@shipstatic/types@0.1.2': {}
 
   '@tsconfig/node10@1.0.11': {}
 

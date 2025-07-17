@@ -1,4 +1,4 @@
-# Ship CLI & SDK
+# 🚢 Ship CLI & SDK
 
 A modern, lightweight SDK and CLI for deploying static files, designed for both **Node.js** and **Browser** environments with a clean resource-based API.
 
