@@ -1,6 +1,6 @@
 {
   "name": "@shipstatic/ship",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "SDK & CLI for Shipstatic platform",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -54,7 +54,7 @@
   "author": "ShipStatic",
   "license": "MIT",
   "dependencies": {
-    "@shipstatic/types": "^0.1.2",
+    "@shipstatic/types": "^0.1.3",
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
     "cosmiconfig": "^9.0.0",
