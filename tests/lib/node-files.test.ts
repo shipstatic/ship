@@ -250,7 +250,7 @@ describe('Node File Utilities', () => {
       // File paths should not include the parent folder
       // Sort both actual and expected for comparison, but don't change the implementation
       const actualPaths = result.map(f => f.path).sort();
-      const expectedPaths = ['parent/sub1/file1.txt', 'parent/sub1/file2.txt', 'parent/sub2/file3.txt'].sort();
+      const expectedPaths = ['sub1/file1.txt', 'sub1/file2.txt', 'sub2/file3.txt'].sort();
       expect(actualPaths).toEqual(expectedPaths);
     });
 
@@ -275,7 +275,7 @@ describe('Node File Utilities', () => {
       // The paths should be relative to 'nested/asdf', so the prefix should be gone
       // Sort both actual and expected for comparison, but don't change the implementation
       const actualPaths = result.map(f => f.path).sort();
-      const expectedPaths = ['asdf/README.md', 'asdf/css/styles.css', 'asdf/js/dark-mode.js'].sort();
+      const expectedPaths = ['README.md', 'css/styles.css', 'js/dark-mode.js'].sort();
       expect(actualPaths).toEqual(expectedPaths);
     });
     

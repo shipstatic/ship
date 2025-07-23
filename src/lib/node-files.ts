@@ -79,7 +79,9 @@ export async function getFilesFromPath(
   if (options.basePath) {
     commonParent = options.basePath;
   } else if (options.stripCommonPrefix) {
-    // For stripCommonPrefix, use the directory itself if it's a single directory
+    // For stripCommonPrefix, we need to handle two cases:
+    // 1. Single directory input: use the directory itself as the common parent
+    // 2. Multiple files/dirs: use the parent of the input directory
     const stats = fs.statSync(absolutePath);
     if (stats.isDirectory()) {
       commonParent = absolutePath;
