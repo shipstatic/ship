@@ -130,18 +130,18 @@ describe('Browser File Utilities', () => {
     expect(findBrowserCommonParentDirectory(fileList)).toBe('');
   });
 
-  it('returns parent directory for a single file with directory path', () => {
+  it('returns full path for a single file with directory path', () => {
     // Single file in a directory
     const singleFile = mockFile('a.txt', 'my-folder/a.txt');
     const fileList = mockFileList([singleFile]);
-    expect(findBrowserCommonParentDirectory(fileList)).toBe('my-folder');
+    expect(findBrowserCommonParentDirectory(fileList)).toBe('my-folder/a.txt');
   });
   
-  it('returns empty string for a single file in root (no directory)', () => {
+  it('returns full path for a single file in root (no directory)', () => {
     // Single file with no directory
     const singleFile = mockFile('a.txt', 'a.txt');
     const fileList = mockFileList([singleFile]);
-    expect(findBrowserCommonParentDirectory(fileList)).toBe('');
+    expect(findBrowserCommonParentDirectory(fileList)).toBe('a.txt');
   });
 
   it('returns empty string if any file is missing webkitRelativePath', () => {

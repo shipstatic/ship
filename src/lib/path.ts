@@ -17,50 +17,59 @@ export function findCommonParentDirectory(paths: string[], separator: string): s
     return '';
   }
   
-  // Filter out empty paths and paths without separators
-  const validPaths = paths.filter(p => p && typeof p === 'string' && p.includes(separator));
+  // Filter out empty paths
+  const validPaths = paths.filter(p => p && typeof p === 'string');
   
   if (validPaths.length === 0) {
     return '';
   }
 
-  // Special case for single path: return the directory containing this path
-  if (validPaths.length === 1) {
-    const path = validPaths[0];
-    const lastSepIndex = path.lastIndexOf(separator);
-    if (lastSepIndex > -1) {
-      // Return the directory part without the file name
-      return path.substring(0, lastSepIndex);
-    }
-    return ''; // No directory part found
-  }
-
-  // Sort paths alphabetically to easily find the common prefix
-  const sortedPaths = [...validPaths].sort();
-  const firstPath = sortedPaths[0];
-  const lastPath = sortedPaths[sortedPaths.length - 1];
+  // Normalize paths to ensure consistent handling across environments
+  // Convert all paths to use forward slashes regardless of input format
+  const normalizedPaths = validPaths.map(p => {
+    // Use the existing path normalization function to handle Windows and Unix paths
+    const normalized = p.replace(/\\/g, '/').replace(/^\/+/, '');
+    // Add trailing slash for consistent segment comparison
+    return normalized.endsWith('/') ? normalized : normalized + '/';
+  });
   
-  // Find the length of the common prefix
-  let i = 0;
-  while (i < firstPath.length && i < lastPath.length && firstPath[i] === lastPath[i]) {
-    i++;
+  // Special case for single path: return the directory itself
+  // This ensures we strip the directory name for single directory inputs
+  if (normalizedPaths.length === 1) {
+    const path = normalizedPaths[0];
+    // For a single path, return the path itself (without trailing slash)
+    return path.slice(0, -1); // Remove trailing slash
   }
 
-  const commonPrefix = firstPath.substring(0, i);
-
-  // The prefix must be a directory. If it doesn't end with a separator,
-  // find the last separator to get the parent directory.
-  if (commonPrefix.endsWith(separator)) {
-    // It's a full directory path that matches, so return it without the trailing slash
-    return commonPrefix.slice(0, -1);
+  // For multiple paths: find the common prefix across all paths using segments
+  // Split all paths into segments for proper path component comparison
+  const pathSegments = normalizedPaths.map(p => p.split('/').filter(Boolean));
+  
+  // Find the common path segments across all paths
+  const commonSegments = [];
+  const firstPathSegments = pathSegments[0];
+  
+  for (let i = 0; i < firstPathSegments.length; i++) {
+    const segment = firstPathSegments[i];
+    // Check if this segment is common across all paths
+    const isCommonSegment = pathSegments.every(segments => 
+      segments.length > i && segments[i] === segment
+    );
+    
+    if (isCommonSegment) {
+      commonSegments.push(segment);
+    } else {
+      break; // Stop at first non-matching segment
+    }
   }
-
-  const lastSepIndex = commonPrefix.lastIndexOf(separator);
-  if (lastSepIndex > -1) {
-    return commonPrefix.substring(0, lastSepIndex);
+  
+  // Reconstruct the common path
+  if (commonSegments.length === 0) {
+    return ''; // No common segments
   }
-
-  return ''; // No common directory
+  
+  // Return the common path (using the correct separator for the environment)
+  return commonSegments.join('/');
 }
 
 /**
