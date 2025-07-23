@@ -278,5 +278,46 @@ describe('Node File Utilities', () => {
       const expectedPaths = ['asdf/README.md', 'asdf/css/styles.css', 'asdf/js/dark-mode.js'].sort();
       expect(actualPaths).toEqual(expectedPaths);
     });
+    
+    it('should correctly strip the top-level directory for single directory deploys (regression test)', async () => {
+      // Setup mock filesystem with a single directory containing files
+      // This simulates the deployment of a single folder like '/Users/downloads/project-folder'
+      setupMockFsNode({
+        '/mock/cwd/project-folder': { type: 'dir' },
+        '/mock/cwd/project-folder/index.html': { type: 'file', content: '<html></html>' },
+        '/mock/cwd/project-folder/css': { type: 'dir' },
+        '/mock/cwd/project-folder/css/style.css': { type: 'file', content: 'body { color: #333; }' },
+        '/mock/cwd/project-folder/js': { type: 'dir' },
+        '/mock/cwd/project-folder/js/app.js': { type: 'file', content: 'console.log("hello");' },
+      });
+
+      // Ensure path.dirname and path.resolve work correctly for our test case
+      MOCK_PATH_MODULE_IMPLEMENTATION.dirname.mockImplementation((p) => {
+        if (p === '/mock/cwd/project-folder') return '/mock/cwd';
+        // Standard implementation for other paths
+        const lastSlash = p.lastIndexOf('/');
+        if (lastSlash === -1) return '.';
+        if (lastSlash === 0) return '/';
+        return p.substring(0, lastSlash);
+      });
+
+      // Run with stripCommonPrefix and a single directory input
+      // This is exactly the scenario that was fixed - a single directory deploy
+      const result = await processFilesForNode(['/mock/cwd/project-folder'], { stripCommonPrefix: true });
+
+      // Verify results
+      expect(result).toHaveLength(3);
+
+      // The directory name itself ('project-folder') should be stripped from paths
+      // Files should be deployed at root level (e.g. '/index.html', not '/project-folder/index.html')
+      const actualPaths = result.map(f => f.path).sort();
+      const expectedPaths = [
+        'index.html',
+        'css/style.css',
+        'js/app.js'
+      ].sort();
+      
+      expect(actualPaths).toEqual(expectedPaths);
+    });
   });
 });
