@@ -79,8 +79,13 @@ export async function getFilesFromPath(
   if (options.basePath) {
     commonParent = options.basePath;
   } else if (options.stripCommonPrefix) {
-    // For stripCommonPrefix, use the parent of the input directory
-    commonParent = path.dirname(absolutePath);
+    // For stripCommonPrefix, use the directory itself if it's a single directory
+    const stats = fs.statSync(absolutePath);
+    if (stats.isDirectory()) {
+      commonParent = absolutePath;
+    } else {
+      commonParent = path.dirname(absolutePath);
+    }
   } else {
     // Default behavior: use the source directory
     const stats = fs.statSync(absolutePath);

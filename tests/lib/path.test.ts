@@ -25,7 +25,7 @@ const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => {
   return {
     MOCK_API_HTTP_MODULE: {
       ApiHttp: vi.fn(() => mockApiHttpInstance),
-      DEFAULT_API_HOST: 'https://mockapi.shipstatic.xyz'
+      DEFAULT_API_HOST: 'https://mockapi.shipstatic.com'
     }
   };
 });
