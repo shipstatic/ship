@@ -7,20 +7,22 @@ import { Ship } from '../index.js';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 
-// Get package.json data for version information
+// Get package.json data for version information using robust path resolution
 let packageJson: any = { version: '0.0.0' };
-const possiblePaths = [
-  path.resolve(__dirname, '../package.json'),
-  path.resolve(__dirname, '../../package.json'),
-  path.resolve(__dirname, '../../../package.json')
-];
 
-for (const packageJsonPath of possiblePaths) {
+try {
+  // For the built CLI, package.json is always one level up from the dist directory
+  // This is more reliable than hardcoded multiple fallback paths
+  const packageJsonPath = path.resolve(__dirname, '../package.json');
+  packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+} catch (error) {
+  // Fallback for development/testing scenarios where the structure might differ
+  const developmentPath = path.resolve(__dirname, '../../package.json');
   try {
-    packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-    break;
-  } catch (error) {
-    // Continue to the next path
+    packageJson = JSON.parse(readFileSync(developmentPath, 'utf-8'));
+  } catch (fallbackError) {
+    // Final fallback - use default version
+    // This is better than silent failure as it gives visibility into the issue
   }
 }
 
@@ -92,6 +94,25 @@ function output(result: any) {
   console.log('Success');
 }
 
+/**
+ * Shared deployment handler for both explicit and shortcut commands
+ */
+async function handleDeploy(path: string, cmdOptions: any) {
+  try {
+    const client = createClient();
+    const deployOptions: any = {};
+    
+    if (cmdOptions?.preserveDirs) {
+      deployOptions.preserveDirs = true;
+    }
+    
+    const result = await client.deployments.create([path], deployOptions);
+    output(result);
+  } catch (error: any) {
+    handleError(error);
+  }
+}
+
 program
   .name('ship')
   .description('CLI for Shipstatic')
@@ -154,21 +175,7 @@ deploymentsCmd
   .command('create <path>')
   .description('Deploy files from path')
   .option('--preserve-dirs', 'Preserve directory structure (by default, common parent directories are flattened)')
-  .action(async (path: string, cmdOptions: any) => {
-    try {
-      const client = createClient();
-      const deployOptions: any = {};
-      
-      if (cmdOptions.preserveDirs) {
-        deployOptions.preserveDirs = true;
-      }
-      
-      const result = await client.deployments.create([path], deployOptions);
-      output(result);
-    } catch (error: any) {
-      handleError(error);
-    }
-  });
+  .action(handleDeploy);
 
 deploymentsCmd
   .command('get <id>')
@@ -284,19 +291,7 @@ program
     
     // Check if looks like a path (shortcut: ship ./path)
     if (path.startsWith('./') || path.startsWith('/') || path.startsWith('~') || path.includes('/')) {
-      try {
-        const client = createClient();
-        const deployOptions: any = {};
-        
-        if (cmdOptions?.preserveDirs) {
-          deployOptions.preserveDirs = true;
-        }
-        
-        const result = await client.deployments.create([path], deployOptions);
-        output(result);
-      } catch (error: any) {
-        handleError(error);
-      }
+      await handleDeploy(path, cmdOptions);
     } else {
       console.error('Unknown command:', path);
       console.error('Use "ship --help" for available commands');

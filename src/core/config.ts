@@ -138,33 +138,21 @@ export function resolveConfig(
 
 /**
  * Merge deployment options with client defaults.
- * Simple utility function that replaces the unnecessary ConfigMerger class.
+ * Uses a declarative approach with object spreading for simplicity.
  */
 export function mergeDeployOptions(
   userOptions: DeploymentOptions = {},
   clientDefaults: ShipClientOptions
 ): DeploymentOptions {
-  const merged: DeploymentOptions = { ...userOptions };
-  
-  // Only set defaults if not already provided
-  if (merged.onProgress === undefined && clientDefaults.onProgress !== undefined) {
-    merged.onProgress = clientDefaults.onProgress;
-  }
-  if (merged.onProgressStats === undefined && clientDefaults.onProgressStats !== undefined) {
-    merged.onProgressStats = clientDefaults.onProgressStats;
-  }
-  if (merged.maxConcurrency === undefined && clientDefaults.maxConcurrentDeploys !== undefined) {
-    merged.maxConcurrency = clientDefaults.maxConcurrentDeploys;
-  }
-  if (merged.timeout === undefined && clientDefaults.timeout !== undefined) {
-    merged.timeout = clientDefaults.timeout;
-  }
-  if (merged.apiKey === undefined && clientDefaults.apiKey !== undefined) {
-    merged.apiKey = clientDefaults.apiKey;
-  }
-  if (merged.apiUrl === undefined && clientDefaults.apiUrl !== undefined) {
-    merged.apiUrl = clientDefaults.apiUrl;
-  }
-  
-  return merged;
+  return {
+    // Start with client defaults
+    onProgress: clientDefaults.onProgress,
+    onProgressStats: clientDefaults.onProgressStats,
+    maxConcurrency: clientDefaults.maxConcurrentDeploys,
+    timeout: clientDefaults.timeout,
+    apiKey: clientDefaults.apiKey,
+    apiUrl: clientDefaults.apiUrl,
+    // Overwrite with any user-provided options
+    ...userOptions,
+  };
 }
