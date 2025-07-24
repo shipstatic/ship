@@ -1,0 +1,10 @@
+{
+  "name": "node-example",
+  "version": "1.0.0",
+  "dependencies": {
+    "@shipstatic/ship": "file:../../"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
