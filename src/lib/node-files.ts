@@ -3,11 +3,12 @@
  * Provides helpers for recursively discovering, filtering, and preparing files for deploy in Node.js.
  */
 import { getENV } from './env.js';
-import { StaticFile } from '../types.js';
+import { StaticFile, DeploymentOptions } from '../types.js';
 import { calculateMD5 } from './md5.js';
 import { filterJunk } from './junk.js';
 import { ShipError } from '@shipstatic/types';
 import { getCurrentConfig } from '../core/platform-config.js';
+import { findCommonParent } from './path.js';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -47,12 +48,12 @@ function findAllFilePaths(dirPath: string): string[] {
  * Clean, declarative function to get files from a source path.
  * Follows the suggested architectural pattern from the feedback.
  * @param sourcePath - File or directory path to process
- * @param options - Options for processing (basePath, stripCommonPrefix)
+ * @param options - Options for processing (basePath, preserveDirs)
  * @returns Promise resolving to array of StaticFile objects
  */
 export async function getFilesFromPath(
   sourcePath: string, 
-  options: { basePath?: string; stripCommonPrefix?: boolean } = {}
+  options: DeploymentOptions = {}
 ): Promise<StaticFile[]> {
   const absolutePath = path.resolve(sourcePath);
   
@@ -74,28 +75,17 @@ export async function getFilesFromPath(
     return filterJunk([basename]).length > 0; // Keep files that pass junk filter
   });
   
-  // 3. Determine base for relative paths
+  // 3. Determine base for relative paths (simplified with unified logic)
+  const stats = fs.statSync(absolutePath);
   let commonParent: string;
-  if (options.basePath) {
-    commonParent = options.basePath;
-  } else if (options.stripCommonPrefix) {
-    // For stripCommonPrefix, we need to handle two cases:
-    // 1. Single directory input: use the directory itself as the common parent
-    // 2. Multiple files/dirs: use the parent of the input directory
-    const stats = fs.statSync(absolutePath);
-    if (stats.isDirectory()) {
-      commonParent = absolutePath;
-    } else {
-      commonParent = path.dirname(absolutePath);
-    }
+  
+  if (options.preserveDirs) {
+    // Preserve directory structure: use source directory
+    commonParent = stats.isDirectory() ? absolutePath : path.dirname(absolutePath);
   } else {
-    // Default behavior: use the source directory
-    const stats = fs.statSync(absolutePath);
-    if (stats.isDirectory()) {
-      commonParent = absolutePath;
-    } else {
-      commonParent = path.dirname(absolutePath);
-    }
+    // Default: flatten by finding common parent of all file directories
+    const fileDirs = validPaths.map(filePath => path.dirname(filePath));
+    commonParent = findCommonParent(fileDirs);
   }
   
   // 4. Process into StaticFile objects
@@ -125,7 +115,19 @@ export async function getFilesFromPath(
       // Read content and calculate metadata
       const content = fs.readFileSync(filePath);
       const { md5 } = await calculateMD5(content);
-      const relativePath = path.relative(commonParent, filePath).replace(/\\/g, '/');
+      let relativePath = path.relative(commonParent, filePath).replace(/\\/g, '/');
+      
+      // Security validation: Ensure no dangerous characters in paths
+      if (relativePath.includes('..') || relativePath.includes('\0')) {
+        // Instead of throwing an error, let's normalize the path safely
+        // This handles cases where path.relative might generate .. sequences
+        relativePath = path.basename(filePath);
+      }
+      
+      // Ensure path is not empty (this can happen if file equals commonParent)
+      if (!relativePath) {
+        relativePath = path.basename(filePath);
+      }
       
       results.push({
         path: relativePath,
@@ -156,19 +158,19 @@ export async function getFilesFromPath(
  * Now uses the simplified, declarative approach suggested in the feedback.
  * 
  * @param paths - File or directory paths to scan and process.
- * @param options - Processing options (basePath, stripCommonPrefix).
+ * @param options - Processing options (basePath, preserveDirs).
  * @returns Promise resolving to an array of StaticFile objects.
  * @throws {ShipClientError} If called outside Node.js or if fs/path modules fail.
  */
 export async function processFilesForNode(
   paths: string[],
-  options: { basePath?: string; stripCommonPrefix?: boolean } = {}
+  options: DeploymentOptions = {}
 ): Promise<StaticFile[]> {
   if (getENV() !== 'node') {
     throw ShipError.business('processFilesForNode can only be called in a Node.js environment.');
   }
 
-  // Handle multiple paths by processing each and combining results
+  // Handle multiple paths
   if (paths.length > 1) {
     const allResults: StaticFile[] = [];
     for (const singlePath of paths) {
@@ -178,6 +180,6 @@ export async function processFilesForNode(
     return allResults;
   }
 
-  // Single path - use the simplified getFilesFromPath function
+  // Single path - use the getFilesFromPath function
   return await getFilesFromPath(paths[0], options);
 }

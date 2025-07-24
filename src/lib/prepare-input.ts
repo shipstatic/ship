@@ -118,24 +118,8 @@ export async function convertNodeInput(
     throw ShipError.business('No files to deploy.');
   }
 
-  // Process files for Node.js
-  const processingOptions: { basePath?: string; stripCommonPrefix?: boolean } = {};
-  
-  if (options.stripCommonPrefix !== undefined) {
-    processingOptions.stripCommonPrefix = options.stripCommonPrefix;
-    if (options.stripCommonPrefix) {
-      const path = require('path');
-      const cwd = typeof process !== 'undefined' ? process.cwd() : '/';
-      const resolvedPaths = input.map((inputPath: string) => path.resolve(cwd, inputPath));
-      const { findCommonParent } = await import('./path.js');
-      const commonParent = findCommonParent(resolvedPaths);
-      if (commonParent) {
-        processingOptions.basePath = commonParent;
-      }
-    }
-  }
-
-  const staticFiles: StaticFile[] = await processFilesForNode(input, processingOptions);
+  // Pass options directly to node processor - no conflicting logic here
+  const staticFiles: StaticFile[] = await processFilesForNode(input, options);
   
   // Apply shared validation and post-processing
   return postProcessFiles(staticFiles);
@@ -181,23 +165,8 @@ export async function convertBrowserInput(
   // Early validation using shared logic
   validateFiles(fileArray);
 
-  // Process files for browser
-  const processingOptions: { stripCommonPrefix?: boolean; basePath?: string } = {};
-
-  if (options.stripCommonPrefix !== undefined) {
-    processingOptions.stripCommonPrefix = options.stripCommonPrefix;
-    if (options.stripCommonPrefix) {
-      const { findBrowserCommonParentDirectory } = await import('./browser-files.js');
-      const commonParent = findBrowserCommonParentDirectory(
-        input instanceof HTMLInputElement ? input.files! : input
-      );
-      if (commonParent) {
-        processingOptions.basePath = commonParent;
-      }
-    }
-  }
-
-  const staticFiles: StaticFile[] = await processFilesForBrowser(fileArray as File[], processingOptions);
+  // Pass options directly to browser processor - no conflicting logic here
+  const staticFiles: StaticFile[] = await processFilesForBrowser(fileArray as File[], options);
   
   // Apply shared validation and post-processing
   return postProcessFiles(staticFiles);
