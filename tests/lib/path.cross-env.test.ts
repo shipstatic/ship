@@ -125,7 +125,7 @@ describe('Path utilities - Cross-environment consistency', () => {
         
         const commonParent = findCommonParent(paths, '/');
         expect(commonParent).toBe('var/www/example-site');
-        
+
         // Verify stripping works by simulating path relativity
         // The length of the common parent + 1 for the trailing separator that was removed during normalization
         const strippedPaths = paths.map(p => {
