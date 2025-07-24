@@ -10,43 +10,6 @@ import { processFilesForNode } from './node-files.js';
 import { processFilesForBrowser } from './browser-files.js';
 import { getCurrentConfig } from '../core/platform-config.js';
 
-/**
- * Unified validation for file count and size limits
- * @param fileCount - Number of files 
- * @param totalSize - Total size in bytes (optional, for size validation)
- * @throws {ShipError} If limits are exceeded
- * @internal
- */
-function validateLimits(fileCount: number, totalSize?: number): void {
-  const config = getCurrentConfig();
-  
-  if (fileCount === 0) {
-    throw ShipError.business('No files to deploy.');
-  }
-  
-  if (fileCount > config.maxFilesCount) {
-    throw ShipError.business(`Too many files to deploy. Maximum allowed is ${config.maxFilesCount}.`);
-  }
-  
-  if (totalSize !== undefined && totalSize > config.maxTotalSize) {
-    throw ShipError.business(`Total deploy size is too large. Maximum allowed is ${config.maxTotalSize / (1024 * 1024)}MB.`);
-  }
-}
-
-/**
- * Validates individual file size against platform limits
- * @param fileName - Name of the file for error messages
- * @param fileSize - Size of the file in bytes
- * @throws {ShipError} If file is too large
- * @internal
- */
-function validateFileSize(fileName: string, fileSize: number): void {
-  const config = getCurrentConfig();
-  
-  if (fileSize > config.maxFileSize) {
-    throw ShipError.business(`File ${fileName} is too large. Maximum allowed size is ${config.maxFileSize / (1024 * 1024)}MB.`);
-  }
-}
 
 /**
  * Comprehensive file validation for both Node.js and browser environments
