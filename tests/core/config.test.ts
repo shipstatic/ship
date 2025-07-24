@@ -41,7 +41,7 @@ describe('config', () => {
       const { getENV } = await import('@/lib/env');
       (getENV as any).mockReturnValue('browser');
       
-      const result = config.loadConfig();
+      const result = await config.loadConfig();
       expect(result).toEqual({});
     });
 
@@ -50,7 +50,7 @@ describe('config', () => {
       process.env.SHIP_API_URL = 'https://api.example.com';
       process.env.SHIP_API_KEY = 'test-key';
       
-      const result = config.loadConfig();
+      const result = await config.loadConfig();
       
       expect(result).toEqual({
         apiUrl: 'https://api.example.com',
@@ -58,7 +58,7 @@ describe('config', () => {
       });
     });
 
-    it('should load config from file when env vars not set', () => {
+    it('should load config from file when env vars not set', async () => {
       const mockExplorer = {
         search: vi.fn().mockReturnValue({
           isEmpty: false,
@@ -70,7 +70,7 @@ describe('config', () => {
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
       
-      const result = config.loadConfig();
+      const result = await config.loadConfig();
       
       expect(result).toEqual({
         apiUrl: 'https://file.example.com',
@@ -78,7 +78,7 @@ describe('config', () => {
       });
     });
 
-    it('should prioritize env vars over file config', () => {
+    it('should prioritize env vars over file config', async () => {
       process.env.SHIP_API_URL = 'https://env.example.com';
       
       const mockExplorer = {
@@ -92,7 +92,7 @@ describe('config', () => {
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
       
-      const result = config.loadConfig();
+      const result = await config.loadConfig();
       
       expect(result).toEqual({
         apiUrl: 'https://env.example.com',
@@ -100,13 +100,13 @@ describe('config', () => {
       });
     });
 
-    it('should handle missing config file gracefully', () => {
+    it('should handle missing config file gracefully', async () => {
       const mockExplorer = {
         search: vi.fn().mockReturnValue(null)
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
       
-      const result = config.loadConfig();
+      const result = await config.loadConfig();
       
       expect(result).toEqual({
         apiUrl: undefined,
@@ -114,7 +114,7 @@ describe('config', () => {
       });
     });
 
-    it('should handle empty config file', () => {
+    it('should handle empty config file', async () => {
       const mockExplorer = {
         search: vi.fn().mockReturnValue({
           isEmpty: true,
@@ -123,7 +123,7 @@ describe('config', () => {
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
       
-      const result = config.loadConfig();
+      const result = await config.loadConfig();
       
       expect(result).toEqual({
         apiUrl: undefined,
@@ -131,7 +131,7 @@ describe('config', () => {
       });
     });
 
-    it('should validate config and throw on invalid data', () => {
+    it('should validate config and throw on invalid data', async () => {
       const mockExplorer = {
         search: vi.fn().mockReturnValue({
           isEmpty: false,
@@ -143,7 +143,7 @@ describe('config', () => {
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
       
-      expect(() => config.loadConfig()).toThrow('Configuration validation failed');
+      await expect(config.loadConfig()).rejects.toThrow('Configuration validation failed');
     });
   });
 

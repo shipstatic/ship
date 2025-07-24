@@ -31,8 +31,7 @@ const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => {
 // Specific mocks for browser file utilities
 const { BROWSER_FILE_UTILS_MOCK } = vi.hoisted(() => ({
   BROWSER_FILE_UTILS_MOCK: {
-    processFilesForBrowser: vi.fn(),
-    findBrowserCommonParentDirectory: vi.fn()
+    processFilesForBrowser: vi.fn()
   }
 }));
 
@@ -92,9 +91,7 @@ describe('BrowserShipClient', () => {
     
     // Reset and setup browser-specific mocks
     fileUtilsMock.processFilesForBrowser.mockReset();
-    fileUtilsMock.findBrowserCommonParentDirectory.mockReset();
     fileUtilsMock.processFilesForBrowser.mockResolvedValue([{ path: 'browserfile.txt', content: new Blob(['content']), md5: 'md5-browser', size: 7 }]);
-    fileUtilsMock.findBrowserCommonParentDirectory.mockReturnValue('common/');
     
     const { Ship } = await import('@/index'); // Ship class for instantiation
     client = new Ship({ apiUrl: MOCK_API_HOST, apiKey: MOCK_API_KEY });
@@ -120,21 +117,13 @@ describe('BrowserShipClient', () => {
       await client.deployments.create([mockF('f.txt', 'c')], {});
       expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
         [expect.any(File)],
-        {} // Empty options object
+        expect.objectContaining({
+          apiKey: 'custom_test_key',
+          apiUrl: 'https://custom.example.com'
+        })
       );
     });
 
-    it('should call findBrowserCommonParentDirectory with stripCommonPrefix for File[] input', async () => {
-      // Use File[] instead of FileList since the mock FileList doesn't pass instanceof checks
-      const files = Array.from(mockInput.files!);
-      await client.deployments.create(files, { stripCommonPrefix: true });
-      // We should call findBrowserCommonParentDirectory because we need to determine the common parent
-      expect(fileUtilsMock.findBrowserCommonParentDirectory).toHaveBeenCalled();
-      expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
-        files,
-        expect.objectContaining({ stripCommonPrefix: true })
-      );
-    });
 
     it('should throw ShipError for non-browser input type', async () => {
       const { ShipError } = await import('@shipstatic/types');
@@ -145,7 +134,11 @@ describe('BrowserShipClient', () => {
       await client.deployments.create(mockInput, { stripCommonPrefix: false });
       expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
         Array.from(mockInput.files!), // Ensure FileList is converted to File[]
-        { stripCommonPrefix: false } // Pass all options
+        expect.objectContaining({
+          stripCommonPrefix: false,
+          apiKey: 'custom_test_key',
+          apiUrl: 'https://custom.example.com'
+        })
       );
     });
 

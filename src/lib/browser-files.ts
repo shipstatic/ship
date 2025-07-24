@@ -3,10 +3,10 @@
  * Provides helpers for processing browser files into deploy-ready objects and extracting common directory info.
  */
 import { getENV } from './env.js';
-import { StaticFile } from '../types.js';
+import { StaticFile, DeploymentOptions } from '../types.js';
 import { calculateMD5 } from './md5.js';
 import { ShipError } from '@shipstatic/types';
-import { findCommonParentDirectory, normalizeWebPath } from './path.js';
+import { findCommonParent, normalizeWebPath } from './path.js';
 import { filterJunk } from './junk.js';
 
 
@@ -24,45 +24,61 @@ interface BrowserFileProcessItem {
  * Calculates MD5, filters junk files, and determines relative paths (stripping basePath if provided).
  *
  * @param browserFiles - FileList or File[] to process for deploy.
- * @param options - Optional processing options (basePath for path stripping, stripCommonPrefix).
+ * @param options - Optional processing options (basePath for path stripping, preserveDirs).
  * @returns Promise resolving to an array of StaticFile objects.
  * @throws {ShipClientError} If called outside a browser or with invalid input.
  */
 export async function processFilesForBrowser(
   browserFiles: FileList | File[],
-  options: { explicitBaseDirInput?: string; stripCommonPrefix?: boolean } = {}
+  options: DeploymentOptions = {}
 ): Promise<StaticFile[]> {
   if (getENV() !== 'browser') {
     throw ShipError.business('processFilesForBrowser can only be called in a browser environment.');
   }
 
-  const { explicitBaseDirInput, stripCommonPrefix } = options;
-  const initialFileInfos: BrowserFileProcessItem[] = [];
   const filesArray = Array.isArray(browserFiles) ? browserFiles : Array.from(browserFiles);
   
-  // If stripCommonPrefix is true and no explicit basePath is provided,
-  // Determine the parent directory for path stripping if applicable
-  let parentDir = '';
-  if (stripCommonPrefix) {
-    parentDir = findBrowserCommonParentDirectory(browserFiles);
-  } else if (explicitBaseDirInput) {
-    parentDir = explicitBaseDirInput;
+  // Determine common parent for flattening (unified logic) - now default behavior
+  let commonParent = '';
+  if (!options.preserveDirs) {
+    // Default: flatten by finding common parent of all file directories
+    const fileDirs = filesArray
+      .map(file => (file as any).webkitRelativePath || file.name)
+      .filter(path => path)
+      .map(filePath => filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '');
+    
+    commonParent = findCommonParent(fileDirs);
   }
 
-  // Prepare the initial file information with appropriate relative paths
+  // Prepare file information with appropriate relative paths
+  const initialFileInfos: BrowserFileProcessItem[] = [];
   for (const file of filesArray) {
     let relativePath = (file as any).webkitRelativePath || file.name;
-    if (parentDir) {
-      // Normalize all paths to use forward slashes
+    
+    // Apply flattening logic (default behavior unless preserveDirs is true)
+    if (commonParent && !options.preserveDirs) {
       relativePath = normalizeWebPath(relativePath);
-      const basePathWithSlash = parentDir.endsWith('/') ? parentDir : `${parentDir}/`;
-      // Robustly strip deeply nested basePath prefix
-      if (relativePath === parentDir || relativePath === basePathWithSlash || relativePath.startsWith(basePathWithSlash)) {
+      const basePathWithSlash = commonParent.endsWith('/') ? commonParent : `${commonParent}/`;
+      if (relativePath.startsWith(basePathWithSlash)) {
         relativePath = relativePath.substring(basePathWithSlash.length);
+      } else if (relativePath === commonParent) {
+        relativePath = '';
       }
     }
-    // Always normalize output path to forward slashes
+    
+    // Always normalize to web paths (forward slashes, no leading slash)
     relativePath = normalizeWebPath(relativePath);
+    
+    // Security validation: Ensure no dangerous characters in paths
+    if (relativePath.includes('..') || relativePath.includes('\0')) {
+      throw ShipError.business(`Security error: Unsafe file path "${relativePath}" for file: ${file.name}`);
+    }
+    
+    // Ensure path is not empty
+    if (!relativePath) {
+      relativePath = file.name;
+    }
+    
     initialFileInfos.push({ file, relativePath });
   }
 
@@ -94,27 +110,3 @@ export async function processFilesForBrowser(
   return result;
 }
 
-/**
- * Finds the common parent directory from a FileList or File[] using webkitRelativePath.
- * Useful for stripping a common prefix if files are selected from a single folder.
- *
- * @param files - FileList or File[] to analyze.
- * @returns Common parent directory string, or empty string if not consistent.
- * @throws {ShipClientError} If called outside a browser.
- */
-export function findBrowserCommonParentDirectory(files: FileList | File[]): string {
-  if (getENV() !== 'browser') {
-    throw ShipError.business('findBrowserCommonParentDirectory can only be called in a browser environment.');
-  }
-  if (!files || files.length === 0) return '';
-  
-  const paths: (string | null | undefined)[] = Array.from(files)
-    .map(file => (file as any).webkitRelativePath);
-
-  // If any file is missing webkitRelativePath, we can't determine a common parent.
-  if (paths.some(p => !p)) {
-    return '';
-  }
-
-  return findCommonParentDirectory(paths as string[], '/');
-}

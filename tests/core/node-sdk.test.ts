@@ -185,7 +185,10 @@ describe('NodeShipClient', () => {
       // Mock scanNodePaths to return some files
       fileUtilsMock.processFilesForNode.mockResolvedValueOnce([{ path: 'file.txt', content: Buffer.from("content"), md5:'m', size:1 }]);
       await client.deployments.create(['/path/to/file'], {});
-      expect(fileUtilsMock.processFilesForNode).toHaveBeenCalledWith(['/path/to/file'], {});
+      expect(fileUtilsMock.processFilesForNode).toHaveBeenCalledWith(['/path/to/file'], expect.objectContaining({
+        apiKey: 'custom_test_key',
+        apiUrl: 'https://custom.example.com'
+      }));
     });
 
 

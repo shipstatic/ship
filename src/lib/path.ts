@@ -4,90 +4,40 @@
  */
 
 /**
- * Finds the common parent directory from an array of paths.
- * This function is the single shared implementation to be used by both browser and Node.js environments.
+ * Finds the common parent directory from an array of directory paths.
+ * Simple, unified implementation for flattenDirs functionality.
  * 
- * @param paths - Array of paths to analyze for common parent directory.
- * @param separator - Path separator character (e.g., '/' for browser, path.sep for Node.js).
- * @returns The common parent directory path, or an empty string if none is found.
+ * @param dirPaths - Array of directory paths (not file paths - directories containing the files)
+ * @returns The common parent directory path, or empty string if none found
  */
-export function findCommonParentDirectory(paths: string[], separator: string): string {
-  // Validate input
-  if (!paths || !Array.isArray(paths) || paths.length === 0) {
-    return '';
-  }
+export function findCommonParent(dirPaths: string[]): string {
+  if (!dirPaths || dirPaths.length === 0) return '';
   
-  // Filter out empty paths
-  const validPaths = paths.filter(p => p && typeof p === 'string');
+  // Normalize all paths to use forward slashes
+  const normalizedPaths = dirPaths
+    .filter(p => p && typeof p === 'string')
+    .map(p => p.replace(/\\/g, '/'));
   
-  if (validPaths.length === 0) {
-    return '';
-  }
-
-  // Normalize paths to ensure consistent handling across environments
-  // Convert all paths to use forward slashes regardless of input format
-  const normalizedPaths = validPaths.map(p => {
-    // Use the existing path normalization function to handle Windows and Unix paths
-    const normalized = p.replace(/\\/g, '/').replace(/^\/+/, '');
-    // Add trailing slash for consistent segment comparison
-    return normalized.endsWith('/') ? normalized : normalized + '/';
-  });
+  if (normalizedPaths.length === 0) return '';
+  if (normalizedPaths.length === 1) return normalizedPaths[0];
   
-  // Special case for single path: return the directory itself
-  // This ensures we strip the directory name for single directory inputs
-  if (normalizedPaths.length === 1) {
-    const path = normalizedPaths[0];
-    // For a single path, return the path itself (without trailing slash)
-    return path.slice(0, -1); // Remove trailing slash
-  }
-
-  // For multiple paths: find the common prefix across all paths using segments
-  // Split all paths into segments for proper path component comparison
+  // Split into segments and find common prefix
   const pathSegments = normalizedPaths.map(p => p.split('/').filter(Boolean));
-  
-  // Find the common path segments across all paths
   const commonSegments = [];
-  const firstPathSegments = pathSegments[0];
+  const minLength = Math.min(...pathSegments.map(p => p.length));
   
-  for (let i = 0; i < firstPathSegments.length; i++) {
-    const segment = firstPathSegments[i];
-    // Check if this segment is common across all paths
-    const isCommonSegment = pathSegments.every(segments => 
-      segments.length > i && segments[i] === segment
-    );
-    
-    if (isCommonSegment) {
+  for (let i = 0; i < minLength; i++) {
+    const segment = pathSegments[0][i];
+    if (pathSegments.every(segments => segments[i] === segment)) {
       commonSegments.push(segment);
     } else {
-      break; // Stop at first non-matching segment
+      break;
     }
   }
   
-  // Reconstruct the common path
-  if (commonSegments.length === 0) {
-    return ''; // No common segments
-  }
-  
-  // Return the common path (using the correct separator for the environment)
   return commonSegments.join('/');
 }
 
-/**
- * Simple helper to find common parent of absolute paths using the system path separator.
- * More declarative wrapper around findCommonParentDirectory for Node.js usage.
- * @param absolutePaths - Array of absolute file paths
- * @returns Common parent directory path or empty string if none found
- */
-export function findCommonParent(absolutePaths: string[]): string {
-  if (typeof require === 'undefined') {
-    // Browser environment - use forward slash
-    return findCommonParentDirectory(absolutePaths, '/');
-  }
-  
-  // Node.js environment - use system separator
-  const path = require('path');
-  return findCommonParentDirectory(absolutePaths, path.sep);
-}
 
 
 /**
