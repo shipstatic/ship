@@ -6,7 +6,6 @@
  */
 
 import { z } from 'zod';
-import { cosmiconfigSync } from 'cosmiconfig';
 import { ShipClientOptions, DeploymentOptions, ShipError } from '../types.js';
 import { getENV } from '../lib/env.js';
 import { DEFAULT_API } from './constants.js';
@@ -45,13 +44,21 @@ function validateConfig(config: any): Partial<ShipClientOptions> {
 }
 
 /**
- * Synchronously loads client configuration from files.
+ * Loads client configuration from files.
  * Searches for .shiprc and package.json with ship key.
  * @returns Configuration object or empty if not found/invalid
  * @internal
  */
-function loadConfigFromFile(): Partial<ShipClientOptions> {
+async function loadConfigFromFile(): Promise<Partial<ShipClientOptions>> {
   try {
+    // Only use cosmiconfig in Node.js environments
+    if (getENV() !== 'node') {
+      return {};
+    }
+    
+    // Dynamically import cosmiconfig only in Node.js environments
+    const { cosmiconfigSync } = await import('cosmiconfig');
+    
     const explorer = cosmiconfigSync(MODULE_NAME, {
       searchPlaces: [
         `.${MODULE_NAME}rc`,
@@ -78,7 +85,7 @@ function loadConfigFromFile(): Partial<ShipClientOptions> {
  * @returns Configuration object with loaded values
  * @throws {ShipInvalidConfigError} If the configuration is invalid.
  */
-export function loadConfig(): Partial<ShipClientOptions> {
+export async function loadConfig(): Promise<Partial<ShipClientOptions>> {
   if (getENV() !== 'node') return {};
 
   // Start with environment variables (highest priority)
@@ -88,7 +95,7 @@ export function loadConfig(): Partial<ShipClientOptions> {
   };
 
   // Always try to load file config for fallback values
-  const fileConfig = loadConfigFromFile();
+  const fileConfig = await loadConfigFromFile();
 
   // Merge with environment variables taking precedence
   const mergedConfig = {

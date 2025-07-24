@@ -38,8 +38,8 @@ export interface DeploymentOptions {
   timeout?: number;
   /** The API key to use for this specific deploy. Overrides client's default. */
   apiKey?: string;
-  /** Whether to strip common prefix from file paths. */
-  stripCommonPrefix?: boolean;
+  /** Whether to preserve directory structure. By default, common parent directories are flattened. */
+  preserveDirs?: boolean;
   /** Callback for overall deploy progress (0-100). */
   onProgress?: (progress: number) => void;
   /** Callback for detailed progress statistics. */
@@ -50,7 +50,7 @@ export interface DeploymentOptions {
  * Options for configuring an deploy operation via `apiClient.deployFiles`.
  * Derived from DeploymentOptions but excludes client-side only options.
  */
-export type ApiDeployOptions = Omit<DeploymentOptions, 'stripCommonPrefix'>;
+export type ApiDeployOptions = Omit<DeploymentOptions, 'preserveDirs'>;
 
 // =============================================================================
 // PROGRESS TRACKING

@@ -5,7 +5,6 @@ type Constructor<T> = new (...args: any[]) => T;
 import BrowserIndex, {
     Ship,
     processFilesForBrowser,
-    findBrowserCommonParentDirectory,
     // We also need __setTestEnvironment for the test setup itself.
     __setTestEnvironment
 } from '@/index';
@@ -112,7 +111,7 @@ describe('Browser Entry Point (@/browser)', () => {
       const staticFiles = await processFilesForBrowser(fileList);
 
       expect(staticFiles).toHaveLength(2);
-      expect(staticFiles[0].path).toBe('folder/file1.txt');
+      expect(staticFiles[0].path).toBe('file1.txt'); // Now flattened by default
       expect(MOCK_CALCULATE_MD5_FN).toHaveBeenCalledWith(files[0]);
     });
 
@@ -124,20 +123,4 @@ describe('Browser Entry Point (@/browser)', () => {
     });
   });
 
-  describe('Browser-specific utility re-exports (findBrowserCommonParentDirectory)', () => {
-    it('should return common parent directory', () => {
-      const files = [
-        createMockFile('file1.txt', '', 'text/plain', 'common/path/file1.txt'),
-        createMockFile('file2.txt', '', 'text/plain', 'common/path/file2.txt'),
-      ];
-      expect(findBrowserCommonParentDirectory(createMockFileList(files))).toBe('common/path');
-    });
-
-    it('should throw ShipError.business if called in non-browser env', () => {
-      __setTestEnvironment('node'); // Force non-browser env for this test
-      expect(() => findBrowserCommonParentDirectory([])).toThrow(
-        ShipError.business('findBrowserCommonParentDirectory can only be called in a browser environment.')
-      );
-    });
-  });
 });

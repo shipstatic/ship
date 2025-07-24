@@ -42,6 +42,7 @@ export class Ship {
   private http: ApiHttp;
   private environment: 'node' | 'browser';
   private configInitialized: boolean = false;
+  private configLoaded: boolean = false;
   private readonly clientOptions: ShipClientOptions;
   
   // Resource instances (lazy-loaded)
@@ -58,20 +59,29 @@ export class Ship {
       throw ShipError.business('Unsupported execution environment.');
     }
     
-    // Load config synchronously and initialize HTTP client
-    const loadedConfig = loadConfig();
-    const config = resolveConfig(options, loadedConfig);
+    // Initialize HTTP client with ONLY constructor options for now.
+    // The full config will be loaded and applied lazily.
+    const config = resolveConfig(options, {});
     this.http = new ApiHttp({ ...options, ...config });
   }
 
   /**
-   * Initialize platform config from API (called automatically on first use)
+   * Initialize config from file/env and platform config from API (called automatically on first use)
    */
   private async initializeConfig(): Promise<void> {
     if (this.configInitialized) return;
+
+    // Load config from file/env if not already done
+    if (!this.configLoaded) {
+      const loadedConfig = await loadConfig();
+      // Re-resolve and re-create the http client with the full config
+      const finalConfig = resolveConfig(this.clientOptions, loadedConfig);
+      this.http = new ApiHttp({ ...this.clientOptions, ...finalConfig });
+      this.configLoaded = true;
+    }
     
-    const config = await this.http.getConfig();
-    setConfig(config);
+    const platformConfig = await this.http.getConfig();
+    setConfig(platformConfig);
     this.configInitialized = true;
   }
 
@@ -79,6 +89,7 @@ export class Ship {
    * Ping the API server to check connectivity
    */
   async ping(): Promise<boolean> {
+    await this.initializeConfig();
     return this.http.ping();
   }
 
@@ -146,7 +157,7 @@ export { ShipError, ShipErrorType } from '@shipstatic/types';
 
 // Advanced/utility exports (for tests and power users; subject to change)
 export { processFilesForNode } from './lib/node-files.js';
-export { processFilesForBrowser, findBrowserCommonParentDirectory } from './lib/browser-files.js';
+export { processFilesForBrowser } from './lib/browser-files.js';
 
 // Test utilities
 /**

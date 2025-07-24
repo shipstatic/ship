@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { processFilesForBrowser, findBrowserCommonParentDirectory } from '@/lib/browser-files';
+import { processFilesForBrowser } from '@/lib/browser-files';
 import { __setTestEnvironment } from '@/lib/env';
 import { Ship } from '@/index';
 // import type { StaticFile } from '@/types'; // Could be used for uploadedFiles if desired
@@ -87,43 +87,8 @@ describe('Strip Common Prefix Test', () => {
     __setTestEnvironment(null);
   });
 
-  describe('findBrowserCommonParentDirectory', () => {
-    it('should handle nested directory structures correctly', () => {
-      // Create files mimicking the structure from the screenshot
-      const files: File[] = [ // Ensure files is typed as File[]
-        mockFile('DS_Store', 'fdsa/asdf/DS_Store'),
-        mockFile('README.md', 'fdsa/asdf/README.md'),
-        mockFile('styles.css', 'fdsa/asdf/css/styles.css'),
-        mockFile('DS_Store', 'fdsa/asdf/images/DS_Store'),
-        mockFile('favicon.png', 'fdsa/asdf/images/favicon.png'),
-        mockFile('index.html', 'fdsa/asdf/index.html'),
-        mockFile('dark-mode.js', 'fdsa/asdf/js/dark-mode.js'),
-      ];
-      const fileList = mockFileList(files);
-      
-      // Test that the common parent is detected correctly
-      const commonParent = findBrowserCommonParentDirectory(fileList);
-      expect(commonParent).toBe('fdsa/asdf');
-      
-      // With our fix, it now correctly returns the full common path 'fdsa/asdf'
-    });
 
-    it('should correctly identify multi-level common parent directory', () => {
-      // Create files with a multi-level common parent
-      const files = [
-        mockFile('file1.txt', 'level1/level2/level3/file1.txt'),
-        mockFile('file2.txt', 'level1/level2/level3/file2.txt'),
-        mockFile('file3.txt', 'level1/level2/level3/subdir/file3.txt'),
-      ];
-      const fileList = mockFileList(files);
-      
-      const commonParent = findBrowserCommonParentDirectory(fileList);
-      // With our fix, the function now correctly returns the full common path
-      expect(commonParent).toBe('level1/level2/level3');
-    });
-  });
-
-  describe('Ship.upload with stripCommonPrefix', () => {
+  describe('Ship.upload with flattenDirs', () => {
     it('should correctly strip nested parent folders', async () => {
       // Create a client directly
       const client = new Ship({ apiHost: 'https://test.api', apiKey: 'test-key' });
@@ -137,8 +102,8 @@ describe('Strip Common Prefix Test', () => {
         mockFile('index.html', 'fdsa/asdf/index.html'),
       ];
       
-      // Call upload with stripCommonPrefix: true
-      await client.deployments.create(files, { stripCommonPrefix: true });
+      // Call upload with flattenDirs: true
+      await client.deployments.create(files, { flattenDirs: true });
       
       // Check what paths were sent to the API
       const uploadedFiles = mockApiHttpInstance.deploy.mock.calls[0][0] as any[]; // Typed as any[]
@@ -152,7 +117,7 @@ describe('Strip Common Prefix Test', () => {
       expect(allPathsStripped).toBe(true);
     });
 
-    it('should respect stripCommonPrefix for nested folders', async () => {
+    it('should respect flattenDirs for nested folders', async () => {
       // Create a client
       const client = new Ship({ apiHost: 'https://test.api', apiKey: 'test-key' });
       
@@ -162,9 +127,9 @@ describe('Strip Common Prefix Test', () => {
         mockFile('index.html', 'fdsa/asdf/index.html'),
       ];
       
-      // Call upload with stripCommonPrefix flag
+      // Call upload with flattenDirs flag
       await client.deployments.create(files, {
-        stripCommonPrefix: true
+        flattenDirs: true
       });
       
       // Check the paths sent to the API

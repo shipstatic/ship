@@ -186,4 +186,79 @@ describe('BaseShipClient', () => {
       }
     });
   });
+
+  describe('Configuration Loading Integration', () => {
+    it('should load configuration from environment variables when none provided to constructor', async () => {
+      // Set up environment variables
+      process.env.SHIP_API_KEY = 'env-test-key';
+      process.env.SHIP_API_URL = 'https://env-test-api.com';  
+      
+      // Set Node.js environment
+      const { __setTestEnvironment } = await import('../../src/lib/env');
+      await __setTestEnvironment('node');
+      
+      // Clear existing mocks for the config loader
+      configLoaderMock.mockReturnValueOnce({
+        apiKey: 'env-test-key',
+        apiUrl: 'https://env-test-api.com'
+      });
+      
+      // Reset the ApiHttp mock to track calls
+      MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
+      
+      const { Ship } = await import('../../src/index');
+      const ship = new Ship(); // No options provided - should load from env/config
+      
+      // Trigger config loading
+      await ship.ping();
+      
+      // Verify that the ApiHttp instance was re-created with the loaded config
+      // The second call should have the correct configuration
+      expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          apiKey: 'env-test-key',
+          apiUrl: 'https://env-test-api.com'
+        })
+      );
+      
+      // Clean up
+      delete process.env.SHIP_API_KEY;
+      delete process.env.SHIP_API_URL;
+    });
+
+    it('should prioritize constructor options over environment variables', async () => {
+      // Set up environment variables that should be ignored
+      process.env.SHIP_API_KEY = 'env-ignored-key';
+      process.env.SHIP_API_URL = 'https://env-ignored.com';  
+      
+      // Set Node.js environment
+      const { __setTestEnvironment } = await import('../../src/lib/env');
+      await __setTestEnvironment('node');
+      
+      // Reset the ApiHttp mock to track calls  
+      MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
+      
+      const { Ship } = await import('../../src/index');
+      const ship = new Ship({
+        apiKey: 'constructor-priority-key',
+        apiUrl: 'https://constructor-priority.com'
+      });
+      
+      // Trigger config initialization
+      await ship.ping();
+      
+      // Verify constructor options took precedence
+      // First call should have constructor options
+      expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: 'constructor-priority-key',
+          apiUrl: 'https://constructor-priority.com'
+        })
+      );
+      
+      // Clean up
+      delete process.env.SHIP_API_KEY;
+      delete process.env.SHIP_API_URL;
+    });
+  });
 });

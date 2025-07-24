@@ -101,11 +101,13 @@ program
   .option('--json', 'JSON output')
   .addHelpText('after', `
 Examples:
-  ship ./path                    Deploy files (shortcut)
+  ship ./path                    Deploy files (shortcut, dirs flattened by default)
+  ship ./dist --preserve-dirs    Deploy preserving directory structure
   ship ping                      Check API connectivity
   
   ship deployments list          List all deployments
-  ship deployments create ./app  Deploy app directory
+  ship deployments create ./app  Deploy app directory (dirs flattened by default)
+  ship deployments create ./dist --preserve-dirs  Deploy preserving dir structure
   ship deployments get abc123    Get deployment details
   ship deployments remove abc123 Remove deployment
   
@@ -151,10 +153,17 @@ deploymentsCmd
 deploymentsCmd
   .command('create <path>')
   .description('Deploy files from path')
-  .action(async (path: string) => {
+  .option('--preserve-dirs', 'Preserve directory structure (by default, common parent directories are flattened)')
+  .action(async (path: string, cmdOptions: any) => {
     try {
       const client = createClient();
-      const result = await client.deployments.create([path]);
+      const deployOptions: any = {};
+      
+      if (cmdOptions.preserveDirs) {
+        deployOptions.preserveDirs = true;
+      }
+      
+      const result = await client.deployments.create([path], deployOptions);
       output(result);
     } catch (error: any) {
       handleError(error);
@@ -265,7 +274,8 @@ accountCmd
 // Path shortcut - handle as fallback
 program
   .argument('[path]', 'Path to deploy (shortcut)')
-  .action(async (path?: string) => {
+  .option('--preserve-dirs', 'Preserve directory structure (by default, common parent directories are flattened)')
+  .action(async (path?: string, cmdOptions?: any) => {
     // If no path provided, show help
     if (!path) {
       program.help();
@@ -276,7 +286,13 @@ program
     if (path.startsWith('./') || path.startsWith('/') || path.startsWith('~') || path.includes('/')) {
       try {
         const client = createClient();
-        const result = await client.deployments.create([path]);
+        const deployOptions: any = {};
+        
+        if (cmdOptions?.preserveDirs) {
+          deployOptions.preserveDirs = true;
+        }
+        
+        const result = await client.deployments.create([path], deployOptions);
         output(result);
       } catch (error: any) {
         handleError(error);

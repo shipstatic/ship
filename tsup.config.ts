@@ -1,66 +1,95 @@
-import { defineConfig } from 'tsup';
+import { defineConfig, Options } from 'tsup';
+import * as path from 'path';
 
-export default defineConfig([
-  // Main SDK
+// Define a base set of external dependencies for Node.js environments
+const nodeExternals = [
+  'cli-table3',
+  'commander',
+  'form-data-encoder',
+  'formdata-node',
+  'junk',
+  'mime-types',
+  'spark-md5',
+  'path-browserify',
+  'zod'
+];
+
+// Dependencies to be bundled into the browser build
+const browserBundleDeps = [
+  'spark-md5',
+  'mime-types', 
+  'form-data-encoder',
+  'junk',
+  'zod',
+  '@shipstatic/types'
+];
+
+export default defineConfig((tsupOptions: Options): Options[] => [
+  // 1. SDK for Node.js (ESM and CJS, main entry)
   {
-    entry: ['src/index.ts'],
-    format: ['cjs', 'esm'],
+    entry: {
+      index: 'src/index.ts'
+    },
+    outDir: 'dist',
+    format: ['esm', 'cjs'],
+    platform: 'node',
+    target: 'node18',
     dts: true,
+    sourcemap: true,
+    splitting: false,
     clean: true,
-    sourcemap: true,
-    minify: true,
-    external: [
-      'cli-table3',
-      'commander', 
-      'cosmiconfig',
-      'form-data-encoder',
-      'formdata-node',
-      'junk',
-      'mime-types',
-      'spark-md5',
-      'zod'
-    ]
+    external: nodeExternals,
+    minify: tsupOptions.watch ? false : true,
   },
-  // CLI
+  // 2. Browser SDK (ESM, browser entry, with polyfills/shims)
   {
-    entry: { cli: 'src/cli/index.ts' },
-    format: ['cjs'],
-    dts: false,
-    clean: false,
-    sourcemap: true,
-    minify: true,
-    banner: {
-      js: '#!/usr/bin/env node'
+    entry: {
+      browser: 'src/index.ts',
     },
-    external: [
-      'cli-table3',
-      'commander',
-      'cosmiconfig', 
-      'form-data-encoder',
-      'formdata-node',
-      'junk',
-      'mime-types',
-      'spark-md5',
-      'zod'
-    ]
-  },
-  // Browser bundle
-  {
-    entry: ['src/index.ts'],
+    outDir: 'dist',
     format: ['esm'],
-    dts: false,
-    clean: false,
+    platform: 'browser',
+    target: 'es2020',
     sourcemap: true,
-    minify: true,
-    outExtension: () => ({ js: '.browser.js' }),
-    define: {
-      'process.env.NODE_ENV': '"production"'
+    splitting: false,
+    clean: false,
+    noExternal: browserBundleDeps,
+    minify: tsupOptions.watch ? false : true,
+    esbuildOptions(options, context) {
+      // Use build-time aliasing for Node.js modules
+      options.alias = {
+        ...options.alias,
+        path: 'path-browserify',
+        fs: path.resolve('./build-shims/empty.cjs'),
+        crypto: path.resolve('./build-shims/empty.cjs'),
+        os: path.resolve('./build-shims/empty.cjs'),
+        module: path.resolve('./build-shims/empty.cjs'),
+        cosmiconfig: path.resolve('./build-shims/cosmiconfig.mjs'),
+      };
+      // Define NODE_ENV for any dependency that might need it
+      options.define = {
+        ...options.define,
+        'process.env.NODE_ENV': JSON.stringify(
+          tsupOptions.watch ? 'development' : 'production'
+        ),
+      };
     },
-    noExternal: [
-      'spark-md5',
-      'mime-types',
-      'form-data-encoder',
-      'junk'
-    ]
-  }
+  },
+  // 3. CLI (CJS for Node.js, cli entry)
+  {
+    entry: {
+      cli: 'src/cli/index.ts'
+    },
+    outDir: 'dist',
+    format: ['cjs'],
+    platform: 'node',
+    target: 'node18',
+    sourcemap: true,
+    clean: false,
+    external: nodeExternals,
+    minify: tsupOptions.watch ? false : true,
+    banner: {
+      js: '#!/usr/bin/env node',
+    },
+  },
 ]);

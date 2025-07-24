@@ -1,26 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { findCommonParentDirectory } from '../../src/lib/path';
+import { findCommonParent } from '../../src/lib/path';
 
 /**
  * This test file specifically validates that the stripCommonPrefix logic works identically
- * in both browser and Node.js environments by testing the findCommonParentDirectory function
+ * in both browser and Node.js environments by testing the findCommonParent function
  * with different path formats and separator characters.
  */
 describe('Path utilities - Cross-environment consistency', () => {
-  describe('findCommonParentDirectory', () => {
+  describe('findCommonParent', () => {
     // Test consistent behavior with browser paths (forward slash)
     describe('browser environment (forward slash separator)', () => {
       const separator = '/';
       
       it('should return empty string for empty or invalid inputs', () => {
-        expect(findCommonParentDirectory([], separator)).toBe('');
-        expect(findCommonParentDirectory([''], separator)).toBe('');
-        expect(findCommonParentDirectory([null as any], separator)).toBe('');
-        expect(findCommonParentDirectory([undefined as any], separator)).toBe('');
+        expect(findCommonParent([], separator)).toBe('');
+        expect(findCommonParent([''], separator)).toBe('');
+        expect(findCommonParent([null as any], separator)).toBe('');
+        expect(findCommonParent([undefined as any], separator)).toBe('');
       });
       
       it('should handle single directory input by returning the full path', () => {
-        expect(findCommonParentDirectory(['/app/public'], separator)).toBe('app/public');
+        expect(findCommonParent(['/app/public'], separator)).toBe('/app/public');
       });
       
       it('should find common parent for multiple files in same directory', () => {
@@ -29,7 +29,7 @@ describe('Path utilities - Cross-environment consistency', () => {
           '/app/public/styles.css',
           '/app/public/script.js'
         ];
-        expect(findCommonParentDirectory(paths, separator)).toBe('app/public');
+        expect(findCommonParent(paths, separator)).toBe('app/public');
       });
       
       it('should find common parent for nested directories', () => {
@@ -38,7 +38,7 @@ describe('Path utilities - Cross-environment consistency', () => {
           '/app/public/js/script.js',
           '/app/public/images/logo.png'
         ];
-        expect(findCommonParentDirectory(paths, separator)).toBe('app/public');
+        expect(findCommonParent(paths, separator)).toBe('app/public');
       });
       
       it('should find longest common prefix even for complex nested paths', () => {
@@ -47,7 +47,7 @@ describe('Path utilities - Cross-environment consistency', () => {
           '/app/public/css/styles.css',
           '/app/public/css/themes/dark.css'
         ];
-        expect(findCommonParentDirectory(paths, separator)).toBe('app/public/css');
+        expect(findCommonParent(paths, separator)).toBe('app/public/css');
       });
       
       it('should handle paths with no common parent', () => {
@@ -55,7 +55,7 @@ describe('Path utilities - Cross-environment consistency', () => {
           '/app/public/index.html',
           '/var/log/app.log'
         ];
-        expect(findCommonParentDirectory(paths, separator)).toBe('');
+        expect(findCommonParent(paths, separator)).toBe('');
       });
     });
     
@@ -64,15 +64,15 @@ describe('Path utilities - Cross-environment consistency', () => {
       const separator = '\\'; // Windows-style for testing
       
       it('should return empty string for empty or invalid inputs', () => {
-        expect(findCommonParentDirectory([], separator)).toBe('');
-        expect(findCommonParentDirectory([''], separator)).toBe('');
-        expect(findCommonParentDirectory([null as any], separator)).toBe('');
-        expect(findCommonParentDirectory([undefined as any], separator)).toBe('');
+        expect(findCommonParent([], separator)).toBe('');
+        expect(findCommonParent([''], separator)).toBe('');
+        expect(findCommonParent([null as any], separator)).toBe('');
+        expect(findCommonParent([undefined as any], separator)).toBe('');
       });
       
       it('should handle single directory input by returning the full path', () => {
         // With normalization, Windows paths will be converted to forward slashes without leading slash
-        expect(findCommonParentDirectory(['C:\\app\\public'], separator)).toBe('C:/app/public');
+        expect(findCommonParent(['C:\\app\\public'], separator)).toBe('C:/app/public');
       });
       
       it('should find common parent for multiple files in same directory', () => {
@@ -82,7 +82,7 @@ describe('Path utilities - Cross-environment consistency', () => {
           'C:\\app\\public\\script.js'
         ];
         // Windows paths will be normalized to forward slashes
-        expect(findCommonParentDirectory(paths, separator)).toBe('C:/app/public');
+        expect(findCommonParent(paths, separator)).toBe('C:/app/public');
       });
       
       it('should find common parent for nested directories', () => {
@@ -92,7 +92,7 @@ describe('Path utilities - Cross-environment consistency', () => {
           'C:\\app\\public\\images\\logo.png'
         ];
         // Windows paths will be normalized to forward slashes
-        expect(findCommonParentDirectory(paths, separator)).toBe('C:/app/public');
+        expect(findCommonParent(paths, separator)).toBe('C:/app/public');
       });
       
       it('should find longest common prefix even for complex nested paths', () => {
@@ -102,7 +102,7 @@ describe('Path utilities - Cross-environment consistency', () => {
           'C:\\app\\public\\css\\themes\\dark.css'
         ];
         // Windows paths will be normalized to forward slashes
-        expect(findCommonParentDirectory(paths, separator)).toBe('C:/app/public/css');
+        expect(findCommonParent(paths, separator)).toBe('C:/app/public/css');
       });
       
       it('should handle paths with no common parent', () => {
@@ -110,7 +110,7 @@ describe('Path utilities - Cross-environment consistency', () => {
           'C:\\app\\public\\index.html',
           'D:\\logs\\app.log'
         ];
-        expect(findCommonParentDirectory(paths, separator)).toBe('');
+        expect(findCommonParent(paths, separator)).toBe('');
       });
     });
     
@@ -123,7 +123,7 @@ describe('Path utilities - Cross-environment consistency', () => {
           '/Users/constantin/Downloads/netlify-drop-demo-site-master/images/logo.png'
         ];
         
-        const commonParent = findCommonParentDirectory(paths, '/');
+        const commonParent = findCommonParent(paths, '/');
         expect(commonParent).toBe('Users/constantin/Downloads/netlify-drop-demo-site-master');
         
         // Verify stripping works by simulating path relativity
@@ -148,7 +148,7 @@ describe('Path utilities - Cross-environment consistency', () => {
           'netlify-drop-demo-site-master/images/logo.png'
         ];
         
-        const commonParent = findCommonParentDirectory(paths, '/');
+        const commonParent = findCommonParent(paths, '/');
         expect(commonParent).toBe('netlify-drop-demo-site-master');
         
         // Verify stripping works by simulating path relativity
