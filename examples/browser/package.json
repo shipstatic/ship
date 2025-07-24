@@ -1,0 +1,12 @@
+{
+  "name": "browser-example",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "serve .",
+    "clean": "rm -f ./ship.js",
+    "copy": "pnpm run clean && cp ../../dist/browser.js ./ship.js"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}
