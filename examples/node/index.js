@@ -30,8 +30,6 @@ async function deployDirectory() {
       // - Environment variables (SHIP_API_KEY, SHIP_API)
       // - Config files (.shiprc, package.json ship property, etc.)
       // - You can also pass them explicitly: apiKey: 'your-key', api: 'https://api.shipstatic.com'
-      apiUrl: 'https://api.shipstatic.dev',
-      apiKey: 'ship-2cfe6947bed6951e1728f538bc692c1d73516e833c28ecc9322cceb7a5b794a6'
     });
     log('Ship client initialized successfully');
     

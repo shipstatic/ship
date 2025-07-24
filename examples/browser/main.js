@@ -28,8 +28,6 @@ try {
     // Note: API key should be set via environment variables or config files in production
     // For DEMO PURPOSES ONLY, you can set it here
     // apiKey: 'your-api-key-here'
-    apiUrl: 'https://api.shipstatic.dev',
-    apiKey: 'ship-2cfe6947bed6951e1728f538bc692c1d73516e833c28ecc9322cceb7a5b794a6'
   });
   console.log('Ship client initialized successfully');
 } catch (err) {
