@@ -118,13 +118,13 @@ describe('Path utilities - Cross-environment consistency', () => {
     describe('regression tests for reported bugs', () => {
       it('should correctly strip top-level directory for single directory deploy with Node.js paths', () => {
         const paths = [
-          '/Users/constantin/Downloads/netlify-drop-demo-site-master/index.html',
-          '/Users/constantin/Downloads/netlify-drop-demo-site-master/styles.css',
-          '/Users/constantin/Downloads/netlify-drop-demo-site-master/images/logo.png'
+          '/var/www/example-site/index.html',
+          '/var/www/example-site/styles.css',
+          '/var/www/example-site/images/logo.png'
         ];
         
         const commonParent = findCommonParent(paths, '/');
-        expect(commonParent).toBe('Users/constantin/Downloads/netlify-drop-demo-site-master');
+        expect(commonParent).toBe('var/www/example-site');
         
         // Verify stripping works by simulating path relativity
         // The length of the common parent + 1 for the trailing separator that was removed during normalization
