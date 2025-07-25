@@ -17,7 +17,7 @@ describe('AliasResource', () => {
       ping: vi.fn()
     } as unknown as ApiHttp;
 
-    aliases = createAliasResource(mockApi);
+    aliases = createAliasResource(() => mockApi);
   });
 
   describe('set', () => {

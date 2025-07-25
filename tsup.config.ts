@@ -5,6 +5,7 @@ import * as path from 'path';
 const nodeExternals = [
   'cli-table3',
   'commander',
+  'cosmiconfig',
   'form-data-encoder',
   'formdata-node',
   'junk',
@@ -87,7 +88,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     sourcemap: true,
     clean: false,
     external: nodeExternals,
-    minify: tsupOptions.watch ? false : true,
+    minify: false,
     banner: {
       js: '#!/usr/bin/env node',
     },

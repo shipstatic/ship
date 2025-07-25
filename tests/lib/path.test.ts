@@ -91,7 +91,7 @@ describe('Strip Common Prefix Test', () => {
   describe('Ship.upload with flattenDirs', () => {
     it('should correctly strip nested parent folders', async () => {
       // Create a client directly
-      const client = new Ship({ apiHost: 'https://test.api', apiKey: 'test-key' });
+      const client = new Ship({ apiUrl: 'https://test.api', apiKey: 'test-key' });
       
       // Create files mimicking the structure from the screenshot
       const files = [
@@ -119,7 +119,7 @@ describe('Strip Common Prefix Test', () => {
 
     it('should respect flattenDirs for nested folders', async () => {
       // Create a client
-      const client = new Ship({ apiHost: 'https://test.api', apiKey: 'test-key' });
+      const client = new Ship({ apiUrl: 'https://test.api', apiKey: 'test-key' });
       
       // Create files with the problematic structure
       const files: File[] = [ // Ensure files is typed as File[]

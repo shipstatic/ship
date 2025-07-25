@@ -37,7 +37,7 @@ describe('DeploymentResource', () => {
       ping: vi.fn()
     } as unknown as ApiHttp;
 
-    deployments = createDeploymentResource(mockApi);
+    deployments = createDeploymentResource(() => mockApi);
   });
 
   describe('create', () => {

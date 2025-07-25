@@ -188,14 +188,15 @@ describe('CLI Commands', () => {
 
   describe('Ping Command', () => {
     it('should handle ping', async () => {
-      mockShip.ping.mockResolvedValue(true);
+      const mockPingResponse = { success: true, timestamp: 1753379248270 };
+      mockShip.ping.mockResolvedValue(mockPingResponse);
 
       const { Ship: ShipClass } = await import('@/index');
       const client = new ShipClass();
       const result = await client.ping();
 
       expect(mockShip.ping).toHaveBeenCalled();
-      expect(result).toBe(true);
+      expect(result).toEqual(mockPingResponse);
     });
   });
 });

@@ -12,6 +12,7 @@ const mockApiHttpInstance = {
     expiresAt: 1234567890
   }),
   ping: vi.fn(),
+  getPingResponse: vi.fn().mockResolvedValue({ success: true, timestamp: 1753379248270 }),
   getConfig: vi.fn().mockResolvedValue({
     maxFileSize: 10 * 1024 * 1024,
     maxFilesCount: 1000,

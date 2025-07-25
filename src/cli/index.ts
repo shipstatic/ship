@@ -3,7 +3,7 @@
  * Ultra-simple CLI with explicit commands and deploy shortcut.
  */
 import { Command } from 'commander';
-import { Ship } from '../index.js';
+import { Ship, ShipError } from '../index.js';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 
@@ -29,22 +29,79 @@ try {
 const program = new Command();
 
 /**
- * Simple error handler - just log and exit
+ * CLI formatting helpers
+ */
+const strong = (text: string) => `\x1b[1m${text}\x1b[0m`;
+const dim = (text: string) => `\x1b[2m${text}\x1b[0m`;
+
+/**
+ * Error handler using ShipError type guards - all errors should be ShipError instances
  */
 function handleError(error: any) {
-  console.error('Error:', error.message || error);
+  // All errors in this codebase should be ShipError instances
+  if (!(error instanceof ShipError)) {
+    const message = error.message || error;
+    const options = program.opts();
+    
+    if (options.json) {
+      console.error(JSON.stringify({ 
+        error: `Unexpected error: ${message}`,
+        details: { originalError: message }
+      }, null, 2));
+    } else {
+      console.error(`🔴 Unexpected error type: ${message}`);
+    }
+    process.exit(1);
+  }
+
+  let message = error.message;
+  
+  if (error.isAuthError()) {
+    message = 'Authentication failed. Check your API key.';
+  } else if (error.isNetworkError()) {
+    message = 'Network error. Check your connection and API URL.';
+  } else if (error.isFileError()) {
+    // Keep original file error message as it's usually specific and helpful
+  } else if (error.isValidationError()) {
+    // Keep original validation message as it's usually specific
+  } else if (error.isClientError()) {
+    // Keep original client error message
+  } else {
+    message = 'Server error. Please try again later.';
+  }
+  
+  const options = program.opts();
+  if (options.json) {
+    console.error(JSON.stringify({ 
+      error: message,
+      ...(error.details ? { details: error.details } : {})
+    }, null, 2));
+  } else {
+    console.error(`🔴 ${message}`);
+  }
   process.exit(1);
 }
 
 /**
- * Create Ship client with CLI options
+ * Create Ship client with synchronous constructor
  */
 function createClient(): Ship {
   const options = program.opts();
-  return new Ship({
-    apiUrl: options.api,
-    apiKey: options.apiKey
-  });
+  const shipOptions: any = {};
+  
+  // Only include options that are actually set (not undefined)
+  if (options.config !== undefined) {
+    shipOptions.configFile = options.config;
+  }
+  if (options.apiUrl !== undefined) {
+    shipOptions.apiUrl = options.apiUrl;
+  }
+  if (options.apiKey !== undefined) {
+    shipOptions.apiKey = options.apiKey;
+  }
+  
+  // Use synchronous constructor - initialization happens lazily
+  return new Ship(shipOptions);
 }
 
 /**
@@ -58,14 +115,14 @@ const formatters = {
   },
   aliases: (result: any) => {
     result.aliases.forEach((a: any) => {
-      console.log(`${a.alias} -> ${a.deployment}`);
+      console.log(`${a.alias} -> ${a.deploymentName}`);
     });
   },
   deployment: (result: any) => {
     console.log(`${result.deployment} (${result.status})`);
   },
   alias: (result: any) => {
-    console.log(`${result.alias} -> ${result.deployment}`);
+    console.log(`${result.alias} -> ${result.deploymentName}`);
   },
   email: (result: any) => {
     console.log(`${result.email} (${result.subscription})`);
@@ -79,6 +136,12 @@ function output(result: any) {
   const options = program.opts();
   if (options.json) {
     console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  
+  // Handle ping result (has success property)
+  if (result && typeof result === 'object' && result.hasOwnProperty('success')) {
+    console.log(result.success ? '🛰️ Connected' : '🔴 Connection failed');
     return;
   }
   
@@ -113,31 +176,105 @@ async function handleDeploy(path: string, cmdOptions: any) {
   }
 }
 
+/**
+ * Help formatting - "Impossible Simplicity" approach
+ */
+const COLUMN_WIDTH = 25;
+
+const FLAGS_SECTION = [
+  ['-k, --api-key <key>', 'API key'],
+  ['-c, --config <file>', 'Config file'],
+  ['-p, --preserve-dirs', 'Keep nesting'],
+  ['-j, --json', 'JSON output'],
+  ['-h, --help', 'Show help'],
+  ['-v, --version', 'Show version']
+];
+
+function formatFlags(): string {
+  return strong('FLAGS') + '\n' + 
+    FLAGS_SECTION.map(([flag, desc]) => 
+      `  ${flag.padEnd(COLUMN_WIDTH)} ${desc}`
+    ).join('\n') + '\n\n';
+}
+
+function formatHelp(title: string, emoji: string, description: string, commands: Array<{name: string, desc: string}>, includeIssues = false): string {
+  let output = title ? `\n${title}\n\n${emoji} ${description}\n\n` : `\n${emoji} ${description}\n\n`;
+  
+  if (commands.length > 0) {
+    output += strong('COMMANDS') + '\n';
+    commands.forEach(cmd => {
+      output += `  ${cmd.name.padEnd(COLUMN_WIDTH)} ${cmd.desc}\n`;
+    });
+    output += '\n';
+  }
+  
+  output += formatFlags();
+  
+  if (includeIssues) {
+    output += dim('Please report any issues to https://github.com/shipstatic/ship/issues') + '\n\n';
+  }
+  
+  return output;
+}
+
 program
   .name('ship')
-  .description('CLI for Shipstatic')
+  .description('')
   .version(packageJson.version)
-  .option('-u, --api <URL>', 'API URL')
-  .option('-k, --apiKey <KEY>', 'API key')
-  .option('--json', 'JSON output')
-  .addHelpText('after', `
-Examples:
-  ship ./path                    Deploy files (shortcut, dirs flattened by default)
-  ship ./dist --preserve-dirs    Deploy preserving directory structure
-  ship ping                      Check API connectivity
-  
-  ship deployments list          List all deployments
-  ship deployments create ./app  Deploy app directory (dirs flattened by default)
-  ship deployments create ./dist --preserve-dirs  Deploy preserving dir structure
-  ship deployments get abc123    Get deployment details
-  ship deployments remove abc123 Remove deployment
-  
-  ship aliases list              List all aliases
-  ship aliases get staging       Get alias details
-  ship aliases set staging abc123   Set alias to deployment
-  ship aliases remove staging    Remove alias
-  
-  ship account get               Get account details`);
+  .option('-k, --api-key <key>', 'API key')
+  .option('-c, --config <file>', 'Custom config file path')
+  .option('-u, --api-url <url>', 'API URL')
+  .option('-p, --preserve-dirs', 'Preserve directory structure')
+  .option('-j, --json', 'JSON output')
+  .configureHelp({
+    formatHelp: (cmd, helper) => {
+      // Special handling for main help - it has USAGE section first
+      let output = '\n' + strong('USAGE') + '\n';
+      output += `  ${'ship <path>'.padEnd(COLUMN_WIDTH)} 🚀 Deploy files\n\n`;
+      
+      // Get commands in specific order
+      const commandOrder = ['deployments', 'aliases', 'whoami', 'ping'];
+      const commands = cmd.commands.filter(c => !c.hidden && c.name() !== 'account');
+      
+      commands.sort((a, b) => {
+        const aIndex = commandOrder.indexOf(a.name());
+        const bIndex = commandOrder.indexOf(b.name());
+        return aIndex - bIndex;
+      });
+      
+      const formattedCommands = commands.map(command => {
+        let desc = command.description();
+        
+        // Remove emoji from description if it already has one
+        if (desc.startsWith('📦') || desc.startsWith('🌎') || desc.startsWith('👨‍🚀') || desc.startsWith('📡')) {
+          desc = desc.substring(2).trim();
+        }
+        
+        // Update descriptions to match format
+        if (command.name() === 'whoami') desc = 'Current account';
+        else if (command.name() === 'ping') desc = 'Check API connectivity';
+        
+        const emojis = { ping: '📡', whoami: '👨‍🚀', deployments: '📦', aliases: '🌎' };
+        const emoji = emojis[command.name() as keyof typeof emojis] || '';
+        
+        return {
+          name: `ship ${command.name()}`,
+          desc: `${emoji} ${desc}`
+        };
+      });
+      
+      output += strong('COMMANDS') + '\n';
+      formattedCommands.forEach(cmd => {
+        output += `  ${cmd.name.padEnd(COLUMN_WIDTH)} ${cmd.desc}\n`;
+      });
+      output += '\n';
+      
+      output += formatFlags();
+      output += dim('Please report any issues to https://github.com/shipstatic/ship/issues') + '\n\n';
+      
+      return output;
+    }
+  });
 
 // Ping command
 program
@@ -146,8 +283,22 @@ program
   .action(async () => {
     try {
       const client = createClient();
-      const success = await client.ping();
-      console.log(success ? 'Connected' : 'Failed');
+      const result = await client.ping();
+      output(result);
+    } catch (error: any) {
+      handleError(error);
+    }
+  });
+
+// Whoami command
+program
+  .command('whoami')
+  .description('Get current account information')
+  .action(async () => {
+    try {
+      const client = createClient();
+      const result = await client.whoami();
+      output(result);
     } catch (error: any) {
       handleError(error);
     }
@@ -156,7 +307,17 @@ program
 // Deployments commands
 const deploymentsCmd = program
   .command('deployments')
-  .description('Manage deployments');
+  .description('📦 Manage deployments')
+  .configureHelp({
+    formatHelp: (cmd, helper) => {
+      const subcommands = cmd.commands.filter(c => !c.hidden).map(sub => ({
+        name: `ship deployments ${sub.name()}`,
+        desc: sub.description()
+      }));
+      
+      return formatHelp('', '📦', 'Manage deployments', subcommands);
+    }
+  });
 
 deploymentsCmd
   .command('list')
@@ -174,7 +335,6 @@ deploymentsCmd
 deploymentsCmd
   .command('create <path>')
   .description('Deploy files from path')
-  .option('--preserve-dirs', 'Preserve directory structure (by default, common parent directories are flattened)')
   .action(handleDeploy);
 
 deploymentsCmd
@@ -206,7 +366,17 @@ deploymentsCmd
 // Aliases commands
 const aliasesCmd = program
   .command('aliases')
-  .description('Manage aliases');
+  .description('🌎 Manage aliases')
+  .configureHelp({
+    formatHelp: (cmd, helper) => {
+      const subcommands = cmd.commands.filter(c => !c.hidden).map(sub => ({
+        name: `ship aliases ${sub.name()}`,
+        desc: sub.description()
+      }));
+      
+      return formatHelp('', '🌎', 'Manage aliases', subcommands);
+    }
+  });
 
 aliasesCmd
   .command('list')
@@ -263,7 +433,17 @@ aliasesCmd
 // Account commands
 const accountCmd = program
   .command('account')
-  .description('Manage account');
+  .description('👨‍🚀 Manage account')
+  .configureHelp({
+    formatHelp: (cmd, helper) => {
+      const subcommands = cmd.commands.filter(c => !c.hidden).map(sub => ({
+        name: `ship account ${sub.name()}`,
+        desc: sub.description()
+      }));
+      
+      return formatHelp('', '👨‍🚀', 'Manage account', subcommands);
+    }
+  });
 
 accountCmd
   .command('get')
@@ -271,7 +451,7 @@ accountCmd
   .action(async () => {
     try {
       const client = createClient();
-      const result = await client.account.get();
+      const result = await client.whoami();
       output(result);
     } catch (error: any) {
       handleError(error);
@@ -281,7 +461,6 @@ accountCmd
 // Path shortcut - handle as fallback
 program
   .argument('[path]', 'Path to deploy (shortcut)')
-  .option('--preserve-dirs', 'Preserve directory structure (by default, common parent directories are flattened)')
   .action(async (path?: string, cmdOptions?: any) => {
     // If no path provided, show help
     if (!path) {

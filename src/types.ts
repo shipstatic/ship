@@ -83,6 +83,8 @@ export interface ShipClientOptions {
   apiUrl?: string | undefined;
   /** Default API key for the client instance. */
   apiKey?: string | undefined;
+  /** Path to custom config file. */
+  configFile?: string | undefined;
   /**
    * Default callback for overall deploy progress for deploys made with this client.
    * @param progress - A number between 0 and 100.

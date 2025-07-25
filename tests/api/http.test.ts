@@ -78,6 +78,32 @@ describe('ApiHttp', () => {
     });
   });
 
+  describe('getPingResponse', () => {
+    it('should return full PingResponse object', async () => {
+      const mockResponse = { success: true, timestamp: 1753379248270 };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.getPingResponse();
+      
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/ping',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test-api-key'
+          })
+        })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should handle network errors', async () => {
+      (global.fetch as any).mockRejectedValue(new Error('Network error'));
+
+      await expect(apiHttp.getPingResponse()).rejects.toThrow('Network error');
+    });
+  });
+
   describe('getConfig', () => {
     it('should fetch platform configuration', async () => {
       const mockConfig = {

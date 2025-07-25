@@ -26,7 +26,6 @@ export type { DeployInput, DeploymentOptions } from './types.js';
 /**
  * Ship SDK Client - Universal class-based interface for both Node.js and browser environments.
  * 
- * Similar to Vercel's SDK approach:
  * ```
  * const ship = new Ship({ apiKey: "your-api-key" });
  * ```
@@ -35,21 +34,17 @@ export type { DeployInput, DeploymentOptions } from './types.js';
  * In Node.js environments, loads configuration from files and environment variables.
  * In browser environments, uses only the provided options.
  */
-/**
- * Ship SDK Client - Simplified single class supporting both Node.js and browser environments
- */
 export class Ship {
   private http: ApiHttp;
   private environment: 'node' | 'browser';
-  private configInitialized: boolean = false;
-  private configLoaded: boolean = false;
   private readonly clientOptions: ShipClientOptions;
+  private initPromise: Promise<void> | null = null;
   
-  // Resource instances (lazy-loaded)
-  private _deployments?: DeploymentResource;
-  private _aliases?: AliasResource;
-  private _account?: AccountResource;
-  private _keys?: KeysResource;
+  // Resource instances (initialized during creation)
+  private _deployments: DeploymentResource;
+  private _aliases: AliasResource;
+  private _account: AccountResource;
+  private _keys: KeysResource;
 
   constructor(options: ShipClientOptions = {}) {
     this.clientOptions = options;
@@ -59,78 +54,63 @@ export class Ship {
       throw ShipError.business('Unsupported execution environment.');
     }
     
-    // Initialize HTTP client with ONLY constructor options for now.
-    // The full config will be loaded and applied lazily.
+    // Initialize HTTP client with constructor options for immediate use
     const config = resolveConfig(options, {});
     this.http = new ApiHttp({ ...options, ...config });
+    
+    // Initialize resources with lazy loading support
+    const initCallback = this.getInitCallback();
+    const getApi = () => this.http; // Dynamic getter for current HTTP client
+    this._deployments = createDeploymentResource(getApi, this.clientOptions, initCallback);
+    this._aliases = createAliasResource(getApi, initCallback);
+    this._account = createAccountResource(getApi, initCallback);
+    this._keys = createKeysResource(getApi, initCallback);
   }
 
   /**
-   * Initialize config from file/env and platform config from API (called automatically on first use)
+   * Ensure full initialization is complete - called lazily by resources
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this.initializeConfig();
+    }
+    return this.initPromise;
+  }
+
+  /**
+   * Helper method to create initialization callback for resources
+   */
+  private getInitCallback() {
+    return () => this.ensureInitialized();
+  }
+
+  /**
+   * Initialize config from file/env and platform config from API
    */
   private async initializeConfig(): Promise<void> {
-    if (this.configInitialized) return;
-
-    // Load config from file/env if not already done
-    if (!this.configLoaded) {
-      const loadedConfig = await loadConfig();
+    try {
+      // Load config from file/env
+      const loadedConfig = await loadConfig(this.clientOptions.configFile);
       // Re-resolve and re-create the http client with the full config
       const finalConfig = resolveConfig(this.clientOptions, loadedConfig);
       this.http = new ApiHttp({ ...this.clientOptions, ...finalConfig });
-      this.configLoaded = true;
+      
+      const platformConfig = await this.http.getConfig();
+      setConfig(platformConfig);
+    } catch (error) {
+      // Reset initialization promise so it can be retried
+      this.initPromise = null;
+      throw error;
     }
-    
-    const platformConfig = await this.http.getConfig();
-    setConfig(platformConfig);
-    this.configInitialized = true;
   }
 
   /**
    * Ping the API server to check connectivity
    */
   async ping(): Promise<boolean> {
-    await this.initializeConfig();
+    // Ensure initialization before any HTTP operations
+    await this.ensureInitialized();
     return this.http.ping();
-  }
-
-  /**
-   * Get deployments resource (environment-specific)
-   */
-  get deployments() {
-    if (!this._deployments) {
-      this._deployments = createDeploymentResource(this.http, () => this.initializeConfig(), this.clientOptions);
-    }
-    return this._deployments;
-  }
-  
-  /**
-   * Get aliases resource
-   */
-  get aliases(): AliasResource {
-    if (!this._aliases) {
-      this._aliases = createAliasResource(this.http);
-    }
-    return this._aliases;
-  }
-  
-  /**
-   * Get account resource
-   */
-  get account(): AccountResource {
-    if (!this._account) {
-      this._account = createAccountResource(this.http);
-    }
-    return this._account;
-  }
-  
-  /**
-   * Get keys resource
-   */
-  get keys(): KeysResource {
-    if (!this._keys) {
-      this._keys = createKeysResource(this.http);
-    }
-    return this._keys;
   }
 
   /**
@@ -139,6 +119,42 @@ export class Ship {
   async deploy(input: DeployInput, options?: DeploymentOptions): Promise<Deployment> {
     return this.deployments.create(input, options);
   }
+
+  /**
+   * Get current account information (convenience shortcut to ship.account.get())
+   */
+  async whoami() {
+    return this.account.get();
+  }
+
+  /**
+   * Get deployments resource (environment-specific)
+   */
+  get deployments(): DeploymentResource {
+    return this._deployments;
+  }
+  
+  /**
+   * Get aliases resource
+   */
+  get aliases(): AliasResource {
+    return this._aliases;
+  }
+  
+  /**
+   * Get account resource
+   */
+  get account(): AccountResource {
+    return this._account;
+  }
+  
+  /**
+   * Get keys resource
+   */
+  get keys(): KeysResource {
+    return this._keys;
+  }
+
 
 }
 

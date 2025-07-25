@@ -96,7 +96,8 @@ export class ApiHttp {
   }
 
   /**
-   * Makes a fetch request with common error handling and authentication.
+   * Low-level fetch wrapper with authentication - used only by #request method.
+   * This method only handles the raw fetch request with auth headers.
    * @param url - Request URL
    * @param options - Fetch options
    * @param operationName - Name of operation for error messages
@@ -170,6 +171,14 @@ export class ApiHttp {
   }
 
   /**
+   * Get full ping response from the API server
+   * @returns Promise resolving to the full PingResponse object.
+   */
+  public async getPingResponse(): Promise<PingResponse> {
+    return await this.#request<PingResponse>(`${this.apiUrl}${PING_ENDPOINT}`, { method: 'GET' }, 'Ping');
+  }
+
+  /**
    * Fetches platform configuration from the API.
    * @returns Promise resolving to the config response.
    * @throws {ShipError} If the config request fails.
@@ -202,32 +211,17 @@ export class ApiHttp {
       signal
     } = options;
 
-    try {
-      const { requestBody, requestHeaders } = await this.#prepareRequestPayload(files);
-      
-      const fetchOptions: RequestInit = {
-        method: 'POST',
-        body: requestBody,
-        headers: requestHeaders,
-        signal: signal || null
-      };
+    const { requestBody, requestHeaders } = await this.#prepareRequestPayload(files);
+    
+    const fetchOptions: RequestInit = {
+      method: 'POST',
+      body: requestBody,
+      headers: requestHeaders,
+      signal: signal || null
+    };
 
-      const response = await this.#fetchWithAuth(`${apiUrl}${DEPLOY_ENDPOINT}`, fetchOptions, 'Deploy');
-      
-      if (!response.ok) {
-        await this.#handleResponseError(response, 'Deploy');
-      }
-      
-      return await response.json() as Deployment;
-    } catch (error: any) {
-      if (error instanceof ShipError) {
-        throw error;
-      }
-      this.#handleFetchError(error, 'Deploy');
-      // This line is unreachable because #handleFetchError always throws.
-      // However, TypeScript requires a return statement here.
-      throw ShipError.business('An unexpected error occurred and was not handled.');
-    }
+    // Use unified request method to eliminate duplication
+    return await this.#request<Deployment>(`${apiUrl}${DEPLOY_ENDPOINT}`, fetchOptions, 'Deploy');
   }
   
   /**
@@ -378,6 +372,11 @@ export class ApiHttp {
       // Use message if available, otherwise use the error field as the message, or fallback
       const message = errorData.message || errorData.error || `${operationName} failed due to API error`;
       
+      // Handle authentication errors specifically
+      if (response.status === 401) {
+        throw ShipError.authentication(message);
+      }
+      
       throw ShipError.api(
         message,
         response.status,
@@ -387,6 +386,11 @@ export class ApiHttp {
     }
 
     // Fallback for completely unstructured errors
+    // Handle authentication errors specifically for unstructured responses too
+    if (response.status === 401) {
+      throw ShipError.authentication(`Authentication failed for ${operationName}`);
+    }
+    
     throw ShipError.api(
       `${operationName} failed due to API error`,
       response.status,
