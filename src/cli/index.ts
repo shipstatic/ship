@@ -26,6 +26,125 @@ try {
   }
 }
 
+/**
+ * Handle unknown command with improved error message and help display
+ */
+function handleUnknownCommand(command: string, subcommand?: string) {
+  console.error(`${strong('🛸 Unknown command:')} ${command}${subcommand ? ' ' + subcommand : ''}`);
+  
+  if (subcommand) {
+    // This is a subcommand of a known command
+    switch (command) {
+      case 'deployments':
+        displayDeploymentsHelp();
+        break;
+      case 'aliases':
+        displayAliasesHelp();
+        break;
+      case 'account':
+        displayAccountHelp();
+        break;
+      default:
+        // Fallback to main help
+        displayMainHelp();
+    }
+  } else {
+    // Unknown top-level command
+    displayMainHelp();
+  }
+  
+  process.exit(1);
+}
+
+/**
+ * Display main help information - uses the same formatter as the main program help
+ */
+function displayMainHelp() {
+  // Create a temporary Command instance to reuse the same help formatter
+  const tempCmd = new Command();
+  tempCmd.name('ship').description('');
+  
+  // Add the same commands as the main program
+  tempCmd.command('deployments').description('📦 Manage deployments');
+  tempCmd.command('aliases').description('🌎 Manage aliases');
+  tempCmd.command('whoami').description('👨‍🚀 Current account');
+  tempCmd.command('ping').description('📡 Check API connectivity');
+  
+  // Use the same help formatter as the main program
+  const helper = tempCmd.createHelp();
+  const formatter = program.configureHelp().formatHelp;
+  
+  if (formatter) {
+    console.log(formatter(tempCmd, helper));
+  }
+}
+
+/**
+ * Display deployments help information
+ */
+function displayDeploymentsHelp() {
+  // Create a temporary Command instance to reuse the same help formatter
+  const tempCmd = new Command();
+  tempCmd.name('deployments').description('📦 Manage deployments');
+  
+  // Add the same subcommands as the deployments command
+  tempCmd.command('list').description('List all deployments');
+  tempCmd.command('create <path>').description('Deploy files from path');
+  tempCmd.command('get <id>').description('Get deployment details');
+  tempCmd.command('remove <id>').description('Remove deployment');
+  
+  // Use the same help formatter as the deployments command
+  const helper = tempCmd.createHelp();
+  const formatter = deploymentsCmd.configureHelp().formatHelp;
+  
+  if (formatter) {
+    console.log(formatter(tempCmd, helper));
+  }
+}
+
+/**
+ * Display aliases help information
+ */
+function displayAliasesHelp() {
+  // Create a temporary Command instance to reuse the same help formatter
+  const tempCmd = new Command();
+  tempCmd.name('aliases').description('🌎 Manage aliases');
+  
+  // Add the same subcommands as the aliases command
+  tempCmd.command('list').description('List all aliases');
+  tempCmd.command('get <n>').description('Get alias details');
+  tempCmd.command('set <n> <deployment>').description('Set alias to deployment');
+  tempCmd.command('remove <n>').description('Remove alias');
+  
+  // Use the same help formatter as the aliases command
+  const helper = tempCmd.createHelp();
+  const formatter = aliasesCmd.configureHelp().formatHelp;
+  
+  if (formatter) {
+    console.log(formatter(tempCmd, helper));
+  }
+}
+
+/**
+ * Display account help information
+ */
+function displayAccountHelp() {
+  // Create a temporary Command instance to reuse the same help formatter
+  const tempCmd = new Command();
+  tempCmd.name('account').description('👨‍🚀 Manage account');
+  
+  // Add the same subcommands as the account command
+  tempCmd.command('get').description('Get account details');
+  
+  // Use the same help formatter as the account command
+  const helper = tempCmd.createHelp();
+  const formatter = accountCmd.configureHelp().formatHelp;
+  
+  if (formatter) {
+    console.log(formatter(tempCmd, helper));
+  }
+}
+
 const program = new Command();
 
 /**
@@ -197,7 +316,7 @@ function formatFlags(): string {
     ).join('\n') + '\n\n';
 }
 
-function formatHelp(title: string, emoji: string, description: string, commands: Array<{name: string, desc: string}>, includeIssues = false): string {
+function formatHelp(title: string, emoji: string, description: string, commands: Array<{name: string, desc: string}>): string {
   let output = title ? `\n${title}\n\n${emoji} ${description}\n\n` : `\n${emoji} ${description}\n\n`;
   
   if (commands.length > 0) {
@@ -210,9 +329,8 @@ function formatHelp(title: string, emoji: string, description: string, commands:
   
   output += formatFlags();
   
-  if (includeIssues) {
-    output += dim('Please report any issues to https://github.com/shipstatic/ship/issues') + '\n\n';
-  }
+  // Always include issues link
+  output += dim('Please report any issues to https://github.com/shipstatic/ship/issues') + '\n\n';
   
   return output;
 }
@@ -234,7 +352,8 @@ program
       
       // Get commands in specific order
       const commandOrder = ['deployments', 'aliases', 'whoami', 'ping'];
-      const commands = cmd.commands.filter(c => !c.hidden && c.name() !== 'account');
+      // Filter out commands with description starting with 'Unknown' and the account command
+      const commands = cmd.commands.filter(c => !c.description().startsWith('Unknown') && c.name() !== 'account');
       
       commands.sort((a, b) => {
         const aIndex = commandOrder.indexOf(a.name());
@@ -310,10 +429,13 @@ const deploymentsCmd = program
   .description('📦 Manage deployments')
   .configureHelp({
     formatHelp: (cmd, helper) => {
-      const subcommands = cmd.commands.filter(c => !c.hidden).map(sub => ({
-        name: `ship deployments ${sub.name()}`,
-        desc: sub.description()
-      }));
+      // Filter out commands with description starting with 'Unknown'
+      const subcommands = cmd.commands
+        .filter(sub => !sub.description().startsWith('Unknown'))
+        .map(sub => ({
+          name: `ship deployments ${sub.name()}`,
+          desc: sub.description()
+        }));
       
       return formatHelp('', '📦', 'Manage deployments', subcommands);
     }
@@ -369,10 +491,13 @@ const aliasesCmd = program
   .description('🌎 Manage aliases')
   .configureHelp({
     formatHelp: (cmd, helper) => {
-      const subcommands = cmd.commands.filter(c => !c.hidden).map(sub => ({
-        name: `ship aliases ${sub.name()}`,
-        desc: sub.description()
-      }));
+      // Filter out commands with description starting with 'Unknown'
+      const subcommands = cmd.commands
+        .filter(sub => !sub.description().startsWith('Unknown'))
+        .map(sub => ({
+          name: `ship aliases ${sub.name()}`,
+          desc: sub.description()
+        }));
       
       return formatHelp('', '🌎', 'Manage aliases', subcommands);
     }
@@ -436,10 +561,13 @@ const accountCmd = program
   .description('👨‍🚀 Manage account')
   .configureHelp({
     formatHelp: (cmd, helper) => {
-      const subcommands = cmd.commands.filter(c => !c.hidden).map(sub => ({
-        name: `ship account ${sub.name()}`,
-        desc: sub.description()
-      }));
+      // Filter out commands with description starting with 'Unknown'
+      const subcommands = cmd.commands
+        .filter(sub => !sub.description().startsWith('Unknown'))
+        .map(sub => ({
+          name: `ship account ${sub.name()}`,
+          desc: sub.description()
+        }));
       
       return formatHelp('', '👨‍🚀', 'Manage account', subcommands);
     }
@@ -472,12 +600,39 @@ program
     if (path.startsWith('./') || path.startsWith('/') || path.startsWith('~') || path.includes('/')) {
       await handleDeploy(path, cmdOptions);
     } else {
-      console.error('Unknown command:', path);
-      console.error('Use "ship --help" for available commands');
-      process.exit(1);
+      handleUnknownCommand(path);
     }
   });
 
+
+// Add catch-all commands for each subcommand group
+deploymentsCmd
+  .command('*')
+  .description('Unknown deployments subcommand')
+  .action((cmd: string) => {
+    handleUnknownCommand('deployments', cmd);
+  });
+
+aliasesCmd
+  .command('*')
+  .description('Unknown aliases subcommand')
+  .action((cmd: string) => {
+    handleUnknownCommand('aliases', cmd);
+  });
+
+accountCmd
+  .command('*')
+  .description('Unknown account subcommand')
+  .action((cmd: string) => {
+    handleUnknownCommand('account', cmd);
+  });
+
+// Handle unknown top-level commands
+program
+  .on('command:*', (operands: string[]) => {
+    const unknownCommand = operands[0];
+    handleUnknownCommand(unknownCommand);
+  });
 
 if (process.env.NODE_ENV !== 'test') {
   program.parse(process.argv);
