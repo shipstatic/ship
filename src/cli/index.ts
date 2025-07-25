@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { Ship, ShipError } from '../index.js';
 import { readFileSync } from 'fs';
 import * as path from 'path';
+import { clearLine, strong, dim } from './utils.js';
 
 // Get package.json data for version information using robust path resolution
 let packageJson: any = { version: '0.0.0' };
@@ -147,11 +148,7 @@ function displayAccountHelp() {
 
 const program = new Command();
 
-/**
- * CLI formatting helpers
- */
-const strong = (text: string) => `\x1b[1m${text}\x1b[0m`;
-const dim = (text: string) => `\x1b[2m${text}\x1b[0m`;
+// CLI formatting helpers are imported from utils.js
 
 /**
  * Error handler using ShipError type guards - all errors should be ShipError instances
@@ -288,7 +285,19 @@ async function handleDeploy(path: string, cmdOptions: any) {
       deployOptions.preserveDirs = true;
     }
     
+    // Display upload pending message
+    const options = program.opts();
+    if (!options.json) {
+      process.stdout.write('🌀 Uploading...');
+    }
+    
     const result = await client.deployments.create([path], deployOptions);
+    
+    // Clear the line before showing output
+    if (!options.json) {
+      clearLine();
+    }
+    
     output(result);
   } catch (error: any) {
     handleError(error);
