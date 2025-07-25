@@ -88,7 +88,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     sourcemap: true,
     clean: false,
     external: nodeExternals,
-    minify: false,
+    minify: tsupOptions.watch ? false : true,
     banner: {
       js: '#!/usr/bin/env node',
     },
