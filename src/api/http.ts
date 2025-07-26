@@ -452,14 +452,30 @@ export class ApiHttp {
    * Sets an alias (create or update)
    * @param name - Alias name
    * @param deploymentName - Deployment name to point to
-   * @returns Promise resolving to the created/updated alias
+   * @returns Promise resolving to the created/updated alias with operation context
    */
-  public async setAlias(name: string, deploymentName: string): Promise<Alias> {
-    return await this.#request<Alias>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deploymentId: deploymentName })
-    }, 'Set Alias');
+  public async setAlias(name: string, deploymentName: string): Promise<import('@shipstatic/types').Alias> {
+    try {
+      const response = await this.#fetchWithAuth(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deploymentId: deploymentName })
+      }, 'Set Alias');
+      
+      if (!response.ok) {
+        await this.#handleResponseError(response, 'Set Alias');
+      }
+      
+      const alias = await response.json() as import('@shipstatic/types').Alias;
+      
+      // 201 = created, 200 = updated
+      return {
+        ...alias,
+        isCreate: response.status === 201
+      };
+    } catch (error: any) {
+      this.#handleFetchError(error, 'Set Alias');
+    }
   }
 
   /**

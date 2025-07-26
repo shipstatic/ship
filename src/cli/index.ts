@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { Ship, ShipError } from '../index.js';
 import { readFileSync } from 'fs';
 import * as path from 'path';
-import { clearLine, strong, dim } from './utils.js';
+import { clearLine, strong, dim, formatColumns, formatProperties, formatTimestamp, success, error, info } from './utils.js';
 
 // Get package.json data for version information using robust path resolution
 let packageJson: any = { version: '0.0.0' };
@@ -31,7 +31,7 @@ try {
  * Handle unknown command with improved error message and help display
  */
 function handleUnknownCommand(command: string, subcommand?: string) {
-  console.error(`${strong('🛸 Unknown command:')} ${command}${subcommand ? ' ' + subcommand : ''}`);
+  console.error(`\n${strong('🛸 Unknown command:')} ${command}${subcommand ? ' ' + subcommand : ''}`);
   
   if (subcommand) {
     // This is a subcommand of a known command
@@ -153,10 +153,10 @@ const program = new Command();
 /**
  * Error handler using ShipError type guards - all errors should be ShipError instances
  */
-function handleError(error: any) {
+function handleError(err: any, context?: { operation?: string; resourceType?: string; resourceId?: string }) {
   // All errors in this codebase should be ShipError instances
-  if (!(error instanceof ShipError)) {
-    const message = error.message || error;
+  if (!(err instanceof ShipError)) {
+    const message = err.message || err;
     const options = program.opts();
     
     if (options.json) {
@@ -165,22 +165,27 @@ function handleError(error: any) {
         details: { originalError: message }
       }, null, 2));
     } else {
-      console.error(`🔴 Unexpected error type: ${message}`);
+      error(`Unexpected error: ${message}`);
     }
     process.exit(1);
   }
 
-  let message = error.message;
+  let message = err.message;
   
-  if (error.isAuthError()) {
+  // Special handling for 404 errors on delete operations
+  if (err.details?.data?.error === 'not_found' && context?.operation === 'remove') {
+    const resourceType = context.resourceType || 'resource';
+    const resourceId = context.resourceId || '';
+    message = `${resourceType} not found: ${resourceId}`;
+  } else if (err.isAuthError()) {
     message = 'Authentication failed. Check your API key.';
-  } else if (error.isNetworkError()) {
+  } else if (err.isNetworkError()) {
     message = 'Network error. Check your connection and API URL.';
-  } else if (error.isFileError()) {
+  } else if (err.isFileError()) {
     // Keep original file error message as it's usually specific and helpful
-  } else if (error.isValidationError()) {
+  } else if (err.isValidationError()) {
     // Keep original validation message as it's usually specific
-  } else if (error.isClientError()) {
+  } else if (err.isClientError()) {
     // Keep original client error message
   } else {
     message = 'Server error. Please try again later.';
@@ -190,10 +195,10 @@ function handleError(error: any) {
   if (options.json) {
     console.error(JSON.stringify({ 
       error: message,
-      ...(error.details ? { details: error.details } : {})
+      ...(err.details ? { details: err.details } : {})
     }, null, 2));
   } else {
-    console.error(`🔴 ${message}`);
+    error(message);
   }
   process.exit(1);
 }
@@ -225,20 +230,50 @@ function createClient(): Ship {
  */
 const formatters = {
   deployments: (result: any) => {
-    result.deployments.forEach((d: any) => {
-      console.log(`${d.deployment} (${d.status})`);
-    });
+    if (!result.deployments || result.deployments.length === 0) {
+      info('No deployments found');
+      return;
+    }
+    
+    const data = result.deployments.map((d: any) => ({
+      DEPLOYMENT: d.deployment,
+      URL: d.url,
+      CREATED: formatTimestamp(d.createdAt),
+      EXPIRES: formatTimestamp(d.expiresAt)
+    }));
+    
+    console.log(formatColumns(data));
   },
   aliases: (result: any) => {
-    result.aliases.forEach((a: any) => {
-      console.log(`${a.alias} -> ${a.deploymentName}`);
-    });
+    if (!result.aliases || result.aliases.length === 0) {
+      console.log('No aliases found');
+      return;
+    }
+    
+    const data = result.aliases.map((a: any) => ({
+      ALIAS: a.alias,
+      DEPLOYMENT: a.deploymentName || a.deployment,
+      URL: a.url,
+      CREATED: formatTimestamp(a.createdAt),
+      CONFIRMED: formatTimestamp(a.confirmedAt)
+    }));
+    
+    console.log(formatColumns(data));
   },
-  deployment: (result: any) => {
-    console.log(`${result.deployment} (${result.status})`);
+  deployment: (result: any, context?: { operation?: string }) => {
+    // Show success message for create operations only
+    if (result.status && context?.operation === 'create') {
+      success(`Deployment created: ${result.deployment}`);
+      console.log('');
+    }
+    console.log(formatProperties(result));
   },
   alias: (result: any) => {
-    console.log(`${result.alias} -> ${result.deploymentName}`);
+    // Show success message for create/update operations with proper terminology
+    const operation = result.isCreate ? 'created' : 'updated';
+    success(`Alias ${operation}: ${result.alias}`);
+    console.log('');
+    console.log(formatProperties(result));
   },
   email: (result: any) => {
     console.log(`${result.email} (${result.subscription})`);
@@ -248,23 +283,38 @@ const formatters = {
 /**
  * Format output based on --json flag
  */
-function output(result: any) {
+function output(result: any, context?: { operation?: string; resourceType?: string; resourceId?: string }) {
   const options = program.opts();
   if (options.json) {
     console.log(JSON.stringify(result, null, 2));
     return;
   }
   
-  // Handle ping result (has success property)
-  if (result && typeof result === 'object' && result.hasOwnProperty('success')) {
-    console.log(result.success ? '🛰️ Connected' : '🔴 Connection failed');
+  // Handle void/undefined results (removal operations)
+  if (result === undefined) {
+    if (context?.operation === 'remove' && context.resourceType && context.resourceId) {
+      success(`${context.resourceType} removed: ${context.resourceId}`);
+    } else {
+      success('Removed successfully');
+    }
+    return;
+  }
+  
+  // Handle ping result (boolean or object with success property)
+  if (result === true || (result && typeof result === 'object' && result.hasOwnProperty('success'))) {
+    const isSuccess = result === true || result.success;
+    if (isSuccess) {
+      success('API connected');
+    } else {
+      error('API connection failed');
+    }
     return;
   }
   
   // Find appropriate formatter based on result properties
   for (const [key, formatter] of Object.entries(formatters)) {
     if (result[key]) {
-      formatter(result);
+      formatter(result, context);
       return;
     }
   }
@@ -298,7 +348,7 @@ async function handleDeploy(path: string, cmdOptions: any) {
       clearLine();
     }
     
-    output(result);
+    output(result, { operation: 'create' });
   } catch (error: any) {
     handleError(error);
   }
@@ -488,9 +538,9 @@ deploymentsCmd
     try {
       const client = createClient();
       const result = await client.deployments.remove(id);
-      output(result);
+      output(result, { operation: 'remove', resourceType: 'Deployment', resourceId: id });
     } catch (error: any) {
-      handleError(error);
+      handleError(error, { operation: 'remove', resourceType: 'Deployment', resourceId: id });
     }
   });
 
@@ -558,9 +608,9 @@ aliasesCmd
     try {
       const client = createClient();
       const result = await client.aliases.remove(name);
-      output(result);
+      output(result, { operation: 'remove', resourceType: 'Alias', resourceId: name });
     } catch (error: any) {
-      handleError(error);
+      handleError(error, { operation: 'remove', resourceType: 'Alias', resourceId: name });
     }
   });
 
@@ -618,22 +668,28 @@ program
 deploymentsCmd
   .command('*')
   .description('Unknown deployments subcommand')
-  .action((cmd: string) => {
-    handleUnknownCommand('deployments', cmd);
+  .action((cmd: any, cmdObj: any) => {
+    // The actual command string is in cmdObj.args[0]
+    const actualCmd = cmdObj.args[0];
+    handleUnknownCommand('deployments', actualCmd);
   });
 
 aliasesCmd
   .command('*')
   .description('Unknown aliases subcommand')
-  .action((cmd: string) => {
-    handleUnknownCommand('aliases', cmd);
+  .action((cmd: any, cmdObj: any) => {
+    // The actual command string is in cmdObj.args[0]
+    const actualCmd = cmdObj.args[0];
+    handleUnknownCommand('aliases', actualCmd);
   });
 
 accountCmd
   .command('*')
   .description('Unknown account subcommand')
-  .action((cmd: string) => {
-    handleUnknownCommand('account', cmd);
+  .action((cmd: any, cmdObj: any) => {
+    // The actual command string is in cmdObj.args[0]
+    const actualCmd = cmdObj.args[0];
+    handleUnknownCommand('account', actualCmd);
   });
 
 // Handle unknown top-level commands

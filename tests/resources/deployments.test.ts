@@ -50,8 +50,7 @@ describe('DeploymentResource', () => {
         hasConfig: false,
         url: 'https://pink-elephant-abc123.statichost.com',
         createdAt: 1234567890,
-        expiresAt: 1234567890,
-        verifiedAt: 1234567890
+        expiresAt: 1234567890
       };
       (mockApi.deploy as any).mockResolvedValue(mockDeployResponse);
       
@@ -66,8 +65,7 @@ describe('DeploymentResource', () => {
         hasConfig: false,
         url: 'https://pink-elephant-abc123.statichost.com',
         createdAt: 1234567890,
-        expiresAt: 1234567890,
-        verifiedAt: 1234567890
+        expiresAt: 1234567890
       });
     });
 
@@ -80,8 +78,7 @@ describe('DeploymentResource', () => {
         hasConfig: true,
         url: 'https://bright-dolphin-def456.statichost.com',
         createdAt: 1234567890,
-        expiresAt: 1234567890,
-        verifiedAt: 1234567890
+        expiresAt: 1234567890
       };
       (mockApi.deploy as any).mockResolvedValue(mockDeployResponse);
       
@@ -96,8 +93,7 @@ describe('DeploymentResource', () => {
         hasConfig: true,
         url: 'https://bright-dolphin-def456.statichost.com',
         createdAt: 1234567890,
-        expiresAt: 1234567890,
-        verifiedAt: 1234567890
+        expiresAt: 1234567890
       });
     });
   });
@@ -135,8 +131,7 @@ describe('DeploymentResource', () => {
         filesCount: 5,
         totalSize: 4096,
         createdAt: 1234567890,
-        expiresAt: 1234567890,
-        verifiedAt: 1234567890
+        expiresAt: 1234567890
       };
       (mockApi.getDeployment as any).mockResolvedValue(mockResponse);
       

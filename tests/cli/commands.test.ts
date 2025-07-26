@@ -144,6 +144,30 @@ describe('CLI Commands', () => {
       expect(result).toEqual(mockResponse);
     });
 
+    it('should differentiate between alias create and update messages', async () => {
+      // Test alias creation (isCreate: true)
+      const createResponse = { alias: 'new-alias', deployment: 'abc123', isCreate: true };
+      mockShip.aliases.set.mockResolvedValue(createResponse);
+
+      const { Ship: ShipClass } = await import('@/index');
+      const client = new ShipClass();
+      const createResult = await client.aliases.set('new-alias', 'abc123');
+
+      expect(mockShip.aliases.set).toHaveBeenCalledWith('new-alias', 'abc123');
+      expect(createResult).toEqual(createResponse);
+      expect(createResult.isCreate).toBe(true);
+
+      // Test alias update (isCreate: false)
+      const updateResponse = { alias: 'existing-alias', deployment: 'def456', isCreate: false };
+      mockShip.aliases.set.mockResolvedValue(updateResponse);
+
+      const updateResult = await client.aliases.set('existing-alias', 'def456');
+
+      expect(mockShip.aliases.set).toHaveBeenCalledWith('existing-alias', 'def456');
+      expect(updateResult).toEqual(updateResponse);
+      expect(updateResult.isCreate).toBe(false);
+    });
+
     it('should handle aliases.get', async () => {
       const mockResponse = { alias: 'staging', deployment: 'abc123' };
       mockShip.aliases.get.mockResolvedValue(mockResponse);

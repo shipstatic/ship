@@ -267,9 +267,9 @@ describe('ApiHttp', () => {
   });
 
   describe('alias operations', () => {
-    it('should set alias', async () => {
+    it('should set alias (update - 200 status)', async () => {
       const mockAlias = { alias: 'staging', deployment: 'test-deployment' };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias));
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias, 200));
 
       const result = await apiHttp.setAlias('staging', 'test-deployment');
 
@@ -284,7 +284,27 @@ describe('ApiHttp', () => {
           body: JSON.stringify({ deploymentId: 'test-deployment' })
         })
       );
-      expect(result).toEqual(mockAlias);
+      expect(result).toEqual({ ...mockAlias, isCreate: false });
+    });
+
+    it('should set alias (create - 201 status)', async () => {
+      const mockAlias = { alias: 'new-alias', deployment: 'test-deployment' };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias, 201));
+
+      const result = await apiHttp.setAlias('new-alias', 'test-deployment');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/aliases/new-alias',
+        expect.objectContaining({
+          method: 'PUT',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test-api-key',
+            'Content-Type': 'application/json'
+          }),
+          body: JSON.stringify({ deploymentId: 'test-deployment' })
+        })
+      );
+      expect(result).toEqual({ ...mockAlias, isCreate: true });
     });
 
     it('should get alias', async () => {
