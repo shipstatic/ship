@@ -2,15 +2,15 @@
  * Simple CLI utilities following "impossible simplicity" mantra
  */
 import columnify from 'columnify';
-import { bold, dim, green, red, yellow, blue } from 'yoctocolors';
+import { bold, dim } from 'yoctocolors';
 
 /**
  * Message helper functions for consistent CLI output
  */
-export const success = (msg: string) => console.log(`${green('●')} ${msg}`);
-export const error = (msg: string) => console.error(`${red('●')} ${msg}`);
-export const warn = (msg: string) => console.log(`${yellow('●')} ${msg}`);
-export const info = (msg: string) => console.log(`${blue('●')} ${msg}`);
+export const success = (msg: string) => console.log(`\n\x1b[32m●\x1b[0m ${msg}\n`);
+export const error = (msg: string) => console.error(`\n\x1b[31m●\x1b[0m ${msg}\n`);
+export const warn = (msg: string) => console.log(`\n\x1b[33m●\x1b[0m ${msg}\n`);
+export const info = (msg: string) => console.log(`\n\x1b[34m●\x1b[0m ${msg}\n`);
 
 /**
  * Format unix timestamp to local date string, or return '-' if not provided

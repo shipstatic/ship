@@ -553,11 +553,9 @@ completionCmd
         fs.copyFileSync(fishScriptPath, installPath);
         success('Fish completion installed successfully!');
         info('Please restart your shell to apply the changes.');
-        console.log();
         return;
       } else {
         error(`Unsupported shell: ${shell}. Could not install completion script.`);
-        console.log();
         return;
       }
 
@@ -574,13 +572,11 @@ completionCmd
 
       success(`Completion script installed for ${shell.split('/').pop()}.`);
       info(`Please run "source ${profileFile}" or restart your shell.`);
-      console.log();
     } catch (e: any) {
       error(`Could not install completion script: ${e.message}`);
       if (shell.includes('bash') || shell.includes('zsh')) {
         info(`Please add the following line to your profile file manually:\n${sourceLine}`);
       }
-      console.log();
     }
   });
 
@@ -612,11 +608,9 @@ completionCmd
           warn('Fish completion was not installed.');
         }
         info('Please restart your shell to apply the changes.');
-        console.log();
         return;
       } else {
         error(`Unsupported shell: ${shell}. Could not uninstall completion script.`);
-        console.log();
         return;
       }
 
@@ -645,10 +639,8 @@ completionCmd
       } else {
         warn('Profile file not found.');
       }
-      console.log();
     } catch (e: any) {
       error(`Could not uninstall completion script: ${e.message}`);
-      console.log();
     }
   });
 
