@@ -60,11 +60,3 @@ export function normalizeWebPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\/+/, '');
 }
 
-/**
- * Ensures a path is relative by normalizing it and removing any leading slashes.
- * @param path - The path to make relative
- * @returns Relative path suitable for web deployment
- */
-export function ensureRelativePath(path: string): string {
-  return normalizeWebPath(path);
-}

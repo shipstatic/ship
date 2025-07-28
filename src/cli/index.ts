@@ -33,11 +33,34 @@ try {
 
 
 /**
+ * Handle unknown command errors consistently across all contexts
+ */
+function handleUnknownCommand(commandStr: string) {
+  // Extract the actual unknown command from Commander.js error messages
+  let unknownCommand = commandStr;
+  
+  // Handle "error: unknown command 'foo'" format from subcommands
+  const subcommandMatch = commandStr.match(/error: unknown command '(.+?)'/);
+  if (subcommandMatch) {
+    unknownCommand = subcommandMatch[1];
+  }
+  
+  // Handle direct unknown commands
+  const options = program.opts();
+  if (options.json) {
+    console.error(JSON.stringify({ error: `Unknown command: ${unknownCommand}` }, null, 2));
+    console.error();
+  } else {
+    error(`Unknown command: ${unknownCommand}`);
+    displayMasterHelp();
+  }
+}
+
+/**
  * Display comprehensive help information for all commands
  */
 function displayMasterHelp() {
-  const output = `
-${bold('USAGE')}
+  const output = `${bold('USAGE')}
   ship <path>               🚀 Deploy project
 
 ${bold('COMMANDS')}
@@ -94,29 +117,45 @@ function handleError(err: any, context?: { operation?: string; resourceType?: st
       console.error();
     } else {
       error(`Unexpected error: ${message}`);
-      console.log();
     }
     process.exit(1);
   }
 
   let message = err.message;
   
-  // Special handling for 404 errors on delete operations
-  if (err.details?.data?.error === 'not_found' && context?.operation === 'remove') {
-    const resourceType = context.resourceType || 'resource';
-    const resourceId = context.resourceId || '';
-    message = `${resourceType} not found: ${resourceId}`;
-  } else if (err.isAuthError()) {
+  // Handle specific error types based on error details
+  if (err.details?.data?.error === 'not_found') {
+    if (context?.operation === 'remove') {
+      const resourceType = context.resourceType || 'resource';
+      const resourceId = context.resourceId || '';
+      message = `${resourceType} not found: ${resourceId}`;
+    } else {
+      // For other operations (like aliases set), use consistent format
+      const originalMessage = err.details.data.message || 'Resource not found';
+      // Convert "Deployment X not found" to "Deployment not found: X" format
+      const match = originalMessage.match(/^(.*?)\s+(.+?)\s+not found$/);
+      if (match) {
+        const [, resourceType, resourceId] = match;
+        message = `${resourceType} not found: ${resourceId}`;
+      } else {
+        message = originalMessage;
+      }
+    }
+  }
+  // Handle business logic errors with detailed messages
+  else if (err.details?.data?.error === 'business_logic_error') {
+    message = err.details.data.message || 'Business logic error occurred';
+  }
+  // User-friendly messages for common error types  
+  else if (err.isAuthError()) {
     message = 'Authentication failed. Check your API key.';
-  } else if (err.isNetworkError()) {
+  }
+  else if (err.isNetworkError()) {
     message = 'Network error. Check your connection and API URL.';
-  } else if (err.isFileError()) {
-    // Keep original file error message as it's usually specific and helpful
-  } else if (err.isValidationError()) {
-    // Keep original validation message as it's usually specific
-  } else if (err.isClientError()) {
-    // Keep original client error message
-  } else {
+  }
+  // For file, validation, and client errors, trust the original message
+  // For server errors, provide generic fallback
+  else if (!err.isFileError() && !err.isValidationError() && !err.isClientError()) {
     message = 'Server error. Please try again later.';
   }
   
@@ -129,9 +168,41 @@ function handleError(err: any, context?: { operation?: string; resourceType?: st
     console.error();
   } else {
     error(message);
-    console.log();
   }
   process.exit(1);
+}
+
+/**
+ * Wrapper for CLI actions that handles errors and client creation consistently
+ * Reduces boilerplate while preserving context for error handling
+ */
+function withErrorHandling<T extends any[], R>(
+  handler: (client: Ship, ...args: T) => Promise<R>,
+  context?: { operation?: string; resourceType?: string; getResourceId?: (...args: T) => string }
+) {
+  return async (...args: T) => {
+    try {
+      const client = createClient();
+      const result = await handler(client, ...args);
+      
+      // Build context for output if provided
+      const outputContext = context ? {
+        operation: context.operation,
+        resourceType: context.resourceType,
+        resourceId: context.getResourceId ? context.getResourceId(...args) : undefined
+      } : undefined;
+      
+      output(result, outputContext);
+    } catch (error: any) {
+      const errorContext = context ? {
+        operation: context.operation,
+        resourceType: context.resourceType,
+        resourceId: context.getResourceId ? context.getResourceId(...args) : undefined
+      } : undefined;
+      
+      handleError(error, errorContext);
+    }
+  };
 }
 
 /**
@@ -163,43 +234,36 @@ const formatters = {
   deployments: (result: any) => {
     if (!result.deployments || result.deployments.length === 0) {
       info('No deployments found');
-      console.log();
       return;
     }
     
     console.log(formatTable(result.deployments));
-    console.log();
   },
   aliases: (result: any) => {
     if (!result.aliases || result.aliases.length === 0) {
       info('No aliases found');
-      console.log();
       return;
     }
     
     console.log(formatTable(result.aliases));
-    console.log();
   },
   deployment: (result: any, context?: { operation?: string }) => {
     // Show success message for create operations only
     if (result.status && context?.operation === 'create') {
       success(`Deployment created: ${result.deployment}`);
-      console.log();
     }
     console.log(formatDetails(result));
-    console.log();
   },
-  alias: (result: any) => {
-    // Show success message for create/update operations with proper terminology
-    const operation = result.isCreate ? 'created' : 'updated';
-    success(`Alias ${operation}: ${result.alias}`);
-    console.log();
+  alias: (result: any, context?: { operation?: string }) => {
+    // Show success message for set operations only
+    if (context?.operation === 'set') {
+      const operation = result.isCreate ? 'created' : 'updated';
+      success(`Alias ${operation}: ${result.alias}`);
+    }
     console.log(formatDetails(result));
-    console.log();
   },
   email: (result: any) => {
     console.log(formatDetails(result));
-    console.log();
   }
 };
 
@@ -221,7 +285,6 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
     } else {
       success('Removed successfully');
     }
-    console.log();
     return;
   }
   
@@ -233,7 +296,6 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
     } else {
       error('API connection failed');
     }
-    console.log();
     return;
   }
   
@@ -246,8 +308,7 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
   }
   
   // Default fallback
-  console.log('Success');
-  console.log();
+  success('Success');
 }
 
 /**
@@ -320,13 +381,21 @@ program
   .exitOverride()
   .configureOutput({
     writeErr: (str) => {
+      const trimmed = str.trim();
+      if (!trimmed) return; // Don't output anything for empty errors
+      
+      // Check if this is an unknown command error and handle it consistently
+      if (trimmed.includes('unknown command')) {
+        handleUnknownCommand(trimmed);
+        return;
+      }
+      
       const options = program.opts();
       if (options.json) {
-        console.error(JSON.stringify({ error: str.trim() }, null, 2));
+        console.error(JSON.stringify({ error: trimmed }, null, 2));
         console.error();
       } else {
-        error(str.trim());
-        console.log();
+        error(trimmed);
       }
     }
   })
@@ -341,29 +410,13 @@ program
 program
   .command('ping')
   .description('Check API connectivity')
-  .action(async () => {
-    try {
-      const client = createClient();
-      const result = await client.ping();
-      output(result);
-    } catch (error: any) {
-      handleError(error);
-    }
-  });
+  .action(withErrorHandling((client) => client.ping()));
 
 // Whoami command
 program
   .command('whoami')
   .description('Get current account information')
-  .action(async () => {
-    try {
-      const client = createClient();
-      const result = await client.whoami();
-      output(result);
-    } catch (error: any) {
-      handleError(error);
-    }
-  });
+  .action(withErrorHandling((client) => client.whoami()));
 
 // Deployments commands
 const deploymentsCmd = program
@@ -374,20 +427,31 @@ const deploymentsCmd = program
       displayMasterHelp();
       return '';
     }
+  })
+  .configureOutput({
+    writeErr: (str) => {
+      const trimmed = str.trim();
+      if (!trimmed) return;
+      
+      if (trimmed.includes('unknown command')) {
+        handleUnknownCommand(trimmed);
+        return;
+      }
+      
+      const options = program.opts();
+      if (options.json) {
+        console.error(JSON.stringify({ error: trimmed }, null, 2));
+        console.error();
+      } else {
+        error(trimmed);
+      }
+    }
   });
 
 deploymentsCmd
   .command('list')
   .description('List all deployments')
-  .action(async () => {
-    try {
-      const client = createClient();
-      const result = await client.deployments.list();
-      output(result);
-    } catch (error: any) {
-      handleError(error);
-    }
-  });
+  .action(withErrorHandling((client) => client.deployments.list()));
 
 deploymentsCmd
   .command('create <path>')
@@ -397,28 +461,15 @@ deploymentsCmd
 deploymentsCmd
   .command('get <deployment>')
   .description('Get deployment details')
-  .action(async (deployment: string) => {
-    try {
-      const client = createClient();
-      const result = await client.deployments.get(deployment);
-      output(result);
-    } catch (error: any) {
-      handleError(error);
-    }
-  });
+  .action(withErrorHandling((client, deployment: string) => client.deployments.get(deployment)));
 
 deploymentsCmd
   .command('remove <deployment>')
   .description('Remove deployment')
-  .action(async (deployment: string) => {
-    try {
-      const client = createClient();
-      const result = await client.deployments.remove(deployment);
-      output(result, { operation: 'remove', resourceType: 'Deployment', resourceId: deployment });
-    } catch (error: any) {
-      handleError(error, { operation: 'remove', resourceType: 'Deployment', resourceId: deployment });
-    }
-  });
+  .action(withErrorHandling(
+    (client, deployment: string) => client.deployments.remove(deployment),
+    { operation: 'remove', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
+  ));
 
 // Aliases commands
 const aliasesCmd = program
@@ -429,59 +480,52 @@ const aliasesCmd = program
       displayMasterHelp();
       return '';
     }
+  })
+  .configureOutput({
+    writeErr: (str) => {
+      const trimmed = str.trim();
+      if (!trimmed) return;
+      
+      if (trimmed.includes('unknown command')) {
+        handleUnknownCommand(trimmed);
+        return;
+      }
+      
+      const options = program.opts();
+      if (options.json) {
+        console.error(JSON.stringify({ error: trimmed }, null, 2));
+        console.error();
+      } else {
+        error(trimmed);
+      }
+    }
   });
 
 aliasesCmd
   .command('list')
   .description('List all aliases')
-  .action(async () => {
-    try {
-      const client = createClient();
-      const result = await client.aliases.list();
-      output(result);
-    } catch (error: any) {
-      handleError(error);
-    }
-  });
+  .action(withErrorHandling((client) => client.aliases.list()));
 
 aliasesCmd
   .command('get <name>')
   .description('Get alias details')
-  .action(async (name: string) => {
-    try {
-      const client = createClient();
-      const result = await client.aliases.get(name);
-      output(result);
-    } catch (error: any) {
-      handleError(error);
-    }
-  });
+  .action(withErrorHandling((client, name: string) => client.aliases.get(name)));
 
 aliasesCmd
   .command('set <name> <deployment>')
   .description('Set alias to deployment')
-  .action(async (name: string, deployment: string) => {
-    try {
-      const client = createClient();
-      const result = await client.aliases.set(name, deployment);
-      output(result);
-    } catch (error: any) {
-      handleError(error);
-    }
-  });
+  .action(withErrorHandling(
+    (client, name: string, deployment: string) => client.aliases.set(name, deployment),
+    { operation: 'set' }
+  ));
 
 aliasesCmd
   .command('remove <name>')
   .description('Remove alias')
-  .action(async (name: string) => {
-    try {
-      const client = createClient();
-      const result = await client.aliases.remove(name);
-      output(result, { operation: 'remove', resourceType: 'Alias', resourceId: name });
-    } catch (error: any) {
-      handleError(error, { operation: 'remove', resourceType: 'Alias', resourceId: name });
-    }
-  });
+  .action(withErrorHandling(
+    (client, name: string) => client.aliases.remove(name),
+    { operation: 'remove', resourceType: 'Alias', getResourceId: (name: string) => name }
+  ));
 
 // Account commands
 const accountCmd = program
@@ -497,15 +541,7 @@ const accountCmd = program
 accountCmd
   .command('get')
   .description('Get account details')
-  .action(async () => {
-    try {
-      const client = createClient();
-      const result = await client.whoami();
-      output(result);
-    } catch (error: any) {
-      handleError(error);
-    }
-  });
+  .action(withErrorHandling((client) => client.whoami()));
 
 // Completion commands
 const completionCmd = program
@@ -651,6 +687,7 @@ program
   .action(async (path?: string, cmdOptions?: any) => {
     // If no path provided, show help
     if (!path) {
+      console.log();
       displayMasterHelp();
       process.exit(0);
     }
@@ -666,7 +703,6 @@ program
         console.error();
       } else {
         error(`Unknown command: ${path}`);
-        console.log();
         displayMasterHelp();
       }
       process.exit(1);

@@ -7,17 +7,17 @@ import { bold, dim } from 'yoctocolors';
 /**
  * Message helper functions for consistent CLI output
  */
-export const success = (msg: string) => console.log(`\n\x1b[32m●\x1b[0m ${msg}\n`);
-export const error = (msg: string) => console.error(`\n\x1b[31m●\x1b[0m ${msg}\n`);
-export const warn = (msg: string) => console.log(`\n\x1b[33m●\x1b[0m ${msg}\n`);
-export const info = (msg: string) => console.log(`\n\x1b[34m●\x1b[0m ${msg}\n`);
+export const success = (msg: string) => console.log(`\x1b[32m●\x1b[0m ${msg}\n`);
+export const error = (msg: string) => console.error(`\x1b[31m●\x1b[0m ${msg}\n`);
+export const warn = (msg: string) => console.log(`\x1b[33m●\x1b[0m ${msg}\n`);
+export const info = (msg: string) => console.log(`\x1b[34m●\x1b[0m ${msg}\n`);
 
 /**
- * Format unix timestamp to local date string, or return '-' if not provided
+ * Format unix timestamp to ISO 8601 date string (YYYY-MM-DD), or return '-' if not provided
  */
 export const formatTimestamp = (timestamp?: number): string => {
   return timestamp !== undefined && timestamp !== null && timestamp !== 0 
-    ? new Date(timestamp * 1000).toLocaleDateString() 
+    ? new Date(timestamp * 1000).toISOString().split('T')[0]
     : '-';
 };
 
@@ -43,7 +43,8 @@ export const clearLine = (): void => {
 export const toNaturalLabel = (key: string): string => {
   // Handle special cases
   const specialCases: Record<string, string> = {
-    url: 'URL'
+    url: 'URL',
+    deploymentName: 'Deployment'
   };
   
   if (specialCases[key]) {
@@ -88,7 +89,7 @@ export const formatTable = (data: any[]): string => {
   
   // Define display order for different resource types
   const deploymentListOrder = ['deployment', 'url', 'createdAt', 'expiresAt'];
-  const aliasOrder = ['alias', 'url', 'deploymentName', 'status', 'confirmedAt', 'createdAt'];
+  const aliasOrder = ['alias', 'url', 'deploymentName', 'createdAt'];
   
   // Determine which type this is based on first item
   const isDeployment = 'deployment' in (data[0] || {});
@@ -117,7 +118,7 @@ export const formatTable = (data: any[]): string => {
         return config;
       }, {} as any)
     }
-  });
+  }) + '\n';
 };
 
 /**
@@ -125,7 +126,7 @@ export const formatTable = (data: any[]): string => {
  */
 export const formatDetails = (obj: any): string => {
   const allEntries = Object.entries(obj).filter(([key, value]) => {
-    // Filter out internal properties
+    // Filter out internal properties only
     if (key === 'verifiedAt' || key === 'isCreate') return false;
     return value !== undefined;
   });
@@ -169,7 +170,7 @@ export const formatDetails = (obj: any): string => {
       const formattedValue = formatValue(key, value);
       return `${dim(label)}  ${formattedValue}`;
     })
-    .join('\n');
+    .join('\n') + '\n';
 };
 
 // Legacy aliases for backwards compatibility

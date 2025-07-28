@@ -21,54 +21,54 @@ describe('CLI Output Formatting', () => {
   describe('Message Helpers', () => {
     it('should format success messages with green circle', () => {
       success('Test success message');
-      expect(mockConsoleLog).toHaveBeenCalledWith('\n\x1b[32m●\x1b[0m Test success message\n');
+      expect(mockConsoleLog).toHaveBeenCalledWith('\x1b[32m●\x1b[0m Test success message\n');
     });
 
     it('should format error messages with red circle', () => {
       error('Test error message');
-      expect(mockConsoleError).toHaveBeenCalledWith('\n\x1b[31m●\x1b[0m Test error message\n');
+      expect(mockConsoleError).toHaveBeenCalledWith('\x1b[31m●\x1b[0m Test error message\n');
     });
 
     it('should format alias created message', () => {
       success('Alias created: test-alias');
-      expect(mockConsoleLog).toHaveBeenCalledWith('\n\x1b[32m●\x1b[0m Alias created: test-alias\n');
+      expect(mockConsoleLog).toHaveBeenCalledWith('\x1b[32m●\x1b[0m Alias created: test-alias\n');
     });
 
     it('should format alias updated message', () => {
       success('Alias updated: test-alias');
-      expect(mockConsoleLog).toHaveBeenCalledWith('\n\x1b[32m●\x1b[0m Alias updated: test-alias\n');
+      expect(mockConsoleLog).toHaveBeenCalledWith('\x1b[32m●\x1b[0m Alias updated: test-alias\n');
     });
 
     it('should format deployment created message', () => {
       success('Deployment created: test-deployment-123');
-      expect(mockConsoleLog).toHaveBeenCalledWith('\n\x1b[32m●\x1b[0m Deployment created: test-deployment-123\n');
+      expect(mockConsoleLog).toHaveBeenCalledWith('\x1b[32m●\x1b[0m Deployment created: test-deployment-123\n');
     });
 
     it('should format resource removal messages', () => {
       success('Alias removed: test-alias');
-      expect(mockConsoleLog).toHaveBeenCalledWith('\n\x1b[32m●\x1b[0m Alias removed: test-alias\n');
+      expect(mockConsoleLog).toHaveBeenCalledWith('\x1b[32m●\x1b[0m Alias removed: test-alias\n');
 
       success('Deployment removed: test-deployment');
-      expect(mockConsoleLog).toHaveBeenCalledWith('\n\x1b[32m●\x1b[0m Deployment removed: test-deployment\n');
+      expect(mockConsoleLog).toHaveBeenCalledWith('\x1b[32m●\x1b[0m Deployment removed: test-deployment\n');
     });
 
     it('should format resource not found error messages', () => {
       error('Alias not found: nonexistent-alias');
-      expect(mockConsoleError).toHaveBeenCalledWith('\n\x1b[31m●\x1b[0m Alias not found: nonexistent-alias\n');
+      expect(mockConsoleError).toHaveBeenCalledWith('\x1b[31m●\x1b[0m Alias not found: nonexistent-alias\n');
 
       error('Deployment not found: nonexistent-deployment');
-      expect(mockConsoleError).toHaveBeenCalledWith('\n\x1b[31m●\x1b[0m Deployment not found: nonexistent-deployment\n');
+      expect(mockConsoleError).toHaveBeenCalledWith('\x1b[31m●\x1b[0m Deployment not found: nonexistent-deployment\n');
     });
   });
 
   describe('Timestamp Formatting', () => {
-    it('should format unix timestamps to local date strings', () => {
+    it('should format unix timestamps to ISO 8601 date strings', () => {
       // Test with a known timestamp (2025-01-15 12:00:00 UTC = 1736942400)
       const timestamp = 1736942400;
       const result = formatTimestamp(timestamp);
       
-      // The exact format depends on the locale, but it should be a date string
-      expect(result).toMatch(/\d{1,2}\/\d{1,2}\/\d{4}/); // MM/DD/YYYY or similar
+      // Should be in ISO 8601 format (YYYY-MM-DD)
+      expect(result).toBe('2025-01-15');
     });
 
     it('should return dash for undefined timestamps', () => {
@@ -100,10 +100,10 @@ describe('CLI Output Formatting', () => {
 
       // Test the actual message formatting
       success(`Alias ${createOperation}: ${createResult.alias}`);
-      expect(mockConsoleLog).toHaveBeenCalledWith('\n\x1b[32m●\x1b[0m Alias created: test-alias\n');
+      expect(mockConsoleLog).toHaveBeenCalledWith('\x1b[32m●\x1b[0m Alias created: test-alias\n');
 
       success(`Alias ${updateOperation}: ${updateResult.alias}`);
-      expect(mockConsoleLog).toHaveBeenCalledWith('\n\x1b[32m●\x1b[0m Alias updated: test-alias\n');
+      expect(mockConsoleLog).toHaveBeenCalledWith('\x1b[32m●\x1b[0m Alias updated: test-alias\n');
     });
 
     it('should handle aliases without isCreate property gracefully', () => {
@@ -117,7 +117,7 @@ describe('CLI Output Formatting', () => {
       expect(operation).toBe('updated');
       
       success(`Alias ${operation}: ${legacyResult.alias}`);
-      expect(mockConsoleLog).toHaveBeenCalledWith('\n\x1b[32m●\x1b[0m Alias updated: test-alias\n');
+      expect(mockConsoleLog).toHaveBeenCalledWith('\x1b[32m●\x1b[0m Alias updated: test-alias\n');
     });
   });
 
@@ -133,7 +133,7 @@ describe('CLI Output Formatting', () => {
 
       errorMessages.forEach(message => {
         error(message);
-        expect(mockConsoleError).toHaveBeenCalledWith(`\n\x1b[31m●\x1b[0m ${message}\n`);
+        expect(mockConsoleError).toHaveBeenCalledWith(`\x1b[31m●\x1b[0m ${message}\n`);
       });
     });
   });
@@ -151,8 +151,28 @@ describe('CLI Output Formatting', () => {
 
       successMessages.forEach(message => {
         success(message);
-        expect(mockConsoleLog).toHaveBeenCalledWith(`\n\x1b[32m●\x1b[0m ${message}\n`);
+        expect(mockConsoleLog).toHaveBeenCalledWith(`\x1b[32m●\x1b[0m ${message}\n`);
       });
+    });
+  });
+
+  describe('Specific Error Cases', () => {
+    it('should format deployment not found error for aliases set', () => {
+      error('Deployment not found: driven-rune-62f2ac6');
+      expect(mockConsoleError).toHaveBeenCalledWith('\x1b[31m●\x1b[0m Deployment not found: driven-rune-62f2ac6\n');
+    });
+
+    it('should format business logic error messages', () => {
+      error('Cannot delete deployment with active aliases.');
+      expect(mockConsoleError).toHaveBeenCalledWith('\x1b[31m●\x1b[0m Cannot delete deployment with active aliases.\n');
+    });
+
+    it('should format resource not found messages for different contexts', () => {
+      error('Alias not found: nonexistent-alias');
+      expect(mockConsoleError).toHaveBeenCalledWith('\x1b[31m●\x1b[0m Alias not found: nonexistent-alias\n');
+
+      error('Deployment not found: nonexistent-deployment');
+      expect(mockConsoleError).toHaveBeenCalledWith('\x1b[31m●\x1b[0m Deployment not found: nonexistent-deployment\n');
     });
   });
 });
