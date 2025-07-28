@@ -105,7 +105,7 @@ ship ping
 ### Main Usage
 ```
 USAGE
-  ship <path>            🚀 Deploy files
+  ship <path>            🚀 Deploy project
 
 COMMANDS
   ship deployments       📦 Manage deployments
@@ -124,7 +124,7 @@ FLAGS
 
 ### Deployment Commands
 ```sh
-# Deploy files (shortcuts)
+# Deploy project (shortcuts)
 ship ./my-website
 ship .
 

@@ -5,14 +5,14 @@ This directory contains practical examples demonstrating how to use the Shipstat
 ## 📁 Available Examples
 
 ### [🌍 Browser Example](./browser/)
-Deploy files directly from the browser with drag-and-drop support.
+Deploy project directly from the browser with drag-and-drop support.
 - **Use case**: Web-based deployment interfaces, client-side applications
 - **Bundle size**: 275KB optimized for browsers
 - **Features**: FileList/File object support, real-time progress, error handling
 - **API**: `ship.deployments.create(files, options)`
 
 ### [⚡ Node.js Example](./node/)
-Deploy files and directories from Node.js applications and scripts.
+Deploy project and directories from Node.js applications and scripts.
 - **Use case**: Build tools, CI/CD pipelines, server-side deployments
 - **Bundle size**: 16KB optimized for Node.js
 - **Features**: Directory traversal, automatic config loading, colored terminal output
@@ -62,7 +62,7 @@ All examples support hierarchical configuration loading:
 
 ### Universal Resource API
 All examples use the same resource-based interface:
-- `ship.deployments.create()` - Deploy files
+- `ship.deployments.create()` - Deploy project
 - `ship.deployments.list()` - List deployments  
 - `ship.aliases.set()` - Manage aliases
 - `ship.account.get()` - Account details

@@ -4,9 +4,13 @@
  */
 import { Command } from 'commander';
 import { Ship, ShipError } from '../index.js';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
-import { clearLine, strong, dim, formatColumns, formatProperties, formatTimestamp, success, error, info } from './utils.js';
+import { formatTable, formatDetails, formatTimestamp, success, error, info, warn } from './utils.js';
+// Removed tabtab dependency - now using custom completion script
+import { bold, dim } from 'yoctocolors';
+import * as fs from 'fs';
+import * as os from 'os';
 
 // Get package.json data for version information using robust path resolution
 let packageJson: any = { version: '0.0.0' };
@@ -27,123 +31,46 @@ try {
   }
 }
 
-/**
- * Handle unknown command with improved error message and help display
- */
-function handleUnknownCommand(command: string, subcommand?: string) {
-  console.error(`\n${strong('🛸 Unknown command:')} ${command}${subcommand ? ' ' + subcommand : ''}`);
-  
-  if (subcommand) {
-    // This is a subcommand of a known command
-    switch (command) {
-      case 'deployments':
-        displayDeploymentsHelp();
-        break;
-      case 'aliases':
-        displayAliasesHelp();
-        break;
-      case 'account':
-        displayAccountHelp();
-        break;
-      default:
-        // Fallback to main help
-        displayMainHelp();
-    }
-  } else {
-    // Unknown top-level command
-    displayMainHelp();
-  }
-  
-  process.exit(1);
-}
 
 /**
- * Display main help information - uses the same formatter as the main program help
+ * Display comprehensive help information for all commands
  */
-function displayMainHelp() {
-  // Create a temporary Command instance to reuse the same help formatter
-  const tempCmd = new Command();
-  tempCmd.name('ship').description('');
-  
-  // Add the same commands as the main program
-  tempCmd.command('deployments').description('📦 Manage deployments');
-  tempCmd.command('aliases').description('🌎 Manage aliases');
-  tempCmd.command('whoami').description('👨‍🚀 Current account');
-  tempCmd.command('ping').description('📡 Check API connectivity');
-  
-  // Use the same help formatter as the main program
-  const helper = tempCmd.createHelp();
-  const formatter = program.configureHelp().formatHelp;
-  
-  if (formatter) {
-    console.log(formatter(tempCmd, helper));
-  }
-}
+function displayMasterHelp() {
+  const output = `
+${bold('USAGE')}
+  ship <path>               🚀 Deploy project
 
-/**
- * Display deployments help information
- */
-function displayDeploymentsHelp() {
-  // Create a temporary Command instance to reuse the same help formatter
-  const tempCmd = new Command();
-  tempCmd.name('deployments').description('📦 Manage deployments');
-  
-  // Add the same subcommands as the deployments command
-  tempCmd.command('list').description('List all deployments');
-  tempCmd.command('create <path>').description('Deploy files from path');
-  tempCmd.command('get <id>').description('Get deployment details');
-  tempCmd.command('remove <id>').description('Remove deployment');
-  
-  // Use the same help formatter as the deployments command
-  const helper = tempCmd.createHelp();
-  const formatter = deploymentsCmd.configureHelp().formatHelp;
-  
-  if (formatter) {
-    console.log(formatter(tempCmd, helper));
-  }
-}
+${bold('COMMANDS')}
+  📦 ${bold('Deployments')}
+  ship deployments list                     List all deployments
+  ship deployments create <path>            Deploy project from path
+  ship deployments get <deployment>         Get deployment details
+  ship deployments remove <deployment>      Remove deployment
 
-/**
- * Display aliases help information
- */
-function displayAliasesHelp() {
-  // Create a temporary Command instance to reuse the same help formatter
-  const tempCmd = new Command();
-  tempCmd.name('aliases').description('🌎 Manage aliases');
-  
-  // Add the same subcommands as the aliases command
-  tempCmd.command('list').description('List all aliases');
-  tempCmd.command('get <n>').description('Get alias details');
-  tempCmd.command('set <n> <deployment>').description('Set alias to deployment');
-  tempCmd.command('remove <n>').description('Remove alias');
-  
-  // Use the same help formatter as the aliases command
-  const helper = tempCmd.createHelp();
-  const formatter = aliasesCmd.configureHelp().formatHelp;
-  
-  if (formatter) {
-    console.log(formatter(tempCmd, helper));
-  }
-}
+  🌎 ${bold('Aliases')}
+  ship aliases list                         List all aliases
+  ship aliases get <alias>                  Get alias details
+  ship aliases set <alias> <deployment>     Set alias to deployment
+  ship aliases remove <alias>               Remove alias
 
-/**
- * Display account help information
- */
-function displayAccountHelp() {
-  // Create a temporary Command instance to reuse the same help formatter
-  const tempCmd = new Command();
-  tempCmd.name('account').description('👨‍🚀 Manage account');
+  👨‍🚀 ${bold('Account')}
+  ship whoami                               Current account information
+
+  🛠️  ${bold('Completion')}
+  ship completion install                   Install shell completion
+  ship completion uninstall                 Uninstall shell completion
+
+${bold('FLAGS')}
+  -k, --api-key <key>       API key for authentication
+  -c, --config <file>       Custom config file path
+  -p, --preserve-dirs       Preserve directory structure in deployment
+  -j, --json                Output results in JSON format
+  -v, --version             Show version information
+
+${dim('Please report any issues to https://github.com/shipstatic/ship/issues')}
+`;
   
-  // Add the same subcommands as the account command
-  tempCmd.command('get').description('Get account details');
-  
-  // Use the same help formatter as the account command
-  const helper = tempCmd.createHelp();
-  const formatter = accountCmd.configureHelp().formatHelp;
-  
-  if (formatter) {
-    console.log(formatter(tempCmd, helper));
-  }
+  console.log(output);
 }
 
 const program = new Command();
@@ -164,8 +91,10 @@ function handleError(err: any, context?: { operation?: string; resourceType?: st
         error: `Unexpected error: ${message}`,
         details: { originalError: message }
       }, null, 2));
+      console.error();
     } else {
       error(`Unexpected error: ${message}`);
+      console.log();
     }
     process.exit(1);
   }
@@ -197,8 +126,10 @@ function handleError(err: any, context?: { operation?: string; resourceType?: st
       error: message,
       ...(err.details ? { details: err.details } : {})
     }, null, 2));
+    console.error();
   } else {
     error(message);
+    console.log();
   }
   process.exit(1);
 }
@@ -232,51 +163,43 @@ const formatters = {
   deployments: (result: any) => {
     if (!result.deployments || result.deployments.length === 0) {
       info('No deployments found');
+      console.log();
       return;
     }
     
-    const data = result.deployments.map((d: any) => ({
-      DEPLOYMENT: d.deployment,
-      URL: d.url,
-      CREATED: formatTimestamp(d.createdAt),
-      EXPIRES: formatTimestamp(d.expiresAt)
-    }));
-    
-    console.log(formatColumns(data));
+    console.log(formatTable(result.deployments));
+    console.log();
   },
   aliases: (result: any) => {
     if (!result.aliases || result.aliases.length === 0) {
-      console.log('No aliases found');
+      info('No aliases found');
+      console.log();
       return;
     }
     
-    const data = result.aliases.map((a: any) => ({
-      ALIAS: a.alias,
-      DEPLOYMENT: a.deploymentName || a.deployment,
-      URL: a.url,
-      CREATED: formatTimestamp(a.createdAt),
-      CONFIRMED: formatTimestamp(a.confirmedAt)
-    }));
-    
-    console.log(formatColumns(data));
+    console.log(formatTable(result.aliases));
+    console.log();
   },
   deployment: (result: any, context?: { operation?: string }) => {
     // Show success message for create operations only
     if (result.status && context?.operation === 'create') {
       success(`Deployment created: ${result.deployment}`);
-      console.log('');
+      console.log();
     }
-    console.log(formatProperties(result));
+    console.log(formatDetails(result));
+    console.log();
   },
   alias: (result: any) => {
     // Show success message for create/update operations with proper terminology
     const operation = result.isCreate ? 'created' : 'updated';
     success(`Alias ${operation}: ${result.alias}`);
-    console.log('');
-    console.log(formatProperties(result));
+    console.log();
+    console.log(formatDetails(result));
+    console.log();
   },
   email: (result: any) => {
-    console.log(`${result.email} (${result.subscription})`);
+    console.log(formatDetails(result));
+    console.log();
   }
 };
 
@@ -287,6 +210,7 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
   const options = program.opts();
   if (options.json) {
     console.log(JSON.stringify(result, null, 2));
+    console.log();
     return;
   }
   
@@ -297,6 +221,7 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
     } else {
       success('Removed successfully');
     }
+    console.log();
     return;
   }
   
@@ -308,6 +233,7 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
     } else {
       error('API connection failed');
     }
+    console.log();
     return;
   }
   
@@ -321,6 +247,7 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
   
   // Default fallback
   console.log('Success');
+  console.log();
 }
 
 /**
@@ -328,6 +255,17 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
  */
 async function handleDeploy(path: string, cmdOptions: any) {
   try {
+    // Validate path exists before proceeding
+    if (!existsSync(path)) {
+      throw ShipError.file(`Path does not exist: ${path}`, path);
+    }
+    
+    // Check if path is a file or directory
+    const stats = statSync(path);
+    if (!stats.isDirectory() && !stats.isFile()) {
+      throw ShipError.file(`Path must be a file or directory: ${path}`, path);
+    }
+    
     const client = createClient();
     const deployOptions: any = {};
     
@@ -337,62 +275,38 @@ async function handleDeploy(path: string, cmdOptions: any) {
     
     // Display upload pending message
     const options = program.opts();
+    let spinner: any = null;
+    
     if (!options.json) {
-      process.stdout.write('🌀 Uploading...');
+      const { default: yoctoSpinner } = await import('yocto-spinner');
+      spinner = yoctoSpinner({ text: 'Uploading…' }).start();
     }
     
     const result = await client.deployments.create([path], deployOptions);
     
-    // Clear the line before showing output
-    if (!options.json) {
-      clearLine();
+    // Stop spinner before showing output
+    if (spinner) {
+      spinner.stop();
     }
     
     output(result, { operation: 'create' });
   } catch (error: any) {
+    // Make sure to stop spinner on error too
+    if (!program.opts().json) {
+      // Try to stop any running spinner
+      try {
+        // Create a temporary spinner just to stop any running ones
+        const { default: yoctoSpinner } = await import('yocto-spinner');
+        const tempSpinner = yoctoSpinner({ text: '' });
+        tempSpinner.stop();
+      } catch (e) {
+        // Ignore spinner cleanup errors
+      }
+    }
     handleError(error);
   }
 }
 
-/**
- * Help formatting - "Impossible Simplicity" approach
- */
-const COLUMN_WIDTH = 25;
-
-const FLAGS_SECTION = [
-  ['-k, --api-key <key>', 'API key'],
-  ['-c, --config <file>', 'Config file'],
-  ['-p, --preserve-dirs', 'Keep nesting'],
-  ['-j, --json', 'JSON output'],
-  ['-h, --help', 'Show help'],
-  ['-v, --version', 'Show version']
-];
-
-function formatFlags(): string {
-  return strong('FLAGS') + '\n' + 
-    FLAGS_SECTION.map(([flag, desc]) => 
-      `  ${flag.padEnd(COLUMN_WIDTH)} ${desc}`
-    ).join('\n') + '\n\n';
-}
-
-function formatHelp(title: string, emoji: string, description: string, commands: Array<{name: string, desc: string}>): string {
-  let output = title ? `\n${title}\n\n${emoji} ${description}\n\n` : `\n${emoji} ${description}\n\n`;
-  
-  if (commands.length > 0) {
-    output += strong('COMMANDS') + '\n';
-    commands.forEach(cmd => {
-      output += `  ${cmd.name.padEnd(COLUMN_WIDTH)} ${cmd.desc}\n`;
-    });
-    output += '\n';
-  }
-  
-  output += formatFlags();
-  
-  // Always include issues link
-  output += dim('Please report any issues to https://github.com/shipstatic/ship/issues') + '\n\n';
-  
-  return output;
-}
 
 program
   .name('ship')
@@ -403,54 +317,23 @@ program
   .option('-u, --api-url <url>', 'API URL')
   .option('-p, --preserve-dirs', 'Preserve directory structure')
   .option('-j, --json', 'JSON output')
+  .exitOverride()
+  .configureOutput({
+    writeErr: (str) => {
+      const options = program.opts();
+      if (options.json) {
+        console.error(JSON.stringify({ error: str.trim() }, null, 2));
+        console.error();
+      } else {
+        error(str.trim());
+        console.log();
+      }
+    }
+  })
   .configureHelp({
     formatHelp: (cmd, helper) => {
-      // Special handling for main help - it has USAGE section first
-      let output = '\n' + strong('USAGE') + '\n';
-      output += `  ${'ship <path>'.padEnd(COLUMN_WIDTH)} 🚀 Deploy files\n\n`;
-      
-      // Get commands in specific order
-      const commandOrder = ['deployments', 'aliases', 'whoami', 'ping'];
-      // Filter out commands with description starting with 'Unknown' and the account command
-      const commands = cmd.commands.filter(c => !c.description().startsWith('Unknown') && c.name() !== 'account');
-      
-      commands.sort((a, b) => {
-        const aIndex = commandOrder.indexOf(a.name());
-        const bIndex = commandOrder.indexOf(b.name());
-        return aIndex - bIndex;
-      });
-      
-      const formattedCommands = commands.map(command => {
-        let desc = command.description();
-        
-        // Remove emoji from description if it already has one
-        if (desc.startsWith('📦') || desc.startsWith('🌎') || desc.startsWith('👨‍🚀') || desc.startsWith('📡')) {
-          desc = desc.substring(2).trim();
-        }
-        
-        // Update descriptions to match format
-        if (command.name() === 'whoami') desc = 'Current account';
-        else if (command.name() === 'ping') desc = 'Check API connectivity';
-        
-        const emojis = { ping: '📡', whoami: '👨‍🚀', deployments: '📦', aliases: '🌎' };
-        const emoji = emojis[command.name() as keyof typeof emojis] || '';
-        
-        return {
-          name: `ship ${command.name()}`,
-          desc: `${emoji} ${desc}`
-        };
-      });
-      
-      output += strong('COMMANDS') + '\n';
-      formattedCommands.forEach(cmd => {
-        output += `  ${cmd.name.padEnd(COLUMN_WIDTH)} ${cmd.desc}\n`;
-      });
-      output += '\n';
-      
-      output += formatFlags();
-      output += dim('Please report any issues to https://github.com/shipstatic/ship/issues') + '\n\n';
-      
-      return output;
+      displayMasterHelp();
+      return '';  // Return empty string since we're handling display ourselves
     }
   });
 
@@ -485,18 +368,11 @@ program
 // Deployments commands
 const deploymentsCmd = program
   .command('deployments')
-  .description('📦 Manage deployments')
+  .description('Manage deployments')
   .configureHelp({
     formatHelp: (cmd, helper) => {
-      // Filter out commands with description starting with 'Unknown'
-      const subcommands = cmd.commands
-        .filter(sub => !sub.description().startsWith('Unknown'))
-        .map(sub => ({
-          name: `ship deployments ${sub.name()}`,
-          desc: sub.description()
-        }));
-      
-      return formatHelp('', '📦', 'Manage deployments', subcommands);
+      displayMasterHelp();
+      return '';
     }
   });
 
@@ -515,16 +391,16 @@ deploymentsCmd
 
 deploymentsCmd
   .command('create <path>')
-  .description('Deploy files from path')
+  .description('Deploy project from path')
   .action(handleDeploy);
 
 deploymentsCmd
-  .command('get <id>')
+  .command('get <deployment>')
   .description('Get deployment details')
-  .action(async (id: string) => {
+  .action(async (deployment: string) => {
     try {
       const client = createClient();
-      const result = await client.deployments.get(id);
+      const result = await client.deployments.get(deployment);
       output(result);
     } catch (error: any) {
       handleError(error);
@@ -532,33 +408,26 @@ deploymentsCmd
   });
 
 deploymentsCmd
-  .command('remove <id>')
+  .command('remove <deployment>')
   .description('Remove deployment')
-  .action(async (id: string) => {
+  .action(async (deployment: string) => {
     try {
       const client = createClient();
-      const result = await client.deployments.remove(id);
-      output(result, { operation: 'remove', resourceType: 'Deployment', resourceId: id });
+      const result = await client.deployments.remove(deployment);
+      output(result, { operation: 'remove', resourceType: 'Deployment', resourceId: deployment });
     } catch (error: any) {
-      handleError(error, { operation: 'remove', resourceType: 'Deployment', resourceId: id });
+      handleError(error, { operation: 'remove', resourceType: 'Deployment', resourceId: deployment });
     }
   });
 
 // Aliases commands
 const aliasesCmd = program
   .command('aliases')
-  .description('🌎 Manage aliases')
+  .description('Manage aliases')
   .configureHelp({
     formatHelp: (cmd, helper) => {
-      // Filter out commands with description starting with 'Unknown'
-      const subcommands = cmd.commands
-        .filter(sub => !sub.description().startsWith('Unknown'))
-        .map(sub => ({
-          name: `ship aliases ${sub.name()}`,
-          desc: sub.description()
-        }));
-      
-      return formatHelp('', '🌎', 'Manage aliases', subcommands);
+      displayMasterHelp();
+      return '';
     }
   });
 
@@ -617,18 +486,11 @@ aliasesCmd
 // Account commands
 const accountCmd = program
   .command('account')
-  .description('👨‍🚀 Manage account')
+  .description('Manage account')
   .configureHelp({
     formatHelp: (cmd, helper) => {
-      // Filter out commands with description starting with 'Unknown'
-      const subcommands = cmd.commands
-        .filter(sub => !sub.description().startsWith('Unknown'))
-        .map(sub => ({
-          name: `ship account ${sub.name()}`,
-          desc: sub.description()
-        }));
-      
-      return formatHelp('', '👨‍🚀', 'Manage account', subcommands);
+      displayMasterHelp();
+      return '';
     }
   });
 
@@ -645,60 +507,236 @@ accountCmd
     }
   });
 
+// Completion commands
+const completionCmd = program
+  .command('completion')
+  .description('Setup shell completion')
+  .configureHelp({
+    formatHelp: (cmd, helper) => {
+      displayMasterHelp();
+      return '';
+    }
+  });
+
+completionCmd
+  .command('install')
+  .description('Install shell completion script')
+  .action(async () => {
+    const shell = process.env.SHELL || '';
+    const homeDir = os.homedir();
+    let installPath: string;
+    let profileFile: string;
+    let sourceLine: string;
+
+    // Resolve the path to the bundled completion scripts
+    const bashScriptPath = path.resolve(__dirname, 'completions/ship.bash');
+    const zshScriptPath = path.resolve(__dirname, 'completions/ship.zsh');
+    const fishScriptPath = path.resolve(__dirname, 'completions/ship.fish');
+
+    try {
+      if (shell.includes('bash')) {
+        installPath = path.join(homeDir, '.ship_completion.bash');
+        profileFile = path.join(homeDir, '.bash_profile');
+        sourceLine = `\n# Ship CLI completion\nsource '${installPath}'\n`;
+        fs.copyFileSync(bashScriptPath, installPath);
+      } else if (shell.includes('zsh')) {
+        installPath = path.join(homeDir, '.ship_completion.zsh');
+        profileFile = path.join(homeDir, '.zshrc');
+        sourceLine = `\n# Ship CLI completion\nsource '${installPath}'\n`;
+        fs.copyFileSync(zshScriptPath, installPath);
+      } else if (shell.includes('fish')) {
+        const fishCompletionsDir = path.join(homeDir, '.config/fish/completions');
+        if (!fs.existsSync(fishCompletionsDir)) {
+          fs.mkdirSync(fishCompletionsDir, { recursive: true });
+        }
+        installPath = path.join(fishCompletionsDir, 'ship.fish');
+        fs.copyFileSync(fishScriptPath, installPath);
+        success('Fish completion installed successfully!');
+        info('Please restart your shell to apply the changes.');
+        console.log();
+        return;
+      } else {
+        error(`Unsupported shell: ${shell}. Could not install completion script.`);
+        console.log();
+        return;
+      }
+
+      // For bash and zsh, we need to add sourcing to profile
+      const profileExists = fs.existsSync(profileFile);
+      if (profileExists) {
+        const profileContent = fs.readFileSync(profileFile, 'utf-8');
+        if (!profileContent.includes('ship_completion')) {
+          fs.appendFileSync(profileFile, sourceLine);
+        }
+      } else {
+        fs.writeFileSync(profileFile, sourceLine);
+      }
+
+      success(`Completion script installed for ${shell.split('/').pop()}.`);
+      info(`Please run "source ${profileFile}" or restart your shell.`);
+      console.log();
+    } catch (e: any) {
+      error(`Could not install completion script: ${e.message}`);
+      if (shell.includes('bash') || shell.includes('zsh')) {
+        info(`Please add the following line to your profile file manually:\n${sourceLine}`);
+      }
+      console.log();
+    }
+  });
+
+completionCmd
+  .command('uninstall')
+  .description('Uninstall shell completion script')
+  .action(async () => {
+    const shell = process.env.SHELL || '';
+    const homeDir = os.homedir();
+    let installPath: string;
+    let profileFile: string;
+
+    try {
+      if (shell.includes('bash')) {
+        installPath = path.join(homeDir, '.ship_completion.bash');
+        profileFile = path.join(homeDir, '.bash_profile');
+      } else if (shell.includes('zsh')) {
+        installPath = path.join(homeDir, '.ship_completion.zsh');
+        profileFile = path.join(homeDir, '.zshrc');
+      } else if (shell.includes('fish')) {
+        const fishCompletionsDir = path.join(homeDir, '.config/fish/completions');
+        installPath = path.join(fishCompletionsDir, 'ship.fish');
+        
+        // Remove fish completion file
+        if (fs.existsSync(installPath)) {
+          fs.unlinkSync(installPath);
+          success('Fish completion uninstalled successfully!');
+        } else {
+          warn('Fish completion was not installed.');
+        }
+        info('Please restart your shell to apply the changes.');
+        console.log();
+        return;
+      } else {
+        error(`Unsupported shell: ${shell}. Could not uninstall completion script.`);
+        console.log();
+        return;
+      }
+
+      // Remove completion script file
+      if (fs.existsSync(installPath)) {
+        fs.unlinkSync(installPath);
+      }
+
+      // Remove sourcing line from profile
+      if (fs.existsSync(profileFile)) {
+        const profileContent = fs.readFileSync(profileFile, 'utf-8');
+        const lines = profileContent.split('\n');
+        const filteredLines = lines.filter(line => 
+          !line.includes('ship_completion') && 
+          !line.includes('Ship CLI completion')
+        );
+        
+        // Only write back if we actually removed something
+        if (filteredLines.length !== lines.length) {
+          fs.writeFileSync(profileFile, filteredLines.join('\n'));
+          success(`Completion script uninstalled for ${shell.split('/').pop()}.`);
+          info(`Please run "source ${profileFile}" or restart your shell.`);
+        } else {
+          warn('Completion was not found in profile.');
+        }
+      } else {
+        warn('Profile file not found.');
+      }
+      console.log();
+    } catch (e: any) {
+      error(`Could not uninstall completion script: ${e.message}`);
+      console.log();
+    }
+  });
+
+
 // Path shortcut - handle as fallback
 program
   .argument('[path]', 'Path to deploy (shortcut)')
   .action(async (path?: string, cmdOptions?: any) => {
     // If no path provided, show help
     if (!path) {
-      program.help();
-      return;
+      displayMasterHelp();
+      process.exit(0);
     }
     
     // Check if looks like a path (shortcut: ship ./path)
     if (path.startsWith('./') || path.startsWith('/') || path.startsWith('~') || path.includes('/')) {
       await handleDeploy(path, cmdOptions);
     } else {
-      handleUnknownCommand(path);
+      // Let Commander.js handle unknown commands with its default error handling
+      const options = program.opts();
+      if (options.json) {
+        console.error(JSON.stringify({ error: `Unknown command: ${path}` }, null, 2));
+        console.error();
+      } else {
+        error(`Unknown command: ${path}`);
+        console.log();
+        displayMasterHelp();
+      }
+      process.exit(1);
     }
   });
 
 
-// Add catch-all commands for each subcommand group
-deploymentsCmd
-  .command('*')
-  .description('Unknown deployments subcommand')
-  .action((cmd: any, cmdObj: any) => {
-    // The actual command string is in cmdObj.args[0]
-    const actualCmd = cmdObj.args[0];
-    handleUnknownCommand('deployments', actualCmd);
-  });
 
-aliasesCmd
-  .command('*')
-  .description('Unknown aliases subcommand')
-  .action((cmd: any, cmdObj: any) => {
-    // The actual command string is in cmdObj.args[0]
-    const actualCmd = cmdObj.args[0];
-    handleUnknownCommand('aliases', actualCmd);
-  });
+/**
+ * Centralized completion handler for all shells
+ */
+function handleCompletion() {
+  // Determine shell from the flag passed by the completion script
+  const isZsh = process.argv.includes('--compzsh');
+  const isBash = process.argv.includes('--compbash');
+  const isFish = process.argv.includes('--compfish');
 
-accountCmd
-  .command('*')
-  .description('Unknown account subcommand')
-  .action((cmd: any, cmdObj: any) => {
-    // The actual command string is in cmdObj.args[0]
-    const actualCmd = cmdObj.args[0];
-    handleUnknownCommand('account', actualCmd);
-  });
+  if (!isZsh && !isBash && !isFish) return;
 
-// Handle unknown top-level commands
-program
-  .on('command:*', (operands: string[]) => {
-    const unknownCommand = operands[0];
-    handleUnknownCommand(unknownCommand);
-  });
+  const line = process.argv.find(arg => arg.startsWith('--compgen='))?.split('=')[1] || '';
+  // For Bash/Zsh, we split by space. Fish provides the buffer similarly.
+  const words = line.replace(/"/g, '').split(' ').filter(Boolean);
+  const currentWord = words[words.length - 1] || '';
+  const prev = words[words.length - 2] || 'ship'; // Default to 'ship' for root completions
 
+  let completions: string[] = [];
+
+  // Command logic
+  if (prev === 'ship') {
+    completions = ['deployments', 'aliases', 'whoami', 'ping', 'account', 'completion'];
+  } else if (prev === 'deployments') {
+    completions = ['list', 'create', 'get', 'remove'];
+  } else if (prev === 'aliases') {
+    completions = ['list', 'get', 'set', 'remove'];
+  } else if (prev === 'account') {
+    completions = ['get'];
+  } else if (prev === 'completion') {
+    completions = ['install', 'uninstall'];
+  }
+  
+  // Filter based on the current word being typed
+  const filteredCompletions = completions.filter(cmd => cmd.startsWith(currentWord));
+
+  // Output space-separated for bash/zsh, and newline-separated for fish
+  console.log(filteredCompletions.join(isFish ? '\n' : ' '));
+  process.exit(0);
+}
+
+// Handle completion requests (before any other processing)
 if (process.env.NODE_ENV !== 'test') {
-  program.parse(process.argv);
+  handleCompletion();
+}
+
+// Handle main CLI parsing
+if (process.env.NODE_ENV !== 'test') {
+  try {
+    program.parse(process.argv);
+  } catch (err: any) {
+    // Commander.js will throw after calling writeErr, we just need to exit cleanly
+    if (err.code && err.code.startsWith('commander.')) {
+      process.exit(err.exitCode || 1);
+    }
+    throw err;
+  }
 }

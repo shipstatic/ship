@@ -18,7 +18,7 @@ vi.mock('@/index', () => ({
       remove: vi.fn().mockResolvedValue(undefined)
     },
     account: {
-      get: vi.fn().mockResolvedValue({ email: 'test@example.com', subscription: 'free' })
+      get: vi.fn().mockResolvedValue({ email: 'test@example.com', plan: 'free' })
     }
   }))
 }));

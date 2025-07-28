@@ -32,7 +32,7 @@ describe('AccountResource', () => {
       const mockResponse = {
         email: 'test@example.com',
         name: 'Test User',
-        subscription: 'free',
+        plan: 'free',
         createdAt: 1234567890
       };
       
@@ -49,14 +49,14 @@ describe('AccountResource', () => {
         {
           email: 'free@example.com',
           name: 'Free User',
-          subscription: 'free' as const,
+          plan: 'free' as const,
           createdAt: 1234567890
         },
         {
           email: 'paid@example.com',
           name: 'Paid User',
           picture: 'https://example.com/avatar.jpg',
-          subscription: 'active' as const,
+          plan: 'active' as const,
           createdAt: 1234567890,
           subscribedAt: 1234567900
         }
@@ -68,7 +68,7 @@ describe('AccountResource', () => {
         const result = await account.get();
         expect(mockApi.getAccount).toHaveBeenCalledWith();
         expect(result.email).toBe(testCase.email);
-        expect(result.subscription).toBe(testCase.subscription);
+        expect(result.plan).toBe(testCase.plan);
       }
     });
   });

@@ -114,7 +114,7 @@ export class Ship {
   }
 
   /**
-   * Deploy files (convenience shortcut to ship.deployments.create())
+   * Deploy project (convenience shortcut to ship.deployments.create())
    */
   async deploy(input: DeployInput, options?: DeploymentOptions): Promise<Deployment> {
     return this.deployments.create(input, options);

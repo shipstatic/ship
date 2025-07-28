@@ -153,6 +153,15 @@ describe('DeploymentResource', () => {
       expect(mockApi.removeDeployment).toHaveBeenCalledWith('abc123');
       expect(result).toBeUndefined();
     });
+
+    it('should propagate error when deployment has active aliases', async () => {
+      const { ShipError } = await import('@shipstatic/types');
+      const aliasError = ShipError.business('Cannot delete deployment with active aliases.', 409);
+      (mockApi.removeDeployment as any).mockRejectedValue(aliasError);
+      
+      await expect(deployments.remove('abc123')).rejects.toThrow('Cannot delete deployment with active aliases.');
+      expect(mockApi.removeDeployment).toHaveBeenCalledWith('abc123');
+    });
   });
 
   describe('integration', () => {

@@ -197,7 +197,7 @@ describe('CLI Commands', () => {
     it('should handle account.get', async () => {
       const mockResponse = {
         email: 'user@example.com',
-        subscription: 'free'
+        plan: 'free'
       };
       mockShip.account.get.mockResolvedValue(mockResponse);
 
