@@ -55,7 +55,7 @@
   "author": "ShipStatic",
   "license": "MIT",
   "dependencies": {
-    "@shipstatic/types": "^0.1.9",
+    "@shipstatic/types": "^0.1.10",
     "columnify": "^1.6.0",
     "commander": "^12.1.0",
     "cosmiconfig": "^9.0.0",

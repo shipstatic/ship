@@ -29,7 +29,7 @@ async function deployDirectory() {
       // API key and URL are loaded automatically from:
       // - Environment variables (SHIP_API_KEY, SHIP_API)
       // - Config files (.shiprc, package.json ship property, etc.)
-      // - You can also pass them explicitly: apiKey: 'your-key', api: 'https://api.shipstatic.com'
+      // - You can also pass them explicitly: apiKey: 'your-key', apiUrl: 'https://api.shipstatic.com'
     });
     log('Ship client initialized successfully');
     
