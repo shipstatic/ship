@@ -4,6 +4,7 @@
  */
 import { Command } from 'commander';
 import { Ship, ShipError } from '../index.js';
+import { validateApiKey, validateApiUrl } from '@shipstatic/types';
 import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
 import { formatTable, formatDetails, success, error, info, warn } from './utils.js';
@@ -36,23 +37,57 @@ const program = new Command();
 
 // CLI formatting helpers are imported from utils.js
 
+
+/**
+ * Helper to traverse command hierarchy and collect all options
+ */
+function getAllOptions(command: any): any {
+  const options = {};
+  let current = command;
+  
+  // Traverse up the command hierarchy and collect options
+  while (current) {
+    if (current.opts) {
+      // Parent options are applied first, then overridden by child options
+      Object.assign(options, current.opts(), options);
+    }
+    current = current.parent;
+  }
+  
+  // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
+  if (options.color === false) {
+    options.noColor = true;
+  }
+  
+  // Validate options early
+  if (options.apiKey && typeof options.apiKey === 'string') {
+    validateApiKey(options.apiKey);
+  }
+  
+  if (options.apiUrl && typeof options.apiUrl === 'string') {
+    validateApiUrl(options.apiUrl);
+  }
+  
+  return options;
+}
+
 /**
  * Error handler using ShipError type guards - all errors should be ShipError instances
  */
-function handleError(err: any, context?: { operation?: string; resourceType?: string; resourceId?: string }) {
+function handleError(err: any, context?: { operation?: string; resourceType?: string; resourceId?: string }, options?: any) {
+  const opts = options || program.opts();
   // All errors in this codebase should be ShipError instances
   if (!(err instanceof ShipError)) {
     const message = err.message || err;
-    const options = program.opts();
     
-    if (options.json) {
+    if (opts.json) {
       console.error(JSON.stringify({ 
         error: message,
         details: { originalError: message }
       }, null, 2));
       console.error();
     } else {
-      error(message, undefined, options.noColor);
+      error(message, undefined, opts.noColor);
     }
     process.exit(1);
   }
@@ -95,15 +130,14 @@ function handleError(err: any, context?: { operation?: string; resourceType?: st
     message = 'server error';
   }
   
-  const options = program.opts();
-  if (options.json) {
+  if (opts.json) {
     console.error(JSON.stringify({ 
       error: message,
       ...(err.details ? { details: err.details } : {})
     }, null, 2));
     console.error();
   } else {
-    error(message, undefined, options.noColor);
+    error(message, undefined, opts.noColor);
   }
   process.exit(1);
 }
@@ -116,7 +150,7 @@ function withErrorHandling<T extends any[], R>(
   handler: (client: Ship, ...args: T) => Promise<R>,
   context?: { operation?: string; resourceType?: string; getResourceId?: (...args: T) => string }
 ) {
-  return async (...args: T) => {
+  return async function(this: any, ...args: T) {
     try {
       const client = createClient();
       const result = await handler(client, ...args);
@@ -128,7 +162,10 @@ function withErrorHandling<T extends any[], R>(
         resourceId: context.getResourceId ? context.getResourceId(...args) : undefined
       } : undefined;
       
-      output(result, outputContext);
+      // Get all options from command hierarchy
+      const globalOptions = getAllOptions(this);
+      
+      output(result, outputContext, globalOptions);
     } catch (error: any) {
       const errorContext = context ? {
         operation: context.operation,
@@ -136,7 +173,10 @@ function withErrorHandling<T extends any[], R>(
         resourceId: context.getResourceId ? context.getResourceId(...args) : undefined
       } : undefined;
       
-      handleError(error, errorContext);
+      // Get all options from command hierarchy
+      const globalOptions = getAllOptions(this);
+      
+      handleError(error, errorContext, globalOptions);
     }
   };
 }
@@ -208,17 +248,76 @@ const formatters = {
 };
 
 /**
+ * Common deploy logic used by both shortcut and explicit commands
+ */
+async function performDeploy(client: Ship, path: string, cmdOptions: any, commandContext?: any): Promise<any> {
+  // Validate path exists before proceeding
+  if (!existsSync(path)) {
+    throw ShipError.file(`${path} path does not exist`, path);
+  }
+  
+  // Check if path is a file or directory
+  const stats = statSync(path);
+  if (!stats.isDirectory() && !stats.isFile()) {
+    throw ShipError.file(`${path} path must be a file or directory`, path);
+  }
+  
+  const deployOptions: any = {};
+  
+  if (cmdOptions?.preserveDirs) {
+    deployOptions.preserveDirs = true;
+  }
+  
+  // Set up cancellation support using SDK's built-in AbortController
+  const abortController = new AbortController();
+  deployOptions.signal = abortController.signal;
+  
+  // Display upload pending message
+  let spinner: any = null;
+  
+  // Show spinner only in TTY (not piped), not in JSON mode, and not with --no-color (script parsing)
+  const globalOptions = commandContext ? getAllOptions(commandContext) : {};
+  if (process.stdout.isTTY && !globalOptions.json && !globalOptions.noColor) {
+    const { default: yoctoSpinner } = await import('yocto-spinner');
+    spinner = yoctoSpinner({ text: 'uploading…' }).start();
+  }
+  
+  // Handle Ctrl+C by aborting the request
+  const sigintHandler = () => {
+    abortController.abort();
+    if (spinner) spinner.stop();
+    process.exit(130);
+  };
+  process.on('SIGINT', sigintHandler);
+  
+  try {
+    const result = await client.deployments.create([path], deployOptions);
+    
+    // Cleanup
+    process.removeListener('SIGINT', sigintHandler);
+    if (spinner) spinner.stop();
+    
+    return result;
+  } catch (error) {
+    // Cleanup on error
+    process.removeListener('SIGINT', sigintHandler);
+    if (spinner) spinner.stop();
+    throw error;
+  }
+}
+
+/**
  * Format output based on --json flag
  */
-function output(result: any, context?: { operation?: string; resourceType?: string; resourceId?: string }) {
-  const options = program.opts();
+function output(result: any, context?: { operation?: string; resourceType?: string; resourceId?: string }, options?: any) {
+  const opts = options || program.opts();
   
   // Handle void/undefined results (removal operations)
   if (result === undefined) {
     if (context?.operation === 'remove' && context.resourceType && context.resourceId) {
-      success(`${context.resourceId} ${context.resourceType.toLowerCase()} removed`, options.json, options.noColor);
+      success(`${context.resourceId} ${context.resourceType.toLowerCase()} removed`, opts.json, opts.noColor);
     } else {
-      success('removed successfully', options.json, options.noColor);
+      success('removed successfully', opts.json, opts.noColor);
     }
     return;
   }
@@ -227,15 +326,15 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
   if (result === true || (result && typeof result === 'object' && result.hasOwnProperty('success'))) {
     const isSuccess = result === true || result.success;
     if (isSuccess) {
-      success('api reachable', options.json, options.noColor);
+      success('api reachable', opts.json, opts.noColor);
     } else {
-      error('api unreachable', options.json, options.noColor);
+      error('api unreachable', opts.json, opts.noColor);
     }
     return;
   }
   
   // For regular results in JSON mode, output the raw JSON
-  if (options.json) {
+  if (opts.json) {
     console.log(JSON.stringify(result, null, 2));
     console.log();
     return;
@@ -244,90 +343,25 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
   // Find appropriate formatter based on result properties (non-JSON mode)
   for (const [key, formatter] of Object.entries(formatters)) {
     if (result[key]) {
-      formatter(result, context, options.json, options.noColor);
+      formatter(result, context, opts.json, opts.noColor);
       return;
     }
   }
   
   // Default fallback
-  success('success', options.json, options.noColor);
+  success('success', opts.json, opts.noColor);
 }
 
-/**
- * Shared deployment handler for both explicit and shortcut commands
- */
-async function handleDeploy(path: string, cmdOptions: any) {
-  try {
-    // Validate path exists before proceeding
-    if (!existsSync(path)) {
-      throw ShipError.file(`${path} path does not exist`, path);
-    }
-    
-    // Check if path is a file or directory
-    const stats = statSync(path);
-    if (!stats.isDirectory() && !stats.isFile()) {
-      throw ShipError.file(`${path} path must be a file or directory`, path);
-    }
-    
-    const client = createClient();
-    const deployOptions: any = {};
-    
-    if (cmdOptions?.preserveDirs) {
-      deployOptions.preserveDirs = true;
-    }
-    
-    // Set up cancellation support using SDK's built-in AbortController
-    const abortController = new AbortController();
-    deployOptions.signal = abortController.signal;
-    
-    // Display upload pending message
-    const options = program.opts();
-    let spinner: any = null;
-    
-    if (!options.json) {
-      const { default: yoctoSpinner } = await import('yocto-spinner');
-      spinner = yoctoSpinner({ text: 'uploading…' }).start();
-    }
-    
-    // Handle Ctrl+C by aborting the request
-    const sigintHandler = () => {
-      abortController.abort();
-      if (spinner) spinner.stop();
-      process.exit(130);
-    };
-    process.on('SIGINT', sigintHandler);
-    
-    const result = await client.deployments.create([path], deployOptions);
-    
-    // Cleanup
-    process.removeListener('SIGINT', sigintHandler);
-    if (spinner) spinner.stop();
-    
-    output(result, { operation: 'create' });
-  } catch (error: any) {
-    // Stop spinner on any error
-    if (!program.opts().json) {
-      try {
-        const { default: yoctoSpinner } = await import('yocto-spinner');
-        yoctoSpinner({ text: '' }).stop();
-      } catch (e) {
-        // Ignore spinner cleanup errors
-      }
-    }
-    handleError(error);
-  }
-}
 
 
 program
   .name('ship')
   .description('🚀 Deploy static sites with simplicity')
-  .version(packageJson.version, '-v, --version', 'Show version information')
-  .option('-k, --api-key <key>', 'API key for authentication')
-  .option('-c, --config <file>', 'Custom config file path')
-  .option('-u, --api-url <url>', 'API URL (for development)')
-  .option('-p, --preserve-dirs', 'Preserve directory structure in deployment')
-  .option('-j, --json', 'Output results in JSON format')
+  .version(packageJson.version, '--version', 'Show version information')
+  .option('--api-key <key>', 'API key for authentication')
+  .option('--config <file>', 'Custom config file path')
+  .option('--api-url <url>', 'API URL (for development)')
+  .option('--json', 'Output results in JSON format')
   .option('--no-color', 'Disable colored output');
 
 // Ping command
@@ -336,11 +370,14 @@ program
   .description('Check API connectivity')
   .action(withErrorHandling((client) => client.ping()));
 
-// Whoami command
+// Whoami shortcut - alias for account get
 program
   .command('whoami')
   .description('Get current account information')
-  .action(withErrorHandling((client) => client.whoami()));
+  .action(withErrorHandling(
+    (client) => client.whoami(),
+    { operation: 'get', resourceType: 'Account' }
+  ));
 
 // Deployments commands
 const deploymentsCmd = program
@@ -354,17 +391,26 @@ deploymentsCmd
 
 deploymentsCmd
   .command('create <path>')
-  .description('Deploy project from path')
-  .action(handleDeploy);
+  .description('Create deployment from file or directory')
+  .option('--preserve-dirs', 'Preserve directory structure in deployment')
+  .action(withErrorHandling(
+    function(client, path: string, cmdOptions: any) { 
+      return performDeploy(client, path, cmdOptions, this);
+    },
+    { operation: 'create' }
+  ));
 
 deploymentsCmd
   .command('get <deployment>')
-  .description('Get deployment details')
-  .action(withErrorHandling((client, deployment: string) => client.deployments.get(deployment)));
+  .description('Show deployment information')
+  .action(withErrorHandling(
+    (client, deployment: string) => client.deployments.get(deployment),
+    { operation: 'get', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
+  ));
 
 deploymentsCmd
   .command('remove <deployment>')
-  .description('Remove deployment')
+  .description('Delete deployment permanently')
   .action(withErrorHandling(
     (client, deployment: string) => client.deployments.remove(deployment),
     { operation: 'remove', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
@@ -382,20 +428,23 @@ aliasesCmd
 
 aliasesCmd
   .command('get <name>')
-  .description('Get alias details')
-  .action(withErrorHandling((client, name: string) => client.aliases.get(name)));
+  .description('Show alias information')
+  .action(withErrorHandling(
+    (client, name: string) => client.aliases.get(name),
+    { operation: 'get', resourceType: 'Alias', getResourceId: (name: string) => name }
+  ));
 
 aliasesCmd
   .command('set <name> <deployment>')
-  .description('Set alias to deployment')
+  .description('Create or update alias pointing to deployment')
   .action(withErrorHandling(
     (client, name: string, deployment: string) => client.aliases.set(name, deployment),
-    { operation: 'set' }
+    { operation: 'set', resourceType: 'Alias', getResourceId: (name: string) => name }
   ));
 
 aliasesCmd
   .command('remove <name>')
-  .description('Remove alias')
+  .description('Delete alias permanently')
   .action(withErrorHandling(
     (client, name: string) => client.aliases.remove(name),
     { operation: 'remove', resourceType: 'Alias', getResourceId: (name: string) => name }
@@ -408,8 +457,11 @@ const accountCmd = program
 
 accountCmd
   .command('get')
-  .description('Get account details')
-  .action(withErrorHandling((client) => client.whoami()));
+  .description('Show account information')
+  .action(withErrorHandling(
+    (client) => client.whoami(),
+    { operation: 'get', resourceType: 'Account' }
+  ));
 
 // Completion commands
 const completionCmd = program
@@ -555,26 +607,24 @@ completionCmd
 // Deploy shortcut as default action
 program
   .argument('[path]', 'Path to deploy')
-  .action(async (path?: string, cmdOptions?: any) => {
-    if (!path) {
-      program.help();
-      return;
-    }
-    
-    // Check if the argument looks like a path (not a command)
-    if (!path.includes('/') && !path.startsWith('.') && !path.startsWith('~')) {
-      // This looks like an unknown command, not a path
-      const options = program.opts();
-      if (options.json) {
-        console.error(JSON.stringify({ error: `unknown command '${path}'` }, null, 2));
-      } else {
-        error(`unknown command '${path}'`, undefined, options.noColor);
+  .option('--preserve-dirs', 'Preserve directory structure in deployment')
+  .action(withErrorHandling(
+    async function(client, path?: string, cmdOptions?: any) {
+      if (!path) {
+        program.help();
+        return;
       }
-      process.exit(1);
-    }
-    
-    await handleDeploy(path, cmdOptions);
-  });
+      
+      // Check if the argument looks like a path (not a command)
+      if (!path.includes('/') && !path.startsWith('.') && !path.startsWith('~')) {
+        // This looks like an unknown command, not a path
+        throw ShipError.validation(`unknown command '${path}'`);
+      }
+      
+      return performDeploy(client, path, cmdOptions, this);
+    },
+    { operation: 'create' }
+  ));
 
 
 

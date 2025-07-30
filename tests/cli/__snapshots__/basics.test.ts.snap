@@ -23,25 +23,25 @@ exports[`CLI Basics > Output Snapshots > help output should match snapshot 1`] =
 🚀 Deploy static sites with simplicity
 
 Arguments:
-  path                 Path to deploy
+  path             Path to deploy
 
 Options:
-  -v, --version        Show version information
-  -k, --api-key <key>  API key for authentication
-  -c, --config <file>  Custom config file path
-  -u, --api-url <url>  API URL (for development)
-  -p, --preserve-dirs  Preserve directory structure in deployment
-  -j, --json           Output results in JSON format
-  --no-color           Disable colored output
-  -h, --help           display help for command
+  --version        Show version information
+  --api-key <key>  API key for authentication
+  --config <file>  Custom config file path
+  --api-url <url>  API URL (for development)
+  --json           Output results in JSON format
+  --no-color       Disable colored output
+  --preserve-dirs  Preserve directory structure in deployment
+  -h, --help       display help for command
 
 Commands:
-  ping                 Check API connectivity
-  whoami               Get current account information
-  deployments          Manage deployments
-  aliases              Manage aliases
-  account              Manage account
-  completion           Setup shell completion
+  ping             Check API connectivity
+  whoami           Get current account information
+  deployments      Manage deployments
+  aliases          Manage aliases
+  account          Manage account
+  completion       Setup shell completion
 "
 `;
 
@@ -51,24 +51,24 @@ exports[`CLI Basics > Output Snapshots > no args help output should match snapsh
 🚀 Deploy static sites with simplicity
 
 Arguments:
-  path                 Path to deploy
+  path             Path to deploy
 
 Options:
-  -v, --version        Show version information
-  -k, --api-key <key>  API key for authentication
-  -c, --config <file>  Custom config file path
-  -u, --api-url <url>  API URL (for development)
-  -p, --preserve-dirs  Preserve directory structure in deployment
-  -j, --json           Output results in JSON format
-  --no-color           Disable colored output
-  -h, --help           display help for command
+  --version        Show version information
+  --api-key <key>  API key for authentication
+  --config <file>  Custom config file path
+  --api-url <url>  API URL (for development)
+  --json           Output results in JSON format
+  --no-color       Disable colored output
+  --preserve-dirs  Preserve directory structure in deployment
+  -h, --help       display help for command
 
 Commands:
-  ping                 Check API connectivity
-  whoami               Get current account information
-  deployments          Manage deployments
-  aliases              Manage aliases
-  account              Manage account
-  completion           Setup shell completion
+  ping             Check API connectivity
+  whoami           Get current account information
+  deployments      Manage deployments
+  aliases          Manage aliases
+  account          Manage account
+  completion       Setup shell completion
 "
 `;

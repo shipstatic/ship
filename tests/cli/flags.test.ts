@@ -25,16 +25,14 @@ describe('CLI Flags', () => {
 
   describe('API Key Flag', () => {
     it('should accept custom API key without network call', async () => {
-      const result = await runCli(['--api-key', 'custom-key', '--help']);
+      const validKey = 'ship-' + 'a'.repeat(64);
+      const result = await runCli(['--api-key', validKey, '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Usage: ship');
     });
 
-    it('should work with short flag', async () => {
-      const result = await runCli(['-k', 'short-key', '--help']);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
-    });
+    // Short flags removed as part of CLI simplification
+    // Only long-form flags are supported now
   });
 
   describe('API URL Flag', () => {

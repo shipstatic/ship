@@ -40,11 +40,8 @@ describe('CLI Basics', () => {
       expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
     });
 
-    it('should show version with -v flag', async () => {
-      const result = await runCli(['-v']);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
-    });
+    // Removed -v short flag as part of CLI simplification
+    // Only --version long flag is supported now
   });
 
   describe('Output Snapshots', () => {
