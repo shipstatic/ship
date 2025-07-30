@@ -105,21 +105,25 @@ ship ping
 ### Main Usage
 ```
 USAGE
-  ship <path>            🚀 Deploy project
+  ship [path]            🚀 Deploy project
 
 COMMANDS
   ship deployments       📦 Manage deployments
   ship aliases           🌎 Manage aliases
+  ship account           👨‍🚀 Manage account
   ship whoami            👨‍🚀 Current account
   ship ping              📡 Check API connectivity
+  ship completion        ⚡ Setup shell completion
 
 FLAGS
-  -u, --api-url <url>    API URL
-  -k, --api-key <key>    API key
-  -p, --preserve-dirs    Keep nesting
-  -j, --json             JSON output
-  -h, --help             Show help
-  -v, --version          Show version
+  -k, --api-key <key>    API key for authentication
+  -c, --config <file>    Custom config file path
+  -u, --api-url <url>    API URL (for development)
+  -p, --preserve-dirs    Preserve directory structure in deployment
+  -j, --json             Output results in JSON format
+  --no-color             Disable colored output
+  -v, --version          Show version information
+  -h, --help             Display help for command
 ```
 
 ### Deployment Commands
@@ -172,12 +176,14 @@ ship ping
 
 All commands support these global flags:
 
-- `-u, --api-url <url>` - Custom API base URL
-- `-k, --api-key <key>` - API Key (must start with `ship-`)
-- `-p, --preserve-dirs` - Keep directory structure when deploying
+- `-k, --api-key <key>` - API key for authentication (must start with `ship-`)
+- `-c, --config <file>` - Custom config file path
+- `-u, --api-url <url>` - API URL (for development)
+- `-p, --preserve-dirs` - Preserve directory structure in deployment
 - `-j, --json` - Output results in JSON format
-- `-h, --help` - Show help information
-- `-v, --version` - Show version number
+- `--no-color` - Disable colored output
+- `-v, --version` - Show version information
+- `-h, --help` - Display help for command
 
 ## Examples
 
@@ -191,6 +197,9 @@ ship ./dist
 
 # Deploy with preserved directory structure
 ship ./my-app --preserve-dirs
+
+# Deploy without colors (useful for CI/scripts)
+ship ./dist --no-color
 ```
 
 ### Managing Deployments
@@ -227,31 +236,86 @@ ship whoami
 
 # Get account info in JSON format
 ship whoami --json
+
+# Alternative account command
+ship account get
+```
+
+### Shell Completion
+```sh
+# Install shell completion for your current shell
+ship completion install
+
+# Uninstall shell completion
+ship completion uninstall
 ```
 
 ## Example Output
 
+### Standard Output (with colors)
 ```
 $ ship ./my-website
-✅ Deployment successful: pink-elephant-4ruf23f
-🌍 Your site: https://pink-elephant-4ruf23f.shipstatic.dev
+uploading…
+pink-elephant-4ruf23f deployment created
 
-$ ship whoami
-alice@example.com (pro)
+deployment:  pink-elephant-4ruf23f
+url:         https://pink-elephant-4ruf23f.shipstatic.dev
+files:       15
+size:        2.1Mb
+status:      success
+created:     2024-07-30 19:15:42Z
 
 $ ship ping
-🛰️ Connected
+api reachable
 
 $ ship deployments list
-pink-elephant-4ruf23f (success)
-blue-whale-8xk92m1 (success)
+deployment              url                                              created
+pink-elephant-4ruf23f   https://pink-elephant-4ruf23f.shipstatic.dev    2024-07-30 19:15:42Z
+blue-whale-8xk92m1      https://blue-whale-8xk92m1.shipstatic.dev       2024-07-30 18:45:12Z
 
 $ ship aliases set staging pink-elephant-4ruf23f
-staging -> pink-elephant-4ruf23f
+staging alias created
+```
 
-$ ship aliases list
-staging -> pink-elephant-4ruf23f
-www.mysite.com -> blue-whale-8xk92m1
+### JSON Output
+```
+$ ship ./my-website --json
+{
+  "deployment": "pink-elephant-4ruf23f",
+  "url": "https://pink-elephant-4ruf23f.shipstatic.dev",
+  "files": 15,
+  "size": 2204672,
+  "status": "success",
+  "created": 1722365742
+}
+
+$ ship deployments list --json
+{
+  "deployments": [
+    {
+      "deployment": "pink-elephant-4ruf23f",
+      "url": "https://pink-elephant-4ruf23f.shipstatic.dev",
+      "files": 15,
+      "size": 2204672,
+      "status": "success",
+      "created": 1722365742
+    }
+  ]
+}
+```
+
+### No Color Output (for CI/scripts)
+```
+$ ship ./my-website --no-color
+uploading…
+pink-elephant-4ruf23f deployment created
+
+deployment:  pink-elephant-4ruf23f
+url:         https://pink-elephant-4ruf23f.shipstatic.dev
+files:       15
+size:        2.1Mb
+status:      success
+created:     2024-07-30 19:15:42Z
 ```
 
 ## Error Handling
@@ -261,15 +325,25 @@ The CLI provides clear error messages for common issues:
 ```sh
 # Missing API key
 $ ship ./dist
-Error: API key is required. Set SHIP_API_KEY environment variable or use --api-key flag.
+error authentication failed
 
 # Invalid path
 $ ship ./nonexistent
-Error: Path './nonexistent' does not exist.
+error ./nonexistent path does not exist
 
 # Network issues
 $ ship ping
-Error: Unable to connect to API. Check your internet connection.
+error network error
+
+# JSON error output
+$ ship ./dist --json
+{
+  "error": "authentication failed"
+}
+
+# No color error output
+$ ship ./dist --no-color
+error authentication failed
 ```
 
 ## Configuration Priority
