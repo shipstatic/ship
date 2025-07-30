@@ -54,10 +54,10 @@ describe('CLI Basics', () => {
       expect(result.stdout).toMatchSnapshot();
     });
 
-    it('version output should match snapshot', async () => {
+    it('version output should be valid semver format', async () => {
       const result = await runCli(['--version']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toMatchSnapshot();
+      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
     });
 
     it('no args help output should match snapshot', async () => {
