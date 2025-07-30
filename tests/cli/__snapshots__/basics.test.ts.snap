@@ -72,8 +72,3 @@ Commands:
   completion           Setup shell completion
 "
 `;
-
-exports[`CLI Basics > Output Snapshots > version output should match snapshot 1`] = `
-"0.1.7
-"
-`;
