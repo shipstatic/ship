@@ -1,0 +1,27 @@
+{
+  "name": "Demo Site Data",
+  "version": "1.0.0",
+  "description": "Sample JSON data for CLI testing",
+  "features": [
+    "Static site deployment",
+    "File upload testing",
+    "JSON data validation",
+    "CLI functionality testing"
+  ],
+  "metadata": {
+    "created": "2025-07-29",
+    "purpose": "CLI testing",
+    "files": {
+      "html": ["index.html"],
+      "css": ["styles/main.css"],
+      "js": ["scripts/main.js"],
+      "images": ["images/demo.jpg"],
+      "data": ["data/sample.json"]
+    }
+  },
+  "settings": {
+    "enableCache": true,
+    "compressionLevel": 9,
+    "maxFileSize": "10MB"
+  }
+}

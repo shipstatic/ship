@@ -23,16 +23,14 @@ export interface DeploymentResource {
 }
 
 export function createDeploymentResource(
-  api: ApiHttp, 
-  initConfig?: () => Promise<void>,
-  clientDefaults?: ShipClientOptions
+  getApi: () => ApiHttp, 
+  clientDefaults?: ShipClientOptions,
+  ensureInit?: () => Promise<void>
 ): DeploymentResource {
   return {
     create: async (input: DeployInput, options: DeploymentOptions = {}) => {
-      // Initialize config from API before validation
-      if (initConfig) {
-        await initConfig();
-      }
+      // Ensure full initialization before proceeding
+      if (ensureInit) await ensureInit();
       
       // Merge user options with client defaults
       const mergedOptions = clientDefaults 
@@ -43,20 +41,23 @@ export function createDeploymentResource(
       const staticFiles: StaticFile[] = await convertDeployInput(input, mergedOptions);
       
       // Deploy using the API - now returns the full Deployment object directly
-      return await api.deploy(staticFiles, mergedOptions);
+      return await getApi().deploy(staticFiles, mergedOptions);
     },
 
     list: async () => {
-      return api.listDeployments();
+      if (ensureInit) await ensureInit();
+      return getApi().listDeployments();
     },
 
     remove: async (id: string) => {
-      await api.removeDeployment(id);
+      if (ensureInit) await ensureInit();
+      await getApi().removeDeployment(id);
       // Return void for deletion operations
     },
 
     get: async (id: string) => {
-      return api.getDeployment(id);
+      if (ensureInit) await ensureInit();
+      return getApi().getDeployment(id);
     }
   };
 }
@@ -66,29 +67,33 @@ export function createDeploymentResource(
 // =============================================================================
 
 export interface AliasResource {
-  set: (aliasName: string, deploymentName: string) => Promise<Alias>;
+  set: (aliasName: string, deployment: string) => Promise<Alias>;
   get: (aliasName: string) => Promise<Alias>;
   list: () => Promise<AliasListResponse>;
   remove: (aliasName: string) => Promise<void>;
 }
 
-export function createAliasResource(api: ApiHttp): AliasResource {
+export function createAliasResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): AliasResource {
   return {
-    set: async (aliasName: string, deploymentName: string) => {
+    set: async (aliasName: string, deployment: string) => {
+      if (ensureInit) await ensureInit();
       // Set alias and return the created/updated alias directly
-      return api.setAlias(aliasName, deploymentName);
+      return getApi().setAlias(aliasName, deployment);
     },
 
     get: async (aliasName: string) => {
-      return api.getAlias(aliasName);
+      if (ensureInit) await ensureInit();
+      return getApi().getAlias(aliasName);
     },
 
     list: async () => {
-      return api.listAliases();
+      if (ensureInit) await ensureInit();
+      return getApi().listAliases();
     },
 
     remove: async (aliasName: string) => {
-      await api.removeAlias(aliasName);
+      if (ensureInit) await ensureInit();
+      await getApi().removeAlias(aliasName);
       // Return void for deletion operations
     }
   };
@@ -102,10 +107,11 @@ export interface AccountResource {
   get: () => Promise<Account>;
 }
 
-export function createAccountResource(api: ApiHttp): AccountResource {
+export function createAccountResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): AccountResource {
   return {
     get: async () => {
-      return api.getAccount();
+      if (ensureInit) await ensureInit();
+      return getApi().getAccount();
     }
   };
 }
@@ -118,10 +124,11 @@ export interface KeysResource {
   create: () => Promise<{ apiKey: string }>;
 }
 
-export function createKeysResource(api: ApiHttp): KeysResource {
+export function createKeysResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): KeysResource {
   return {
     create: async () => {
-      return api.createApiKey();
+      if (ensureInit) await ensureInit();
+      return getApi().createApiKey();
     }
   };
 }

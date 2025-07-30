@@ -13,6 +13,23 @@ import type { StaticFile } from '@/index';
 // Import error class
 import { ShipError } from '@/index';
 
+// Mock API HTTP client
+const mockApiHttpInstance = {
+  getConfig: vi.fn().mockResolvedValue({
+    maxFileSize: 10 * 1024 * 1024,
+    maxFilesCount: 1000,
+    maxTotalSize: 100 * 1024 * 1024,
+  }),
+};
+
+const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => ({
+  MOCK_API_HTTP_MODULE: {
+    ApiHttp: vi.fn(() => mockApiHttpInstance),
+  }
+}));
+
+vi.mock('@/api/http', () => MOCK_API_HTTP_MODULE);
+
 
 // Mock for configLoader
 const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
@@ -86,7 +103,7 @@ describe('Browser Entry Point (@/browser)', () => {
     it('should re-export Ship class and provide ShipClient type', async () => {
       // Only check Ship is defined since ShipClient is now just a type
       expect(Ship).toBeDefined();
-      const client = new Ship({}); // Pass empty options
+      const client = new Ship(); // Pass empty options
       // Check if client has expected resource methods instead of legacy deploy
       expect(typeof client.deployments.create).toBe('function');
     });

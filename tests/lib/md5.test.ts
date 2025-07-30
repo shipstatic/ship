@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { calculateMD5 } from '@/lib/md5';
 import { __setTestEnvironment } from '@/index';

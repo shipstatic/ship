@@ -41,7 +41,7 @@ const ship = new Ship({
   apiKey: 'ship-your-64-char-hex-string'  // API key: ship- prefix + 64-char hex (69 chars total)
 });
 
-// Deploy files - SDK automatically fetches platform configuration
+// Deploy project - SDK automatically fetches platform configuration
 const result = await ship.deployments.create(['./dist'], {
   onProgress: (progress) => console.log(`${progress}%`)
 });
@@ -59,7 +59,7 @@ ship ./dist
 ship
 
 # Explicit commands
-ship deploy ./build          # Deploy files from path
+ship deploy ./build          # Deploy project from path
 ship list                    # List deployments
 ship get abc123              # Get deployment details
 ship remove abc123           # Remove deployment
@@ -122,7 +122,7 @@ interface ShipOptions {
 ### Deployments Resource
 
 ```typescript
-// Deploy files
+// Deploy project
 await ship.deployments.create(input, options?)
 
 // List deployments
@@ -176,7 +176,7 @@ const ship = new Ship({
   apiKey: process.env.SHIP_API_KEY  // ship-abc123...
 });
 
-// Deploy files and directories
+// Deploy project and directories
 const result = await ship.deployments.create([
   './dist/index.html',
   './dist/assets',

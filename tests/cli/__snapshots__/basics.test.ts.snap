@@ -1,0 +1,79 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CLI Basics > Error Snapshots > nonexistent path error should match snapshot 1`] = `
+"[7m[31merror[39m[27m [31m./nonexistent/path path does not exist[39m
+
+"
+`;
+
+exports[`CLI Basics > Error Snapshots > unknown command error should match snapshot 1`] = `
+"[7m[31merror[39m[27m [31munknown command 'unknown-command'[39m
+
+"
+`;
+
+exports[`CLI Basics > Error Snapshots > unknown option error should match snapshot 1`] = `
+"error: unknown option '--unknown-option'
+"
+`;
+
+exports[`CLI Basics > Output Snapshots > help output should match snapshot 1`] = `
+"Usage: ship [options] [command] [path]
+
+🚀 Deploy static sites with simplicity
+
+Arguments:
+  path                 Path to deploy
+
+Options:
+  -v, --version        Show version information
+  -k, --api-key <key>  API key for authentication
+  -c, --config <file>  Custom config file path
+  -u, --api-url <url>  API URL (for development)
+  -p, --preserve-dirs  Preserve directory structure in deployment
+  -j, --json           Output results in JSON format
+  --no-color           Disable colored output
+  -h, --help           display help for command
+
+Commands:
+  ping                 Check API connectivity
+  whoami               Get current account information
+  deployments          Manage deployments
+  aliases              Manage aliases
+  account              Manage account
+  completion           Setup shell completion
+"
+`;
+
+exports[`CLI Basics > Output Snapshots > no args help output should match snapshot 1`] = `
+"Usage: ship [options] [command] [path]
+
+🚀 Deploy static sites with simplicity
+
+Arguments:
+  path                 Path to deploy
+
+Options:
+  -v, --version        Show version information
+  -k, --api-key <key>  API key for authentication
+  -c, --config <file>  Custom config file path
+  -u, --api-url <url>  API URL (for development)
+  -p, --preserve-dirs  Preserve directory structure in deployment
+  -j, --json           Output results in JSON format
+  --no-color           Disable colored output
+  -h, --help           display help for command
+
+Commands:
+  ping                 Check API connectivity
+  whoami               Get current account information
+  deployments          Manage deployments
+  aliases              Manage aliases
+  account              Manage account
+  completion           Setup shell completion
+"
+`;
+
+exports[`CLI Basics > Output Snapshots > version output should match snapshot 1`] = `
+"0.1.7
+"
+`;

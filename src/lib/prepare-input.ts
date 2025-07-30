@@ -12,7 +12,8 @@ import { getCurrentConfig } from '../core/platform-config.js';
 
 
 /**
- * Comprehensive file validation for both Node.js and browser environments
+ * Fail-fast file validation for both Node.js and browser environments
+ * Validates immediately without collecting all files first for better performance
  * @param files - Array of files to validate (can be File[] or file metadata)
  * @param options - Validation options
  * @throws {ShipError} If validation fails
@@ -21,29 +22,55 @@ import { getCurrentConfig } from '../core/platform-config.js';
 function validateFiles(files: Array<{ name: string; size: number }>, options: { skipEmptyCheck?: boolean } = {}): void {
   const config = getCurrentConfig();
   
-  // Check for empty file array
+  // Check for empty file array - fail fast
   if (!options.skipEmptyCheck && files.length === 0) {
     throw ShipError.business('No files to deploy.');
   }
   
-  // Check file count limit
+  // Check file count limit - fail fast
   if (files.length > config.maxFilesCount) {
     throw ShipError.business(`Too many files to deploy. Maximum allowed is ${config.maxFilesCount}.`);
   }
   
-  // Validate individual files and calculate total size
+  // Validate individual files and calculate total size - fail on first violation
   let totalSize = 0;
   for (const file of files) {
-    // Individual file size validation
+    // Individual file size validation - fail immediately
     if (file.size > config.maxFileSize) {
       throw ShipError.business(`File ${file.name} is too large. Maximum allowed size is ${config.maxFileSize / (1024 * 1024)}MB.`);
     }
+    
+    // Accumulate total size and check incrementally for early failure
     totalSize += file.size;
+    if (totalSize > config.maxTotalSize) {
+      throw ShipError.business(`Total deploy size is too large. Maximum allowed is ${config.maxTotalSize / (1024 * 1024)}MB.`);
+    }
   }
-  
-  // Total size validation
-  if (totalSize > config.maxTotalSize) {
-    throw ShipError.business(`Total deploy size is too large. Maximum allowed is ${config.maxTotalSize / (1024 * 1024)}MB.`);
+}
+
+/**
+ * Early validation for file count and basic input
+ * Used before file processing to fail fast on obvious issues
+ * @param input - Input to validate
+ * @param environment - Current environment (node/browser)
+ * @throws {ShipError} If validation fails
+ * @internal
+ */
+function validateInputEarly(input: any, environment: string): void {
+  if (environment === 'node') {
+    if (!Array.isArray(input)) {
+      throw ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.');
+    }
+    if (input.length === 0) {
+      throw ShipError.business('No files to deploy.');
+    }
+    if (!input.every(item => typeof item === 'string')) {
+      throw ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.');
+    }
+  } else if (environment === 'browser') {
+    if (input instanceof HTMLInputElement && !input.files) {
+      throw ShipError.business('No files selected in HTMLInputElement');
+    }
   }
 }
 
@@ -72,14 +99,8 @@ export async function convertNodeInput(
   input: string[], 
   options: DeploymentOptions = {}
 ): Promise<StaticFile[]> {
-  if (!Array.isArray(input) || !input.every(item => typeof item === 'string')) {
-    throw ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.');
-  }
-  
-  // Initial validation - just check input count
-  if (input.length === 0) {
-    throw ShipError.business('No files to deploy.');
-  }
+  // Early validation - fail fast before processing
+  validateInputEarly(input, 'node');
 
   // Pass options directly to node processor - no conflicting logic here
   const staticFiles: StaticFile[] = await processFilesForNode(input, options);
@@ -95,11 +116,13 @@ export async function convertBrowserInput(
   input: FileList | File[] | HTMLInputElement,
   options: DeploymentOptions = {}
 ): Promise<StaticFile[]> {
+  // Early validation - fail fast before processing
+  validateInputEarly(input, 'browser');
+
   let fileArray: File[];
   
   if (input instanceof HTMLInputElement) {
-    if (!input.files) throw ShipError.business('No files selected in HTMLInputElement');
-    fileArray = Array.from(input.files);
+    fileArray = Array.from(input.files!);
   } else if (
     typeof input === 'object' &&
     input !== null &&
@@ -125,7 +148,7 @@ export async function convertBrowserInput(
     return true;
   });
 
-  // Early validation using shared logic
+  // Early validation using shared logic - fail fast before heavy processing
   validateFiles(fileArray);
 
   // Pass options directly to browser processor - no conflicting logic here
@@ -136,7 +159,7 @@ export async function convertBrowserInput(
 }
 
 /**
- * Unified input conversion function
+ * Unified input conversion function with fail-fast validation
  * Converts any DeployInput to StaticFile[] based on environment
  */
 export async function convertDeployInput(
@@ -145,18 +168,14 @@ export async function convertDeployInput(
 ): Promise<StaticFile[]> {
   const environment = getENV();
   
-  if (environment === 'node') {
-    if (!Array.isArray(input) || !input.every(item => typeof item === 'string')) {
-      throw ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.');
-    }
-    return convertNodeInput(input as string[], options);
-  } else if (environment === 'browser') {
-    if (!(input instanceof HTMLInputElement || Array.isArray(input) || 
-          (typeof FileList !== 'undefined' && input instanceof FileList))) {
-      throw ShipError.business('In browser, input must be FileList, File[], or HTMLInputElement.');
-    }
-    return convertBrowserInput(input as FileList | File[] | HTMLInputElement, options);
-  } else {
+  // Early validation at the unified level - fail immediately on environment issues
+  if (environment !== 'node' && environment !== 'browser') {
     throw ShipError.business('Unsupported execution environment.');
+  }
+  
+  if (environment === 'node') {
+    return convertNodeInput(input as string[], options);
+  } else {
+    return convertBrowserInput(input as FileList | File[] | HTMLInputElement, options);
   }
 }

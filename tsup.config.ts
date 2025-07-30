@@ -5,12 +5,16 @@ import * as path from 'path';
 const nodeExternals = [
   'cli-table3',
   'commander',
+  'cosmiconfig',
   'form-data-encoder',
   'formdata-node',
   'junk',
   'mime-types',
   'spark-md5',
   'path-browserify',
+  'yocto-spinner',
+  'yoctocolors',
+  'columnify',
   'zod'
 ];
 
@@ -90,6 +94,27 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     minify: tsupOptions.watch ? false : true,
     banner: {
       js: '#!/usr/bin/env node',
+    },
+    // Copy completion scripts to dist
+    onSuccess: async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      // Create completions directory in dist
+      const completionsDir = path.resolve('./dist/completions');
+      if (!fs.existsSync(completionsDir)) {
+        fs.mkdirSync(completionsDir, { recursive: true });
+      }
+      
+      // Copy completion scripts
+      const scripts = ['ship.bash', 'ship.zsh', 'ship.fish'];
+      for (const script of scripts) {
+        const src = path.resolve(`./src/completions/${script}`);
+        const dest = path.resolve(`./dist/completions/${script}`);
+        if (fs.existsSync(src)) {
+          fs.copyFileSync(src, dest);
+        }
+      }
     },
   },
 ]);

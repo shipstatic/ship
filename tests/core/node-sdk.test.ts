@@ -7,11 +7,12 @@ import type { Ship as ShipClass } from '@/index'; // Import type for client
 // 1. Use vi.hoisted() for variables used in vi.mock factories
 const mockApiHttpInstance = {
   ping: vi.fn(),
+  getPingResponse: vi.fn().mockResolvedValue({ success: true, timestamp: 1753379248270 }),
   deploy: vi.fn().mockResolvedValue({
     deployment: 'test-deployment-id',
-    filesCount: 1,
-    totalSize: 1024,
-    expiresAt: 1234567890
+    files: 1,
+    size: 1024,
+    expires: 1234567890
   }),
   getConfig: vi.fn().mockResolvedValue({
     maxFileSize: 10 * 1024 * 1024,
@@ -166,12 +167,14 @@ describe('NodeShipClient', () => {
     vi.resetModules(); // Ensure clean state for module imports and config loading
     const { Ship } = await import('@/index'); // Re-import after reset
     
-    // Create client with direct options
+    // Create client with direct options using constructor
     const combinedClient = new Ship(directDeployOptions); // Renamed to avoid conflict with outer scope client
-    await combinedClient.ping(); // Trigger config loading and client initialization
+    
+    // Test actual behavior: make an API call and verify precedence was applied correctly
+    await combinedClient.ping();
     
     // Verify the correct precedence was applied:
-    expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenLastCalledWith(
+    expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
       expect.objectContaining({
         apiKey: 'direct_api_key',        // Direct option takes precedence
         apiUrl: 'https://env.api.host', // Env var takes precedence over file

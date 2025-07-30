@@ -46,28 +46,43 @@ function validateConfig(config: any): Partial<ShipClientOptions> {
 /**
  * Loads client configuration from files.
  * Searches for .shiprc and package.json with ship key.
+ * First searches from the current directory, then from the home directory.
+ * @param configFile - Optional specific config file path to load
  * @returns Configuration object or empty if not found/invalid
  * @internal
  */
-async function loadConfigFromFile(): Promise<Partial<ShipClientOptions>> {
+async function loadConfigFromFile(configFile?: string): Promise<Partial<ShipClientOptions>> {
   try {
     // Only use cosmiconfig in Node.js environments
     if (getENV() !== 'node') {
       return {};
     }
     
-    // Dynamically import cosmiconfig only in Node.js environments
+    // Dynamically import cosmiconfig and os only in Node.js environments
     const { cosmiconfigSync } = await import('cosmiconfig');
+    const os = await import('os');
     
     const explorer = cosmiconfigSync(MODULE_NAME, {
       searchPlaces: [
         `.${MODULE_NAME}rc`,
         'package.json',
+        `${os.homedir()}/.${MODULE_NAME}rc`, // Always include home directory as fallback
       ],
+      stopDir: os.homedir(), // Stop searching at home directory
     });
     
-    const result = explorer.search();
-    if (result && !result.isEmpty && result.config) {
+    let result;
+    
+    // If a specific config file is provided, load it directly
+    if (configFile) {
+      result = explorer.load(configFile);
+    } else {
+      // cosmiconfig automatically searches up the directory tree
+      // from current directory to stopDir (home directory)
+      result = explorer.search();
+    }
+    
+    if (result && result.config) {
       return validateConfig(result.config);
     }
   } catch (error) {
@@ -82,10 +97,11 @@ async function loadConfigFromFile(): Promise<Partial<ShipClientOptions>> {
  * Only loads file config if environment variables are not set.
  * Only available in Node.js environments.
  *
+ * @param configFile - Optional specific config file path to load
  * @returns Configuration object with loaded values
  * @throws {ShipInvalidConfigError} If the configuration is invalid.
  */
-export async function loadConfig(): Promise<Partial<ShipClientOptions>> {
+export async function loadConfig(configFile?: string): Promise<Partial<ShipClientOptions>> {
   if (getENV() !== 'node') return {};
 
   // Start with environment variables (highest priority)
@@ -95,7 +111,7 @@ export async function loadConfig(): Promise<Partial<ShipClientOptions>> {
   };
 
   // Always try to load file config for fallback values
-  const fileConfig = await loadConfigFromFile();
+  const fileConfig = await loadConfigFromFile(configFile);
 
   // Merge with environment variables taking precedence
   const mergedConfig = {
@@ -120,9 +136,10 @@ export function resolveConfig(
   loadedConfig: Partial<ShipClientOptions> = {}
 ): { apiUrl: string; apiKey?: string } {
   // Build final config with clear precedence
+  // Only use userOptions.apiKey if it's explicitly provided (not undefined)
   const finalConfig = {
     apiUrl: userOptions.apiUrl || loadedConfig.apiUrl || DEFAULT_API,
-    apiKey: userOptions.apiKey !== undefined ? userOptions.apiKey : loadedConfig.apiKey,
+    apiKey: userOptions.apiKey || loadedConfig.apiKey,
   };
 
   // Return with optional apiKey

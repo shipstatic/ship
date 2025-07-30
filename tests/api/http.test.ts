@@ -78,6 +78,32 @@ describe('ApiHttp', () => {
     });
   });
 
+  describe('getPingResponse', () => {
+    it('should return full PingResponse object', async () => {
+      const mockResponse = { success: true, timestamp: 1753379248270 };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.getPingResponse();
+      
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/ping',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test-api-key'
+          })
+        })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should handle network errors', async () => {
+      (global.fetch as any).mockRejectedValue(new Error('Network error'));
+
+      await expect(apiHttp.getPingResponse()).rejects.toThrow('Network error');
+    });
+  });
+
   describe('getConfig', () => {
     it('should fetch platform configuration', async () => {
       const mockConfig = {
@@ -109,8 +135,8 @@ describe('ApiHttp', () => {
       ];
       (global.fetch as any).mockResolvedValue(createMockResponse({ 
         deployment: 'test-deployment',
-        filesCount: 1,
-        totalSize: 13
+        files: 1,
+        size: 13
       }));
 
       const result = await apiHttp.deploy(mockFiles);
@@ -126,8 +152,8 @@ describe('ApiHttp', () => {
       );
       expect(result).toEqual({
         deployment: 'test-deployment',
-        filesCount: 1,
-        totalSize: 13
+        files: 1,
+        size: 13
       });
     });
 
@@ -241,9 +267,9 @@ describe('ApiHttp', () => {
   });
 
   describe('alias operations', () => {
-    it('should set alias', async () => {
+    it('should set alias (update - 200 status)', async () => {
       const mockAlias = { alias: 'staging', deployment: 'test-deployment' };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias));
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias, 200));
 
       const result = await apiHttp.setAlias('staging', 'test-deployment');
 
@@ -255,10 +281,30 @@ describe('ApiHttp', () => {
             'Authorization': 'Bearer test-api-key',
             'Content-Type': 'application/json'
           }),
-          body: JSON.stringify({ deploymentId: 'test-deployment' })
+          body: JSON.stringify({ deployment: 'test-deployment' })
         })
       );
-      expect(result).toEqual(mockAlias);
+      expect(result).toEqual({ ...mockAlias, isCreate: false });
+    });
+
+    it('should set alias (create - 201 status)', async () => {
+      const mockAlias = { alias: 'new-alias', deployment: 'test-deployment' };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias, 201));
+
+      const result = await apiHttp.setAlias('new-alias', 'test-deployment');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/aliases/new-alias',
+        expect.objectContaining({
+          method: 'PUT',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test-api-key',
+            'Content-Type': 'application/json'
+          }),
+          body: JSON.stringify({ deployment: 'test-deployment' })
+        })
+      );
+      expect(result).toEqual({ ...mockAlias, isCreate: true });
     });
 
     it('should get alias', async () => {

@@ -48,6 +48,7 @@ async function deployDirectory() {
       // If you want to preserve directory structure, you can use preserveDirs: true
       const result = await ship.deployments.create([directoryToDeploy], { 
         // No flag needed as flattening is now the default behavior
+        // preserveDirs: true,  // Uncomment to preserve directory structure
         onProgress: (progress) => {
           process.stdout.write(`\rDeploy progress: ${Math.round(progress)}%`);
         }
@@ -57,7 +58,7 @@ async function deployDirectory() {
       log('\nDeploy successful!');
       log(`Your site is deployed at: ${result.url}`);
       log(`Deployment ID: ${result.deployment}`);
-      log(`Files deployed: ${result.filesCount}`);
+      log(`Files deployed: ${result.files}`);
       log(`Status: ${result.status}`);
       
       // Log full deployment result for reference

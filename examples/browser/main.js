@@ -58,6 +58,7 @@ deployButton?.addEventListener('click', async () => {
     // If you want to preserve directory structure, you can use preserveDirs: true
     const result = await ship.deployments.create(fileInput.files, { 
       // No flag needed as flattening is now the default behavior
+      // preserveDirs: true,  // Uncomment to preserve directory structure
       onProgress: (progress) => {
         setStatus(`Deploy progress: ${Math.round(progress)}%`);
       }
@@ -69,7 +70,7 @@ deployButton?.addEventListener('click', async () => {
       <p>Deploy successful!</p>
       <p>Your site is deployed at: <a href="${url}" target="_blank">${url}</a></p>
       <p>Deployment ID: ${result.deployment}</p>
-      <p>Files deployed: ${result.filesCount}</p>
+      <p>Files deployed: ${result.files}</p>
       <p>Status: ${result.status}</p>
     `);
     

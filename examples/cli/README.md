@@ -1,4 +1,4 @@
-# Shipstatic SDK – CLI Usage Guide
+# Shipstatic CLI Usage Guide
 
 This guide shows how to use the Shipstatic CLI for deploying static websites directly from your terminal. The CLI provides a simple, resource-based interface with automatic configuration loading and comprehensive error handling.
 
@@ -6,7 +6,7 @@ This guide shows how to use the Shipstatic CLI for deploying static websites dir
 - **Zero configuration**: Automatic config loading from environment/files
 - **Optimized bundle size**: 25KB CLI bundle
 - **Resource-based commands**: Intuitive `ship deployments create` syntax
-- **Built-in shortcuts**: Quick `ship ./path` deployments
+- **Built-in shortcuts**: Quick `ship ./path` deployments and `ship whoami`
 - **Rich terminal output:**
   - Real-time progress tracking
   - Colored error messaging
@@ -41,111 +41,325 @@ pnpm add -g @shipstatic/ship
 ## Configuration
 
 The CLI automatically loads configuration from (in priority order):
-- Command line options: `--api-key ship-your-key` and `--api-url https://api.shipstatic.com`
-- Environment variables: `SHIP_API_KEY=ship-your-key` and optionally `SHIP_API_URL`
-- Config files: `.shiprc` or `package.json` (ship property) in current directory
+
+### 1. Command Line Options
+```sh
+ship ./dist -u https://api.shipstatic.com -k ship-your-api-key
+```
+
+### 2. Environment Variables
+```sh
+export SHIP_API_KEY=ship-your-api-key
+export SHIP_API_URL=https://api.shipstatic.com  # optional
+ship ./dist
+```
+
+### 3. Configuration Files
+
+#### `.shiprc` file (JSON format)
+Create a `.shiprc` file in your project directory:
+
+```json
+{
+  "apiKey": "ship-your-api-key",
+  "apiUrl": "https://api.shipstatic.com"
+}
+```
+
+#### `package.json` configuration
+Add a `ship` section to your `package.json`:
+
+```json
+{
+  "name": "my-project",
+  "ship": {
+    "apiKey": "ship-your-api-key",
+    "apiUrl": "https://api.shipstatic.com"
+  }
+}
+```
+
+**Notes:**
 - API keys must start with `ship-` and be 69 characters total
+- Only `apiKey` and `apiUrl` are supported in configuration files
+- The CLI searches for config files in the current working directory
 
-## How to Use
+## Quick Start
 
-1. **Deploy a directory:**
-   ```sh
-   # Deploy using shortcut (most common)
-   ship ./my-website
-   ship .
-   
-   # Deploy using full resource-based command
-   ship deployments create ./my-website
-   ship deployments create .
-   ```
+```sh
+# Get help and see all commands
+ship
 
-2. **Manage deployments:**
-   ```sh
-   # List all deployments
-   ship deployments list
-   
-   # Get specific deployment details
-   ship deployments get abc123
-   
-   # Remove a deployment
-   ship deployments remove abc123
-   ```
+# Deploy your site (shortcut)
+ship ./dist
 
-3. **Manage aliases:**
-   ```sh
-   # List all aliases
-   ship aliases list
-   
-   # Get specific alias details
-   ship aliases get staging
-   
-   # Set alias to deployment
-   ship aliases set staging abc123
-   
-   # Remove alias
-   ship aliases remove staging
-   ```
+# Check your account
+ship whoami
 
-4. **Check connectivity:**
-   ```sh
-   # Test API connection
-   ship ping
-   ```
+# Test connectivity
+ship ping
+```
 
-## Command Overview
+## Command Reference
 
-### Connectivity
-- `ship ping` - Check API connectivity
+### Main Usage
+```
+USAGE
+  ship [path]            🚀 Deploy project
+
+COMMANDS
+  ship deployments       📦 Manage deployments
+  ship aliases           🌎 Manage aliases
+  ship account           👨‍🚀 Manage account
+  ship whoami            👨‍🚀 Current account
+  ship ping              📡 Check API connectivity
+  ship completion        ⚡ Setup shell completion
+
+FLAGS
+  -k, --api-key <key>    API key for authentication
+  -c, --config <file>    Custom config file path
+  -u, --api-url <url>    API URL (for development)
+  -p, --preserve-dirs    Preserve directory structure in deployment
+  -j, --json             Output results in JSON format
+  --no-color             Disable colored output
+  -v, --version          Show version information
+  -h, --help             Display help for command
+```
 
 ### Deployment Commands
-- `ship deployments list` - List all deployments
-- `ship deployments create <path>` - Deploy files from path
-- `ship deployments get <id>` - Get deployment details
-- `ship deployments remove <id>` - Remove deployment
+```sh
+# Deploy project (shortcuts)
+ship ./my-website
+ship .
+
+# Deploy using full command
+ship deployments create ./my-website
+
+# List all deployments
+ship deployments list
+
+# Get specific deployment details
+ship deployments get abc123
+
+# Remove a deployment
+ship deployments remove abc123
+```
 
 ### Alias Commands
-- `ship aliases list` - List all aliases
-- `ship aliases get <name>` - Get alias details
-- `ship aliases set <name> <deployment>` - Set alias to deployment
-- `ship aliases remove <name>` - Remove alias
+```sh
+# List all aliases
+ship aliases list
 
-### Account Commands
-- `ship account get` - Get account details
+# Get specific alias details
+ship aliases get staging
 
-### Shortcuts & Discovery
-- `ship` - Show help with all commands and examples
-- `ship --help` - Same as above
-- `ship ./path` - Deploy files (shortcut for `ship deployments create ./path`)
+# Set alias to deployment
+ship aliases set staging abc123
 
-### Global Options
-- `--api-url <URL>` - Custom API base URL
-- `--api-key <KEY>` - API Key (must start with `ship-`)
-- `--json` - Output in JSON format
+# Remove alias
+ship aliases remove staging
+```
 
-### Deployment Options
-- `--preserve-dirs` - Preserve directory structure when deploying (by default, common parent directories are removed)
+### Account & Connectivity
+```sh
+# Get current account information
+ship whoami
+
+# Same as above (hidden shortcut)
+ship account get
+
+# Test API connection
+ship ping
+```
+
+### Global Flags
+
+All commands support these global flags:
+
+- `-k, --api-key <key>` - API key for authentication (must start with `ship-`)
+- `-c, --config <file>` - Custom config file path
+- `-u, --api-url <url>` - API URL (for development)
+- `-p, --preserve-dirs` - Preserve directory structure in deployment
+- `-j, --json` - Output results in JSON format
+- `--no-color` - Disable colored output
+- `-v, --version` - Show version information
+- `-h, --help` - Display help for command
+
+## Examples
+
+### Basic Deployment
+```sh
+# Deploy current directory
+ship .
+
+# Deploy specific directory
+ship ./dist
+
+# Deploy with preserved directory structure
+ship ./my-app --preserve-dirs
+
+# Deploy without colors (useful for CI/scripts)
+ship ./dist --no-color
+```
+
+### Managing Deployments
+```sh
+# List all your deployments
+ship deployments list
+
+# Get details about a specific deployment
+ship deployments get pink-elephant-4ruf23f
+
+# Remove old deployment
+ship deployments remove old-deployment-id
+```
+
+### Alias Management
+```sh
+# Set up staging environment
+ship aliases set staging pink-elephant-4ruf23f
+
+# Set up production
+ship aliases set www.mysite.com pink-elephant-4ruf23f
+
+# List all aliases
+ship aliases list
+
+# Check specific alias
+ship aliases get staging
+```
+
+### Account Information
+```sh
+# Check your account details
+ship whoami
+
+# Get account info in JSON format
+ship whoami --json
+
+# Alternative account command
+ship account get
+```
+
+### Shell Completion
+```sh
+# Install shell completion for your current shell
+ship completion install
+
+# Uninstall shell completion
+ship completion uninstall
+```
 
 ## Example Output
 
+### Standard Output (with colors)
 ```
 $ ship ./my-website
-✅ Deployment successful: deployment-abc123
-🌍 Your site: https://deployment-abc123.shipstatic.dev
+uploading…
+pink-elephant-4ruf23f deployment created
+
+deployment:  pink-elephant-4ruf23f
+url:         https://pink-elephant-4ruf23f.shipstatic.dev
+files:       15
+size:        2.1Mb
+status:      success
+created:     2024-07-30 19:15:42Z
 
 $ ship ping
-✅ Connected to API
+api reachable
 
 $ ship deployments list
-deployment-abc123 (success) - 42 files
-deployment-xyz789 (success) - 18 files
+deployment              url                                              created
+pink-elephant-4ruf23f   https://pink-elephant-4ruf23f.shipstatic.dev    2024-07-30 19:15:42Z
+blue-whale-8xk92m1      https://blue-whale-8xk92m1.shipstatic.dev       2024-07-30 18:45:12Z
 
-$ ship aliases set staging deployment-abc123
-✅ Alias set: staging -> deployment-abc123
-
-$ ship aliases list
-staging -> deployment-abc123
+$ ship aliases set staging pink-elephant-4ruf23f
+staging alias created
 ```
 
+### JSON Output
+```
+$ ship ./my-website --json
+{
+  "deployment": "pink-elephant-4ruf23f",
+  "url": "https://pink-elephant-4ruf23f.shipstatic.dev",
+  "files": 15,
+  "size": 2204672,
+  "status": "success",
+  "created": 1722365742
+}
+
+$ ship deployments list --json
+{
+  "deployments": [
+    {
+      "deployment": "pink-elephant-4ruf23f",
+      "url": "https://pink-elephant-4ruf23f.shipstatic.dev",
+      "files": 15,
+      "size": 2204672,
+      "status": "success",
+      "created": 1722365742
+    }
+  ]
+}
+```
+
+### No Color Output (for CI/scripts)
+```
+$ ship ./my-website --no-color
+uploading…
+pink-elephant-4ruf23f deployment created
+
+deployment:  pink-elephant-4ruf23f
+url:         https://pink-elephant-4ruf23f.shipstatic.dev
+files:       15
+size:        2.1Mb
+status:      success
+created:     2024-07-30 19:15:42Z
+```
+
+## Error Handling
+
+The CLI provides clear error messages for common issues:
+
+```sh
+# Missing API key
+$ ship ./dist
+error authentication failed
+
+# Invalid path
+$ ship ./nonexistent
+error ./nonexistent path does not exist
+
+# Network issues
+$ ship ping
+error network error
+
+# JSON error output
+$ ship ./dist --json
+{
+  "error": "authentication failed"
+}
+
+# No color error output
+$ ship ./dist --no-color
+error authentication failed
+```
+
+## Configuration Priority
+
+When multiple configuration sources are present, the CLI uses this priority order:
+
+1. **Command line flags** (highest priority)
+2. **Environment variables**
+3. **`.shiprc` file**
+4. **`package.json` ship section**
+5. **Default values** (lowest priority)
+
 ## Related Examples
-- Browser deploy example - For web-based deployments
-- Node.js SDK example - For programmatic deployments in Node.js
+- [Browser Deploy Example](../browser/) - For web-based deployments
+- [Node.js SDK Example](../node/) - For programmatic deployments in Node.js
+
+## Support
+
+Please report any issues to https://github.com/shipstatic/ship/issues
