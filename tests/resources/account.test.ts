@@ -24,7 +24,7 @@ describe('AccountResource', () => {
       getAccount: vi.fn()
     } as unknown as ApiHttp;
 
-    account = createAccountResource(mockApi);
+    account = createAccountResource(() => mockApi);
   });
 
   describe('get', () => {
@@ -32,8 +32,8 @@ describe('AccountResource', () => {
       const mockResponse = {
         email: 'test@example.com',
         name: 'Test User',
-        subscription: 'free',
-        createdAt: 1234567890
+        plan: 'free',
+        created: 1234567890
       };
       
       (mockApi.getAccount as any).mockResolvedValue(mockResponse);
@@ -49,16 +49,16 @@ describe('AccountResource', () => {
         {
           email: 'free@example.com',
           name: 'Free User',
-          subscription: 'free' as const,
-          createdAt: 1234567890
+          plan: 'free' as const,
+          created: 1234567890
         },
         {
           email: 'paid@example.com',
           name: 'Paid User',
           picture: 'https://example.com/avatar.jpg',
-          subscription: 'active' as const,
-          createdAt: 1234567890,
-          subscribedAt: 1234567900
+          plan: 'active' as const,
+          created: 1234567890,
+          subscribed: 1234567900
         }
       ];
       
@@ -68,7 +68,7 @@ describe('AccountResource', () => {
         const result = await account.get();
         expect(mockApi.getAccount).toHaveBeenCalledWith();
         expect(result.email).toBe(testCase.email);
-        expect(result.subscription).toBe(testCase.subscription);
+        expect(result.plan).toBe(testCase.plan);
       }
     });
   });

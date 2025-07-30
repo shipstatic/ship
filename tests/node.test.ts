@@ -9,6 +9,23 @@ import { __setTestEnvironment } from '@/index';
 import { ShipError } from '@shipstatic/types';
 import { setConfig } from '@/core/platform-config';
 
+// Mock API HTTP client
+const mockApiHttpInstance = {
+  getConfig: vi.fn().mockResolvedValue({
+    maxFileSize: 10 * 1024 * 1024,
+    maxFilesCount: 1000,
+    maxTotalSize: 100 * 1024 * 1024,
+  }),
+};
+
+const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => ({
+  MOCK_API_HTTP_MODULE: {
+    ApiHttp: vi.fn(() => mockApiHttpInstance),
+  }
+}));
+
+vi.mock('@/api/http', () => MOCK_API_HTTP_MODULE);
+
 // Mock for configLoader
 const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
   CONFIG_LOADER_MOCK_IMPLEMENTATION: {

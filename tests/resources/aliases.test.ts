@@ -17,12 +17,12 @@ describe('AliasResource', () => {
       ping: vi.fn()
     } as unknown as ApiHttp;
 
-    aliases = createAliasResource(mockApi);
+    aliases = createAliasResource(() => mockApi);
   });
 
   describe('set', () => {
     it('should call api.setAlias and return the alias directly (no double API call)', async () => {
-      const mockSetResponse = { alias: 'staging', deployment: 'abc123' };
+      const mockSetResponse = { alias: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev', isCreate: true };
       (mockApi.setAlias as any).mockResolvedValue(mockSetResponse);
       
       const result = await aliases.set('staging', 'abc123');
@@ -33,7 +33,7 @@ describe('AliasResource', () => {
     });
 
     it('should handle different deployment and alias combinations', async () => {
-      const mockSetResponse = { alias: 'production', deployment: 'def456' };
+      const mockSetResponse = { alias: 'production', deployment: 'def456', url: 'https://production.statichost.dev', isCreate: false };
       (mockApi.setAlias as any).mockResolvedValue(mockSetResponse);
       
       const result = await aliases.set('production', 'def456');
@@ -48,8 +48,8 @@ describe('AliasResource', () => {
     it('should call api.listAliases and return result', async () => {
       const mockResponse = {
         aliases: [
-          { alias: 'staging', deployment: 'abc123' },
-          { alias: 'production', deployment: 'def456' }
+          { alias: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev' },
+          { alias: 'production', deployment: 'def456', url: 'https://production.statichost.dev' }
         ]
       };
       (mockApi.listAliases as any).mockResolvedValue(mockResponse);
@@ -85,7 +85,7 @@ describe('AliasResource', () => {
 
   describe('get', () => {
     it('should call api.getAlias with correct parameter', async () => {
-      const mockResponse = { alias: 'staging', deployment: 'abc123' };
+      const mockResponse = { alias: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev' };
       (mockApi.getAlias as any).mockResolvedValue(mockResponse);
       
       const result = await aliases.get('staging');
