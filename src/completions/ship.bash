@@ -13,17 +13,94 @@ _ship_completions() {
     return
   fi
 
+  # Context-aware completions based on command structure
+  case "${COMP_WORDS[1]}" in
+    "deployments")
+      case "${COMP_WORDS[2]}" in
+        "create")
+          # File/directory completion for deploy path
+          COMPREPLY=( $(compgen -f -- "${current_word}") )
+          return
+          ;;
+        "get"|"remove")
+          if [[ ${COMP_CWORD} -eq 3 ]]; then
+            # Would ideally complete deployment IDs from API, but keep simple for now
+            COMPREPLY=()
+            return
+          fi
+          ;;
+        *)
+          if [[ ${COMP_CWORD} -eq 2 ]]; then
+            completions="list create get remove"
+            COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
+            return
+          fi
+          ;;
+      esac
+      ;;
+    "aliases")
+      case "${COMP_WORDS[2]}" in
+        "set")
+          if [[ ${COMP_CWORD} -eq 4 ]]; then
+            # Would ideally complete deployment IDs, but keep simple
+            COMPREPLY=()
+            return
+          fi
+          ;;
+        "get"|"remove")
+          if [[ ${COMP_CWORD} -eq 3 ]]; then
+            # Would ideally complete alias names, but keep simple
+            COMPREPLY=()
+            return
+          fi
+          ;;
+        *)
+          if [[ ${COMP_CWORD} -eq 2 ]]; then
+            completions="list get set remove"
+            COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
+            return
+          fi
+          ;;
+      esac
+      ;;
+    "account")
+      if [[ ${COMP_CWORD} -eq 2 ]]; then
+        completions="get"
+        COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
+        return
+      fi
+      ;;
+    "completion")
+      if [[ ${COMP_CWORD} -eq 2 ]]; then
+        completions="install uninstall"
+        COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
+        return
+      fi
+      ;;
+  esac
+
   # Delegate for commands that expect files, like 'create'
-  if [[ "$prev_word" == "create" || "$prev_word" == "--config" || "$prev_word" == "-c" ]]; then
+  if [[ "$prev_word" == "create" || "$prev_word" == "--config" ]]; then
     COMPREPLY=( $(compgen -f -- "${current_word}") )
     return
   fi
 
-  # Get static completions from CLI
-  completions=$(ship --compbash 2>/dev/null)
-  
-  # Filter completions based on the current word and reply
-  COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
+  # Flag completion
+  if [[ "$current_word" == --* ]]; then
+    completions="--api-key --config --api-url --preserve-dirs --json --no-color --version --help"
+    COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
+    return
+  fi
+
+  # Top-level commands
+  if [[ ${COMP_CWORD} -eq 1 ]]; then
+    completions="ping whoami deployments aliases account completion"
+    COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
+    return
+  fi
+
+  # Default: no completions
+  COMPREPLY=()
 }
 
 # Register the completion function for the 'ship' command
