@@ -31,8 +31,8 @@ if [[ -n ${ZSH_VERSION-} ]]; then
 
     # --- Command Completion Logic ---
     # If we're not completing a path, call our Node.js script for command suggestions.
-    # We pass the full command line to our script for context.
-    completions=($(ship --compzsh --compgen="${BUFFER}" 2>/dev/null))
+    # We pass the full command line and cursor position to our script for context.
+    completions=($(ship --compzsh --compgen="${BUFFER}" --compword="${CURRENT}" 2>/dev/null))
 
     if [[ ${#completions[@]} -gt 0 ]]; then
       _describe 'commands' completions

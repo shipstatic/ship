@@ -451,15 +451,15 @@ export class ApiHttp {
   /**
    * Sets an alias (create or update)
    * @param name - Alias name
-   * @param deploymentName - Deployment name to point to
+   * @param deployment - Deployment name to point to
    * @returns Promise resolving to the created/updated alias with operation context
    */
-  public async setAlias(name: string, deploymentName: string): Promise<import('@shipstatic/types').Alias> {
+  public async setAlias(name: string, deployment: string): Promise<import('@shipstatic/types').Alias> {
     try {
       const response = await this.#fetchWithAuth(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deploymentId: deploymentName })
+        body: JSON.stringify({ deployment: deployment })
       }, 'Set Alias');
       
       if (!response.ok) {

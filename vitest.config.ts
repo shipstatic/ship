@@ -6,8 +6,9 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     globals: true,
-    environment: 'jsdom', // Default environment
+    environment: 'node', // Use Node environment for all tests
     include: ['tests/**/*.test.ts'],
+    setupFiles: ['tests/setup.ts'], // API mocking - enabled for E2E tests
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

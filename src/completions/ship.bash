@@ -19,8 +19,8 @@ _ship_completions() {
     return
   fi
 
-  # Otherwise, call your CLI for command completions
-  completions=$(ship --compbash --compgen="${COMP_LINE}" 2>/dev/null)
+  # Get static completions from CLI
+  completions=$(ship --compbash 2>/dev/null)
   
   # Filter completions based on the current word and reply
   COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )

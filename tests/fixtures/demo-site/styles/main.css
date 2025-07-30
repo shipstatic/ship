@@ -1,0 +1,108 @@
+/* Demo site CSS for CLI testing */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f4f4f4;
+}
+
+header {
+    background-color: #333;
+    color: white;
+    padding: 1rem 0;
+    position: fixed;
+    width: 100%;
+    top: 0;
+    z-index: 1000;
+}
+
+header h1 {
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+nav ul {
+    list-style: none;
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+nav a:hover {
+    background-color: #555;
+}
+
+main {
+    margin-top: 120px;
+    padding: 2rem;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+section {
+    background: white;
+    margin-bottom: 2rem;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+section h2 {
+    color: #333;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid #333;
+    padding-bottom: 0.5rem;
+}
+
+section p {
+    margin-bottom: 1rem;
+    line-height: 1.8;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin: 1rem 0;
+}
+
+footer {
+    background-color: #333;
+    color: white;
+    text-align: center;
+    padding: 1rem 0;
+    margin-top: 2rem;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    nav ul {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    main {
+        margin-top: 180px;
+        padding: 1rem;
+    }
+    
+    section {
+        padding: 1rem;
+    }
+}

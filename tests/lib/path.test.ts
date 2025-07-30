@@ -11,7 +11,7 @@ const mockApiHttpInstance = {
   deploy: vi.fn().mockResolvedValue({
     success: true,
     subdomain: 'test',
-    expiresAt: new Date().toISOString(),
+    expires: new Date().toISOString(),
     fileCount: 3
   }),
   getConfig: vi.fn().mockResolvedValue({

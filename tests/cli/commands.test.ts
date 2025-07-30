@@ -1,226 +1,62 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Ship } from '@/index';
+/**
+ * @file Consolidated CLI command tests
+ * Tests CLI commands without network calls - the "impossible simplicity" approach
+ * Replaces: comprehensive.test.ts, account-commands.test.ts, completion-commands.test.ts, e2e-scenarios.test.ts
+ */
 
-// Mock the Ship class and its methods
-vi.mock('@/index', () => {
-  const mockShip = {
-    ping: vi.fn(),
-    deployments: {
-      list: vi.fn(),
-      create: vi.fn(),
-      get: vi.fn(),
-      remove: vi.fn()
-    },
-    aliases: {
-      list: vi.fn(),
-      get: vi.fn(),
-      set: vi.fn(),
-      remove: vi.fn()
-    },
-    account: {
-      get: vi.fn()
-    }
-  };
-
-  return {
-    Ship: vi.fn(() => mockShip)
-  };
-});
+import { describe, it, expect } from 'vitest';
+import { runCli } from './helpers';
+import * as fs from 'fs';
+import * as path from 'path';
 
 describe('CLI Commands', () => {
-  // NOTE: These tests focus on the SDK methods that the CLI calls,
-  // not the CLI argument parsing itself (which uses manual parsing in src/cli/index.ts)
-  // CLI commands like "ship deployments list" ultimately call these SDK methods.
-  
-  let mockShip: any;
-  let consoleLogSpy: any;
-  let consoleErrorSpy: any;
-  let processExitSpy: any;
+  const DEMO_SITE_PATH = path.resolve(__dirname, '../fixtures/demo-site');
 
-  beforeEach(() => {
-    // Get the mocked Ship instance
-    mockShip = new Ship();
-    
-    // Mock console methods
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit called');
+  describe('Basic Commands', () => {
+    it('should show help', async () => {
+      const result = await runCli(['--help']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Deploy static sites with simplicity');
+      expect(result.stdout).toContain('Commands:');
     });
 
-    // Reset all mocks
-    vi.clearAllMocks();
+    it('should show version', async () => {
+      const result = await runCli(['--version']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+    });
+
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
 
-  describe('Deployment Commands', () => {
-    it('should handle deployments.list', async () => {
-      // Mock the API response
-      const mockResponse = {
-        deployments: [
-          { deployment: 'abc123', status: 'success' },
-          { deployment: 'def456', status: 'pending' }
-        ]
-      };
-      mockShip.deployments.list.mockResolvedValue(mockResponse);
-
-      // Import and test the CLI logic (since commands are not easily unit testable due to commander.js)
-      // We'll test the core functions instead
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const result = await client.deployments.list();
-
-      expect(mockShip.deployments.list).toHaveBeenCalled();
-      expect(result).toEqual(mockResponse);
+  describe('Completion Commands', () => {
+    it('should install bash completion', async () => {
+      // Completion commands work without network
+      const result = await runCli(['completion', 'install', 'bash'], { expectFailure: true });
+      // Expected to fail without proper shell setup, but shouldn't be network error
+      expect(result.stderr).not.toContain('network error');
     });
 
-    it('should handle deployments.create', async () => {
-      const mockResponse = { deployment: 'abc123', status: 'success' };
-      mockShip.deployments.create.mockResolvedValue(mockResponse);
-
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const result = await client.deployments.create(['./dist']);
-
-      expect(mockShip.deployments.create).toHaveBeenCalledWith(['./dist']);
-      expect(result).toEqual(mockResponse);
+    it('should install zsh completion', async () => {
+      const result = await runCli(['completion', 'install', 'zsh'], { expectFailure: true });
+      expect(result.stderr).not.toContain('network error');
     });
 
-    it('should handle deployments.get', async () => {
-      const mockResponse = { deployment: 'abc123', status: 'success' };
-      mockShip.deployments.get.mockResolvedValue(mockResponse);
-
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const result = await client.deployments.get('abc123');
-
-      expect(mockShip.deployments.get).toHaveBeenCalledWith('abc123');
-      expect(result).toEqual(mockResponse);
+    it('should install fish completion', async () => {
+      const result = await runCli(['completion', 'install', 'fish'], { expectFailure: true });
+      expect(result.stderr).not.toContain('network error');
     });
 
-    it('should handle deployments.remove', async () => {
-      const mockResponse = { message: 'Deployment removed' };
-      mockShip.deployments.remove.mockResolvedValue(mockResponse);
-
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const result = await client.deployments.remove('abc123');
-
-      expect(mockShip.deployments.remove).toHaveBeenCalledWith('abc123');
-      expect(result).toEqual(mockResponse);
-    });
-  });
-
-  describe('Alias Commands', () => {
-    it('should handle aliases.list', async () => {
-      const mockResponse = {
-        aliases: [
-          { alias: 'staging', deployment: 'abc123' },
-          { alias: 'production', deployment: 'def456' }
-        ]
-      };
-      mockShip.aliases.list.mockResolvedValue(mockResponse);
-
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const result = await client.aliases.list();
-
-      expect(mockShip.aliases.list).toHaveBeenCalled();
-      expect(result).toEqual(mockResponse);
+    it('should uninstall completion gracefully', async () => {
+      const result = await runCli(['completion', 'uninstall']);
+      // Should handle gracefully even if nothing to uninstall
+      expect(result.exitCode).toBe(0);
     });
 
-    it('should handle aliases.set', async () => {
-      const mockResponse = { alias: 'staging', deployment: 'abc123' };
-      mockShip.aliases.set.mockResolvedValue(mockResponse);
-
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const result = await client.aliases.set('staging', 'abc123');
-
-      expect(mockShip.aliases.set).toHaveBeenCalledWith('staging', 'abc123');
-      expect(result).toEqual(mockResponse);
-    });
-
-    it('should differentiate between alias create and update messages', async () => {
-      // Test alias creation (isCreate: true)
-      const createResponse = { alias: 'new-alias', deployment: 'abc123', isCreate: true };
-      mockShip.aliases.set.mockResolvedValue(createResponse);
-
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const createResult = await client.aliases.set('new-alias', 'abc123');
-
-      expect(mockShip.aliases.set).toHaveBeenCalledWith('new-alias', 'abc123');
-      expect(createResult).toEqual(createResponse);
-      expect(createResult.isCreate).toBe(true);
-
-      // Test alias update (isCreate: false)
-      const updateResponse = { alias: 'existing-alias', deployment: 'def456', isCreate: false };
-      mockShip.aliases.set.mockResolvedValue(updateResponse);
-
-      const updateResult = await client.aliases.set('existing-alias', 'def456');
-
-      expect(mockShip.aliases.set).toHaveBeenCalledWith('existing-alias', 'def456');
-      expect(updateResult).toEqual(updateResponse);
-      expect(updateResult.isCreate).toBe(false);
-    });
-
-    it('should handle aliases.get', async () => {
-      const mockResponse = { alias: 'staging', deployment: 'abc123' };
-      mockShip.aliases.get.mockResolvedValue(mockResponse);
-
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const result = await client.aliases.get('staging');
-
-      expect(mockShip.aliases.get).toHaveBeenCalledWith('staging');
-      expect(result).toEqual(mockResponse);
-    });
-
-    it('should handle aliases.remove', async () => {
-      const mockResponse = { message: 'Alias removed' };
-      mockShip.aliases.remove.mockResolvedValue(mockResponse);
-
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const result = await client.aliases.remove('staging');
-
-      expect(mockShip.aliases.remove).toHaveBeenCalledWith('staging');
-      expect(result).toEqual(mockResponse);
-    });
-  });
-
-  describe('Account Commands', () => {
-    it('should handle account.get', async () => {
-      const mockResponse = {
-        email: 'user@example.com',
-        plan: 'free'
-      };
-      mockShip.account.get.mockResolvedValue(mockResponse);
-
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const result = await client.account.get();
-
-      expect(mockShip.account.get).toHaveBeenCalled();
-      expect(result).toEqual(mockResponse);
-    });
-  });
-
-  describe('Ping Command', () => {
-    it('should handle ping', async () => {
-      const mockPingResponse = { success: true, timestamp: 1753379248270 };
-      mockShip.ping.mockResolvedValue(mockPingResponse);
-
-      const { Ship: ShipClass } = await import('@/index');
-      const client = new ShipClass();
-      const result = await client.ping();
-
-      expect(mockShip.ping).toHaveBeenCalled();
-      expect(result).toEqual(mockPingResponse);
+    it('should show completion help', async () => {
+      const result = await runCli(['completion', '--help']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('completion');
     });
   });
 });

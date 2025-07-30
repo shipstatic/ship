@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /data/
+Allow: /
+
+# Demo site robots.txt for CLI testing
+# This file helps reach the target file count
+
+Sitemap: https://example.com/sitemap.xml

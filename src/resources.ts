@@ -67,7 +67,7 @@ export function createDeploymentResource(
 // =============================================================================
 
 export interface AliasResource {
-  set: (aliasName: string, deploymentName: string) => Promise<Alias>;
+  set: (aliasName: string, deployment: string) => Promise<Alias>;
   get: (aliasName: string) => Promise<Alias>;
   list: () => Promise<AliasListResponse>;
   remove: (aliasName: string) => Promise<void>;
@@ -75,10 +75,10 @@ export interface AliasResource {
 
 export function createAliasResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): AliasResource {
   return {
-    set: async (aliasName: string, deploymentName: string) => {
+    set: async (aliasName: string, deployment: string) => {
       if (ensureInit) await ensureInit();
       // Set alias and return the created/updated alias directly
-      return getApi().setAlias(aliasName, deploymentName);
+      return getApi().setAlias(aliasName, deployment);
     },
 
     get: async (aliasName: string) => {

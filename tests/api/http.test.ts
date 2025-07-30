@@ -135,8 +135,8 @@ describe('ApiHttp', () => {
       ];
       (global.fetch as any).mockResolvedValue(createMockResponse({ 
         deployment: 'test-deployment',
-        filesCount: 1,
-        totalSize: 13
+        files: 1,
+        size: 13
       }));
 
       const result = await apiHttp.deploy(mockFiles);
@@ -152,8 +152,8 @@ describe('ApiHttp', () => {
       );
       expect(result).toEqual({
         deployment: 'test-deployment',
-        filesCount: 1,
-        totalSize: 13
+        files: 1,
+        size: 13
       });
     });
 
@@ -281,7 +281,7 @@ describe('ApiHttp', () => {
             'Authorization': 'Bearer test-api-key',
             'Content-Type': 'application/json'
           }),
-          body: JSON.stringify({ deploymentId: 'test-deployment' })
+          body: JSON.stringify({ deployment: 'test-deployment' })
         })
       );
       expect(result).toEqual({ ...mockAlias, isCreate: false });
@@ -301,7 +301,7 @@ describe('ApiHttp', () => {
             'Authorization': 'Bearer test-api-key',
             'Content-Type': 'application/json'
           }),
-          body: JSON.stringify({ deploymentId: 'test-deployment' })
+          body: JSON.stringify({ deployment: 'test-deployment' })
         })
       );
       expect(result).toEqual({ ...mockAlias, isCreate: true });

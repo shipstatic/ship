@@ -44,13 +44,13 @@ describe('DeploymentResource', () => {
     it('should deploy files and return Deployment object without config', async () => {
       const mockDeployResponse = {
         deployment: 'pink-elephant-abc123',
-        filesCount: 2,
-        totalSize: 1024,
+        files: 2,
+        size: 1024,
         status: 'success',
-        hasConfig: false,
+        config: false,
         url: 'https://pink-elephant-abc123.statichost.com',
-        createdAt: 1234567890,
-        expiresAt: 1234567890
+        created: 1234567890,
+        expires: 1234567890
       };
       (mockApi.deploy as any).mockResolvedValue(mockDeployResponse);
       
@@ -59,26 +59,26 @@ describe('DeploymentResource', () => {
       expect(mockApi.deploy).toHaveBeenCalled();
       expect(result).toEqual({
         deployment: 'pink-elephant-abc123',
-        filesCount: 2,
-        totalSize: 1024,
+        files: 2,
+        size: 1024,
         status: 'success',
-        hasConfig: false,
+        config: false,
         url: 'https://pink-elephant-abc123.statichost.com',
-        createdAt: 1234567890,
-        expiresAt: 1234567890
+        created: 1234567890,
+        expires: 1234567890
       });
     });
 
     it('should deploy files with ship.json and return hasConfig true', async () => {
       const mockDeployResponse = {
         deployment: 'bright-dolphin-def456',
-        filesCount: 3,
-        totalSize: 2048,
+        files: 3,
+        size: 2048,
         status: 'success',
-        hasConfig: true,
+        config: true,
         url: 'https://bright-dolphin-def456.statichost.com',
-        createdAt: 1234567890,
-        expiresAt: 1234567890
+        created: 1234567890,
+        expires: 1234567890
       };
       (mockApi.deploy as any).mockResolvedValue(mockDeployResponse);
       
@@ -87,13 +87,13 @@ describe('DeploymentResource', () => {
       expect(mockApi.deploy).toHaveBeenCalled();
       expect(result).toEqual({
         deployment: 'bright-dolphin-def456',
-        filesCount: 3,
-        totalSize: 2048,
+        files: 3,
+        size: 2048,
         status: 'success',
-        hasConfig: true,
+        config: true,
         url: 'https://bright-dolphin-def456.statichost.com',
-        createdAt: 1234567890,
-        expiresAt: 1234567890
+        created: 1234567890,
+        expires: 1234567890
       });
     });
   });
@@ -102,8 +102,8 @@ describe('DeploymentResource', () => {
     it('should call api.listDeployments and return result with hasConfig', async () => {
       const mockResponse = {
         deployments: [
-          { deployment: 'pink-elephant-abc123', status: 'success', hasConfig: false, url: 'https://pink-elephant-abc123.statichost.com', filesCount: 2, totalSize: 1024, createdAt: 1234567890 },
-          { deployment: 'bright-dolphin-def456', status: 'pending', hasConfig: true, url: 'https://bright-dolphin-def456.statichost.com', filesCount: 3, totalSize: 2048, createdAt: 1234567891 }
+          { deployment: 'pink-elephant-abc123', status: 'success', config: false, url: 'https://pink-elephant-abc123.statichost.com', files: 2, size: 1024, created: 1234567890 },
+          { deployment: 'bright-dolphin-def456', status: 'pending', config: true, url: 'https://bright-dolphin-def456.statichost.com', files: 3, size: 2048, created: 1234567891 }
         ],
         cursor: null,
         total: 2
@@ -114,9 +114,9 @@ describe('DeploymentResource', () => {
       
       expect(mockApi.listDeployments).toHaveBeenCalled();
       expect(result).toEqual(mockResponse);
-      expect(result.deployments[0].hasConfig).toBe(false);
+      expect(result.deployments[0].config).toBe(false);
       expect(result.deployments[0].url).toBe('https://pink-elephant-abc123.statichost.com');
-      expect(result.deployments[1].hasConfig).toBe(true);
+      expect(result.deployments[1].config).toBe(true);
       expect(result.deployments[1].url).toBe('https://bright-dolphin-def456.statichost.com');
     });
   });
@@ -126,12 +126,12 @@ describe('DeploymentResource', () => {
       const mockResponse = { 
         deployment: 'pink-elephant-abc123', 
         status: 'success', 
-        hasConfig: true,
+        config: true,
         url: 'https://pink-elephant-abc123.statichost.com',
-        filesCount: 5,
-        totalSize: 4096,
-        createdAt: 1234567890,
-        expiresAt: 1234567890
+        files: 5,
+        size: 4096,
+        created: 1234567890,
+        expires: 1234567890
       };
       (mockApi.getDeployment as any).mockResolvedValue(mockResponse);
       
@@ -139,7 +139,7 @@ describe('DeploymentResource', () => {
       
       expect(mockApi.getDeployment).toHaveBeenCalledWith('abc123');
       expect(result).toEqual(mockResponse);
-      expect(result.hasConfig).toBe(true);
+      expect(result.config).toBe(true);
     });
   });
 

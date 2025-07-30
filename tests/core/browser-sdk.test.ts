@@ -7,9 +7,9 @@ import type { Ship as ShipClass } from '@/index'; // Import type for client
 const mockApiHttpInstance = {
   deploy: vi.fn().mockResolvedValue({
     deployment: 'test-deployment-id',
-    filesCount: 1,
-    totalSize: 1024,
-    expiresAt: 1234567890
+    files: 1,
+    size: 1024,
+    expires: 1234567890
   }),
   ping: vi.fn(),
   getPingResponse: vi.fn().mockResolvedValue({ success: true, timestamp: 1753379248270 }),

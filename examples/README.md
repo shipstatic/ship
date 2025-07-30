@@ -41,7 +41,7 @@ const result = await ship.deployments.create(input, {
 });
 
 // 3. Access deployment information
-console.log(`✅ Deployed: https://${result.deploymentId}.shipstatic.dev`);
+console.log(`✅ Deployed: https://${result.deployment}.shipstatic.dev`);
 ```
 
 ## 🔧 Common Configuration

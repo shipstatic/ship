@@ -33,7 +33,7 @@ describe('AccountResource', () => {
         email: 'test@example.com',
         name: 'Test User',
         plan: 'free',
-        createdAt: 1234567890
+        created: 1234567890
       };
       
       (mockApi.getAccount as any).mockResolvedValue(mockResponse);
@@ -50,15 +50,15 @@ describe('AccountResource', () => {
           email: 'free@example.com',
           name: 'Free User',
           plan: 'free' as const,
-          createdAt: 1234567890
+          created: 1234567890
         },
         {
           email: 'paid@example.com',
           name: 'Paid User',
           picture: 'https://example.com/avatar.jpg',
           plan: 'active' as const,
-          createdAt: 1234567890,
-          subscribedAt: 1234567900
+          created: 1234567890,
+          subscribed: 1234567900
         }
       ];
       
