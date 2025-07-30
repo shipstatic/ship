@@ -13,7 +13,8 @@ exports[`CLI Basics > Error Snapshots > unknown command error should match snaps
 `;
 
 exports[`CLI Basics > Error Snapshots > unknown option error should match snapshot 1`] = `
-"error: unknown option '--unknown-option'
+"[7m[31merror[39m[27m [31munknown option '--unknown-option'[39m
+
 "
 `;
 

@@ -35,6 +35,42 @@ try {
 
 const program = new Command();
 
+// Override Commander.js error handling while preserving help/version behavior
+program
+  .exitOverride((err) => {
+    // Only override actual errors, not help/version exits
+    if (err.code === 'commander.help' || err.code === 'commander.version' || err.exitCode === 0) {
+      process.exit(err.exitCode || 0);
+    }
+    
+    const globalOptions = program.opts();
+    
+    // Extract the actual error message from Commander.js error
+    let message = err.message || 'unknown command error';
+    
+    // Clean up common Commander.js error messages
+    message = message
+      .replace(/^error: /, '') // Remove Commander's error prefix
+      .replace(/\n.*/, '') // Keep only the first line
+      .replace(/\.$/, '') // Remove trailing period
+      .toLowerCase(); // Make lowercase
+    
+    // Route through our error function for consistent formatting
+    error(message, globalOptions.json, globalOptions.noColor);
+    
+    process.exit(err.exitCode || 1);
+  })
+  .configureOutput({
+    // Suppress Commander's default error output - we handle it in exitOverride
+    writeErr: (str) => {
+      // Only suppress error output, allow help/version to go through
+      if (!str.startsWith('error:')) {
+        process.stderr.write(str);
+      }
+    },
+    writeOut: (str) => process.stdout.write(str)
+  });
+
 // CLI formatting helpers are imported from utils.js
 
 
@@ -654,7 +690,8 @@ if (process.env.NODE_ENV !== 'test') {
   try {
     program.parse(process.argv);
   } catch (err: any) {
-    // Commander.js will throw after calling writeErr, we just need to exit cleanly
+    // Commander.js errors are already handled by exitOverride above
+    // This catch is just for safety - exitOverride should handle all Commander errors
     if (err.code && err.code.startsWith('commander.')) {
       process.exit(err.exitCode || 1);
     }
