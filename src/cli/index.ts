@@ -646,12 +646,16 @@ completionCmd
       if (shell.includes('bash')) {
         installPath = path.join(homeDir, '.ship_completion.bash');
         profileFile = path.join(homeDir, '.bash_profile');
-        sourceLine = `\n# Ship CLI completion\nsource '${installPath}'\n`;
+        sourceLine = `# ship
+source '${installPath}'
+# ship end`;
         fs.copyFileSync(bashScriptPath, installPath);
       } else if (shell.includes('zsh')) {
         installPath = path.join(homeDir, '.ship_completion.zsh');
         profileFile = path.join(homeDir, '.zshrc');
-        sourceLine = `\n# Ship CLI completion\nsource '${installPath}'\n`;
+        sourceLine = `# ship
+source '${installPath}'
+# ship end`;
         fs.copyFileSync(zshScriptPath, installPath);
       } else if (shell.includes('fish')) {
         const fishCompletionsDir = path.join(homeDir, '.config/fish/completions');
@@ -674,8 +678,11 @@ completionCmd
       const profileExists = fs.existsSync(profileFile);
       if (profileExists) {
         const profileContent = fs.readFileSync(profileFile, 'utf-8');
-        if (!profileContent.includes('ship_completion')) {
-          fs.appendFileSync(profileFile, sourceLine);
+        if (!profileContent.includes('# ship') || !profileContent.includes('# ship end')) {
+          // Ensure there's a newline before our block if file doesn't end with one
+          const needsNewline = profileContent.length > 0 && !profileContent.endsWith('\n');
+          const prefix = needsNewline ? '\n' : '';
+          fs.appendFileSync(profileFile, prefix + sourceLine);
         }
       } else {
         fs.writeFileSync(profileFile, sourceLine);
@@ -738,15 +745,47 @@ completionCmd
       if (fs.existsSync(profileFile)) {
         const profileContent = fs.readFileSync(profileFile, 'utf-8');
         const lines = profileContent.split('\n');
-        const filteredLines = lines.filter(line => 
-          !line.includes('ship_completion') && 
-          !line.includes('Ship CLI completion')
-        );
         
-        // Only write back if we actually removed something
+        // Find and remove the ship block using start/end markers
+        const filteredLines: string[] = [];
+        let i = 0;
+        let removedSomething = false;
+        
+        while (i < lines.length) {
+          const line = lines[i];
+          
+          // Check if this is the start of a ship block
+          if (line.trim() === '# ship') {
+            removedSomething = true;
+            // Skip all lines until we find the end marker
+            i++;
+            while (i < lines.length && lines[i].trim() !== '# ship end') {
+              i++;
+            }
+            // Skip the end marker too
+            if (i < lines.length && lines[i].trim() === '# ship end') {
+              i++;
+            }
+          } else {
+            // Keep this line
+            filteredLines.push(line);
+            i++;
+          }
+        }
+        
         const options = program.opts();
-        if (filteredLines.length !== lines.length) {
-          fs.writeFileSync(profileFile, filteredLines.join('\n'));
+        if (removedSomething) {
+          // Preserve the original file's ending format (with or without final newline)
+          const originalEndsWithNewline = profileContent.endsWith('\n');
+          let newContent;
+          if (filteredLines.length === 0) {
+            newContent = '';
+          } else if (originalEndsWithNewline) {
+            newContent = filteredLines.join('\n') + '\n';
+          } else {
+            newContent = filteredLines.join('\n');
+          }
+          fs.writeFileSync(profileFile, newContent);
           success(`completion script uninstalled for ${shell.split('/').pop()}`, options.json, options.noColor);
           warn(`run "source ${profileFile}" or restart your shell`, options.json, options.noColor);
         } else {

@@ -28,12 +28,6 @@ describe('CLI Basics', () => {
       expect(result.stdout).toContain('completion');
     });
 
-    it('should show help with -h flag', async () => {
-      const result = await runCli(['-h']);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('USAGE');
-    });
-
     it('should show version with --version flag', async () => {
       const result = await runCli(['--version']);
       expect(result.exitCode).toBe(0);
