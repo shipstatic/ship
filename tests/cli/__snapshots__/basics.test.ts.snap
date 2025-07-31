@@ -51,7 +51,6 @@ exports[`CLI Basics > Output Snapshots > help output should match snapshot 1`] =
   --version                 Show version information
 
 [2mPlease report any issues to https://github.com/shipstatic/ship/issues[22m
-
 "
 `;
 
@@ -88,6 +87,5 @@ exports[`CLI Basics > Output Snapshots > no args help output should match snapsh
   --version                 Show version information
 
 [2mPlease report any issues to https://github.com/shipstatic/ship/issues[22m
-
 "
 `;
