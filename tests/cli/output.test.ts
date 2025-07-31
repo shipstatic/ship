@@ -13,10 +13,10 @@ describe('CLI Output', () => {
     it('should provide consistent help format', async () => {
       const result = await runCli(['--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
       expect(result.stdout).toContain('🚀 Deploy static sites with simplicity');
-      expect(result.stdout).toContain('Commands:');
-      expect(result.stdout).toContain('Options:');
+      expect(result.stdout).toContain('COMMANDS');
+      expect(result.stdout).toContain('FLAGS');
     });
 
     it('should provide consistent version format', async () => {
@@ -31,7 +31,7 @@ describe('CLI Output', () => {
       const result = await runCli(['--help', '--json']);
       expect(result.exitCode).toBe(0);
       // Help should still show human format even with JSON flag
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should handle JSON flag with version', async () => {
@@ -108,7 +108,7 @@ describe('CLI Output', () => {
       expect(result.stdout).toContain('aliases');
       expect(result.stdout).toContain('account');
       expect(result.stdout).toContain('completion');
-      expect(result.stdout).toContain('ping');
+      // ping command is hidden from help but still functional
       expect(result.stdout).toContain('whoami');
     });
 

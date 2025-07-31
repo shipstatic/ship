@@ -19,57 +19,75 @@ exports[`CLI Basics > Error Snapshots > unknown option error should match snapsh
 `;
 
 exports[`CLI Basics > Output Snapshots > help output should match snapshot 1`] = `
-"Usage: ship [options] [command] [path]
+"[1mUSAGE[22m
+  ship <path>               🚀 Deploy static sites with simplicity
 
-🚀 Deploy static sites with simplicity
+[1mCOMMANDS[22m
+  📦 [1mDeployments[22m
+  ship deployments list                 List all deployments
+  ship deployments create <path>        Create deployment from file or directory
+  ship deployments get <deployment>     Show deployment information
+  ship deployments remove <deployment>  Delete deployment permanently
 
-Arguments:
-  path             Path to deploy
+  🌎 [1mAliases[22m
+  ship aliases list                     List all aliases
+  ship aliases set <name> <deployment>  Create or update alias pointing to deployment
+  ship aliases get <name>               Show alias information
+  ship aliases remove <name>            Delete alias permanently
 
-Options:
-  --version        Show version information
-  --api-key <key>  API key for authentication
-  --config <file>  Custom config file path
-  --api-url <url>  API URL (for development)
-  --json           Output results in JSON format
-  --no-color       Disable colored output
-  --preserve-dirs  Preserve directory structure in deployment
-  -h, --help       display help for command
+  👨‍🚀 [1mAccount[22m
+  ship whoami                           Get current account information
 
-Commands:
-  ping             Check API connectivity
-  whoami           Get current account information
-  deployments      Manage deployments
-  aliases          Manage aliases
-  account          Manage account
-  completion       Setup shell completion
+  🛠️  [1mCompletion[22m
+  ship completion install               Install shell completion script
+  ship completion uninstall             Uninstall shell completion script
+
+[1mFLAGS[22m
+  --api-key <key>           API key for authentication
+  --config <file>           Custom config file path
+  --preserve-dirs           Preserve directory structure in deployment
+  --json                    Output results in JSON format
+  --no-color                Disable colored output
+  --version                 Show version information
+
+[2mPlease report any issues to https://github.com/shipstatic/ship/issues[22m
+
 "
 `;
 
 exports[`CLI Basics > Output Snapshots > no args help output should match snapshot 1`] = `
-"Usage: ship [options] [command] [path]
+"[1mUSAGE[22m
+  ship <path>               🚀 Deploy static sites with simplicity
 
-🚀 Deploy static sites with simplicity
+[1mCOMMANDS[22m
+  📦 [1mDeployments[22m
+  ship deployments list                 List all deployments
+  ship deployments create <path>        Create deployment from file or directory
+  ship deployments get <deployment>     Show deployment information
+  ship deployments remove <deployment>  Delete deployment permanently
 
-Arguments:
-  path             Path to deploy
+  🌎 [1mAliases[22m
+  ship aliases list                     List all aliases
+  ship aliases set <name> <deployment>  Create or update alias pointing to deployment
+  ship aliases get <name>               Show alias information
+  ship aliases remove <name>            Delete alias permanently
 
-Options:
-  --version        Show version information
-  --api-key <key>  API key for authentication
-  --config <file>  Custom config file path
-  --api-url <url>  API URL (for development)
-  --json           Output results in JSON format
-  --no-color       Disable colored output
-  --preserve-dirs  Preserve directory structure in deployment
-  -h, --help       display help for command
+  👨‍🚀 [1mAccount[22m
+  ship whoami                           Get current account information
 
-Commands:
-  ping             Check API connectivity
-  whoami           Get current account information
-  deployments      Manage deployments
-  aliases          Manage aliases
-  account          Manage account
-  completion       Setup shell completion
+  🛠️  [1mCompletion[22m
+  ship completion install               Install shell completion script
+  ship completion uninstall             Uninstall shell completion script
+
+[1mFLAGS[22m
+  --api-key <key>           API key for authentication
+  --config <file>           Custom config file path
+  --preserve-dirs           Preserve directory structure in deployment
+  --json                    Output results in JSON format
+  --no-color                Disable colored output
+  --version                 Show version information
+
+[2mPlease report any issues to https://github.com/shipstatic/ship/issues[22m
+
 "
 `;

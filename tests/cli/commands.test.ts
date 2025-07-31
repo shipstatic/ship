@@ -17,7 +17,7 @@ describe('CLI Commands', () => {
       const result = await runCli(['--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('Deploy static sites with simplicity');
-      expect(result.stdout).toContain('Commands:');
+      expect(result.stdout).toContain('COMMANDS');
     });
 
     it('should show version', async () => {

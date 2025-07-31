@@ -18,7 +18,8 @@ describe('CLI Error Handling', () => {
     it('should handle unknown subcommands', async () => {
       const result = await runCli(['deployments', 'unknown'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('unknown');
+      // Unknown subcommands now show help in stdout instead of specific error message
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should provide JSON error format for unknown commands', async () => {
@@ -62,7 +63,8 @@ describe('CLI Error Handling', () => {
     it('should handle missing required arguments', async () => {
       const result = await runCli(['deployments'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('help');
+      // Incomplete commands now show help in stdout instead of specific error message
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should handle invalid argument formats', async () => {
@@ -76,7 +78,7 @@ describe('CLI Error Handling', () => {
     it('should handle empty command gracefully', async () => {
       const result = await runCli([]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should detect path vs command ambiguity', async () => {

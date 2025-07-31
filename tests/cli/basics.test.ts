@@ -12,16 +12,16 @@ describe('CLI Basics', () => {
     it('should show help with no arguments', async () => {
       const result = await runCli([]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
       expect(result.stdout).toContain('🚀 Deploy static sites with simplicity');
-      expect(result.stdout).toContain('Commands:');
-      expect(result.stdout).toContain('Options:');
+      expect(result.stdout).toContain('COMMANDS');
+      expect(result.stdout).toContain('FLAGS');
     });
 
     it('should show help with --help flag', async () => {
       const result = await runCli(['--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
       expect(result.stdout).toContain('deployments');
       expect(result.stdout).toContain('aliases');
       expect(result.stdout).toContain('account');
@@ -31,7 +31,7 @@ describe('CLI Basics', () => {
     it('should show help with -h flag', async () => {
       const result = await runCli(['-h']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should show version with --version flag', async () => {
@@ -82,7 +82,7 @@ describe('CLI Basics', () => {
     it('should show help for empty arguments', async () => {
       const result = await runCli([]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
   });
 
