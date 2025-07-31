@@ -13,7 +13,7 @@ describe('CLI Flags', () => {
       const result = await runCli(['--help', '--json']);
       expect(result.exitCode).toBe(0);
       // Help with JSON flag should still show help text (not convert to JSON)
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should work with version command', async () => {
@@ -28,7 +28,7 @@ describe('CLI Flags', () => {
       const validKey = 'ship-' + 'a'.repeat(64);
       const result = await runCli(['--api-key', validKey, '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     // Short flags removed as part of CLI simplification
@@ -39,7 +39,7 @@ describe('CLI Flags', () => {
     it('should accept custom API URL without network call', async () => {
       const result = await runCli(['--api-url', 'https://custom.api.com', '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
   });
 
@@ -47,14 +47,14 @@ describe('CLI Flags', () => {
     it('should accept config file path without network call', async () => {
       const result = await runCli(['--config', '/path/to/config.json', '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should handle nonexistent config file', async () => {
       const result = await runCli(['--config', '/nonexistent/config.json', '--help']);
       // Should still show help even with bad config path
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
   });
 
@@ -62,13 +62,13 @@ describe('CLI Flags', () => {
     it('should accept preserve dirs flag without network call', async () => {
       const result = await runCli(['--preserve-dirs', '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should combine with JSON flag', async () => {
       const result = await runCli(['--preserve-dirs', '--json', '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
   });
 
@@ -81,7 +81,7 @@ describe('CLI Flags', () => {
         '--help'
       ]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should handle flag order variations', async () => {
@@ -91,7 +91,7 @@ describe('CLI Flags', () => {
         '--json'
       ]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should prioritize CLI flags over config', async () => {
@@ -101,7 +101,7 @@ describe('CLI Flags', () => {
         '--help'
       ]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
   });
 

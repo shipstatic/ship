@@ -60,7 +60,7 @@ describe('CLI --no-color Flag', () => {
     it('should accept --no-color flag with help', async () => {
       const result = await runCli(['--help', '--no-color']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
       expect(result.stdout).toContain('--no-color');
       expect(result.stdout).toContain('Disable colored output');
     });
@@ -90,7 +90,7 @@ describe('CLI --no-color Flag', () => {
     it('should work with --api-key and --no-color together', async () => {
       const result = await runCli(['--api-key', 'test-key', '--help', '--no-color']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should work with multiple flags and --no-color', async () => {
@@ -102,7 +102,7 @@ describe('CLI --no-color Flag', () => {
         '--help'
       ]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
   });
 
@@ -110,19 +110,19 @@ describe('CLI --no-color Flag', () => {
     it('should work when --no-color comes first', async () => {
       const result = await runCli(['--no-color', '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should work when --no-color comes last', async () => {
       const result = await runCli(['--help', '--no-color']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should work when --no-color is in the middle', async () => {
       const result = await runCli(['--api-key', 'test', '--no-color', '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
   });
 

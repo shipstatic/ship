@@ -8,6 +8,7 @@ import { validateApiKey, validateApiUrl } from '@shipstatic/types';
 import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
 import { formatTable, formatDetails, success, error, info, warn } from './utils.js';
+import { bold, dim } from 'yoctocolors';
 // Removed tabtab dependency - now using custom completion script
 import * as fs from 'fs';
 import * as os from 'os';
@@ -57,6 +58,11 @@ program
     
     // Route through our error function for consistent formatting
     error(message, globalOptions.json, globalOptions.noColor);
+    
+    // Show help after error (unless in JSON mode)
+    if (!globalOptions.json) {
+      displayHelp(globalOptions.noColor);
+    }
     
     process.exit(err.exitCode || 1);
   })
@@ -108,6 +114,83 @@ function getAllOptions(command: any): any {
 }
 
 /**
+ * Display comprehensive help information for all commands
+ */
+function displayHelp(noColor?: boolean) {
+  const applyBold = (text: string) => noColor ? text : bold(text);
+  const applyDim = (text: string) => noColor ? text : dim(text);
+  
+  const output = `${applyBold('USAGE')}
+  ship <path>               🚀 Deploy static sites with simplicity
+
+${applyBold('COMMANDS')}
+  📦 ${applyBold('Deployments')}
+  ship deployments list                 List all deployments
+  ship deployments create <path>        Create deployment from file or directory
+  ship deployments get <deployment>     Show deployment information
+  ship deployments remove <deployment>  Delete deployment permanently
+
+  🌎 ${applyBold('Aliases')}
+  ship aliases list                     List all aliases
+  ship aliases set <name> <deployment>  Create or update alias pointing to deployment
+  ship aliases get <name>               Show alias information
+  ship aliases remove <name>            Delete alias permanently
+
+  👨‍🚀 ${applyBold('Account')}
+  ship whoami                           Get current account information
+
+  🛠️  ${applyBold('Completion')}
+  ship completion install               Install shell completion script
+  ship completion uninstall             Uninstall shell completion script
+
+${applyBold('FLAGS')}
+  --api-key <key>           API key for authentication
+  --config <file>           Custom config file path
+  --preserve-dirs           Preserve directory structure in deployment
+  --json                    Output results in JSON format
+  --no-color                Disable colored output
+  --version                 Show version information
+
+${applyDim('Please report any issues to https://github.com/shipstatic/ship/issues')}
+`;
+
+  console.log(output);
+}
+
+/**
+ * Helper to traverse command hierarchy and collect all options
+ */
+function getAllOptions(command: any): any {
+  const options = {};
+  let current = command;
+  
+  // Traverse up the command hierarchy and collect options
+  while (current) {
+    if (current.opts) {
+      // Parent options are applied first, then overridden by child options
+      Object.assign(options, current.opts(), options);
+    }
+    current = current.parent;
+  }
+  
+  // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
+  if (options.color === false) {
+    options.noColor = true;
+  }
+  
+  // Validate options early
+  if (options.apiKey && typeof options.apiKey === 'string') {
+    validateApiKey(options.apiKey);
+  }
+  
+  if (options.apiUrl && typeof options.apiUrl === 'string') {
+    validateApiUrl(options.apiUrl);
+  }
+  
+  return options;
+}
+
+/**
  * Error handler using ShipError type guards - all errors should be ShipError instances
  */
 function handleError(err: any, context?: { operation?: string; resourceType?: string; resourceId?: string }, options?: any) {
@@ -124,6 +207,8 @@ function handleError(err: any, context?: { operation?: string; resourceType?: st
       console.error();
     } else {
       error(message, undefined, opts.noColor);
+      // Show help after error (unless in JSON mode)
+      displayHelp(opts.noColor);
     }
     process.exit(1);
   }
@@ -174,6 +259,8 @@ function handleError(err: any, context?: { operation?: string; resourceType?: st
     console.error();
   } else {
     error(message, undefined, opts.noColor);
+    // Show help after error (unless in JSON mode)
+    displayHelp(opts.noColor);
   }
   process.exit(1);
 }
@@ -398,7 +485,19 @@ program
   .option('--config <file>', 'Custom config file path')
   .option('--api-url <url>', 'API URL (for development)')
   .option('--json', 'Output results in JSON format')
-  .option('--no-color', 'Disable colored output');
+  .option('--no-color', 'Disable colored output')
+  .option('--help', 'Display help for command')
+  .helpOption(false); // Disable default help
+
+// Handle --help flag manually to show custom help
+program.hook('preAction', (thisCommand, actionCommand) => {
+  const options = thisCommand.opts();
+  if (options.help) {
+    const noColor = options.color === false || options.noColor;
+    displayHelp(noColor);
+    process.exit(0);
+  }
+});
 
 // Ping command
 program
@@ -418,7 +517,13 @@ program
 // Deployments commands
 const deploymentsCmd = program
   .command('deployments')
-  .description('Manage deployments');
+  .description('Manage deployments')
+  .action(() => {
+    // Show help for incomplete command
+    const globalOptions = getAllOptions(program);
+    displayHelp(globalOptions.noColor);
+    process.exit(1);
+  });
 
 deploymentsCmd
   .command('list')
@@ -455,7 +560,13 @@ deploymentsCmd
 // Aliases commands
 const aliasesCmd = program
   .command('aliases')
-  .description('Manage aliases');
+  .description('Manage aliases')
+  .action(() => {
+    // Show help for incomplete command
+    const globalOptions = getAllOptions(program);
+    displayHelp(globalOptions.noColor);
+    process.exit(1);
+  });
 
 aliasesCmd
   .command('list')
@@ -489,7 +600,13 @@ aliasesCmd
 // Account commands
 const accountCmd = program
   .command('account')
-  .description('Manage account');
+  .description('Manage account')
+  .action(() => {
+    // Show help for incomplete command
+    const globalOptions = getAllOptions(program);
+    displayHelp(globalOptions.noColor);
+    process.exit(1);
+  });
 
 accountCmd
   .command('get')
@@ -502,7 +619,13 @@ accountCmd
 // Completion commands
 const completionCmd = program
   .command('completion')
-  .description('Setup shell completion');
+  .description('Setup shell completion')
+  .action(() => {
+    // Show help for incomplete command
+    const globalOptions = getAllOptions(program);
+    displayHelp(globalOptions.noColor);
+    process.exit(1);
+  });
 
 completionCmd
   .command('install')
@@ -647,8 +770,11 @@ program
   .action(withErrorHandling(
     async function(client, path?: string, cmdOptions?: any) {
       if (!path) {
-        program.help();
-        return;
+        const globalOptions = program.opts();
+        // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
+        const noColor = globalOptions.color === false || globalOptions.noColor;
+        displayHelp(noColor);
+        process.exit(0);
       }
       
       // Check if the argument looks like a path (not a command)

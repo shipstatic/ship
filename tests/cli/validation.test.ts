@@ -30,7 +30,7 @@ describe('CLI Validation', () => {
       const validKey = 'ship-' + 'a'.repeat(64);
       const result = await runCli(['--api-key', validKey, '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
   });
 
@@ -62,13 +62,13 @@ describe('CLI Validation', () => {
     it('should accept valid HTTPS URL', async () => {
       const result = await runCli(['--api-url', 'https://api.example.com', '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should accept valid HTTP URL', async () => {
       const result = await runCli(['--api-url', 'http://localhost:3000', '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('Usage: ship');
+      expect(result.stdout).toContain('USAGE');
     });
   });
 
