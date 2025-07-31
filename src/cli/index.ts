@@ -81,39 +81,6 @@ program
 
 
 /**
- * Helper to traverse command hierarchy and collect all options
- */
-function getAllOptions(command: any): any {
-  const options = {};
-  let current = command;
-  
-  // Traverse up the command hierarchy and collect options
-  while (current) {
-    if (current.opts) {
-      // Parent options are applied first, then overridden by child options
-      Object.assign(options, current.opts(), options);
-    }
-    current = current.parent;
-  }
-  
-  // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
-  if (options.color === false) {
-    options.noColor = true;
-  }
-  
-  // Validate options early
-  if (options.apiKey && typeof options.apiKey === 'string') {
-    validateApiKey(options.apiKey);
-  }
-  
-  if (options.apiUrl && typeof options.apiUrl === 'string') {
-    validateApiUrl(options.apiUrl);
-  }
-  
-  return options;
-}
-
-/**
  * Display comprehensive help information for all commands
  */
 function displayHelp(noColor?: boolean) {
