@@ -226,8 +226,8 @@ function handleError(err: any, context?: { operation?: string; resourceType?: st
     console.error();
   } else {
     error(message, undefined, opts.noColor);
-    // Show help after error (unless in JSON mode)
-    displayHelp(opts.noColor);
+    // Show help for ShipError instances - these are API/system errors, not user CLI mistakes
+    // Don't be patronizing when the user did nothing wrong
   }
   process.exit(1);
 }
@@ -299,7 +299,12 @@ function createClient(): Ship {
 const formatters = {
   deployments: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
     if (!result.deployments || result.deployments.length === 0) {
-      info('no deployments found', isJson, noColor);
+      if (isJson) {
+        console.log(JSON.stringify({ deployments: [] }, null, 2));
+      } else {
+        console.log('no deployments found');
+        console.log();
+      }
       return;
     }
     
@@ -309,7 +314,12 @@ const formatters = {
   },
   aliases: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
     if (!result.aliases || result.aliases.length === 0) {
-      info('no aliases found', isJson, noColor);
+      if (isJson) {
+        console.log(JSON.stringify({ aliases: [] }, null, 2));
+      } else {
+        console.log('no aliases found');
+        console.log();
+      }
       return;
     }
     
