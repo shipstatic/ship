@@ -13,12 +13,14 @@ describe('CLI Error Handling', () => {
       const result = await runCli(['unknown-command'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unknown command 'unknown-command'");
+      expect(result.stdout).toContain('USAGE');
     });
 
     it('should handle unknown subcommands', async () => {
       const result = await runCli(['deployments', 'unknown'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
-      // Unknown subcommands now show help in stdout instead of specific error message
+      // Unknown subcommands now show error message in stderr and help in stdout
+      expect(result.stderr).toContain("unknown command 'unknown'");
       expect(result.stdout).toContain('USAGE');
     });
 
@@ -63,7 +65,7 @@ describe('CLI Error Handling', () => {
     it('should handle missing required arguments', async () => {
       const result = await runCli(['deployments'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
-      // Incomplete commands now show help in stdout instead of specific error message
+      // Incomplete commands now show custom help in stdout
       expect(result.stdout).toContain('USAGE');
     });
 

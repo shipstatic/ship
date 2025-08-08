@@ -110,8 +110,8 @@ USAGE
 COMMANDS
   ship deployments       📦 Manage deployments
   ship aliases           🌎 Manage aliases
-  ship account           👨‍🚀 Manage account
-  ship whoami            👨‍🚀 Current account
+  ship account           🦸 Manage account
+  ship whoami            🦸 Current account
   ship ping              📡 Check API connectivity
   ship completion        ⚡ Setup shell completion
 

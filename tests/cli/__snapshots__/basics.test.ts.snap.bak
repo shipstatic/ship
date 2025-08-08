@@ -35,7 +35,7 @@ exports[`CLI Basics > Output Snapshots > help output should match snapshot 1`] =
   ship aliases get <name>               Show alias information
   ship aliases remove <name>            Delete alias permanently
 
-  🦸 [1mAccount[22m
+  🧑‍🚀 [1mAccount[22m
   ship whoami                           Get current account information
 
   🛠️  [1mCompletion[22m
@@ -72,7 +72,7 @@ exports[`CLI Basics > Output Snapshots > no args help output should match snapsh
   ship aliases get <name>               Show alias information
   ship aliases remove <name>            Delete alias permanently
 
-  🦸 [1mAccount[22m
+  🧑‍🚀 [1mAccount[22m
   ship whoami                           Get current account information
 
   🛠️  [1mCompletion[22m

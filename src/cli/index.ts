@@ -103,7 +103,7 @@ ${applyBold('COMMANDS')}
   ship aliases get <name>               Show alias information
   ship aliases remove <name>            Delete alias permanently
 
-  👨‍🚀 ${applyBold('Account')}
+  🦸 ${applyBold('Account')}
   ship whoami                           Get current account information
 
   🛠️  ${applyBold('Completion')}
@@ -226,8 +226,11 @@ function handleError(err: any, context?: { operation?: string; resourceType?: st
     console.error();
   } else {
     error(message, undefined, opts.noColor);
-    // Show help for ShipError instances - these are API/system errors, not user CLI mistakes
-    // Don't be patronizing when the user did nothing wrong
+    // Show help for validation errors related to unknown commands
+    if (err.isValidationError() && message.includes('unknown command')) {
+      displayHelp(opts.noColor);
+    }
+    // Don't show help for other ShipError instances - these are API/system errors, not user CLI mistakes
   }
   process.exit(1);
 }
@@ -501,9 +504,20 @@ program
 const deploymentsCmd = program
   .command('deployments')
   .description('Manage deployments')
-  .action(() => {
-    // Show help for incomplete command
+  .action((...args) => {
     const globalOptions = getAllOptions(program);
+    
+    // Get the command object (last argument)
+    const commandObj = args[args.length - 1];
+    
+    // Check if an unknown subcommand was provided
+    if (commandObj && commandObj.args && commandObj.args.length > 0) {
+      const unknownArg = commandObj.args.find(arg => !['list', 'create', 'get', 'remove'].includes(arg));
+      if (unknownArg) {
+        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
+      }
+    }
+    
     displayHelp(globalOptions.noColor);
     process.exit(1);
   });
@@ -544,9 +558,20 @@ deploymentsCmd
 const aliasesCmd = program
   .command('aliases')
   .description('Manage aliases')
-  .action(() => {
-    // Show help for incomplete command
+  .action((...args) => {
     const globalOptions = getAllOptions(program);
+    
+    // Get the command object (last argument)
+    const commandObj = args[args.length - 1];
+    
+    // Check if an unknown subcommand was provided
+    if (commandObj && commandObj.args && commandObj.args.length > 0) {
+      const unknownArg = commandObj.args.find(arg => !['list', 'get', 'set', 'remove'].includes(arg));
+      if (unknownArg) {
+        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
+      }
+    }
+    
     displayHelp(globalOptions.noColor);
     process.exit(1);
   });
@@ -584,9 +609,20 @@ aliasesCmd
 const accountCmd = program
   .command('account')
   .description('Manage account')
-  .action(() => {
-    // Show help for incomplete command
+  .action((...args) => {
     const globalOptions = getAllOptions(program);
+    
+    // Get the command object (last argument)
+    const commandObj = args[args.length - 1];
+    
+    // Check if an unknown subcommand was provided
+    if (commandObj && commandObj.args && commandObj.args.length > 0) {
+      const unknownArg = commandObj.args.find(arg => !['get'].includes(arg));
+      if (unknownArg) {
+        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
+      }
+    }
+    
     displayHelp(globalOptions.noColor);
     process.exit(1);
   });
@@ -603,9 +639,20 @@ accountCmd
 const completionCmd = program
   .command('completion')
   .description('Setup shell completion')
-  .action(() => {
-    // Show help for incomplete command
+  .action((...args) => {
     const globalOptions = getAllOptions(program);
+    
+    // Get the command object (last argument)
+    const commandObj = args[args.length - 1];
+    
+    // Check if an unknown subcommand was provided
+    if (commandObj && commandObj.args && commandObj.args.length > 0) {
+      const unknownArg = commandObj.args.find(arg => !['install', 'uninstall'].includes(arg));
+      if (unknownArg) {
+        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
+      }
+    }
+    
     displayHelp(globalOptions.noColor);
     process.exit(1);
   });
