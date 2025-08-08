@@ -333,6 +333,12 @@ const formatters = {
       const operation = result.isCreate ? 'created' : 'updated';
       success(`${result.alias} alias ${operation}`, isJson, noColor);
     }
+    
+    // Show DNS CNAME warning for external aliases that are not confirmed
+    if (!isJson && result.alias && result.alias.includes('.') && !result.confirmed) {
+      warn(`To complete setup, create a DNS CNAME record pointing ${result.alias} to cname.statichost.com`, isJson, noColor);
+    }
+    
     console.log(formatDetails(result, noColor));
   },
   deployment: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {

@@ -1,19 +1,19 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`CLI Basics > Error Snapshots > nonexistent path error should match snapshot 1`] = `
-"[7m[31merror[39m[27m [31m./nonexistent/path path does not exist[39m
+"[7m[31m[8m[[28merror[8m][28m[39m[27m [31m./nonexistent/path path does not exist[39m
 
 "
 `;
 
 exports[`CLI Basics > Error Snapshots > unknown command error should match snapshot 1`] = `
-"[7m[31merror[39m[27m [31munknown command 'unknown-command'[39m
+"[7m[31m[8m[[28merror[8m][28m[39m[27m [31munknown command 'unknown-command'[39m
 
 "
 `;
 
 exports[`CLI Basics > Error Snapshots > unknown option error should match snapshot 1`] = `
-"[7m[31merror[39m[27m [31munknown option '--unknown-option'[39m
+"[7m[31m[8m[[28merror[8m][28m[39m[27m [31munknown option '--unknown-option'[39m
 
 "
 `;
