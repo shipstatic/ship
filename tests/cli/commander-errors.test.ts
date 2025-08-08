@@ -8,7 +8,7 @@ describe('Commander.js Error Handling', () => {
     expect(result.exitCode).not.toBe(0);
     // Should contain our error formatting (strip ANSI for easier testing)
     const cleanError = result.stderr.replace(/\u001b\[[0-9;]*m/g, '');
-    expect(cleanError).toMatch(/^error unknown command 'invalidcommand'/);
+    expect(cleanError).toMatch(/^\[error\] unknown command 'invalidcommand'/);
     // Should not have trailing period
     expect(cleanError).not.toMatch(/\.$/);
     // Should be lowercase
@@ -21,7 +21,7 @@ describe('Commander.js Error Handling', () => {
     expect(result.exitCode).not.toBe(0);
     // Should contain our error formatting (strip ANSI for easier testing)
     const cleanError = result.stderr.replace(/\u001b\[[0-9;]*m/g, '');
-    expect(cleanError).toMatch(/^error unknown option '--invalid-flag'/);
+    expect(cleanError).toMatch(/^\[error\] unknown option '--invalid-flag'/);
     // Should not have trailing period
     expect(cleanError).not.toMatch(/\.$/);
     // Should be lowercase
@@ -34,7 +34,7 @@ describe('Commander.js Error Handling', () => {
     expect(result.exitCode).not.toBe(0);
     // Should contain our error formatting (strip ANSI for easier testing)
     const cleanError = result.stderr.replace(/\u001b\[[0-9;]*m/g, '');
-    expect(cleanError).toMatch(/^error missing required argument 'path'/);
+    expect(cleanError).toMatch(/^\[error\] missing required argument 'path'/);
     // Should not have trailing period
     expect(cleanError).not.toMatch(/\.$/);
     // Should be lowercase
@@ -61,9 +61,9 @@ describe('Commander.js Error Handling', () => {
     // Should not contain ANSI escape sequences
     expect(result.stderr).not.toMatch(/\x1b\[/);
     // Should still have error prefix and message
-    expect(result.stderr).toMatch(/^error unknown command 'invalidcommand'/);
+    expect(result.stderr).toMatch(/^\[error\] unknown command 'invalidcommand'/);
     // Should be lowercase and no trailing period
-    expect(result.stderr).toMatch(/^error [a-z]/);
+    expect(result.stderr).toMatch(/^\[error\] [a-z]/);
     expect(result.stderr).not.toMatch(/\.$/);
   });
 });
