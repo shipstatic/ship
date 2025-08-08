@@ -26,7 +26,7 @@ export const error = (msg: string, isJson?: boolean, noColor?: boolean) => {
   if (isJson) {
     console.error(JSON.stringify({ error: msg }, null, 2) + '\n');
   } else {
-    const errorPrefix = applyColor((text) => inverse(red(text)), 'error', noColor);
+    const errorPrefix = applyColor((text) => inverse(red(text)), `${applyColor(hidden, '[', noColor)}error${applyColor(hidden, ']', noColor)}`, noColor);
     const errorMsg = applyColor(red, msg.toLowerCase().replace(/\.$/, ''), noColor);
     console.error(`${errorPrefix} ${errorMsg}\n`);
   }
@@ -36,7 +36,7 @@ export const warn = (msg: string, isJson?: boolean, noColor?: boolean) => {
   if (isJson) {
     console.log(JSON.stringify({ warning: msg }, null, 2) + '\n');
   } else {
-    const warnPrefix = applyColor((text) => inverse(yellow(text)), 'warning', noColor);
+    const warnPrefix = applyColor((text) => inverse(yellow(text)), `${applyColor(hidden, '[', noColor)}warning${applyColor(hidden, ']', noColor)}`, noColor);
     const warnMsg = applyColor(yellow, msg.toLowerCase().replace(/\.$/, ''), noColor);
     console.log(`${warnPrefix} ${warnMsg}\n`);
   }
@@ -46,7 +46,7 @@ export const info = (msg: string, isJson?: boolean, noColor?: boolean) => {
   if (isJson) {
     console.log(JSON.stringify({ info: msg }, null, 2) + '\n');
   } else {
-    const infoPrefix = applyColor((text) => inverse(blue(text)), 'info', noColor);
+    const infoPrefix = applyColor((text) => inverse(blue(text)), `${applyColor(hidden, '[', noColor)}info${applyColor(hidden, ']', noColor)}`, noColor);
     const infoMsg = applyColor(blue, msg.toLowerCase().replace(/\.$/, ''), noColor);
     console.log(`${infoPrefix} ${infoMsg}\n`);
   }
