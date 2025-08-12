@@ -63,6 +63,36 @@ const emptyState = {
   aliases: []
 };
 
+/**
+ * Setup mock API server for testing
+ */
+export async function setupMockApiServer() {
+  // Clear any previous requests
+  (globalThis as any).__lastMockRequest = null;
+  
+  return {
+    getLastRequest() {
+      return (globalThis as any).__lastMockRequest;
+    },
+    getAllRequests() {
+      return [(globalThis as any).__lastMockRequest].filter(Boolean);
+    },
+    reset() {
+      (globalThis as any).__lastMockRequest = null;
+    }
+  };
+}
+
+/**
+ * Teardown mock API server
+ */
+export async function teardownMockApiServer(server: any) {
+  // Clean up if needed
+  if (server) {
+    server.reset();
+  }
+}
+
 export const apiHandlers = [
   // GET /ping
   http.get('*/ping', () => {
@@ -108,16 +138,39 @@ export const apiHandlers = [
   }),
 
   // POST /deployments - Create deployment
-  http.post('*/deployments', () => {
+  http.post('*/deployments', async ({ request }) => {
+    // Extract files from multipart form data to test directory structure
+    const formData = await request.formData();
+    const files: any[] = [];
+    
+    // Process uploaded files
+    for (const [key, value] of formData.entries()) {
+      if (key === 'files[]' && value instanceof File) {
+        files.push({
+          path: value.name, // This should preserve the directory structure
+          size: value.size,
+          type: value.type
+        });
+      }
+    }
+    
     const newDeployment: Deployment = {
       deployment: 'newly-created-deployment',
-      files: 1,
-      size: 100,
+      files: files,
+      size: files.reduce((total, f) => total + (f.size || 0), 0),
       status: 'success',
       url: 'https://newly-created-deployment.shipstatic.com',
       created: Math.floor(Date.now() / 1000),
       expires: Math.floor(Date.now() / 1000) + 86400
     };
+    
+    // Store request for testing inspection
+    (globalThis as any).__lastMockRequest = {
+      method: 'POST',
+      formData,
+      files
+    };
+    
     return HttpResponse.json(newDeployment, { status: 201 });
   }),
 
