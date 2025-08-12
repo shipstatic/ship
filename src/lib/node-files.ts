@@ -118,9 +118,9 @@ export async function getFilesFromPath(
       let relativePath = path.relative(commonParent, filePath).replace(/\\/g, '/');
       
       // Security validation: Ensure no dangerous characters in paths
-      if (relativePath.includes('..') || relativePath.includes('\0')) {
-        // Instead of throwing an error, let's normalize the path safely
-        // This handles cases where path.relative might generate .. sequences
+      if (relativePath.includes('\0') || relativePath.includes('/../') || relativePath.startsWith('../') || relativePath.endsWith('/..')) {
+        // Only flatten if there are actual dangerous path traversals
+        // Allow legitimate .. that might appear in the middle of a path component (like in filenames)
         relativePath = path.basename(filePath);
       }
       

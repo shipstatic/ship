@@ -322,9 +322,9 @@ export class ApiHttp {
       let fileNodeInstance: FileNode;
 
       if (Buffer.isBuffer(file.content)) {
-        fileNodeInstance = new FileNodeClass([file.content], pathImport.basename(file.path), { type: contentType });
+        fileNodeInstance = new FileNodeClass([file.content], file.path, { type: contentType });
       } else if (typeof Blob !== "undefined" && file.content instanceof Blob) {
-        fileNodeInstance = new FileNodeClass([file.content], pathImport.basename(file.path), { type: contentType });
+        fileNodeInstance = new FileNodeClass([file.content], file.path, { type: contentType });
       } else {
         throw ShipError.file(`Unsupported file.content type for Node.js FormData: ${file.path}`, file.path);
       }
