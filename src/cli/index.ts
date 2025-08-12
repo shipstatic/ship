@@ -373,7 +373,13 @@ async function performDeploy(client: Ship, path: string, cmdOptions: any, comman
   
   const deployOptions: any = {};
   
-  if (cmdOptions?.preserveDirs) {
+  // For directories, default to preserving structure unless explicitly disabled
+  // For single files, default to flattening for backward compatibility
+  const isDirectory = fs.statSync(path).isDirectory();
+  if (cmdOptions?.preserveDirs !== undefined) {
+    deployOptions.preserveDirs = cmdOptions.preserveDirs;
+  } else if (isDirectory) {
+    // Default to preserving directory structure for directories
     deployOptions.preserveDirs = true;
   }
   
