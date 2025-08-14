@@ -73,27 +73,35 @@ async function collectAsyncIterable<T>(iterable: AsyncIterable<T>): Promise<T[]>
 export class ApiHttp {
   private readonly apiUrl: string;
   private readonly apiKey: string;
+  private readonly deployToken: string;
 
   /**
    * Constructs a new ApiHttp instance with the provided client options.
-   * @param options - Client options including API host, apiKey, and timeout settings.
+   * @param options - Client options including API host, authentication credentials, and timeout settings.
    */
   constructor(options: ShipClientOptions) {
     this.apiUrl = options.apiUrl || DEFAULT_API;
     this.apiKey = options.apiKey ?? "";
+    this.deployToken = options.deployToken ?? "";
   }
 
   /**
-   * Generates common headers for API requests, including the API key if present.
+   * Generates common headers for API requests, including authentication credentials if present.
+   * Deploy tokens take precedence over API keys for single-use deployments.
    * @param customHeaders - Optional additional headers to include.
    * @returns Object containing merged headers.
    * @private
    */
   #getAuthHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
     const headers = { ...customHeaders };
-    if (this.apiKey) {
+    
+    // Deploy tokens take precedence for single-use deployments
+    if (this.deployToken) {
+      headers['Authorization'] = `Bearer ${this.deployToken}`;
+    } else if (this.apiKey) {
       headers['Authorization'] = `Bearer ${this.apiKey}`;
     }
+    
     return headers;
   }
 
@@ -210,15 +218,26 @@ export class ApiHttp {
 
     const {
       apiUrl = this.apiUrl,
-      signal
+      signal,
+      apiKey,
+      deployToken
     } = options;
 
     const { requestBody, requestHeaders } = await this.#prepareRequestPayload(files);
     
+    // Override auth headers if per-deploy credentials are provided
+    // Deploy tokens take precedence over API keys
+    let authHeaders = {};
+    if (deployToken) {
+      authHeaders = { 'Authorization': `Bearer ${deployToken}` };
+    } else if (apiKey) {
+      authHeaders = { 'Authorization': `Bearer ${apiKey}` };
+    }
+    
     const fetchOptions: RequestInit = {
       method: 'POST',
       body: requestBody,
-      headers: requestHeaders,
+      headers: { ...requestHeaders, ...authHeaders },
       signal: signal || null
     };
 

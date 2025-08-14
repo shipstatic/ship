@@ -4,7 +4,7 @@
  */
 import { Command } from 'commander';
 import { Ship, ShipError } from '../index.js';
-import { validateApiKey, validateApiUrl } from '@shipstatic/types';
+import { validateApiKey, validateDeployToken, validateApiUrl } from '@shipstatic/types';
 import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
 import { formatTable, formatDetails, success, error, info, warn } from './utils.js';
@@ -112,7 +112,8 @@ ${applyBold('COMMANDS')}
   ship completion uninstall             Uninstall shell completion script
 
 ${applyBold('FLAGS')}
-  --api-key <key>           API key for authentication
+  --api-key <key>           API key for authenticated deployments
+  --deploy-token <token>    Deploy token for single-use deployments
   --config <file>           Custom config file path
   --no-path-detect          Disable automatic path optimization and flattening
   --no-spa-detect           Disable automatic SPA detection and configuration
@@ -150,6 +151,10 @@ function getAllOptions(command: any): any {
   // Validate options early
   if (options.apiKey && typeof options.apiKey === 'string') {
     validateApiKey(options.apiKey);
+  }
+  
+  if (options.deployToken && typeof options.deployToken === 'string') {
+    validateDeployToken(options.deployToken);
   }
   
   if (options.apiUrl && typeof options.apiUrl === 'string') {
@@ -292,6 +297,9 @@ function createClient(): Ship {
   }
   if (options.apiKey !== undefined) {
     shipOptions.apiKey = options.apiKey;
+  }
+  if (options.deployToken !== undefined) {
+    shipOptions.deployToken = options.deployToken;
   }
   
   // Use synchronous constructor - initialization happens lazily
@@ -481,7 +489,8 @@ program
   .name('ship')
   .description('🚀 Deploy static sites with simplicity')
   .version(packageJson.version, '--version', 'Show version information')
-  .option('--api-key <key>', 'API key for authentication')
+  .option('--api-key <key>', 'API key for authenticated deployments')
+  .option('--deploy-token <token>', 'Deploy token for single-use deployments')
   .option('--config <file>', 'Custom config file path')
   .option('--api-url <url>', 'API URL (for development)')
   .option('--json', 'Output results in JSON format')

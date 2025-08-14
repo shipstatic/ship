@@ -23,10 +23,11 @@ This example demonstrates how to use the Shipstatic SDK for deploying files and 
    pnpm run copy
    ```
 
-2. **Configure the API key:**
-   You need to provide an API key for the deployment to work. In the browser, you must set it directly:
-   - Edit `main.js` and add the API key: `new Ship({ apiKey: 'ship-your-64-char-hex-string' })`
-   - Ensure your API key starts with `ship-` and is 69 characters total
+2. **Configure authentication:**
+   You need to provide authentication credentials for the deployment to work. In the browser, you must set them directly:
+   - Edit `main.js` and add credentials: `new Ship({ apiKey: 'ship-your-64-char-hex-string' })` or `new Ship({ deployToken: 'token-your-64-char-hex-string' })`
+   - API keys start with `ship-` and are 69 characters total
+   - Deploy tokens start with `token-` and are 70 characters total
 
 3. **Start a local server:**
    ```sh
@@ -49,7 +50,10 @@ This example demonstrates how to use the Shipstatic SDK for deploying files and 
 
   ```js
   import Ship from './ship.js';
+  // Authenticated deployments
   const ship = new Ship({ apiKey: 'ship-your-key' });
+  // OR single-use deployments  
+  const ship = new Ship({ deployToken: 'token-your-token' });
   
   // Deploy using resource-based API
   const result = await ship.deployments.create(files, { 

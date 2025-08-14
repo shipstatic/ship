@@ -26,8 +26,13 @@ export type { DeployInput, DeploymentOptions } from './types.js';
 /**
  * Ship SDK Client - Universal class-based interface for both Node.js and browser environments.
  * 
+ * Authentication Options:
  * ```
- * const ship = new Ship({ apiKey: "your-api-key" });
+ * // Authenticated deployments with API key
+ * const ship = new Ship({ apiKey: "ship-xxxx" });
+ * 
+ * // Single-use deployments with deploy token
+ * const ship = new Ship({ deployToken: "token-xxxx" });
  * ```
  * 
  * Automatically detects the environment and handles Node.js and browser deploys directly.
