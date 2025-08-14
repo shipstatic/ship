@@ -507,6 +507,15 @@ export class ApiHttp {
   }
 
   /**
+   * Triggers a manual DNS check for an external alias
+   * @param name - Alias name to check DNS for
+   * @returns Promise resolving to confirmation message
+   */
+  public async checkAlias(name: string): Promise<{ message: string }> {
+    return await this.#request<{ message: string }>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}/dns-check`, { method: 'POST' }, 'Check Alias');
+  }
+
+  /**
    * Gets account details for the authenticated user
    * @returns Promise resolving to account details
    */
