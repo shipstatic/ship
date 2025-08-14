@@ -20,12 +20,13 @@ This example demonstrates how to use the Ship SDK for deploying files and folder
    pnpm install
    ```
 
-2. **Configure the API key:**
+2. **Configure authentication:**
    The SDK automatically loads configuration from (in priority order):
-   - Environment variables: `SHIP_API_KEY=ship-your-key` and optionally `SHIP_API_URL`
+   - Environment variables: `SHIP_API_KEY=ship-your-key` or `SHIP_DEPLOY_TOKEN=token-your-token`, and optionally `SHIP_API_URL`
    - Config files: `.shiprc` or `package.json` (ship property) in project directory
-   - Direct constructor options: `new Ship({ apiKey: 'ship-your-key' })`
+   - Direct constructor options: `new Ship({ apiKey: 'ship-your-key' })` or `new Ship({ deployToken: 'token-your-token' })`
    - API keys must start with `ship-` and be 69 characters total
+   - Deploy tokens must start with `token-` and be 70 characters total
 
 3. **Run the example:**
    ```sh

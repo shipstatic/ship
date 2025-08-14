@@ -36,9 +36,16 @@ npm install @shipstatic/ship
 ```typescript
 import { Ship } from '@shipstatic/ship';
 
+// Authenticated deployments with API key
 const ship = new Ship({
   apiUrl: 'https://api.shipstatic.com',
   apiKey: 'ship-your-64-char-hex-string'  // API key: ship- prefix + 64-char hex (69 chars total)
+});
+
+// OR single-use deployments with deploy token
+const ship = new Ship({
+  apiUrl: 'https://api.shipstatic.com',
+  deployToken: 'token-your-64-char-hex-string'  // Deploy token: token- prefix + 64-char hex (70 chars total)
 });
 
 // Deploy project - SDK automatically fetches platform configuration
@@ -108,6 +115,7 @@ const ship = new Ship(options?: ShipOptions)
 interface ShipOptions {
   apiUrl?: string;        // API endpoint (default: https://api.shipstatic.com)
   apiKey?: string;        // API key: ship- prefix + 64-char hex (69 chars total)
+  deployToken?: string;   // Deploy token: token- prefix + 64-char hex (70 chars total)
   timeout?: number;       // Request timeout (ms)
 }
 ```
@@ -153,6 +161,7 @@ type BrowserDeployInput = FileList | File[] | HTMLInputElement;
 interface DeployOptions {
   apiUrl?: string;
   apiKey?: string;                  // API key: ship- prefix + 64-char hex (69 chars total)
+  deployToken?: string;             // Deploy token: token- prefix + 64-char hex (70 chars total)
   signal?: AbortSignal;           // Cancellation
   subdomain?: string;             // Custom subdomain
   onCancel?: () => void;
@@ -266,7 +275,10 @@ error.isConfigError()       // Configuration problems
 
 ## Authentication
 
-The Ship SDK uses **Bearer token authentication** with API keys that have a `ship-` prefix:
+The Ship SDK supports two authentication methods:
+
+### API Keys (Authenticated Deployments)
+For persistent authentication with full account access:
 
 ```typescript
 const ship = new Ship({
@@ -274,12 +286,22 @@ const ship = new Ship({
 });
 ```
 
+### Deploy Tokens (Single-Use Deployments)
+For temporary, single-use deployments:
+
+```typescript
+const ship = new Ship({
+  deployToken: 'token-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+});
+```
+
 ### API Requests
 
-The SDK automatically sends API keys using standard Bearer token format:
+The SDK automatically sends credentials using standard Bearer token format:
 
 ```
-Authorization: Bearer ship-your-64-char-hex-string  // 69 chars total
+Authorization: Bearer ship-your-64-char-hex-string   // API key (69 chars total)
+Authorization: Bearer token-your-64-char-hex-string  // Deploy token (70 chars total)
 ```
 
 ## Configuration
@@ -315,6 +337,7 @@ Configuration is loaded hierarchically (highest precedence first):
 ```bash
 export SHIP_API_URL="https://api.shipstatic.com"
 export SHIP_API_KEY="ship-your-api-key"
+export SHIP_DEPLOY_TOKEN="token-your-deploy-token"
 ```
 
 ## CLI Commands
@@ -346,9 +369,10 @@ ship account            # Get account details
 ### Global Options
 
 ```bash
--u, --apiUrl <URL>     # API endpoint
--k, --apiKey <KEY>    # API key  
---json              # JSON output
+-u, --apiUrl <URL>         # API endpoint
+-k, --apiKey <KEY>         # API key for authenticated deployments
+--deploy-token <TOKEN>     # Deploy token for single-use deployments
+--json                     # JSON output
 ```
 
 ## Bundle Sizes

@@ -21,7 +21,8 @@ const MODULE_NAME = 'ship';
  */
 const ConfigSchema = z.object({
   apiUrl: z.string().url().optional(),
-  apiKey: z.string().optional()
+  apiKey: z.string().optional(),
+  deployToken: z.string().optional()
 }).strict();
 
 /**
@@ -108,6 +109,7 @@ export async function loadConfig(configFile?: string): Promise<Partial<ShipClien
   const envConfig = {
     apiUrl: process.env.SHIP_API_URL,
     apiKey: process.env.SHIP_API_KEY,
+    deployToken: process.env.SHIP_DEPLOY_TOKEN,
   };
 
   // Always try to load file config for fallback values
@@ -117,6 +119,7 @@ export async function loadConfig(configFile?: string): Promise<Partial<ShipClien
   const mergedConfig = {
     apiUrl: envConfig.apiUrl ?? fileConfig.apiUrl,
     apiKey: envConfig.apiKey ?? fileConfig.apiKey,
+    deployToken: envConfig.deployToken ?? fileConfig.deployToken,
   };
 
   // Validate final config
@@ -129,23 +132,33 @@ export async function loadConfig(configFile?: string): Promise<Partial<ShipClien
  * 
  * @param userOptions - Options provided directly by the user
  * @param loadedConfig - Configuration loaded from environment/files
- * @returns Resolved configuration with api and apiKey
+ * @returns Resolved configuration with apiUrl and optional authentication credentials
  */
 export function resolveConfig(
   userOptions: ShipClientOptions = {}, 
   loadedConfig: Partial<ShipClientOptions> = {}
-): { apiUrl: string; apiKey?: string } {
+): { apiUrl: string; apiKey?: string; deployToken?: string } {
   // Build final config with clear precedence
-  // Only use userOptions.apiKey if it's explicitly provided (not undefined)
   const finalConfig = {
     apiUrl: userOptions.apiUrl || loadedConfig.apiUrl || DEFAULT_API,
     apiKey: userOptions.apiKey || loadedConfig.apiKey,
+    deployToken: userOptions.deployToken || loadedConfig.deployToken,
   };
 
-  // Return with optional apiKey
-  return finalConfig.apiKey !== undefined 
-    ? { apiUrl: finalConfig.apiUrl, apiKey: finalConfig.apiKey }
-    : { apiUrl: finalConfig.apiUrl };
+  // Return configuration with optional authentication credentials
+  const result: { apiUrl: string; apiKey?: string; deployToken?: string } = {
+    apiUrl: finalConfig.apiUrl
+  };
+  
+  if (finalConfig.apiKey !== undefined) {
+    result.apiKey = finalConfig.apiKey;
+  }
+  
+  if (finalConfig.deployToken !== undefined) {
+    result.deployToken = finalConfig.deployToken;
+  }
+  
+  return result;
 }
 
 
@@ -168,6 +181,7 @@ export function mergeDeployOptions(
     maxConcurrency: clientDefaults.maxConcurrentDeploys,
     timeout: clientDefaults.timeout,
     apiKey: clientDefaults.apiKey,
+    deployToken: clientDefaults.deployToken,
     apiUrl: clientDefaults.apiUrl,
     // Overwrite with any user-provided options
     ...userOptions,

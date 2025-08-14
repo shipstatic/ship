@@ -36,8 +36,10 @@ export interface DeploymentOptions {
   maxConcurrency?: number;
   /** Timeout in milliseconds for the deploy request. */
   timeout?: number;
-  /** The API key to use for this specific deploy. Overrides client's default. */
+  /** API key for this specific deploy. Overrides client's default. */
   apiKey?: string;
+  /** Deploy token for this specific deploy. Overrides client's default. */
+  deployToken?: string;
   /** Whether to auto-detect and optimize file paths by flattening common directories. Defaults to true. */
   pathDetect?: boolean;
   /** Whether to auto-detect SPAs and generate ship.json configuration. Defaults to true. */
@@ -78,13 +80,15 @@ export interface ProgressStats {
 
 /**
  * Options for configuring a `Ship` instance.
- * Sets default API host, key, progress callbacks, concurrency, and timeouts for the client.
+ * Sets default API host, authentication credentials, progress callbacks, concurrency, and timeouts for the client.
  */
 export interface ShipClientOptions {
   /** Default API URL for the client instance. */
   apiUrl?: string | undefined;
-  /** Default API key for the client instance. */
+  /** API key for authenticated deployments. */
   apiKey?: string | undefined;
+  /** Deploy token for single-use deployments. */
+  deployToken?: string | undefined;
   /** Path to custom config file. */
   configFile?: string | undefined;
   /**

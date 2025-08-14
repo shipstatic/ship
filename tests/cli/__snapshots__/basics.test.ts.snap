@@ -44,7 +44,8 @@ exports[`CLI Basics > Output Snapshots > help output should match snapshot 1`] =
   ship completion uninstall             Uninstall shell completion script
 
 [1mFLAGS[22m
-  --api-key <key>           API key for authentication
+  --api-key <key>           API key for authenticated deployments
+  --deploy-token <token>    Deploy token for single-use deployments
   --config <file>           Custom config file path
   --no-path-detect          Disable automatic path optimization and flattening
   --no-spa-detect           Disable automatic SPA detection and configuration
@@ -83,7 +84,8 @@ exports[`CLI Basics > Output Snapshots > no args help output should match snapsh
   ship completion uninstall             Uninstall shell completion script
 
 [1mFLAGS[22m
-  --api-key <key>           API key for authentication
+  --api-key <key>           API key for authenticated deployments
+  --deploy-token <token>    Deploy token for single-use deployments
   --config <file>           Custom config file path
   --no-path-detect          Disable automatic path optimization and flattening
   --no-spa-detect           Disable automatic SPA detection and configuration
