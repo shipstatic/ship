@@ -113,7 +113,8 @@ ${applyBold('COMMANDS')}
 ${applyBold('FLAGS')}
   --api-key <key>           API key for authentication
   --config <file>           Custom config file path
-  --preserve-dirs           Preserve directory structure in deployment
+  --no-path-detect          Disable automatic path optimization and flattening
+  --no-spa-detect           Disable automatic SPA detection and configuration
   --json                    Output results in JSON format
   --no-color                Disable colored output
   --version                 Show version information
@@ -373,14 +374,14 @@ async function performDeploy(client: Ship, path: string, cmdOptions: any, comman
   
   const deployOptions: any = {};
   
-  // For directories, default to preserving structure unless explicitly disabled
-  // For single files, default to flattening for backward compatibility
-  const isDirectory = fs.statSync(path).isDirectory();
-  if (cmdOptions?.preserveDirs !== undefined) {
-    deployOptions.preserveDirs = cmdOptions.preserveDirs;
-  } else if (isDirectory) {
-    // Default to preserving directory structure for directories
-    deployOptions.preserveDirs = true;
+  // Handle path detection flag
+  if (cmdOptions?.noPathDetect !== undefined) {
+    deployOptions.pathDetect = !cmdOptions.noPathDetect;
+  }
+  
+  // Handle SPA detection flag
+  if (cmdOptions?.noSpaDetect !== undefined) {
+    deployOptions.spaDetect = !cmdOptions.noSpaDetect;
   }
   
   // Set up cancellation support using SDK's built-in AbortController
@@ -536,7 +537,8 @@ deploymentsCmd
 deploymentsCmd
   .command('create <path>')
   .description('Create deployment from file or directory')
-  .option('--preserve-dirs', 'Preserve directory structure in deployment')
+  .option('--no-path-detect', 'Disable automatic path optimization and flattening')
+  .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(
     function(client, path: string, cmdOptions: any) { 
       return performDeploy(client, path, cmdOptions, this);
@@ -837,7 +839,8 @@ completionCmd
 // Deploy shortcut as default action
 program
   .argument('[path]', 'Path to deploy')
-  .option('--preserve-dirs', 'Preserve directory structure in deployment')
+  .option('--no-path-detect', 'Disable automatic path optimization and flattening')
+  .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(
     async function(client, path?: string, cmdOptions?: any) {
       if (!path) {

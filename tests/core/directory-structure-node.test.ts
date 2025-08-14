@@ -56,7 +56,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
   });
 
   test('should preserve directory structure by default when processing directory path', async () => {
-    const files = await getFilesFromPath(tempDir, { preserveDirs: true });
+    const files = await getFilesFromPath(tempDir, { pathDetect: false });
     const filePaths = files.map(f => f.path);
 
     // Verify nested paths are preserved
@@ -96,7 +96,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
     fs.writeFileSync(path.join(viteDir, 'assets', 'index-f1e2d3c4.js'), '// Vite JS bundle');
     fs.writeFileSync(path.join(viteDir, 'assets', 'vue-logo-a1b2c3d4.png'), 'png-data');
 
-    const files = await processFilesForNode([viteDir], { preserveDirs: true });
+    const files = await processFilesForNode([viteDir], { pathDetect: false });
     const filePaths = files.map(f => f.path);
 
     // THE CRITICAL TEST: These must NOT be flattened
@@ -120,7 +120,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
       path.join(tempDir, 'components', 'ui', 'Button.js')
     ];
 
-    const files = await processFilesForNode(filePaths, { preserveDirs: true });
+    const files = await processFilesForNode(filePaths, { pathDetect: false });
     const processedFilePaths = files.map(f => f.path);
 
     // When processing individual files, each gets its own commonParent (dirname),
@@ -142,7 +142,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
     fs.mkdirSync(deepPath2, { recursive: true });
     fs.writeFileSync(path.join(deepPath2, 'users.ts'), 'export const userAPI = {};');
 
-    const files = await getFilesFromPath(tempDir, { preserveDirs: true });
+    const files = await getFilesFromPath(tempDir, { pathDetect: false });
     const filePaths = files.map(f => f.path);
 
     // Verify deep paths are preserved
@@ -172,7 +172,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
       fs.writeFileSync(fullPath, content);
     });
 
-    const files = await getFilesFromPath(tempDir, { preserveDirs: true });
+    const files = await getFilesFromPath(tempDir, { pathDetect: false });
     const filePaths = files.map(f => f.path);
 
     // Verify all file types preserve their nested paths

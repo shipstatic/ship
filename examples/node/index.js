@@ -44,11 +44,10 @@ async function deployDirectory() {
     
     try {
       // Deploy using the resource-based API
-      // By default, Ship now automatically flattens parent directories (removes common prefix)
-      // If you want to preserve directory structure, you can use preserveDirs: true
+      // By default, Ship automatically optimizes paths and detects SPAs
       const result = await ship.deployments.create([directoryToDeploy], { 
-        // No flag needed as flattening is now the default behavior
-        // preserveDirs: true,  // Uncomment to preserve directory structure
+        // pathDetect: false,  // Uncomment to preserve directory structure
+        // spaDetect: false,   // Uncomment to disable SPA detection
         onProgress: (progress) => {
           process.stdout.write(`\rDeploy progress: ${Math.round(progress)}%`);
         }
