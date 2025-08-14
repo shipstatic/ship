@@ -92,8 +92,8 @@ describe('Browser File Utilities', () => {
         mockFile('orig/path/dir/file2.txt', 'orig/path/dir/file2.txt')
       ];
       // Path stripping using basePath is now handled automatically when processing browser files
-      // Using preserveDirs: true to disable the default flattening behavior
-      const result = await processFilesForBrowser(mockFiles, { preserveDirs: true });
+      // Using pathDetect: false to disable the default flattening behavior
+      const result = await processFilesForBrowser(mockFiles, { pathDetect: false });
       // When preserveDirs is true, directory structure is preserved
       expect(result[0].path).toBe('orig/path/file1.txt');
       expect(result[1].path).toBe('orig/path/dir/file2.txt');

@@ -45,7 +45,8 @@ exports[`CLI Basics > Output Snapshots > help output should match snapshot 1`] =
 [1mFLAGS[22m
   --api-key <key>           API key for authentication
   --config <file>           Custom config file path
-  --preserve-dirs           Preserve directory structure in deployment
+  --no-path-detect          Disable automatic path optimization and flattening
+  --no-spa-detect           Disable automatic SPA detection and configuration
   --json                    Output results in JSON format
   --no-color                Disable colored output
   --version                 Show version information
@@ -82,7 +83,8 @@ exports[`CLI Basics > Output Snapshots > no args help output should match snapsh
 [1mFLAGS[22m
   --api-key <key>           API key for authentication
   --config <file>           Custom config file path
-  --preserve-dirs           Preserve directory structure in deployment
+  --no-path-detect          Disable automatic path optimization and flattening
+  --no-spa-detect           Disable automatic SPA detection and configuration
   --json                    Output results in JSON format
   --no-color                Disable colored output
   --version                 Show version information

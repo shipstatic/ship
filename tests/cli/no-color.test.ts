@@ -97,7 +97,7 @@ describe('CLI --no-color Flag', () => {
       const result = await runCli([
         '--api-key', 'test-key',
         '--api-url', 'https://test.com',
-        '--preserve-dirs',
+        '--no-path-detect',
         '--no-color',
         '--help'
       ]);

@@ -52,7 +52,7 @@ describe('Node File Utilities', () => {
     MOCK_PATH_MODULE_IMPLEMENTATION.join.mockImplementation((...args: string[]) => args.join('/').replace(/\/+/g, '/'));
     MOCK_PATH_MODULE_IMPLEMENTATION.relative.mockImplementation((from: string, to: string) => {
       // For tests, ensure path.relative strips the common prefix to match the expected behavior
-      // with the new preserveDirs=false default
+      // with the new pathDetect=false default
       
       // Handle the case where the 'to' path is a direct child of 'from'
       if (to.startsWith(from + '/')) {
@@ -239,7 +239,7 @@ describe('Node File Utilities', () => {
       expect(MOCK_CALCULATE_MD5_FN).toHaveBeenCalledTimes(1);
     });
     
-    it('should preserve directory structure when preserveDirs is true', async () => {
+    it('should preserve directory structure when pathDetect is true', async () => {
       // Setup mock filesystem
       setupMockFsNode({
         '/mock/cwd/parent': { type: 'dir' },
@@ -252,13 +252,13 @@ describe('Node File Utilities', () => {
 
       // Using real implementation now - no mocking needed for path logic
 
-      // Run test with preserveDirs option to keep full paths
-      const result = await processFilesForNode(['parent'], { preserveDirs: true });
+      // Run test with pathDetect option to keep full paths
+      const result = await processFilesForNode(['parent'], { pathDetect: false });
       
       // Verify results
       expect(result).toHaveLength(3);
       
-      // With preserveDirs: true, paths should be preserved with their full structure
+      // With pathDetect: false, paths should be preserved with their full structure
       const actualPaths = result.map(f => f.path).sort();
       // Depending on the implementation, paths might have the parent directory included
       // We should accept either full absolute paths or paths relative to the parent directory
