@@ -45,11 +45,15 @@ The CLI automatically loads configuration from (in priority order):
 ### 1. Command Line Options
 ```sh
 ship ./dist -u https://api.shipstatic.com -k ship-your-api-key
+# OR
+ship ./dist -u https://api.shipstatic.com --deploy-token token-your-deploy-token
 ```
 
 ### 2. Environment Variables
 ```sh
 export SHIP_API_KEY=ship-your-api-key
+# OR
+export SHIP_DEPLOY_TOKEN=token-your-deploy-token
 export SHIP_API_URL=https://api.shipstatic.com  # optional
 ship ./dist
 ```
@@ -62,6 +66,15 @@ Create a `.shiprc` file in your project directory:
 ```json
 {
   "apiKey": "ship-your-api-key",
+  "apiUrl": "https://api.shipstatic.com"
+}
+```
+
+OR for deploy tokens:
+
+```json
+{
+  "deployToken": "token-your-deploy-token",
   "apiUrl": "https://api.shipstatic.com"
 }
 ```
@@ -81,7 +94,8 @@ Add a `ship` section to your `package.json`:
 
 **Notes:**
 - API keys must start with `ship-` and be 69 characters total
-- Only `apiKey` and `apiUrl` are supported in configuration files
+- Deploy tokens must start with `token-` and be 70 characters total
+- Both `apiKey`/`deployToken` and `apiUrl` are supported in configuration files
 - The CLI searches for config files in the current working directory
 
 ## Quick Start
@@ -116,8 +130,9 @@ COMMANDS
   ship completion        ⚡ Setup shell completion
 
 FLAGS
-  -k, --api-key <key>    API key for authentication
-  -c, --config <file>    Custom config file path
+  -k, --api-key <key>         API key for authenticated deployments
+  --deploy-token <token>      Deploy token for single-use deployments
+  -c, --config <file>         Custom config file path
   -u, --api-url <url>    API URL (for development)
   -p, --preserve-dirs    Preserve directory structure in deployment
   -j, --json             Output results in JSON format
@@ -176,7 +191,8 @@ ship ping
 
 All commands support these global flags:
 
-- `-k, --api-key <key>` - API key for authentication (must start with `ship-`)
+- `-k, --api-key <key>` - API key for authenticated deployments (must start with `ship-`)
+- `--deploy-token <token>` - Deploy token for single-use deployments (must start with `token-`)
 - `-c, --config <file>` - Custom config file path
 - `-u, --api-url <url>` - API URL (for development)
 - `-p, --preserve-dirs` - Preserve directory structure in deployment
