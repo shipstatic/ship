@@ -13,6 +13,7 @@ describe('AliasResource', () => {
       getAlias: vi.fn(),
       listAliases: vi.fn(),
       removeAlias: vi.fn(),
+      checkAlias: vi.fn(),
       deploy: vi.fn(),
       ping: vi.fn()
     } as unknown as ApiHttp;
@@ -95,6 +96,28 @@ describe('AliasResource', () => {
     });
   });
 
+  describe('check', () => {
+    it('should call api.checkAlias with correct parameter', async () => {
+      const mockResponse = { message: 'DNS check queued successfully' };
+      (mockApi.checkAlias as any).mockResolvedValue(mockResponse);
+      
+      const result = await aliases.check('example.com');
+      
+      expect(mockApi.checkAlias).toHaveBeenCalledWith('example.com');
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should handle different alias names for DNS check', async () => {
+      const mockResponse = { message: 'DNS check queued successfully' };
+      (mockApi.checkAlias as any).mockResolvedValue(mockResponse);
+      
+      const result = await aliases.check('api.mysite.com');
+      
+      expect(mockApi.checkAlias).toHaveBeenCalledWith('api.mysite.com');
+      expect(result).toEqual(mockResponse);
+    });
+  });
+
   describe('integration', () => {
     it('should create alias resource with API client', () => {
       expect(aliases).toBeDefined();
@@ -102,6 +125,7 @@ describe('AliasResource', () => {
       expect(typeof aliases.get).toBe('function');
       expect(typeof aliases.list).toBe('function');
       expect(typeof aliases.remove).toBe('function');
+      expect(typeof aliases.check).toBe('function');
     });
 
     it('should return promises from all methods', () => {
@@ -109,11 +133,13 @@ describe('AliasResource', () => {
       (mockApi.getAlias as any).mockResolvedValue({});
       (mockApi.listAliases as any).mockResolvedValue({});
       (mockApi.removeAlias as any).mockResolvedValue({});
+      (mockApi.checkAlias as any).mockResolvedValue({});
 
       expect(aliases.set('test', 'abc123')).toBeInstanceOf(Promise);
       expect(aliases.get('test')).toBeInstanceOf(Promise);
       expect(aliases.list()).toBeInstanceOf(Promise);
       expect(aliases.remove('test')).toBeInstanceOf(Promise);
+      expect(aliases.check('test')).toBeInstanceOf(Promise);
     });
   });
 });
