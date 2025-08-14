@@ -71,6 +71,7 @@ export interface AliasResource {
   get: (aliasName: string) => Promise<Alias>;
   list: () => Promise<AliasListResponse>;
   remove: (aliasName: string) => Promise<void>;
+  check: (aliasName: string) => Promise<{ message: string }>;
 }
 
 export function createAliasResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): AliasResource {
@@ -95,6 +96,11 @@ export function createAliasResource(getApi: () => ApiHttp, ensureInit?: () => Pr
       if (ensureInit) await ensureInit();
       await getApi().removeAlias(aliasName);
       // Return void for deletion operations
+    },
+
+    check: async (aliasName: string) => {
+      if (ensureInit) await ensureInit();
+      return getApi().checkAlias(aliasName);
     }
   };
 }

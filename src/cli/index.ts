@@ -101,6 +101,7 @@ ${applyBold('COMMANDS')}
   ship aliases list                     List all aliases
   ship aliases set <name> <deployment>  Create or update alias pointing to deployment
   ship aliases get <name>               Show alias information
+  ship aliases check <name>             Manually trigger DNS check for external alias
   ship aliases remove <name>            Delete alias permanently
 
   🦸 ${applyBold('Account')}
@@ -115,8 +116,8 @@ ${applyBold('FLAGS')}
   --config <file>           Custom config file path
   --no-path-detect          Disable automatic path optimization and flattening
   --no-spa-detect           Disable automatic SPA detection and configuration
-  --json                    Output results in JSON format
   --no-color                Disable colored output
+  --json                    Output results in JSON format
   --version                 Show version information
 
 ${applyDim('Please report any issues to https://github.com/shipstatic/ship/issues')}
@@ -354,6 +355,12 @@ const formatters = {
   },
   email: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
     console.log(formatDetails(result, noColor));
+  },
+  message: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
+    // Handle messages from operations like DNS check
+    if (result.message) {
+      success(result.message, isJson, noColor);
+    }
   }
 };
 
@@ -595,6 +602,14 @@ aliasesCmd
   .action(withErrorHandling(
     (client, name: string) => client.aliases.get(name),
     { operation: 'get', resourceType: 'Alias', getResourceId: (name: string) => name }
+  ));
+
+aliasesCmd
+  .command('check <name>')
+  .description('Manually trigger DNS check for external alias')
+  .action(withErrorHandling(
+    (client, name: string) => client.aliases.check(name),
+    { operation: 'check', resourceType: 'Alias', getResourceId: (name: string) => name }
   ));
 
 aliasesCmd
