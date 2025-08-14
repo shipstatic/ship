@@ -37,8 +37,8 @@ export function createDeploymentResource(
         ? mergeDeployOptions(options, clientDefaults)
         : options;
       
-      // Convert input to StaticFile[] using unified utility
-      const staticFiles: StaticFile[] = await convertDeployInput(input, mergedOptions);
+      // Convert input to StaticFile[] with automatic SPA detection
+      const staticFiles: StaticFile[] = await convertDeployInput(input, mergedOptions, getApi());
       
       // Deploy using the API - now returns the full Deployment object directly
       return await getApi().deploy(staticFiles, mergedOptions);

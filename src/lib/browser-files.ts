@@ -21,10 +21,10 @@ interface BrowserFileProcessItem {
 
 /**
  * Processes browser files (FileList or File[]) into an array of StaticFile objects ready for deploy.
- * Calculates MD5, filters junk files, and determines relative paths (stripping basePath if provided).
+ * Calculates MD5, filters junk files, and applies automatic path optimization.
  *
  * @param browserFiles - FileList or File[] to process for deploy.
- * @param options - Optional processing options (basePath for path stripping, preserveDirs).
+ * @param options - Processing options including pathDetect for automatic path optimization.
  * @returns Promise resolving to an array of StaticFile objects.
  * @throws {ShipClientError} If called outside a browser or with invalid input.
  */
@@ -38,10 +38,10 @@ export async function processFilesForBrowser(
 
   const filesArray = Array.isArray(browserFiles) ? browserFiles : Array.from(browserFiles);
   
-  // Determine common parent for flattening (unified logic) - now default behavior
+  // Determine common parent for path optimization - enabled by default
   let commonParent = '';
-  if (!options.preserveDirs) {
-    // Default: flatten by finding common parent of all file directories
+  if (options.pathDetect !== false) {
+    // Path detection enabled: optimize by finding common parent
     const fileDirs = filesArray
       .map(file => (file as any).webkitRelativePath || file.name)
       .filter(path => path)
@@ -50,13 +50,13 @@ export async function processFilesForBrowser(
     commonParent = findCommonParent(fileDirs);
   }
 
-  // Prepare file information with appropriate relative paths
+  // Prepare file information with automatic path optimization
   const initialFileInfos: BrowserFileProcessItem[] = [];
   for (const file of filesArray) {
     let relativePath = (file as any).webkitRelativePath || file.name;
     
-    // Apply flattening logic (default behavior unless preserveDirs is true)
-    if (commonParent && !options.preserveDirs) {
+    // Apply path optimization if enabled
+    if (commonParent && options.pathDetect !== false) {
       relativePath = normalizeWebPath(relativePath);
       const basePathWithSlash = commonParent.endsWith('/') ? commonParent : `${commonParent}/`;
       if (relativePath.startsWith(basePathWithSlash)) {

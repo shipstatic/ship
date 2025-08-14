@@ -54,11 +54,10 @@ deployButton?.addEventListener('click', async () => {
     })));
     
     // Deploy using the unified API - resource-based approach
-    // Ship now automatically removes common parent directories by default
-    // If you want to preserve directory structure, you can use preserveDirs: true
+    // Ship automatically optimizes paths and detects SPAs by default
     const result = await ship.deployments.create(fileInput.files, { 
-      // No flag needed as flattening is now the default behavior
-      // preserveDirs: true,  // Uncomment to preserve directory structure
+      // pathDetect: false,  // Uncomment to preserve directory structure
+      // spaDetect: false,   // Uncomment to disable SPA detection
       onProgress: (progress) => {
         setStatus(`Deploy progress: ${Math.round(progress)}%`);
       }

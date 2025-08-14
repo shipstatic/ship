@@ -31,6 +31,8 @@ const ALIASES_ENDPOINT = '/aliases';
 const CONFIG_ENDPOINT = '/config';
 /** @internal */
 const ACCOUNT_ENDPOINT = '/account';
+/** @internal */
+const SPA_CHECK_ENDPOINT = '/spa-check';
 
 /**
  * Determines the MIME type for a given file (File object or path string) in browser environments.
@@ -518,5 +520,23 @@ export class ApiHttp {
    */
   public async createApiKey(): Promise<{ apiKey: string }> {
     return await this.#request<{ apiKey: string }>(`${this.apiUrl}/key`, { method: 'POST' }, 'Create API Key');
+  }
+
+  /**
+   * Checks if file paths represent a SPA structure using AI analysis
+   * @param filePaths - Array of file paths to analyze
+   * @returns Promise resolving to boolean indicating if it's a SPA
+   */
+  public async checkSPA(filePaths: string[]): Promise<boolean> {
+    const response = await this.#request<{ isSPA: boolean }>(
+      `${this.apiUrl}${SPA_CHECK_ENDPOINT}`, 
+      { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: filePaths })
+      }, 
+      'SPA Check'
+    );
+    return response.isSPA;
   }
 }

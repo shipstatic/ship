@@ -38,8 +38,10 @@ export interface DeploymentOptions {
   timeout?: number;
   /** The API key to use for this specific deploy. Overrides client's default. */
   apiKey?: string;
-  /** Whether to preserve directory structure. By default, common parent directories are flattened. */
-  preserveDirs?: boolean;
+  /** Whether to auto-detect and optimize file paths by flattening common directories. Defaults to true. */
+  pathDetect?: boolean;
+  /** Whether to auto-detect SPAs and generate ship.json configuration. Defaults to true. */
+  spaDetect?: boolean;
   /** Callback for overall deploy progress (0-100). */
   onProgress?: (progress: number) => void;
   /** Callback for detailed progress statistics. */
@@ -50,7 +52,7 @@ export interface DeploymentOptions {
  * Options for configuring an deploy operation via `apiClient.deployFiles`.
  * Derived from DeploymentOptions but excludes client-side only options.
  */
-export type ApiDeployOptions = Omit<DeploymentOptions, 'preserveDirs'>;
+export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
 
 // =============================================================================
 // PROGRESS TRACKING

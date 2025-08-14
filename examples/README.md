@@ -35,8 +35,10 @@ const ship = new Ship({ apiKey: 'ship-your-key' });
 
 // 2. Deploy with progress tracking
 const result = await ship.deployments.create(input, {
-  // Common parent directories are now removed by default
-  // To preserve directory structure: preserveDirs: true
+  // Path optimization is enabled by default (flattens common directories)
+  // To preserve directory structure: pathDetect: false
+  // SPA detection is also enabled by default (auto-generates ship.json)
+  // To disable SPA detection: spaDetect: false
   onProgress: (progress) => console.log(`${progress}%`)
 });
 

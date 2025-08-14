@@ -4,11 +4,12 @@
  */
 
 import type { StaticFile, DeploymentOptions, DeployInput } from '../types.js';
-import { ShipError } from '@shipstatic/types';
+import { ShipError, DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
 import { getENV } from './env.js';
 import { processFilesForNode } from './node-files.js';
 import { processFilesForBrowser } from './browser-files.js';
 import { getCurrentConfig } from '../core/platform-config.js';
+import { calculateMD5 } from './md5.js';
 
 
 /**
@@ -159,12 +160,13 @@ export async function convertBrowserInput(
 }
 
 /**
- * Unified input conversion function with fail-fast validation
- * Converts any DeployInput to StaticFile[] based on environment
+ * Unified input conversion function with automatic SPA detection
+ * Converts any DeployInput to StaticFile[] and auto-generates ship.json for SPAs
  */
 export async function convertDeployInput(
   input: DeployInput,
-  options: DeploymentOptions = {}
+  options: DeploymentOptions = {},
+  apiClient?: any
 ): Promise<StaticFile[]> {
   const environment = getENV();
   
@@ -173,9 +175,67 @@ export async function convertDeployInput(
     throw ShipError.business('Unsupported execution environment.');
   }
   
+  // Convert input to StaticFile[] based on environment
+  let files: StaticFile[];
   if (environment === 'node') {
-    return convertNodeInput(input as string[], options);
+    files = await convertNodeInput(input as string[], options);
   } else {
-    return convertBrowserInput(input as FileList | File[] | HTMLInputElement, options);
+    files = await convertBrowserInput(input as FileList | File[] | HTMLInputElement, options);
   }
+  
+  // Auto-detect and configure SPA projects
+  if (apiClient) {
+    files = await detectAndConfigureSPA(files, apiClient, options);
+  }
+  
+  return files;
+}
+
+/**
+ * Creates ship.json configuration for SPA projects
+ * @private
+ */
+async function createSPAConfig(): Promise<StaticFile> {
+  const config = {
+    "rewrites": [{
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }]
+  };
+  
+  const content = Buffer.from(JSON.stringify(config, null, 2), 'utf-8');
+  const { md5 } = await calculateMD5(content);
+  
+  return {
+    path: DEPLOYMENT_CONFIG_FILENAME,
+    content,
+    size: content.length,
+    md5
+  };
+}
+
+/**
+ * Detects SPA projects and auto-generates configuration
+ * @private
+ */
+async function detectAndConfigureSPA(files: StaticFile[], apiClient: any, options: DeploymentOptions): Promise<StaticFile[]> {
+  // Skip if disabled or config already exists
+  if (options.spaDetect === false || files.some(f => f.path === DEPLOYMENT_CONFIG_FILENAME)) {
+    return files;
+  }
+  
+  try {
+    const filePaths = files.map(f => f.path);
+    const isSPA = await apiClient.checkSPA(filePaths);
+    
+    if (isSPA) {
+      const spaConfig = await createSPAConfig();
+      console.log(`SPA detected - generated ${DEPLOYMENT_CONFIG_FILENAME}`);
+      return [...files, spaConfig];
+    }
+  } catch (error) {
+    console.warn('SPA detection failed, continuing without auto-config');
+  }
+  
+  return files;
 }

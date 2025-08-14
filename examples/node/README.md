@@ -51,8 +51,10 @@ This example demonstrates how to use the Ship SDK for deploying files and folder
   
   // Deploy using resource-based API
   const result = await ship.deployments.create([directory], { 
-    // Common parent directories are now removed by default
-    // To preserve directory structure: preserveDirs: true
+    // Path optimization is enabled by default (flattens common directories)
+    // To preserve directory structure: pathDetect: false
+    // SPA detection is also enabled by default (auto-generates ship.json)
+    // To disable SPA detection: spaDetect: false
     onProgress: (progress) => console.log(`${progress}%`)
   });
   ```
@@ -75,8 +77,10 @@ Status: success
 
 ## Implementation Details
 
-- Automatically flattens directories by removing common parent (default behavior)
-- Use `preserveDirs: true` option if you want to preserve directory structure
+- Automatically optimizes file paths by flattening common directories (default behavior)
+- Use `pathDetect: false` option if you want to preserve directory structure
+- Automatically detects SPAs and generates ship.json configuration (default behavior)
+- Use `spaDetect: false` option to disable SPA detection
 - Demonstrates proper async/await pattern with comprehensive error handling
 - Shows real-time progress tracking with `onProgress` callback
 - Implements clean error handling for both initialization and deploy errors

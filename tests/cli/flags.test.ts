@@ -58,15 +58,15 @@ describe('CLI Flags', () => {
     });
   });
 
-  describe('Preserve Dirs Flag', () => {
+  describe('Path Detection Flag', () => {
     it('should accept preserve dirs flag without network call', async () => {
-      const result = await runCli(['--preserve-dirs', '--help']);
+      const result = await runCli(['--no-path-detect', '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
     });
 
     it('should combine with JSON flag', async () => {
-      const result = await runCli(['--preserve-dirs', '--json', '--help']);
+      const result = await runCli(['--no-path-detect', '--json', '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
     });

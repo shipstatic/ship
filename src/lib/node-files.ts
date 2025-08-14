@@ -75,15 +75,16 @@ export async function getFilesFromPath(
     return filterJunk([basename]).length > 0; // Keep files that pass junk filter
   });
   
-  // 3. Determine base for relative paths (simplified with unified logic)
+  // 3. Determine base for relative paths with automatic path optimization
   const stats = fs.statSync(absolutePath);
   let commonParent: string;
   
-  if (options.preserveDirs) {
-    // Preserve directory structure: use source directory
+  // Default to path detection (flattening) unless explicitly disabled
+  if (options.pathDetect === false) {
+    // Path detection disabled: preserve directory structure
     commonParent = stats.isDirectory() ? absolutePath : path.dirname(absolutePath);
   } else {
-    // Default: flatten by finding common parent of all file directories
+    // Path detection enabled: optimize by finding common parent
     const fileDirs = validPaths.map(filePath => path.dirname(filePath));
     commonParent = findCommonParent(fileDirs);
   }

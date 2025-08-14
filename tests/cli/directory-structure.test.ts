@@ -62,7 +62,7 @@ describe('CLI Directory Structure Preservation', () => {
 
   test('should preserve nested directory structure by default for directory deployments', async () => {
     // Test the core file processing logic directly - this is what was broken
-    const files = await getFilesFromPath(tempDir, { preserveDirs: true });
+    const files = await getFilesFromPath(tempDir, { pathDetect: false });
     
     // Extract the paths from processed files
     const filePaths = files.map(f => f.path);
@@ -81,13 +81,13 @@ describe('CLI Directory Structure Preservation', () => {
     expect(filePaths).not.toContain('input.js');
   });
 
-  test('should flatten when preserveDirs is false', async () => {
-    // Test with preserveDirs explicitly disabled
-    const files = await getFilesFromPath(tempDir, { preserveDirs: false });
+  test('should flatten when pathDetect is true (default)', async () => {
+    // Test with pathDetect enabled (default behavior)  
+    const files = await getFilesFromPath(tempDir, { pathDetect: true });
     
     const filePaths = files.map(f => f.path);
     
-    // With preserveDirs false, files should be flattened
+    // With pathDetect enabled, files should be flattened
     expect(filePaths).toContain('app.js');
     expect(filePaths).toContain('styles.css');
     expect(filePaths).toContain('logo.png');
@@ -123,7 +123,7 @@ describe('CLI Directory Structure Preservation', () => {
     fs.writeFileSync(path.join(viteDir, 'assets', 'index-f1e2d3c4.js'), '// Vite bundle');
     fs.writeFileSync(path.join(viteDir, 'assets', 'vue-logo-a1b2c3d4.png'), 'png-data');
     
-    const files = await processFilesForNode([viteDir], { preserveDirs: true });
+    const files = await processFilesForNode([viteDir], { pathDetect: false });
     const filePaths = files.map(f => f.path);
     
     // THE CRITICAL TEST: These must NOT be flattened (the original bug)
@@ -144,7 +144,7 @@ describe('CLI Directory Structure Preservation', () => {
     fs.mkdirSync(deepPath, { recursive: true });
     fs.writeFileSync(path.join(deepPath, 'TextInput.tsx'), 'export const TextInput = () => {};');
     
-    const files = await getFilesFromPath(tempDir, { preserveDirs: true });
+    const files = await getFilesFromPath(tempDir, { pathDetect: false });
     const filePaths = files.map(f => f.path);
     
     // Verify deep nesting is preserved
@@ -159,7 +159,7 @@ describe('CLI Directory Structure Preservation', () => {
     const singleFile = path.join(tempDir, 'standalone.html');
     fs.writeFileSync(singleFile, '<html>Single file</html>');
     
-    const files = await getFilesFromPath(singleFile, { preserveDirs: true });
+    const files = await getFilesFromPath(singleFile, { pathDetect: false });
     const filePaths = files.map(f => f.path);
     
     // Single file should just use filename
@@ -169,11 +169,11 @@ describe('CLI Directory Structure Preservation', () => {
 
   test('should flatten directory structure by default when processing directories', async () => {
     // This tests the default behavior - directories are flattened by default
-    const files = await getFilesFromPath(tempDir); // No explicit preserveDirs option
+    const files = await getFilesFromPath(tempDir); // No explicit pathDetect option
     
     const filePaths = files.map(f => f.path);
     
-    // Should be flattened by default (preserveDirs is false by default)
+    // Should be flattened by default (pathDetect is true by default)
     expect(filePaths).toContain('app.js');
     expect(filePaths).toContain('styles.css');
     expect(filePaths).toContain('logo.png');
@@ -192,7 +192,7 @@ describe('CLI Directory Structure Preservation', () => {
     fs.writeFileSync(path.join(tempDir, 'assets', 'manifest.json'), '{"name": "test"}');
     fs.writeFileSync(path.join(tempDir, 'robots.txt'), 'User-agent: *');
     
-    const files = await getFilesFromPath(tempDir, { preserveDirs: true });
+    const files = await getFilesFromPath(tempDir, { pathDetect: false });
     const filePaths = files.map(f => f.path);
     
     // Verify all file types preserve their paths
