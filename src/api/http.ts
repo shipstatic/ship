@@ -274,17 +274,17 @@ export class ApiHttp {
    * @private
    */
   async #prepareRequestPayload(files: StaticFile[]): Promise<{
-    requestBody: FormData | Buffer;
+    requestBody: FormData | ArrayBuffer;
     requestHeaders: Record<string, string>;
   }> {
-    let requestBody: FormData | Buffer;
+    let requestBody: FormData | ArrayBuffer;
     let requestHeaders: Record<string, string> = {};
     
     if (getENV() === 'browser') {
       requestBody = this.#createBrowserBody(files);
     } else if (getENV() === 'node') {
       const { body, headers } = await this.#createNodeBody(files);
-      requestBody = body;
+      requestBody = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer;
       requestHeaders = headers;
     } else {
       throw ShipError.business('Unknown or unsupported execution environment');
