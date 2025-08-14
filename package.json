@@ -1,17 +1,17 @@
 {
   "name": "@shipstatic/ship",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "description": "SDK & CLI for Shipstatic platform",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
-  "browser": "./dist/index.browser.js",
+  "browser": "./dist/browser.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "browser": {
         "types": "./dist/index.d.ts",
-        "default": "./dist/index.browser.js"
+        "default": "./dist/browser.js"
       },
       "import": {
         "types": "./dist/index.d.ts",
