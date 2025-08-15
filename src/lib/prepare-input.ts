@@ -225,8 +225,7 @@ async function detectAndConfigureSPA(files: StaticFile[], apiClient: any, option
   }
   
   try {
-    const filePaths = files.map(f => f.path);
-    const isSPA = await apiClient.checkSPA(filePaths);
+    const isSPA = await apiClient.checkSPA(files);
     
     if (isSPA) {
       const spaConfig = await createSPAConfig();
