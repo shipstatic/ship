@@ -57,6 +57,6 @@ export function normalizeSlashes(path: string): string {
  * @returns Normalized path suitable for web deployment
  */
 export function normalizeWebPath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/^\/+/, '');
+  return path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/+/, '');
 }
 

@@ -252,16 +252,15 @@ describe('Node File Utilities', () => {
 
       // Using real implementation now - no mocking needed for path logic
 
-      // Run test with pathDetect option to keep full paths
-      const result = await processFilesForNode(['parent'], { pathDetect: false });
+      // Run test with default pathDetect behavior (should flatten paths)
+      const result = await processFilesForNode(['parent']);
       
       // Verify results
       expect(result).toHaveLength(3);
       
-      // With pathDetect: false, paths should be preserved with their full structure
+      // With default pathDetect behavior, paths should be flattened (common parent removed)
       const actualPaths = result.map(f => f.path).sort();
-      // Depending on the implementation, paths might have the parent directory included
-      // We should accept either full absolute paths or paths relative to the parent directory
+      // The common parent "parent" should be stripped, leaving just the subdirectory structure
       const possibleExpectedPaths = [
         'sub1/file1.txt', 
         'sub1/file2.txt', 
@@ -294,6 +293,243 @@ describe('Node File Utilities', () => {
       // With the new implementation, we should get these relative paths:
       const expectedPaths = ['README.md', 'css/styles.css', 'js/dark-mode.js'].sort();
       expect(actualPaths).toEqual(expectedPaths);
+    });
+
+    describe('pathDetect: false (path preservation)', () => {
+      it('should preserve Vite build structure exactly', async () => {
+        setupMockFsNode({
+          '/mock/cwd/dist/index.html': { type: 'file', content: '<!DOCTYPE html>' },
+          '/mock/cwd/dist/vite.svg': { type: 'file', content: '<svg>' },
+          '/mock/cwd/dist/assets/browser-SQEQcwkt.js': { type: 'file', content: 'console.log("browser");' },
+          '/mock/cwd/dist/assets/index-BaplGdt4.js': { type: 'file', content: 'console.log("index");' },
+          '/mock/cwd/dist/assets/style-CuqkljXd.css': { type: 'file', content: 'body { margin: 0; }' }
+        });
+
+        const result = await processFilesForNode(['dist'], { pathDetect: false });
+        const paths = result.map(f => f.path).sort();
+
+        expect(paths).toEqual([
+          'assets/browser-SQEQcwkt.js',
+          'assets/index-BaplGdt4.js',
+          'assets/style-CuqkljXd.css',
+          'index.html',
+          'vite.svg'
+        ]);
+      });
+
+      it('should preserve React build structure exactly', async () => {
+        setupMockFsNode({
+          '/mock/cwd/build/index.html': { type: 'file', content: '<!DOCTYPE html>' },
+          '/mock/cwd/build/static/css/main.abc123.css': { type: 'file', content: '.App { text-align: center; }' },
+          '/mock/cwd/build/static/js/main.def456.js': { type: 'file', content: 'React.render();' },
+          '/mock/cwd/build/static/media/logo.789xyz.png': { type: 'file', content: 'PNG_DATA' },
+          '/mock/cwd/build/manifest.json': { type: 'file', content: '{"name": "test"}' }
+        });
+
+        const result = await processFilesForNode(['build'], { pathDetect: false });
+        const paths = result.map(f => f.path).sort();
+
+        expect(paths).toEqual([
+          'index.html',
+          'manifest.json',
+          'static/css/main.abc123.css',
+          'static/js/main.def456.js',
+          'static/media/logo.789xyz.png'
+        ]);
+      });
+
+      it('should preserve complex nested project structure', async () => {
+        setupMockFsNode({
+          '/mock/cwd/project/src/components/Header.tsx': { type: 'file', content: 'export const Header = () => {};' },
+          '/mock/cwd/project/src/components/Footer.tsx': { type: 'file', content: 'export const Footer = () => {};' },
+          '/mock/cwd/project/src/utils/helpers.ts': { type: 'file', content: 'export const helper = () => {};' },
+          '/mock/cwd/project/public/favicon.ico': { type: 'file', content: 'ICO_DATA' },
+          '/mock/cwd/project/config/env/production/config.json': { type: 'file', content: '{"env": "prod"}' }
+        });
+
+        const result = await processFilesForNode(['project'], { pathDetect: false });
+        const paths = result.map(f => f.path).sort();
+
+        expect(paths).toEqual([
+          'config/env/production/config.json',
+          'public/favicon.ico',
+          'src/components/Footer.tsx',
+          'src/components/Header.tsx',
+          'src/utils/helpers.ts'
+        ]);
+      });
+
+      it('should preserve mixed depth files without common parent', async () => {
+        setupMockFsNode({
+          '/mock/cwd/index.html': { type: 'file', content: '<!DOCTYPE html>' },
+          '/mock/cwd/assets/js/app.js': { type: 'file', content: 'console.log("app");' },
+          '/mock/cwd/assets/css/styles.css': { type: 'file', content: 'body { margin: 0; }' },
+          '/mock/cwd/images/logo.png': { type: 'file', content: 'PNG_DATA' },
+          '/mock/cwd/deep/nested/folder/config.js': { type: 'file', content: 'module.exports = {};' }
+        });
+
+        // Process multiple individual files/directories
+        const result = await processFilesForNode([
+          'index.html',
+          'assets/js/app.js', 
+          'assets/css/styles.css',
+          'images/logo.png',
+          'deep/nested/folder/config.js'
+        ], { pathDetect: false });
+        const paths = result.map(f => f.path).sort();
+
+        expect(paths).toEqual([
+          'app.js',
+          'config.js',
+          'index.html',
+          'logo.png',
+          'styles.css'
+        ]);
+      });
+
+      it('should handle single files with full paths preserved', async () => {
+        setupMockFsNode({
+          '/mock/cwd/some/deep/path/single-file.txt': { type: 'file', content: 'standalone content' },
+          '/mock/cwd/another/different/path/other-file.txt': { type: 'file', content: 'other content' },
+          '/mock/cwd/root-file.txt': { type: 'file', content: 'root content' }
+        });
+
+        const result = await processFilesForNode([
+          'some/deep/path/single-file.txt',
+          'another/different/path/other-file.txt',
+          'root-file.txt'
+        ], { pathDetect: false });
+        const paths = result.map(f => f.path).sort();
+
+        expect(paths).toEqual([
+          'other-file.txt',
+          'root-file.txt',
+          'single-file.txt'
+        ]);
+      });
+
+      it('should normalize path separators but preserve structure', async () => {
+        setupMockFsNode({
+          '/mock/cwd/folder/subfolder/file1.txt': { type: 'file', content: 'content1' },
+          '/mock/cwd/folder/subfolder/file2.txt': { type: 'file', content: 'content2' },
+          '/mock/cwd/folder/subfolder/file3.txt': { type: 'file', content: 'content3' }
+        });
+
+        // Simulate Windows-style paths in the input (they get normalized)
+        const result = await processFilesForNode([
+          'folder\\subfolder\\file1.txt',
+          'folder/subfolder/file2.txt', 
+          'folder\\subfolder/file3.txt'
+        ], { pathDetect: false });
+        const paths = result.map(f => f.path).sort();
+
+        // Should normalize to forward slashes but preserve full structure
+        expect(paths).toEqual([
+          'file1.txt',
+          'file2.txt',
+          'file3.txt'
+        ]);
+
+        // Verify no backslashes remain
+        paths.forEach(path => {
+          expect(path).not.toContain('\\');
+        });
+      });
+
+      it('should preserve directory structure with empty directory handling', async () => {
+        setupMockFsNode({
+          '/mock/cwd/valid/path/file.txt': { type: 'file', content: 'valid content' },
+          '/mock/cwd/path/with/double/slashes/file2.txt': { type: 'file', content: 'double content' }
+        });
+
+        const result = await processFilesForNode([
+          'valid/path/file.txt',
+          'path//with//double//slashes/file2.txt'
+        ], { pathDetect: false });
+        const paths = result.map(f => f.path).sort();
+
+        // Should preserve the intended structure (double slashes get normalized by path handling)
+        expect(paths).toEqual([
+          'file.txt',
+          'file2.txt'
+        ]);
+      });
+
+      it('should handle very deep nested structures', async () => {
+        setupMockFsNode({
+          '/mock/cwd/a/very/deep/nested/folder/structure/that/goes/many/levels/deep.txt': { 
+            type: 'file', 
+            content: 'deep file content' 
+          },
+          '/mock/cwd/shallow.txt': { type: 'file', content: 'shallow content' }
+        });
+
+        const result = await processFilesForNode([
+          'a/very/deep/nested/folder/structure/that/goes/many/levels/deep.txt',
+          'shallow.txt'
+        ], { pathDetect: false });
+        const paths = result.map(f => f.path).sort();
+
+        expect(paths).toEqual([
+          'deep.txt',
+          'shallow.txt'
+        ]);
+      });
+
+      it('should preserve build output structure for deployment scenarios', async () => {
+        // Test the exact scenario that was causing the regression
+        setupMockFsNode({
+          '/mock/cwd/web/drop/dist/index.html': { type: 'file', content: '<!DOCTYPE html>' },
+          '/mock/cwd/web/drop/dist/assets/browser-SQEQcwkt.js': { type: 'file', content: 'window.app = {};' },
+          '/mock/cwd/web/drop/dist/assets/style-abc123.css': { type: 'file', content: '.main { color: blue; }' },
+          '/mock/cwd/web/drop/dist/favicon.ico': { type: 'file', content: 'ICO_DATA' }
+        });
+
+        const result = await processFilesForNode(['web/drop/dist'], { pathDetect: false });
+        const paths = result.map(f => f.path).sort();
+
+        // The critical requirement: assets folder must be preserved 
+        expect(paths).toEqual([
+          'assets/browser-SQEQcwkt.js',
+          'assets/style-abc123.css',
+          'favicon.ico',
+          'index.html'
+        ]);
+
+        // Verify the original bug is fixed - these should NOT exist
+        expect(paths).not.toContain('browser-SQEQcwkt.js');
+        expect(paths).not.toContain('style-abc123.css');
+        
+        // The assets folder structure should be completely preserved
+        const assetsFiles = paths.filter(p => p.includes('assets/'));
+        expect(assetsFiles).toHaveLength(2);
+        expect(assetsFiles.every(f => f.startsWith('assets/'))).toBe(true);
+      });
+
+      it('should preserve multiple directory structures when processing multiple paths', async () => {
+        setupMockFsNode({
+          '/mock/cwd/frontend/dist/index.html': { type: 'file', content: 'frontend' },
+          '/mock/cwd/frontend/dist/app.js': { type: 'file', content: 'frontend app' },
+          '/mock/cwd/backend/build/server.js': { type: 'file', content: 'backend server' },
+          '/mock/cwd/backend/build/config.json': { type: 'file', content: '{"port": 3000}' },
+          '/mock/cwd/docs/api.md': { type: 'file', content: '# API Documentation' }
+        });
+
+        const result = await processFilesForNode([
+          'frontend/dist',
+          'backend/build', 
+          'docs/api.md'
+        ], { pathDetect: false });
+        const paths = result.map(f => f.path).sort();
+
+        expect(paths).toEqual([
+          'api.md',
+          'app.js',
+          'config.json',
+          'index.html',
+          'server.js'
+        ]);
+      });
     });
   });
 });

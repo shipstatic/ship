@@ -85,18 +85,175 @@ describe('Browser File Utilities', () => {
       );
     });
     
-    it('should respect internal basePath implementation if provided', async () => {
+    it('should preserve exact paths when pathDetect is false', async () => {
       __setTestEnvironment('browser');
       const mockFiles = [
         mockFile('orig/path/file1.txt', 'orig/path/file1.txt'),
         mockFile('orig/path/dir/file2.txt', 'orig/path/dir/file2.txt')
       ];
-      // Path stripping using basePath is now handled automatically when processing browser files
-      // Using pathDetect: false to disable the default flattening behavior
+      
       const result = await processFilesForBrowser(mockFiles, { pathDetect: false });
-      // When preserveDirs is true, directory structure is preserved
+      
+      // When pathDetect is false, exact directory structure is preserved
       expect(result[0].path).toBe('orig/path/file1.txt');
       expect(result[1].path).toBe('orig/path/dir/file2.txt');
+    });
+
+    describe('pathDetect: false (path preservation)', () => {
+      it('should preserve Vite build structure exactly', async () => {
+        const files = [
+          mockFile('index.html', 'dist/index.html'),
+          mockFile('vite.svg', 'dist/vite.svg'),
+          mockFile('browser-SQEQcwkt.js', 'dist/assets/browser-SQEQcwkt.js'),
+          mockFile('index-BaplGdt4.js', 'dist/assets/index-BaplGdt4.js'),
+          mockFile('style-CuqkljXd.css', 'dist/assets/style-CuqkljXd.css')
+        ];
+
+        const result = await processFilesForBrowser(files, { pathDetect: false });
+        const paths = result.map(f => f.path);
+
+        expect(paths).toEqual([
+          'dist/index.html',
+          'dist/vite.svg',
+          'dist/assets/browser-SQEQcwkt.js',
+          'dist/assets/index-BaplGdt4.js',
+          'dist/assets/style-CuqkljXd.css'
+        ]);
+      });
+
+      it('should preserve React build structure exactly', async () => {
+        const files = [
+          mockFile('index.html', 'build/index.html'),
+          mockFile('main.abc123.css', 'build/static/css/main.abc123.css'),
+          mockFile('main.def456.js', 'build/static/js/main.def456.js'),
+          mockFile('logo.789xyz.png', 'build/static/media/logo.789xyz.png'),
+          mockFile('manifest.json', 'build/manifest.json')
+        ];
+
+        const result = await processFilesForBrowser(files, { pathDetect: false });
+        const paths = result.map(f => f.path);
+
+        expect(paths).toEqual([
+          'build/index.html',
+          'build/static/css/main.abc123.css',
+          'build/static/js/main.def456.js',
+          'build/static/media/logo.789xyz.png',
+          'build/manifest.json'
+        ]);
+      });
+
+      it('should preserve complex nested structure', async () => {
+        const files = [
+          mockFile('Header.tsx', 'project/src/components/Header.tsx'),
+          mockFile('Footer.tsx', 'project/src/components/Footer.tsx'),
+          mockFile('helpers.ts', 'project/src/utils/helpers.ts'),
+          mockFile('favicon.ico', 'project/public/favicon.ico'),
+          mockFile('config.json', 'project/config/env/production/config.json')
+        ];
+
+        const result = await processFilesForBrowser(files, { pathDetect: false });
+        const paths = result.map(f => f.path);
+
+        expect(paths).toEqual([
+          'project/src/components/Header.tsx',
+          'project/src/components/Footer.tsx', 
+          'project/src/utils/helpers.ts',
+          'project/public/favicon.ico',
+          'project/config/env/production/config.json'
+        ]);
+      });
+
+      it('should preserve mixed depth files without common parent', async () => {
+        const files = [
+          mockFile('index.html', 'index.html'),
+          mockFile('app.js', 'assets/js/app.js'),
+          mockFile('styles.css', 'assets/css/styles.css'),
+          mockFile('logo.png', 'images/logo.png'),
+          mockFile('config.js', 'deep/nested/folder/config.js')
+        ];
+
+        const result = await processFilesForBrowser(files, { pathDetect: false });
+        const paths = result.map(f => f.path);
+
+        expect(paths).toEqual([
+          'index.html',
+          'assets/js/app.js',
+          'assets/css/styles.css',
+          'images/logo.png',
+          'deep/nested/folder/config.js'
+        ]);
+      });
+
+      it('should handle files with no webkitRelativePath', async () => {
+        const files = [
+          mockFile('standalone1.txt'), // No webkitRelativePath
+          mockFile('standalone2.txt'), // No webkitRelativePath
+          mockFile('nested.txt', 'folder/nested.txt') // Has webkitRelativePath
+        ];
+
+        const result = await processFilesForBrowser(files, { pathDetect: false });
+        const paths = result.map(f => f.path);
+
+        expect(paths).toEqual([
+          'standalone1.txt',
+          'standalone2.txt', 
+          'folder/nested.txt'
+        ]);
+      });
+
+      it('should normalize path separators but preserve structure', async () => {
+        const files = [
+          mockFile('file1.txt', 'folder\\subfolder\\file1.txt'), // Windows-style
+          mockFile('file2.txt', 'folder/subfolder/file2.txt'),   // Unix-style
+          mockFile('file3.txt', 'folder\\subfolder/file3.txt')   // Mixed-style
+        ];
+
+        const result = await processFilesForBrowser(files, { pathDetect: false });
+        const paths = result.map(f => f.path);
+
+        // Should normalize to forward slashes but preserve full structure
+        expect(paths).toEqual([
+          'folder/subfolder/file1.txt',
+          'folder/subfolder/file2.txt',
+          'folder/subfolder/file3.txt'
+        ]);
+
+        // Verify no backslashes remain
+        paths.forEach(path => {
+          expect(path).not.toContain('\\');
+        });
+      });
+
+      it('should preserve empty directory names in paths', async () => {
+        const files = [
+          mockFile('file.txt', 'valid/path/file.txt'),
+          mockFile('file2.txt', 'path//with//double//slashes/file2.txt')
+        ];
+
+        const result = await processFilesForBrowser(files, { pathDetect: false });
+        const paths = result.map(f => f.path);
+
+        // Should normalize but preserve the intended structure
+        expect(paths).toEqual([
+          'valid/path/file.txt',
+          'path/with/double/slashes/file2.txt' // Double slashes normalized
+        ]);
+      });
+
+      it('should handle very deep nested structures', async () => {
+        const files = [
+          mockFile('deep.txt', 'a/very/deep/nested/folder/structure/that/goes/many/levels/deep.txt'),
+          mockFile('shallow.txt', 'shallow.txt')
+        ];
+
+        const result = await processFilesForBrowser(files, { pathDetect: false });
+        const paths = result.map(f => f.path);
+
+        expect(paths).toEqual([
+          'a/very/deep/nested/folder/structure/that/goes/many/levels/deep.txt',
+          'shallow.txt'
+        ]);
+      });
     });
   });
 

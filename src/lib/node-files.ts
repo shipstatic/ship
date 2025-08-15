@@ -8,7 +8,7 @@ import { calculateMD5 } from './md5.js';
 import { filterJunk } from './junk.js';
 import { ShipError } from '@shipstatic/types';
 import { getCurrentConfig } from '../core/platform-config.js';
-import { findCommonParent } from './path.js';
+import { optimizeDeployPaths } from './deploy-paths.js';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -75,25 +75,31 @@ export async function getFilesFromPath(
     return filterJunk([basename]).length > 0; // Keep files that pass junk filter
   });
   
-  // 3. Determine base for relative paths with automatic path optimization
+  // 3. Create deployment paths relative to the source
   const stats = fs.statSync(absolutePath);
-  let commonParent: string;
+  const basePath = stats.isDirectory() ? absolutePath : path.dirname(absolutePath);
   
-  // Default to path detection (flattening) unless explicitly disabled
-  if (options.pathDetect === false) {
-    // Path detection disabled: preserve directory structure
-    commonParent = stats.isDirectory() ? absolutePath : path.dirname(absolutePath);
-  } else {
-    // Path detection enabled: optimize by finding common parent
-    const fileDirs = validPaths.map(filePath => path.dirname(filePath));
-    commonParent = findCommonParent(fileDirs);
-  }
+  // Convert absolute paths to relative paths for deployment
+  // Mirror the browser implementation - simple and clean
+  const relativePaths = validPaths.map(filePath => {
+    const relative = path.relative(basePath, filePath).replace(/\\/g, '/');
+    return relative || path.basename(filePath);
+  });
+  
+  // Optimize paths for clean deployment URLs
+  // When pathDetect is false, disable flattening to preserve directory structure
+  const deployFiles = optimizeDeployPaths(relativePaths, {
+    flatten: options.pathDetect !== false
+  });
   
   // 4. Process into StaticFile objects
   const results: StaticFile[] = [];
   let totalSize = 0;
   
-  for (const filePath of validPaths) {
+  for (let i = 0; i < validPaths.length; i++) {
+    const filePath = validPaths[i];
+    const deployPath = deployFiles[i].path;
+    
     try {
       // Validate file
       const stats = fs.statSync(filePath);
@@ -116,22 +122,14 @@ export async function getFilesFromPath(
       // Read content and calculate metadata
       const content = fs.readFileSync(filePath);
       const { md5 } = await calculateMD5(content);
-      let relativePath = path.relative(commonParent, filePath).replace(/\\/g, '/');
       
       // Security validation: Ensure no dangerous characters in paths
-      if (relativePath.includes('\0') || relativePath.includes('/../') || relativePath.startsWith('../') || relativePath.endsWith('/..')) {
-        // Only flatten if there are actual dangerous path traversals
-        // Allow legitimate .. that might appear in the middle of a path component (like in filenames)
-        relativePath = path.basename(filePath);
-      }
-      
-      // Ensure path is not empty (this can happen if file equals commonParent)
-      if (!relativePath) {
-        relativePath = path.basename(filePath);
+      if (deployPath.includes('\0') || deployPath.includes('/../') || deployPath.startsWith('../') || deployPath.endsWith('/..')) {
+        throw ShipError.business(`Security error: Unsafe file path "${deployPath}" for file: ${filePath}`);
       }
       
       results.push({
-        path: relativePath,
+        path: deployPath,
         content: content,
         size: content.length,
         md5,

@@ -54,7 +54,8 @@ complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'get' -d 'Sh
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'remove' -d 'Delete deployment permanently'
 
 # Deployments create options
-complete -c ship -l preserve-dirs -n '__fish_seen_subcommand_from deployments; and __fish_seen_subcommand_from create' -d 'Preserve directory structure in deployment'
+complete -c ship -l no-path-detect -d 'Disable automatic path optimization and flattening'
+complete -c ship -l no-spa-detect -d 'Disable automatic SPA detection and configuration'
 
 # Aliases subcommands
 complete -c ship -f -n '__fish_seen_subcommand_from aliases' -a 'list' -d 'List all aliases'
