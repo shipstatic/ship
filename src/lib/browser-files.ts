@@ -6,8 +6,8 @@ import { getENV } from './env.js';
 import { StaticFile, DeploymentOptions } from '../types.js';
 import { calculateMD5 } from './md5.js';
 import { ShipError } from '@shipstatic/types';
-import { findCommonParent, normalizeWebPath } from './path.js';
 import { filterJunk } from './junk.js';
+import { optimizeDeployPaths } from './deploy-paths.js';
 
 
 /**
@@ -38,48 +38,26 @@ export async function processFilesForBrowser(
 
   const filesArray = Array.isArray(browserFiles) ? browserFiles : Array.from(browserFiles);
   
-  // Determine common parent for path optimization - enabled by default
-  let commonParent = '';
-  if (options.pathDetect !== false) {
-    // Path detection enabled: optimize by finding common parent
-    const fileDirs = filesArray
-      .map(file => (file as any).webkitRelativePath || file.name)
-      .filter(path => path)
-      .map(filePath => filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '');
-    
-    commonParent = findCommonParent(fileDirs);
-  }
-
-  // Prepare file information with automatic path optimization
+  // Extract file paths from browser files
+  const filePaths = filesArray.map(file => (file as any).webkitRelativePath || file.name);
+  
+  // Optimize paths for clean deployment URLs
+  const deployFiles = optimizeDeployPaths(filePaths, { 
+    flatten: options.pathDetect !== false 
+  });
+  
+  // Prepare file information with security validation
   const initialFileInfos: BrowserFileProcessItem[] = [];
-  for (const file of filesArray) {
-    let relativePath = (file as any).webkitRelativePath || file.name;
-    
-    // Apply path optimization if enabled
-    if (commonParent && options.pathDetect !== false) {
-      relativePath = normalizeWebPath(relativePath);
-      const basePathWithSlash = commonParent.endsWith('/') ? commonParent : `${commonParent}/`;
-      if (relativePath.startsWith(basePathWithSlash)) {
-        relativePath = relativePath.substring(basePathWithSlash.length);
-      } else if (relativePath === commonParent) {
-        relativePath = '';
-      }
-    }
-    
-    // Always normalize to web paths (forward slashes, no leading slash)
-    relativePath = normalizeWebPath(relativePath);
+  for (let i = 0; i < filesArray.length; i++) {
+    const file = filesArray[i];
+    const deployPath = deployFiles[i].path;
     
     // Security validation: Ensure no dangerous characters in paths
-    if (relativePath.includes('..') || relativePath.includes('\0')) {
-      throw ShipError.business(`Security error: Unsafe file path "${relativePath}" for file: ${file.name}`);
+    if (deployPath.includes('..') || deployPath.includes('\0')) {
+      throw ShipError.business(`Security error: Unsafe file path "${deployPath}" for file: ${file.name}`);
     }
     
-    // Ensure path is not empty
-    if (!relativePath) {
-      relativePath = file.name;
-    }
-    
-    initialFileInfos.push({ file, relativePath });
+    initialFileInfos.push({ file, relativePath: deployPath });
   }
 
   // Filter out junk files
