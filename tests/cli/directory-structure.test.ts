@@ -81,22 +81,23 @@ describe('CLI Directory Structure Preservation', () => {
     expect(filePaths).not.toContain('input.js');
   });
 
-  test('should flatten when pathDetect is true (default)', async () => {
+  test('should optimize paths when pathDetect is true (default)', async () => {
     // Test with pathDetect enabled (default behavior)  
     const files = await getFilesFromPath(tempDir, { pathDetect: true });
     
     const filePaths = files.map(f => f.path);
     
-    // With pathDetect enabled, files should be flattened
-    expect(filePaths).toContain('app.js');
-    expect(filePaths).toContain('styles.css');
-    expect(filePaths).toContain('logo.png');
-    expect(filePaths).toContain('input.js');
+    // With pathDetect enabled, structure is preserved since no common directory exists
+    // (index.html is at root, others are in subdirectories)
     expect(filePaths).toContain('index.html');
+    expect(filePaths).toContain('assets/js/app.js');
+    expect(filePaths).toContain('assets/css/styles.css');
+    expect(filePaths).toContain('images/logo.png');
+    expect(filePaths).toContain('components/ui/forms/input.js');
     
-    // Verify nested paths are NOT preserved when flattening
-    expect(filePaths).not.toContain('assets/js/app.js');
-    expect(filePaths).not.toContain('assets/css/styles.css');
+    // Verify individual filenames are NOT at root level since they have no common directory
+    expect(filePaths).not.toContain('app.js');
+    expect(filePaths).not.toContain('styles.css');
   });
 
   test('should preserve structure for React/Vite build output', async () => {
@@ -167,23 +168,23 @@ describe('CLI Directory Structure Preservation', () => {
     expect(filePaths).toHaveLength(1);
   });
 
-  test('should flatten directory structure by default when processing directories', async () => {
-    // This tests the default behavior - directories are flattened by default
+  test('should optimize paths by default when processing directories', async () => {
+    // This tests the default behavior - paths are optimized by default
     const files = await getFilesFromPath(tempDir); // No explicit pathDetect option
     
     const filePaths = files.map(f => f.path);
     
-    // Should be flattened by default (pathDetect is true by default)
-    expect(filePaths).toContain('app.js');
-    expect(filePaths).toContain('styles.css');
-    expect(filePaths).toContain('logo.png');
-    expect(filePaths).toContain('input.js');
+    // Should preserve structure by default since no common directory exists
     expect(filePaths).toContain('index.html');
+    expect(filePaths).toContain('assets/js/app.js');
+    expect(filePaths).toContain('assets/css/styles.css');
+    expect(filePaths).toContain('images/logo.png');
+    expect(filePaths).toContain('components/ui/forms/input.js');
     
-    // Should NOT preserve nested paths by default
-    expect(filePaths).not.toContain('assets/js/app.js');
-    expect(filePaths).not.toContain('assets/css/styles.css');
-    expect(filePaths).not.toContain('images/logo.png');
+    // Should NOT have individual filenames at root level  
+    expect(filePaths).not.toContain('app.js');
+    expect(filePaths).not.toContain('styles.css');
+    expect(filePaths).not.toContain('logo.png');
   });
 
   test('should handle mixed file types in nested structure', async () => {

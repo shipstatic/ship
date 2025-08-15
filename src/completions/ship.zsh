@@ -94,7 +94,7 @@ if [[ -n ${ZSH_VERSION-} ]]; then
 
     # Flag completion
     if [[ "$current_word" == --* ]]; then
-      completions=("--api-key:API key for authentication" "--config:Custom config file path" "--api-url:API URL (for development)" "--preserve-dirs:Preserve directory structure in deployment" "--json:Output results in JSON format" "--no-color:Disable colored output" "--version:Show version information" "--help:Display help for command")
+      completions=("--api-key:API key for authentication" "--config:Custom config file path" "--api-url:API URL (for development)" "--no-path-detect:Disable automatic path optimization and flattening" "--no-spa-detect:Disable automatic SPA detection and configuration" "--json:Output results in JSON format" "--no-color:Disable colored output" "--version:Show version information" "--help:Display help for command")
       _describe 'options' completions
       return
     fi

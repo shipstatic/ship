@@ -369,10 +369,10 @@ ship account            # Get account details
 ### Global Options
 
 ```bash
--u, --apiUrl <URL>         # API endpoint
--k, --apiKey <KEY>         # API key for authenticated deployments
---deploy-token <TOKEN>     # Deploy token for single-use deployments
---json                     # JSON output
+--api-url <URL>         # API endpoint
+--api-key <KEY>         # API key for authenticated deployments
+--deploy-token <TOKEN>  # Deploy token for single-use deployments
+--json                  # JSON output
 ```
 
 ## Bundle Sizes

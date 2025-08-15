@@ -44,9 +44,9 @@ The CLI automatically loads configuration from (in priority order):
 
 ### 1. Command Line Options
 ```sh
-ship ./dist -u https://api.shipstatic.com -k ship-your-api-key
+ship ./dist --api-url https://api.shipstatic.com --api-key ship-your-api-key
 # OR
-ship ./dist -u https://api.shipstatic.com --deploy-token token-your-deploy-token
+ship ./dist --api-url https://api.shipstatic.com --deploy-token token-your-deploy-token
 ```
 
 ### 2. Environment Variables
@@ -130,15 +130,16 @@ COMMANDS
   ship completion        ⚡ Setup shell completion
 
 FLAGS
-  -k, --api-key <key>         API key for authenticated deployments
-  --deploy-token <token>      Deploy token for single-use deployments
-  -c, --config <file>         Custom config file path
-  -u, --api-url <url>    API URL (for development)
-  -p, --preserve-dirs    Preserve directory structure in deployment
-  -j, --json             Output results in JSON format
-  --no-color             Disable colored output
-  -v, --version          Show version information
-  -h, --help             Display help for command
+  --api-key <key>         API key for authenticated deployments
+  --deploy-token <token>  Deploy token for single-use deployments
+  --config <file>         Custom config file path
+  --api-url <url>         API URL (for development)
+  --no-path-detect        Disable automatic path optimization and flattening
+  --no-spa-detect         Disable automatic SPA detection and configuration
+  --json                  Output results in JSON format
+  --no-color              Disable colored output
+  --version               Show version information
+  --help                  Display help for command
 ```
 
 ### Deployment Commands
@@ -191,15 +192,16 @@ ship ping
 
 All commands support these global flags:
 
-- `-k, --api-key <key>` - API key for authenticated deployments (must start with `ship-`)
+- `--api-key <key>` - API key for authenticated deployments (must start with `ship-`)
 - `--deploy-token <token>` - Deploy token for single-use deployments (must start with `token-`)
-- `-c, --config <file>` - Custom config file path
-- `-u, --api-url <url>` - API URL (for development)
-- `-p, --preserve-dirs` - Preserve directory structure in deployment
-- `-j, --json` - Output results in JSON format
+- `--config <file>` - Custom config file path
+- `--api-url <url>` - API URL (for development)
+- `--no-path-detect` - Disable automatic path optimization and flattening
+- `--no-spa-detect` - Disable automatic SPA detection and configuration
+- `--json` - Output results in JSON format
 - `--no-color` - Disable colored output
-- `-v, --version` - Show version information
-- `-h, --help` - Display help for command
+- `--version` - Show version information
+- `--help` - Display help for command
 
 ## Examples
 
@@ -211,8 +213,8 @@ ship .
 # Deploy specific directory
 ship ./dist
 
-# Deploy with preserved directory structure
-ship ./my-app --preserve-dirs
+# Deploy with path detection disabled
+ship ./my-app --no-path-detect
 
 # Deploy without colors (useful for CI/scripts)
 ship ./dist --no-color
