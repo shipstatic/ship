@@ -37,11 +37,14 @@ export function createDeploymentResource(
         ? mergeDeployOptions(options, clientDefaults)
         : options;
       
+      // Get API client AFTER initialization is complete to avoid race conditions
+      const apiClient = getApi();
+      
       // Convert input to StaticFile[] with automatic SPA detection
-      const staticFiles: StaticFile[] = await convertDeployInput(input, mergedOptions, getApi());
+      const staticFiles: StaticFile[] = await convertDeployInput(input, mergedOptions, apiClient);
       
       // Deploy using the API - now returns the full Deployment object directly
-      return await getApi().deploy(staticFiles, mergedOptions);
+      return await apiClient.deploy(staticFiles, mergedOptions);
     },
 
     list: async () => {
