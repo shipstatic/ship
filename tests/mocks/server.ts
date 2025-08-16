@@ -92,6 +92,38 @@ function handleRequest(req: any, res: any) {
         maxTotalSize: 104857600     // 100MB
       }));
     }
+    else if (path === '/spa-check' && method === 'POST') {
+      // Mock SPA detection response - matches SPACheckResponse from API
+      let body = '';
+      req.on('data', (chunk: any) => body += chunk);
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          // Simple heuristic: if files include index.html and it contains "root" div, it's a SPA
+          const hasIndexHtml = data.files && data.files.includes('index.html');
+          const indexContent = data.index || '';
+          const hasReactRoot = indexContent.includes('id="root"') || indexContent.includes("id='root'");
+          const isSPA = hasIndexHtml && hasReactRoot;
+          
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            isSPA,
+            debug: {
+              tier: isSPA ? 'inclusions' : 'exclusions',
+              reason: isSPA ? 'React mount point detected' : 'No SPA indicators found'
+            }
+          }));
+        } catch (e) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ 
+            error: 'invalid_json', 
+            message: 'Invalid JSON in request body',
+            status: 400
+          }));
+        }
+      });
+      return; // Important: return here to prevent response from ending immediately
+    }
     else if (path === '/deployments' && method === 'GET') {
       const populate = url.searchParams.get('populate');
       const response: DeploymentListResponse = {
