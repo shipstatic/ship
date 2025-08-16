@@ -2,7 +2,7 @@
  * @file Manages HTTP requests to the Ship API using native fetch.
  */
 import * as _mime from 'mime-types';
-import type { Deployment, DeploymentListResponse, PingResponse, ConfigResponse, DeploymentRemoveResponse, Alias, AliasListResponse, Account } from '@shipstatic/types';
+import type { Deployment, DeploymentListResponse, PingResponse, ConfigResponse, DeploymentRemoveResponse, Alias, AliasListResponse, Account, SPACheckRequest, SPACheckResponse } from '@shipstatic/types';
 import { StaticFile, ApiDeployOptions, ShipClientOptions } from '../types.js';
 import { ShipError } from '@shipstatic/types';
 import { getENV } from '../lib/env.js';
@@ -551,17 +551,48 @@ export class ApiHttp {
   }
 
   /**
-   * Checks if file paths represent a SPA structure using AI analysis
-   * @param filePaths - Array of file paths to analyze
+   * Checks if files represent a SPA structure using AI analysis
+   * @param files - Array of StaticFile objects to analyze
    * @returns Promise resolving to boolean indicating if it's a SPA
    */
-  public async checkSPA(filePaths: string[]): Promise<boolean> {
-    const response = await this.#request<{ isSPA: boolean }>(
+  public async checkSPA(files: StaticFile[]): Promise<boolean> {
+    // Find index.html and extract its content - required for SPA detection
+    const indexFile = files.find(f => f.path === 'index.html' || f.path === '/index.html');
+    if (!indexFile) {
+      return false; // No index.html = not a SPA
+    }
+    
+    // Skip if index.html is too large (unlikely to be a SPA)
+    const MAX_INDEX_SIZE = 100 * 1024; // 100KB
+    if (indexFile.size > MAX_INDEX_SIZE) {
+      return false; // Very large index.html = likely not a SPA
+    }
+    
+    let indexContent: string;
+    if (Buffer.isBuffer(indexFile.content)) {
+      indexContent = indexFile.content.toString('utf-8');
+    } else if (typeof Blob !== 'undefined' && indexFile.content instanceof Blob) {
+      indexContent = await indexFile.content.text();
+    } else if (typeof File !== 'undefined' && indexFile.content instanceof File) {
+      indexContent = await indexFile.content.text();
+    } else {
+      return false; // Unsupported content type
+    }
+    
+    // Build file paths list
+    const filePaths = files.map(file => file.path);
+    
+    const requestData: SPACheckRequest = {
+      files: filePaths,
+      index: indexContent
+    };
+    
+    const response = await this.#request<SPACheckResponse>(
       `${this.apiUrl}${SPA_CHECK_ENDPOINT}`, 
       { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: filePaths })
+        body: JSON.stringify(requestData)
       }, 
       'SPA Check'
     );

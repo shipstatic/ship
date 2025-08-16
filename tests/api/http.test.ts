@@ -266,6 +266,135 @@ describe('ApiHttp', () => {
     });
   });
 
+  describe('checkSPA', () => {
+    it('should return false when no index.html file present', async () => {
+      const mockFiles = [
+        { path: 'main.js', content: Buffer.from('console.log("hello")'), md5: 'abc123', size: 20 },
+        { path: 'style.css', content: Buffer.from('body {}'), md5: 'def456', size: 7 }
+      ];
+
+      const result = await apiHttp.checkSPA(mockFiles);
+      
+      expect(result).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('should return false when index.html is too large', async () => {
+      const largeContent = Buffer.alloc(150 * 1024, 'x'); // 150KB
+      const mockFiles = [
+        { path: 'index.html', content: largeContent, md5: 'abc123', size: largeContent.length }
+      ];
+
+      const result = await apiHttp.checkSPA(mockFiles);
+      
+      expect(result).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('should return false when index.html content type is unsupported', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: 123 as any, md5: 'abc123', size: 50 } // Invalid content type
+      ];
+
+      const result = await apiHttp.checkSPA(mockFiles);
+      
+      expect(result).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('should make API request with Buffer content', async () => {
+      const indexContent = '<html><head><script src="app.js"></script></head></html>';
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from(indexContent), md5: 'abc123', size: indexContent.length },
+        { path: 'app.js', content: Buffer.from('app code'), md5: 'def456', size: 8 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
+
+      const result = await apiHttp.checkSPA(mockFiles);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/spa-check',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test-api-key',
+            'Content-Type': 'application/json'
+          }),
+          body: JSON.stringify({
+            files: ['index.html', 'app.js'],
+            index: indexContent
+          })
+        })
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should return false for unsupported content types (simulating Blob failure)', async () => {
+      // Test that when content type is not Buffer and browser objects fail, we return false
+      const mockFiles = [
+        { path: 'index.html', content: { someObject: true } as any, md5: 'abc123', size: 50 }
+      ];
+
+      const result = await apiHttp.checkSPA(mockFiles);
+      
+      expect(result).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('should handle different index.html path formats', async () => {
+      const indexContent = '<html></html>';
+      const mockFiles = [
+        { path: '/index.html', content: Buffer.from(indexContent), md5: 'abc123', size: indexContent.length } // Leading slash
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
+
+      const result = await apiHttp.checkSPA(mockFiles);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/spa-check',
+        expect.objectContaining({
+          body: JSON.stringify({
+            files: ['/index.html'],
+            index: indexContent
+          })
+        })
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should handle API errors gracefully', async () => {
+      const indexContent = '<html></html>';
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from(indexContent), md5: 'abc123', size: indexContent.length }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({ error: 'Service unavailable' }, 503));
+
+      await expect(apiHttp.checkSPA(mockFiles)).rejects.toThrow();
+    });
+
+    it('should send file paths in correct order', async () => {
+      const indexContent = '<html></html>';
+      const mockFiles = [
+        { path: 'components/App.js', content: Buffer.from('app'), md5: 'abc', size: 3 },
+        { path: 'index.html', content: Buffer.from(indexContent), md5: 'def', size: indexContent.length },
+        { path: 'assets/style.css', content: Buffer.from('css'), md5: 'ghi', size: 3 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
+
+      await apiHttp.checkSPA(mockFiles);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/spa-check',
+        expect.objectContaining({
+          body: JSON.stringify({
+            files: ['components/App.js', 'index.html', 'assets/style.css'],
+            index: indexContent
+          })
+        })
+      );
+    });
+  });
+
   describe('alias operations', () => {
     it('should set alias (update - 200 status)', async () => {
       const mockAlias = { alias: 'staging', deployment: 'test-deployment' };
