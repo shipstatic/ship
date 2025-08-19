@@ -48,12 +48,13 @@ export default defineConfig((tsupOptions: Options): Options[] => [
   // 2. Browser SDK (ESM, browser entry, with polyfills/shims)
   {
     entry: {
-      browser: 'src/index.ts',
+      browser: 'src/browser/index.ts',
     },
     outDir: 'dist',
     format: ['esm'],
     platform: 'browser',
     target: 'es2020',
+    dts: true,
     sourcemap: true,
     splitting: false,
     clean: false,
@@ -82,7 +83,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
   // 3. CLI (CJS for Node.js, cli entry)
   {
     entry: {
-      cli: 'src/cli/index.ts'
+      cli: 'src/node/cli/index.ts'
     },
     outDir: 'dist',
     format: ['cjs'],
@@ -109,7 +110,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
       // Copy completion scripts
       const scripts = ['ship.bash', 'ship.zsh', 'ship.fish'];
       for (const script of scripts) {
-        const src = path.resolve(`./src/completions/${script}`);
+        const src = path.resolve(`./src/node/completions/${script}`);
         const dest = path.resolve(`./dist/completions/${script}`);
         if (fs.existsSync(src)) {
           fs.copyFileSync(src, dest);

@@ -17,8 +17,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'), // Map @ to src directory
-      // We can keep the tsconfigPaths plugin as it might handle other cases or be more robust
-      // but adding a direct @ alias is common.
     },
   },
 });

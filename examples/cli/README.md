@@ -1,6 +1,6 @@
-# Shipstatic CLI Usage Guide
+# Ship Static CLI Usage Guide
 
-This guide shows how to use the Shipstatic CLI for deploying static websites directly from your terminal. The CLI provides a simple, resource-based interface with automatic configuration loading and comprehensive error handling.
+This guide shows how to use the Ship Static CLI for deploying static websites directly from your terminal. The CLI provides a simple, resource-based interface with automatic configuration loading and comprehensive error handling.
 
 ## Features
 - **Zero configuration**: Automatic config loading from environment/files
@@ -44,9 +44,9 @@ The CLI automatically loads configuration from (in priority order):
 
 ### 1. Command Line Options
 ```sh
-ship ./dist --api-url https://api.shipstatic.com --api-key ship-your-api-key
+ship ./dist --api-url https://api.shipstatic.dev --api-key ship-your-api-key
 # OR
-ship ./dist --api-url https://api.shipstatic.com --deploy-token token-your-deploy-token
+ship ./dist --api-url https://api.shipstatic.dev --deploy-token token-your-deploy-token
 ```
 
 ### 2. Environment Variables
@@ -54,7 +54,7 @@ ship ./dist --api-url https://api.shipstatic.com --deploy-token token-your-deplo
 export SHIP_API_KEY=ship-your-api-key
 # OR
 export SHIP_DEPLOY_TOKEN=token-your-deploy-token
-export SHIP_API_URL=https://api.shipstatic.com  # optional
+export SHIP_API_URL=https://api.shipstatic.dev  # optional
 ship ./dist
 ```
 
@@ -66,7 +66,7 @@ Create a `.shiprc` file in your project directory:
 ```json
 {
   "apiKey": "ship-your-api-key",
-  "apiUrl": "https://api.shipstatic.com"
+  "apiUrl": "https://api.shipstatic.dev"
 }
 ```
 
@@ -75,7 +75,7 @@ OR for deploy tokens:
 ```json
 {
   "deployToken": "token-your-deploy-token",
-  "apiUrl": "https://api.shipstatic.com"
+  "apiUrl": "https://api.shipstatic.dev"
 }
 ```
 
@@ -87,16 +87,17 @@ Add a `ship` section to your `package.json`:
   "name": "my-project",
   "ship": {
     "apiKey": "ship-your-api-key",
-    "apiUrl": "https://api.shipstatic.com"
+    "apiUrl": "https://api.shipstatic.dev"
   }
 }
 ```
 
 **Notes:**
-- API keys must start with `ship-` and be 69 characters total
-- Deploy tokens must start with `token-` and be 70 characters total
+- API keys must start with `ship-` and are 69 characters total
+- Deploy tokens must start with `token-` and are 70 characters total
 - Both `apiKey`/`deployToken` and `apiUrl` are supported in configuration files
 - The CLI searches for config files in the current working directory
+- For reCAPTCHA-based deployments, see `web/` examples for token fetching patterns
 
 ## Quick Start
 

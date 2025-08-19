@@ -1,11 +1,12 @@
-# Shipstatic SDK – Browser Example
+# Ship Static SDK – Browser Example
 
-This example demonstrates how to use the Shipstatic SDK for deploying files and folders directly from the browser, with zero Node.js dependencies. It showcases the modern resource-based API with clean error handling and progress tracking.
+This example demonstrates how to use the Ship Static SDK for deploying files and folders directly from the browser with vanilla JavaScript. Perfect for adding deployment functionality to existing sites alongside jQuery or other libraries - no build system required.
 
 ## Features
+- **Vanilla JavaScript**: No build system, bundlers, or complex setup required
 - **Universal browser support**: Works with File objects, FileList, or HTMLInputElement
-- **Bundle size optimized**: 422KB browser bundle
-- **Modern class-based API**: `new Ship()` with resource methods
+- **Zero configuration**: Just load the SDK like any other library
+- **Modern ES modules**: Simple `import Ship from './ship.js'` syntax
 - **Clean UI/UX:**
   - Disables the deploy button during deployment
   - Real-time progress tracking
@@ -15,19 +16,19 @@ This example demonstrates how to use the Shipstatic SDK for deploying files and 
 
 ## How to Use
 
-1. **Rebuild the SDK (after making SDK changes):**
+1. **Copy the latest SDK build:**
    ```sh
-   cd ../../
-   pnpm build
-   cd examples/browser
+   # From the ship/examples/browser directory
    pnpm run copy
    ```
+   This copies the latest browser build from `../../dist/browser.js` to `./ship.js`
 
 2. **Configure authentication:**
-   You need to provide authentication credentials for the deployment to work. In the browser, you must set them directly:
-   - Edit `main.js` and add credentials: `new Ship({ apiKey: 'ship-your-64-char-hex-string' })` or `new Ship({ deployToken: 'token-your-64-char-hex-string' })`
-   - API keys start with `ship-` and are 69 characters total
+   You need to provide authentication credentials for deployment to work. In the browser, you must set them directly:
+   - Edit `main.js` and add credentials: `new Ship({ deployToken: 'token-your-deploy-token' })`
+   - For reCAPTCHA-based deployments, fetch deploy tokens from your API
    - Deploy tokens start with `token-` and are 70 characters total
+   - See the React/Vue/Angular examples for reCAPTCHA integration patterns
 
 3. **Start a local server:**
    ```sh
@@ -50,34 +51,54 @@ This example demonstrates how to use the Shipstatic SDK for deploying files and 
 
   ```js
   import Ship from './ship.js';
-  // Authenticated deployments
-  const ship = new Ship({ apiKey: 'ship-your-key' });
-  // OR single-use deployments  
-  const ship = new Ship({ deployToken: 'token-your-token' });
+  
+  // Initialize with deploy token
+  const ship = new Ship({ deployToken: 'token-your-deploy-token' });
   
   // Deploy using resource-based API
   const result = await ship.deployments.create(files, { 
-    // Common parent directories are removed by default
-    // To preserve directory structure: preserveDirs: true
+    // Path optimization enabled by default (flattens common directories)
+    // To preserve directory structure: pathDetect: false
+    // SPA detection enabled by default (auto-generates ship.json)
+    // To disable SPA detection: spaDetect: false
     onProgress: (progress) => console.log(`${progress}%`)
   });
   ```
 - See comments in `main.js` for complete implementation details.
+- Check the `web/` directory for React/Vue/Angular examples with reCAPTCHA integration
 
 ## Example UI
 
 ```
-+-------------------------------+
-| Shipstatic SDK - Browser Deploy |
-+-------------------------------+
-| [ Select Folder ] [Deploy]    |
-|                               |
-| Deploy progress: 42%          |
-| Deploy successful!            |
-| Your site is deployed at: ... |
-+-------------------------------+
++----------------------------------+
+| Ship Static SDK - Browser Deploy |
++----------------------------------+
+| [ Select Folder ] [Deploy]       |
+|                                  |
+| Deploy progress: 42%             |
+| Deploy successful!               |
+| Your site is deployed at: ...    |
++----------------------------------+
+```
+
+## Integration with Existing Sites
+
+This example is perfect for adding deployment functionality to existing vanilla JavaScript sites:
+
+```html
+<!-- Add to your existing HTML -->
+<script type="module">
+  import Ship from './ship.js';
+  
+  // Your existing jQuery/vanilla JS code
+  $('#deploy-btn').click(async () => {
+    const ship = new Ship({ deployToken: 'your-token' });
+    const result = await ship.deployments.create(files);
+    console.log('Deployed to:', result.url);
+  });
+</script>
 ```
 
 ---
 
-**For advanced usage or troubleshooting, see the main Shipstatic SDK documentation.**
+**For advanced usage or troubleshooting, see the main Ship SDK documentation.**
