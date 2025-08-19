@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { optimizeDeployPaths } from '@/lib/deploy-paths';
+import { optimizeDeployPaths } from '../../src/shared/lib/deploy-paths';
 
 describe('Path Handling Cross-Environment Integration', () => {
   describe('Core Algorithm Consistency', () => {
@@ -11,22 +11,22 @@ describe('Path Handling Cross-Environment Integration', () => {
           paths: [
             'dist/index.html',
             'dist/vite.svg',
-            'dist/assets/browser-SQEQcwkt.js',
-            'dist/assets/index-BaplGdt4.js',
+            'dist/assets/browser-SQEQcwkt',
+            'dist/assets/index-BaplGdt4',
             'dist/assets/style-CuqkljXd.css'
           ],
           expectedOptimized: [
             'index.html',
             'vite.svg',
-            'assets/browser-SQEQcwkt.js',
-            'assets/index-BaplGdt4.js',
+            'assets/browser-SQEQcwkt',
+            'assets/index-BaplGdt4',
             'assets/style-CuqkljXd.css'
           ],
           expectedPreserved: [
             'dist/index.html',
             'dist/vite.svg',
-            'dist/assets/browser-SQEQcwkt.js',
-            'dist/assets/index-BaplGdt4.js',
+            'dist/assets/browser-SQEQcwkt',
+            'dist/assets/index-BaplGdt4',
             'dist/assets/style-CuqkljXd.css'
           ]
         },
@@ -34,19 +34,19 @@ describe('Path Handling Cross-Environment Integration', () => {
           name: 'Mixed directory structure (no common root)',
           paths: [
             'index.html',
-            'assets/js/app.js',
+            'assets/js/app',
             'assets/css/styles.css',
             'images/logo.png'
           ],
           expectedOptimized: [
             'index.html',
-            'assets/js/app.js',
+            'assets/js/app',
             'assets/css/styles.css',
             'images/logo.png'
           ],
           expectedPreserved: [
             'index.html',
-            'assets/js/app.js',
+            'assets/js/app',
             'assets/css/styles.css',
             'images/logo.png'
           ]
@@ -56,19 +56,19 @@ describe('Path Handling Cross-Environment Integration', () => {
           paths: [
             'build/index.html',
             'build/static/css/main.abc123.css',
-            'build/static/js/main.def456.js',
+            'build/static/js/main.def456',
             'build/manifest.json'
           ],
           expectedOptimized: [
             'index.html',
             'static/css/main.abc123.css',
-            'static/js/main.def456.js',
+            'static/js/main.def456',
             'manifest.json'
           ],
           expectedPreserved: [
             'build/index.html',
             'build/static/css/main.abc123.css',
-            'build/static/js/main.def456.js',
+            'build/static/js/main.def456',
             'build/manifest.json'
           ]
         }
@@ -100,7 +100,7 @@ describe('Path Handling Cross-Environment Integration', () => {
       const distFiles = [
         'dist/index.html',
         'dist/vite.svg',
-        'dist/assets/browser-SQEQcwkt.js'
+        'dist/assets/browser-SQEQcwkt'
       ];
 
       const result = optimizeDeployPaths(distFiles, { flatten: true });
@@ -110,14 +110,14 @@ describe('Path Handling Cross-Environment Integration', () => {
       expect(paths).toEqual([
         'index.html',
         'vite.svg', 
-        'assets/browser-SQEQcwkt.js'
+        'assets/browser-SQEQcwkt'
       ]);
 
       // Should NOT be completely flattened to root level
-      expect(paths).not.toContain('browser-SQEQcwkt.js');
+      expect(paths).not.toContain('browser-SQEQcwkt');
       
       // The assets folder should be preserved in the deployment URL
-      expect(paths.find(p => p.includes('assets/'))).toBe('assets/browser-SQEQcwkt.js');
+      expect(paths.find(p => p.includes('assets/'))).toBe('assets/browser-SQEQcwkt');
     });
 
     it('should demonstrate the elegance of the algorithm', () => {
@@ -158,7 +158,7 @@ describe('Path Handling Cross-Environment Integration', () => {
       const mixedPaths = [
         'dist\\index.html',      // Windows-style
         'dist/vite.svg',         // Unix-style
-        'dist\\assets/app.js'    // Mixed style
+        'dist\\assets/app'    // Mixed style
       ];
 
       const result = optimizeDeployPaths(mixedPaths, { flatten: true });
@@ -168,7 +168,7 @@ describe('Path Handling Cross-Environment Integration', () => {
       expect(paths).toEqual([
         'index.html',
         'vite.svg',
-        'assets/app.js'
+        'assets/app'
       ]);
 
       // Should not contain any backslashes
