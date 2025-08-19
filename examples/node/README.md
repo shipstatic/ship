@@ -16,7 +16,7 @@ This example demonstrates how to use the Ship SDK for deploying files and folder
 
 1. **Set up the example:**
    ```sh
-   # Install dependencies (creates a symlink to the local SDK)
+   # Install dependencies (uses workspace Ship SDK)
    pnpm install
    ```
 
@@ -25,8 +25,9 @@ This example demonstrates how to use the Ship SDK for deploying files and folder
    - Environment variables: `SHIP_API_KEY=ship-your-key` or `SHIP_DEPLOY_TOKEN=token-your-token`, and optionally `SHIP_API_URL`
    - Config files: `.shiprc` or `package.json` (ship property) in project directory
    - Direct constructor options: `new Ship({ apiKey: 'ship-your-key' })` or `new Ship({ deployToken: 'token-your-token' })`
-   - API keys must start with `ship-` and be 69 characters total
-   - Deploy tokens must start with `token-` and be 70 characters total
+   - API keys must start with `ship-` and are 69 characters total
+   - Deploy tokens must start with `token-` and are 70 characters total
+   - For reCAPTCHA-based deployments, see `web/` examples for token fetching patterns
 
 3. **Run the example:**
    ```sh
@@ -47,7 +48,7 @@ This example demonstrates how to use the Ship SDK for deploying files and folder
 - The SDK provides a modern, class-based `Ship` API:
 
   ```js
-  const { Ship } = require('@shipstatic/ship');
+  const Ship = require('@shipstatic/ship');
   const ship = new Ship(); // Auto-loads config from environment/files
   
   // Deploy using resource-based API

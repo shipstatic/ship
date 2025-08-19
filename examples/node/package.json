@@ -5,6 +5,6 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@shipstatic/ship": "^0.1.8"
+    "@shipstatic/ship": "workspace:*"
   }
 }
