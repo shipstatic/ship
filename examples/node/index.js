@@ -4,7 +4,7 @@
 // - Uses the same core concepts as the browser example
 
 // Import the Ship SDK using CommonJS require syntax
-// Using the package name (@shipstatic/ship) which points to our local package via workspace
+// Using the package name (@shipstatic/ship) which points to the published package
 const Ship = require('@shipstatic/ship');
 
 // Set up a simple command-line argument parser for directory to deploy
