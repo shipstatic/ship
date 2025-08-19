@@ -16,7 +16,7 @@ This example demonstrates how to use the Ship SDK for deploying files and folder
 
 1. **Set up the example:**
    ```sh
-   # Install dependencies (uses workspace Ship SDK)
+   # Install dependencies (uses published Ship SDK)
    pnpm install
    ```
 
