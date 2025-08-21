@@ -29,13 +29,13 @@ describe('Browser File Processing', () => {
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
         path: 'index.html',
-        content: expect.any(ArrayBuffer),
+        content: expect.any(File),
         size: expect.any(Number),
         md5: 'mock-browser-hash'
       });
       expect(result[1]).toEqual({
         path: 'style.css',
-        content: expect.any(ArrayBuffer),
+        content: expect.any(File),
         size: expect.any(Number),
         md5: 'mock-browser-hash'
       });
@@ -79,8 +79,8 @@ describe('Browser File Processing', () => {
       expect(result[0].path).toBe('test.html');
       expect(result[0].size).toBe(testContent.length);
       
-      // Verify content is preserved as ArrayBuffer
-      expect(result[0].content).toBeInstanceOf(ArrayBuffer);
+      // Verify content is preserved as File (impossible simplicity!)
+      expect(result[0].content).toBeInstanceOf(File);
     });
 
     it('should handle files with special characters in names', async () => {
@@ -147,7 +147,7 @@ describe('Browser File Processing', () => {
       expect(result).toHaveLength(1);
       expect(result[0].path).toBe('large-file.bin');
       expect(result[0].size).toBe(5 * 1024 * 1024);
-      expect(result[0].content).toBeInstanceOf(ArrayBuffer);
+      expect(result[0].content).toBeInstanceOf(File);
     });
 
     it('should handle files with Unicode names', async () => {
@@ -183,7 +183,7 @@ describe('Browser File Processing', () => {
       expect(result).toHaveLength(3);
       result.forEach(file => {
         expect(file.size).toBe(0);
-        expect(file.content).toBeInstanceOf(ArrayBuffer);
+        expect(file.content).toBeInstanceOf(File);
       });
     });
 
@@ -221,7 +221,7 @@ describe('Browser File Processing', () => {
       const result = await processFilesForBrowser([fileFromBlob, fileFromBuffer, fileFromString], {});
 
       expect(result).toHaveLength(3);
-      expect(result.every(f => f.content instanceof ArrayBuffer)).toBe(true);
+      expect(result.every(f => f.content instanceof File)).toBe(true);
     });
 
     it('should handle files with webkitRelativePath', async () => {
@@ -327,15 +327,15 @@ describe('Browser File Processing', () => {
       __setTestEnvironment('browser');
     });
 
-    it('should handle ArrayBuffer conversion edge cases', async () => {
-      // Test with various ArrayBuffer-like objects
+    it('should handle File preservation edge cases', async () => {
+      // Test that Files are kept as Files (impossible simplicity!)
       const typedArray = new Uint8Array([72, 101, 108, 108, 111]); // "Hello"
       const fileFromTypedArray = new File([typedArray], 'typed-array.bin');
 
       const result = await processFilesForBrowser([fileFromTypedArray], {});
 
       expect(result).toHaveLength(1);
-      expect(result[0].content).toBeInstanceOf(ArrayBuffer);
+      expect(result[0].content).toBeInstanceOf(File);
       expect(result[0].size).toBe(5);
     });
   });

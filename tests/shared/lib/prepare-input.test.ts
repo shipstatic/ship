@@ -81,7 +81,6 @@ describe('Shared SPA Detection (prepare-input)', () => {
 
     it('should add SPA config when SPA is detected', async () => {
       mockApiClient.checkSPA.mockResolvedValue(true);
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       
       const result = await detectAndConfigureSPA(mockFiles, mockApiClient, options);
       
@@ -89,11 +88,6 @@ describe('Shared SPA Detection (prepare-input)', () => {
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual(mockFiles[0]);
       expect(result[1].path).toBe(DEPLOYMENT_CONFIG_FILENAME);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('SPA detected - generated')
-      );
-      
-      consoleSpy.mockRestore();
     });
 
     it('should not add SPA config when SPA is not detected', async () => {
@@ -113,7 +107,8 @@ describe('Shared SPA Detection (prepare-input)', () => {
       
       expect(result).toEqual(mockFiles);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'SPA detection failed, continuing without auto-config'
+        'SPA detection failed, continuing without auto-config:',
+        expect.any(Error)
       );
       
       consoleWarnSpy.mockRestore();

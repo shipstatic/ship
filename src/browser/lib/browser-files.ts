@@ -77,18 +77,9 @@ export async function processFilesForBrowser(
     // Calculate MD5 hash
     const { md5 } = await calculateMD5(fileInfo.file);
     
-    // Convert File content to ArrayBuffer for consistent interface
-    // Use a FileReader approach that works in both real browsers and jsdom
-    const content = await new Promise<ArrayBuffer>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as ArrayBuffer);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsArrayBuffer(fileInfo.file);
-    });
-    
-    // Create and add the StaticFile
+    // Create and add the StaticFile - keep File as File (impossible simplicity!)
     result.push({
-      content: content as any, // ArrayBuffer is compatible with Blob at runtime
+      content: fileInfo.file,
       path: fileInfo.relativePath,
       size: fileInfo.file.size,
       md5,
