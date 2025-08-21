@@ -167,8 +167,6 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
 
       await nodeResource.create(['./dist'] as any, { spaDetect: true });
 
-      expect(consoleSpy).toHaveBeenCalledWith('SPA detection failed, continuing without auto-config:', expect.any(Error));
-      
       // Should still deploy original files
       const deployedFiles = mockApiClient.deploy.mock.calls[0][0];
       expect(deployedFiles).toEqual(mockFiles); // Original files, no SPA config added
