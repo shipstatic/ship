@@ -6,7 +6,7 @@ The most minimal CLI application demonstrating Ship SDK usage.
 
 ```bash
 # Install CLI globally
-cd ship && pnpm link --global
+cd ship && npm link
 
 # Deploy current directory
 ship .
