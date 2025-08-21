@@ -6,10 +6,10 @@ The most minimal vanilla JavaScript application demonstrating Ship SDK usage.
 
 ```bash
 # Copy SDK build
-pnpm run copy
+npm run copy
 
 # Start development server
-pnpm start
+npm start
 ```
 
 ## Usage

@@ -6,19 +6,16 @@ The most minimal Node.js application demonstrating Ship SDK usage.
 
 ```bash
 # Install dependencies
-pnpm install
-
-# Deploy current directory
-pnpm start
+npm install
 
 # Deploy specific directory
-pnpm start /path/to/directory
+npm start /path/to/directory
 ```
 
 ## Usage
 
 1. Configure your API key in `index.js`
-2. Run `pnpm start` to deploy
+2. Run `npm start` to deploy
 3. See deployment progress and URL in console output
 
 ## Code
