@@ -50,10 +50,10 @@ describe('CLI Pure Functions', () => {
     it('success should format message correctly in non-JSON mode', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       
-      success('deployment created', false);
+      success('deployment created ✨', false);
       
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('deployment created')
+        expect.stringContaining('deployment created ✨')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('\n') // Should end with newline
@@ -65,13 +65,13 @@ describe('CLI Pure Functions', () => {
     it('success should format message correctly in JSON mode', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       
-      success('deployment created', true);
+      success('deployment created ✨', true);
       
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('"success"')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('"deployment created"')
+        expect.stringContaining('"deployment created ✨"')
       );
       
       consoleSpy.mockRestore();
