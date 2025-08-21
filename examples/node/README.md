@@ -1,94 +1,55 @@
-# Ship SDK – Node.js Example
+# Ship SDK - Node.js Example
 
-This example demonstrates how to use the Ship SDK for deploying files and folders from a Node.js environment. It showcases the modern resource-based API with automatic configuration loading and comprehensive error handling.
+The most minimal Node.js application demonstrating Ship SDK usage.
 
-## Features
-- **Zero configuration**: Automatic config loading from environment/files
-- **Optimized bundle size**: 16KB Node.js bundle
-- **Modern class-based API**: `new Ship()` with resource methods
-- **Clean terminal UX:**
-  - Real-time progress percentage
-  - Colored error messaging
-  - Clear success/failure status
-- **Automatic file discovery**: Smart directory traversal and path handling
+## Quick Start
 
-## How to Use
+```bash
+# Install dependencies
+pnpm install
 
-1. **Set up the example:**
-   ```sh
-   # Install dependencies (uses published Ship SDK)
-   pnpm install
-   ```
+# Deploy current directory
+pnpm start
 
-2. **Configure authentication:**
-   The SDK automatically loads configuration from (in priority order):
-   - Environment variables: `SHIP_API_KEY=ship-your-key` or `SHIP_DEPLOY_TOKEN=token-your-token`, and optionally `SHIP_API_URL`
-   - Config files: `.shiprc` or `package.json` (ship property) in project directory
-   - Direct constructor options: `new Ship({ apiKey: 'ship-your-key' })` or `new Ship({ deployToken: 'token-your-token' })`
-   - API keys must start with `ship-` and are 69 characters total
-   - Deploy tokens must start with `token-` and are 70 characters total
-   - For reCAPTCHA-based deployments, see `web/` examples for token fetching patterns
+# Deploy specific directory
+pnpm start /path/to/directory
+```
 
-3. **Run the example:**
-   ```sh
-   # Deploy the current directory
-   pnpm start
-   
-   # Deploy a specific directory
-   pnpm start /path/to/directory
-   ```
+## Usage
 
-## File Overview
+1. Configure your API key in `index.js`
+2. Run `pnpm start` to deploy
+3. See deployment progress and URL in console output
 
-- `index.js` – Example usage of the Ship SDK in Node.js
-- `package.json` – Dependencies and scripts configuration
+## Code
 
-## Customizing
-- You can adapt the terminal output or integrate the deploy logic into your own app.
-- The SDK provides a modern, class-based `Ship` API:
+Just 24 lines of Node.js code showing Ship SDK integration:
 
-  ```js
-  const Ship = require('@shipstatic/ship');
-  const ship = new Ship(); // Auto-loads config from environment/files
+```javascript
+const Ship = require('@shipstatic/ship');
+
+async function deploy() {
+  const directoryToDeploy = process.argv[2] || '.';
   
-  // Deploy using resource-based API
-  const result = await ship.deployments.create([directory], { 
-    // Path optimization is enabled by default (flattens common directories)
-    // To preserve directory structure: pathDetect: false
-    // SPA detection is also enabled by default (auto-generates ship.json)
-    // To disable SPA detection: spaDetect: false
-    onProgress: (progress) => console.log(`${progress}%`)
+  const ship = new Ship({
+    // apiKey: 'ship-your-key-here'
   });
-  ```
-- See comments in `index.js` for complete implementation details.
 
-## Example Output
+  console.log('Deploying...');
 
+  try {
+    const result = await ship.deployments.create([directoryToDeploy], {
+      onProgress: (progress) => {
+        console.log(`Deploy progress: ${Math.round(progress)}%`);
+      }
+    });
+    console.log(`Deployed: ${result.url}`);
+  } catch (error) {
+    console.log(`Error: ${error.message}`);
+  }
+}
+
+deploy();
 ```
-Initializing Ship client...
-Ship client initialized successfully
-Deploying directory: ./my-website...
-Deploy progress: 100%
 
-Deploy successful!
-Your site is deployed at: https://your-deployment-id.shipstatic.dev
-Deployment ID: your-deployment-id
-Files deployed: 42
-Status: success
-```
-
-## Implementation Details
-
-- Automatically optimizes file paths by flattening common directories (default behavior)
-- Use `pathDetect: false` option if you want to preserve directory structure
-- Automatically detects SPAs and generates ship.json configuration (default behavior)
-- Use `spaDetect: false` option to disable SPA detection
-- Demonstrates proper async/await pattern with comprehensive error handling
-- Shows real-time progress tracking with `onProgress` callback
-- Implements clean error handling for both initialization and deploy errors
-- Uses modern resource-based API (`ship.deployments.create()`) for consistency
-- Automatic configuration loading with fallback hierarchy
-
----
-
-**For advanced usage or troubleshooting, see the main Ship SDK documentation.**
+That's it! Minimal Node.js code with simple console logging - no complex setup, no elaborate error handling.

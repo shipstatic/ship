@@ -132,7 +132,7 @@ export class ApiHttp {
     const fetchOptions: RequestInit = {
       ...options,
       headers,
-      credentials: getENV() === 'browser' ? 'include' : 'same-origin',
+      // No credentials needed - we use Bearer token authentication via headers
     };
 
     try {
@@ -319,11 +319,13 @@ export class ApiHttp {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       let fileContent: File | Blob;
+      
       if (file.content instanceof File || file.content instanceof Blob) {
         fileContent = file.content;
       } else {
         throw ShipError.file(`Unsupported file.content type for browser FormData: ${file.path}`, file.path);
       }
+      
       const contentType = getBrowserContentType(fileContent instanceof File ? fileContent : file.path);
       const fileWithPath = new File([fileContent], file.path, { type: contentType });
       formData.append('files[]', fileWithPath);
@@ -581,7 +583,8 @@ export class ApiHttp {
     }
     
     let indexContent: string;
-    if (Buffer.isBuffer(indexFile.content)) {
+    // Check for Buffer in Node.js environment first (Buffer is not available in browser)
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(indexFile.content)) {
       indexContent = indexFile.content.toString('utf-8');
     } else if (typeof Blob !== 'undefined' && indexFile.content instanceof Blob) {
       indexContent = await indexFile.content.text();

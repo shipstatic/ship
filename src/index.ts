@@ -7,8 +7,6 @@
  * For browser environments, import from '@shipstatic/ship/browser' instead.
  */
 
-// Export everything from Node.js implementation
+// Re-export everything from the Node.js index, including both named and default exports
 export * from './node/index.js';
-
-// Re-export default export explicitly (export * doesn't re-export defaults)
 export { default } from './node/index.js';
