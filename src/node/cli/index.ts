@@ -358,7 +358,7 @@ const formatters = {
   deployment: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
     // Show success message for create operations only
     if (result.status && context?.operation === 'create') {
-      success(`${result.deployment} deployment created`, isJson, noColor);
+      success(`${result.deployment} deployment created ✨`, isJson, noColor);
     }
     console.log(formatDetails(result, noColor));
   },

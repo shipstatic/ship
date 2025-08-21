@@ -71,7 +71,7 @@ export async function detectAndConfigureSPA(
       return [...files, spaConfig];
     }
   } catch (error) {
-    console.warn('SPA detection failed, continuing without auto-config:', error);
+    // SPA detection failed, continue silently without auto-config
   }
   
   return files;

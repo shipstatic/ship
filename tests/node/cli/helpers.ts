@@ -123,7 +123,7 @@ export function parseJsonOutput(output: string): any {
  */
 export function extractDeploymentId(output: string): string {
   const cleanOutput = output.replace(/\u001b\[[0-9;]*m/g, '');
-  const match = cleanOutput.match(/([a-z0-9-]+)\s+deployment created/);
+  const match = cleanOutput.match(/([a-z0-9-]+)\s+deployment created ✨/);
   if (!match) throw new Error(`Could not extract deployment ID from: ${output}`);
   return match[1];
 }

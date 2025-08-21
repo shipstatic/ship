@@ -43,8 +43,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     splitting: false,
     clean: true,
     external: nodeExternals,
-    minify: tsupOptions.watch ? false : true,
-    cjsInterop: true, // Try this with our manual interop
+    minify: tsupOptions.watch ? false : true
   },
   // 2. Browser SDK (ESM, browser entry, with polyfills/shims)
   {

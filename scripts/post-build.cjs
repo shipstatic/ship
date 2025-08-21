@@ -33,7 +33,34 @@ module.exports = pt;
   // Replace the axios-style export to work with the new structure
   const newAxiosStyleExport = `
 // Ship SDK: Enable axios-style CommonJS imports
-module.exports.default = module.exports;
+const originalExports = module.exports;
+const OriginalShip = originalExports.Ship;
+module.exports = OriginalShip;
+Object.assign(module.exports, {
+  Ship: OriginalShip,
+  default: OriginalShip,
+  ApiHttp: originalExports.ApiHttp,
+  ShipError: originalExports.ShipError,
+  ShipErrorType: originalExports.ShipErrorType,
+  DEFAULT_API: originalExports.DEFAULT_API,
+  getENV: originalExports.getENV,
+  loadConfig: originalExports.loadConfig,
+  calculateMD5: originalExports.calculateMD5,
+  filterJunk: originalExports.filterJunk,
+  optimizeDeployPaths: originalExports.optimizeDeployPaths,
+  pluralize: originalExports.pluralize,
+  processFilesForNode: originalExports.processFilesForNode,
+  resolveConfig: originalExports.resolveConfig,
+  mergeDeployOptions: originalExports.mergeDeployOptions,
+  setConfig: originalExports.setConfig,
+  getCurrentConfig: originalExports.getCurrentConfig,
+  createAccountResource: originalExports.createAccountResource,
+  createAliasResource: originalExports.createAliasResource,
+  createDeploymentResource: originalExports.createDeploymentResource,
+  createKeysResource: originalExports.createKeysResource,
+  __setTestEnvironment: originalExports.__setTestEnvironment,
+  JUNK_DIRECTORIES: originalExports.JUNK_DIRECTORIES
+});
 `;
 
   content = content.replace(finalExportPattern, `p(ee,y,module.exports);${newAxiosStyleExport}`);

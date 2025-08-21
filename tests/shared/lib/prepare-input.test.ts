@@ -101,17 +101,10 @@ describe('Shared SPA Detection (prepare-input)', () => {
 
     it('should handle SPA detection API errors gracefully', async () => {
       mockApiClient.checkSPA.mockRejectedValue(new Error('API Error'));
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       
       const result = await detectAndConfigureSPA(mockFiles, mockApiClient, options);
       
       expect(result).toEqual(mockFiles);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'SPA detection failed, continuing without auto-config:',
-        expect.any(Error)
-      );
-      
-      consoleWarnSpy.mockRestore();
     });
   });
 });
