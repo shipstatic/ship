@@ -12,7 +12,7 @@ A modern, lightweight SDK and CLI for deploying static files, designed for both 
 - **📊 Progress Tracking**: Real-time deployment progress and statistics
 - **⚡ Cancellable**: AbortSignal support for deployment cancellation
 - **🛠️ CLI Ready**: Command-line interface for automation and CI/CD
-- **📦 Bundle Optimized**: Lightweight builds (16KB Node, 275KB Browser)
+- **📦 Bundle Optimized**: Lightweight builds (21KB Node, 185KB Browser)
 - **🎯 Unified Error System**: Consistent `ShipError` handling across all components
 
 ## Installation
@@ -29,12 +29,36 @@ npm install -g @shipstatic/ship
 npm install @shipstatic/ship
 ```
 
+## Import Patterns
+
+### Default Import (Main Class)
+```javascript
+// ES Modules
+import Ship from '@shipstatic/ship';
+
+// CommonJS  
+const Ship = require('@shipstatic/ship');
+```
+
+### Named Imports (Utilities)
+```javascript
+// ES Modules
+import { ShipError } from '@shipstatic/ship';
+
+// CommonJS
+const { ShipError } = require('@shipstatic/ship');
+```
+
 ## Quick Start
 
 ### SDK Usage
 
-```typescript
-import { Ship } from '@shipstatic/ship';
+```javascript
+// ES Modules
+import Ship from '@shipstatic/ship';
+
+// CommonJS
+const Ship = require('@shipstatic/ship');
 
 // Authenticated deployments with API key
 const ship = new Ship({
@@ -112,6 +136,7 @@ const ship = new Ship(options?: ShipOptions)
 #### Options
 
 ```typescript
+// TypeScript types available for both import styles
 interface ShipOptions {
   apiUrl?: string;        // API endpoint (default: https://api.shipstatic.com)
   apiKey?: string;        // API key: ship- prefix + 64-char hex (69 chars total)
@@ -177,8 +202,12 @@ interface DeployOptions {
 
 #### Node.js File Deployment
 
-```typescript
-import { Ship } from '@shipstatic/ship';
+```javascript
+// ES Modules
+import Ship from '@shipstatic/ship';
+
+// CommonJS  
+const Ship = require('@shipstatic/ship');
 
 const ship = new Ship({
   apiUrl: 'https://api.shipstatic.com',
@@ -202,8 +231,11 @@ console.log(`✅ Deployed: ${result.deployment}`);
 
 #### Browser File Upload
 
-```typescript
-import { Ship } from '@shipstatic/ship';
+```javascript
+// ES Modules
+import Ship from '@shipstatic/ship';
+
+// Browser (ES Modules only)
 
 const ship = new Ship({
   apiUrl: 'https://api.shipstatic.com',
@@ -227,8 +259,12 @@ const result2 = await ship.deployments.create(files);
 
 The Ship SDK uses a unified error system with a single `ShipError` class:
 
-```typescript
+```javascript
+// ES Modules
 import { ShipError } from '@shipstatic/ship';
+
+// CommonJS
+const { ShipError } = require('@shipstatic/ship');
 
 try {
   await ship.deployments.create(['./dist']);
@@ -378,9 +414,9 @@ ship account            # Get account details
 ## Bundle Sizes
 
 **Optimized for production:**
-- **Node.js**: 16KB (ESM), 17KB (CJS)
-- **Browser**: 275KB (ESM with dependencies)
-- **CLI**: 25KB (CJS)
+- **Node.js**: 21KB (ESM), 21KB (CJS)
+- **Browser**: 185KB (ESM with dependencies)
+- **CLI**: 38KB (CJS)
 
 **Recent Optimizations:**
 - ✅ **Unified error system** - Single `ShipError` class for all components
@@ -395,6 +431,7 @@ ship account            # Get account details
 Full TypeScript support with exported types from shared `@shipstatic/types`:
 
 ```typescript
+// TypeScript - works with both import styles
 import type { 
   ShipOptions,
   NodeDeployInput,
@@ -421,17 +458,23 @@ import type {
 ### Codebase Organization
 ```
 src/
-├── core/                    # Cross-cutting concerns
-│   ├── config.ts           # Configuration loading and merging
-│   └── constants.ts        # Platform constants and defaults
-├── lib/                    # Utility libraries (renamed from utils/)
-│   ├── env.js              # Environment detection
-│   ├── node-files.ts       # Node.js file system operations
-│   ├── prepare-input.ts    # Input preparation (renamed from input-conversion.ts)
-│   └── path.ts             # Path utilities (renamed from path-helpers.ts)
-├── cli.ts                  # CLI implementation (moved from cli/index.ts)
-├── index.ts                # Main SDK exports
-└── types.ts                # All SDK types (consolidated from types/)
+├── browser/                 # Browser-specific implementations
+│   ├── core/               # Browser configuration and setup
+│   ├── index.ts           # Browser SDK exports
+│   └── lib/               # Browser file handling
+├── node/                   # Node.js-specific implementations
+│   ├── cli/               # CLI command implementations
+│   ├── completions/       # Shell completion scripts
+│   ├── core/              # Node.js configuration and file handling
+│   └── index.ts           # Node.js SDK exports
+├── shared/                 # Cross-platform shared code
+│   ├── api/               # HTTP client and API communication
+│   ├── base-ship.ts       # Base Ship class implementation
+│   ├── core/              # Configuration and constants
+│   ├── lib/               # Utility libraries
+│   ├── resources.ts       # Resource implementations
+│   └── types.ts           # Shared type definitions
+└── index.ts               # Main SDK exports with environment detection
 
 ### File Processing Pipeline
 **Node.js:**
@@ -470,6 +513,7 @@ This is an **unlaunched project** optimized for modern development:
 - ✅ **Streamlined Multipart**: `files[]` array + JSON checksums format
 - ✅ **Direct Validation**: Functions throw errors instead of returning results
 - ✅ **Shared DTOs**: All types from `@shipstatic/types` package
+- ✅ **Tree-shakeable**: `"sideEffects": false` for optimal bundling
 - ✅ **Impossible Simplicity**: Maximum functionality with minimal complexity
 - 🎯 No legacy compatibility constraints
 - 🔧 Native fetch API for optimal performance
@@ -499,7 +543,7 @@ pnpm build && pnpm test --run
 - **Node.js tests**: Filesystem and path manipulation
 - **Error tests**: Unified error handling patterns
 
-**Current Status:** 264 tests passing ✅
+**Current Status:** 566 tests passing (596 total) ✅
 
 ## Contributing
 

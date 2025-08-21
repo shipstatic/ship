@@ -44,6 +44,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     clean: true,
     external: nodeExternals,
     minify: tsupOptions.watch ? false : true,
+    cjsInterop: true, // Try this with our manual interop
   },
   // 2. Browser SDK (ESM, browser entry, with polyfills/shims)
   {

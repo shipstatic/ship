@@ -22,13 +22,24 @@ export async function createSPAConfig(): Promise<StaticFile> {
     }]
   };
   
-  const content = Buffer.from(JSON.stringify(config, null, 2), 'utf-8');
+  const configString = JSON.stringify(config, null, 2);
+  
+  // Create content that works in both browser and Node.js environments
+  let content: Buffer | Blob;
+  if (typeof Buffer !== 'undefined') {
+    // Node.js environment
+    content = Buffer.from(configString, 'utf-8');
+  } else {
+    // Browser environment
+    content = new Blob([configString], { type: 'application/json' });
+  }
+  
   const { md5 } = await calculateMD5(content);
   
   return {
     path: DEPLOYMENT_CONFIG_FILENAME,
     content,
-    size: content.length,
+    size: configString.length,
     md5
   };
 }
@@ -57,11 +68,10 @@ export async function detectAndConfigureSPA(
     
     if (isSPA) {
       const spaConfig = await createSPAConfig();
-      console.log(`SPA detected - generated ${DEPLOYMENT_CONFIG_FILENAME}`);
       return [...files, spaConfig];
     }
   } catch (error) {
-    console.warn('SPA detection failed, continuing without auto-config');
+    console.warn('SPA detection failed, continuing without auto-config:', error);
   }
   
   return files;
