@@ -6,10 +6,10 @@ The most minimal React application demonstrating Ship SDK usage.
 
 ```bash
 # Install dependencies
-pnpm install
+npm install
 
 # Start development server
-pnpm start
+npm start
 ```
 
 ## Usage
