@@ -53,7 +53,10 @@ export class Ship extends BaseShip {
       const loadedConfig = await loadConfig(this.clientOptions.configFile);
       // Re-resolve and re-create the http client with the full config
       const finalConfig = resolveConfig(this.clientOptions, loadedConfig);
-      this.http = new ApiHttp({ ...this.clientOptions, ...finalConfig });
+      
+      // Replace HTTP client while preserving event listeners (clean intentional API)
+      const newClient = new ApiHttp({ ...this.clientOptions, ...finalConfig });
+      this.replaceHttpClient(newClient);
       
       const platformConfig = await this.http.getConfig();
       setConfig(platformConfig);
