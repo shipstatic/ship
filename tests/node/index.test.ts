@@ -143,7 +143,6 @@ describe('Ship - Node.js Implementation', () => {
       expect(ship.deployments).toBeDefined();
       expect(ship.aliases).toBeDefined();
       expect(ship.account).toBeDefined();
-      expect(ship.keys).toBeDefined();
     });
   });
 

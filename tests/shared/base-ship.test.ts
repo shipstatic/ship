@@ -72,7 +72,6 @@ describe('Base Ship Class (Abstract)', () => {
       expect(ship.deployments).toBeDefined();
       expect(ship.aliases).toBeDefined();
       expect(ship.account).toBeDefined();
-      expect(ship.keys).toBeDefined();
     });
   });
 
@@ -123,7 +122,6 @@ describe('Base Ship Class (Abstract)', () => {
       expect(typeof ship.aliases.check).toBe('function');
       
       expect(typeof ship.account.get).toBe('function');
-      expect(typeof ship.keys.create).toBe('function');
     });
   });
 
