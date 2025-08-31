@@ -3,74 +3,43 @@ const path = require('path');
 
 /**
  * Post-build script for Ship SDK CommonJS exports
- * 
+ *
  * Transforms the tsup-generated CommonJS bundle to support axios-style imports:
  * - `const Ship = require('@shipstatic/ship')` returns the Ship constructor
  * - Named exports are available as properties: Ship.ShipError, Ship.getENV, etc.
  * - Maintains ESM compatibility with Ship.default
  */
-
 const cjsFilePath = path.resolve(__dirname, '../dist/index.cjs');
 
 try {
   let content = fs.readFileSync(cjsFilePath, 'utf-8');
 
-  // Define the axios-style export transformation
+  // This block modifies module.exports to achieve the desired import style.
+  // It's appended to the file, making it independent of the build tool's internal output.
   const axiosStyleExport = `
 // Ship SDK: Enable axios-style CommonJS imports
-pt.default = pt;
-module.exports = pt;
-`;
-
-  // Find where the final export is done and apply the transformation
-  // The new pattern is p(ee,y,module.exports); - we want to add our axios-style export after this
-  const finalExportPattern = /p\(ee,y,module\.exports\);/;
-  
-  if (!finalExportPattern.test(content)) {
-    throw new Error("Build output structure has changed. Please update the post-build script.");
-  }
-
-  // Replace the axios-style export to work with the new structure
-  const newAxiosStyleExport = `
-// Ship SDK: Enable axios-style CommonJS imports
 const originalExports = module.exports;
-const OriginalShip = originalExports.Ship;
-module.exports = OriginalShip;
-Object.assign(module.exports, {
-  Ship: OriginalShip,
-  default: OriginalShip,
-  ApiHttp: originalExports.ApiHttp,
-  ShipError: originalExports.ShipError,
-  ShipErrorType: originalExports.ShipErrorType,
-  DEFAULT_API: originalExports.DEFAULT_API,
-  getENV: originalExports.getENV,
-  loadConfig: originalExports.loadConfig,
-  calculateMD5: originalExports.calculateMD5,
-  filterJunk: originalExports.filterJunk,
-  optimizeDeployPaths: originalExports.optimizeDeployPaths,
-  pluralize: originalExports.pluralize,
-  processFilesForNode: originalExports.processFilesForNode,
-  resolveConfig: originalExports.resolveConfig,
-  mergeDeployOptions: originalExports.mergeDeployOptions,
-  setConfig: originalExports.setConfig,
-  getCurrentConfig: originalExports.getCurrentConfig,
-  createAccountResource: originalExports.createAccountResource,
-  createAliasResource: originalExports.createAliasResource,
-  createDeploymentResource: originalExports.createDeploymentResource,
-  createKeysResource: originalExports.createKeysResource,
-  __setTestEnvironment: originalExports.__setTestEnvironment,
-  JUNK_DIRECTORIES: originalExports.JUNK_DIRECTORIES
-});
+if (originalExports && originalExports.Ship) {
+  const Ship = originalExports.Ship;
+  module.exports = Ship;
+  // Re-assign all original exports as properties of the main export,
+  // and add a 'default' property for ESM compatibility.
+  Object.assign(module.exports, originalExports, { default: Ship });
+}
 `;
 
-  content = content.replace(finalExportPattern, `p(ee,y,module.exports);${newAxiosStyleExport}`);
-  
-  // Ensure sourcemap comment stays at the end
+  // Find and temporarily remove the source map comment to ensure it stays at the end.
   const sourceMapPattern = /(\s*\/\/# sourceMappingURL=.*)$/;
   const sourceMapMatch = content.match(sourceMapPattern);
+  const sourceMapComment = sourceMapMatch ? sourceMapMatch[0] : '';
+
   if (sourceMapMatch) {
-    const sourceMapComment = sourceMapMatch[1];
-    content = content.replace(sourceMapPattern, '').trimEnd();
+    content = content.replace(sourceMapPattern, '');
+  }
+
+  // Append the transformation logic and then re-append the source map comment.
+  content += `\n${axiosStyleExport}`;
+  if (sourceMapComment) {
     content += sourceMapComment;
   }
 
