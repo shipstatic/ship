@@ -11,8 +11,7 @@ import type {
   DeployInput,
   DeploymentResource,
   AliasResource,
-  AccountResource,
-  KeysResource
+  AccountResource
 } from '@shipstatic/types';
 import type { ApiHttp } from './api/http.js';
 import type { ShipClientOptions, DeploymentOptions } from './types.js';
@@ -122,15 +121,3 @@ export function createAccountResource(getApi: () => ApiHttp, ensureInit?: () => 
   };
 }
 
-// =============================================================================
-// KEYS RESOURCE
-// =============================================================================
-
-export function createKeysResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): KeysResource {
-  return {
-    create: async () => {
-      if (ensureInit) await ensureInit();
-      return getApi().createApiKey();
-    }
-  };
-}

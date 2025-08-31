@@ -47,12 +47,10 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       expect(nodeShip.deployments).toBeDefined();
       expect(nodeShip.aliases).toBeDefined();
       expect(nodeShip.account).toBeDefined();
-      expect(nodeShip.keys).toBeDefined();
 
       expect(browserShip.deployments).toBeDefined();
       expect(browserShip.aliases).toBeDefined();
       expect(browserShip.account).toBeDefined();
-      expect(browserShip.keys).toBeDefined();
 
       // Both should have identical convenience methods
       expect(typeof nodeShip.deploy).toBe('function');

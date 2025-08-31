@@ -11,15 +11,13 @@ import type { Deployment } from '@shipstatic/types';
 import { 
   createDeploymentResource, 
   createAliasResource, 
-  createAccountResource, 
-  createKeysResource,
+  createAccountResource,
   type DeployInput
 } from './resources.js';
 import type { 
   DeploymentResource, 
   AliasResource, 
-  AccountResource, 
-  KeysResource
+  AccountResource
 } from '@shipstatic/types';
 
 import type { StaticFile } from '@shipstatic/types';
@@ -40,7 +38,6 @@ export abstract class Ship {
   protected _deployments: DeploymentResource;
   protected _aliases: AliasResource;
   protected _account: AccountResource;
-  protected _keys: KeysResource;
 
   constructor(options: ShipClientOptions = {}) {
     this.clientOptions = options;
@@ -62,7 +59,6 @@ export abstract class Ship {
     );
     this._aliases = createAliasResource(getApi, initCallback);
     this._account = createAccountResource(getApi, initCallback);
-    this._keys = createKeysResource(getApi, initCallback);
   }
 
   // Abstract methods that environments must implement
@@ -123,10 +119,4 @@ export abstract class Ship {
     return this._account;
   }
   
-  /**
-   * Get keys resource
-   */
-  get keys(): KeysResource {
-    return this._keys;
-  }
 }
