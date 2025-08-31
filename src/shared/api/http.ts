@@ -564,14 +564,6 @@ export class ApiHttp {
   }
 
   /**
-   * Creates a new API key for the authenticated user
-   * @returns Promise resolving to the new API key
-   */
-  public async createApiKey(): Promise<{ apiKey: string }> {
-    return await this.#request<{ apiKey: string }>(`${this.apiUrl}/key`, { method: 'POST' }, 'Create API Key');
-  }
-
-  /**
    * Checks if files represent a SPA structure using AI analysis
    * @param files - Array of StaticFile objects to analyze
    * @returns Promise resolving to boolean indicating if it's a SPA

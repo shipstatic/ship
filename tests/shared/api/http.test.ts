@@ -246,26 +246,6 @@ describe('ApiHttp', () => {
     });
   });
 
-  describe('createApiKey', () => {
-    it('should create new API key', async () => {
-      const mockApiKey = { apiKey: 'ship-new-key-123' };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockApiKey));
-
-      const result = await apiHttp.createApiKey();
-
-      expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/key',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
-      );
-      expect(result).toEqual(mockApiKey);
-    });
-  });
-
   describe('checkSPA', () => {
     it('should return false when no index.html file present', async () => {
       const mockFiles = [

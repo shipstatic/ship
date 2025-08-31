@@ -204,7 +204,6 @@ describe('Authentication Flow Cross-Environment Validation', () => {
         expect(ship.deployments).toBeDefined();
         expect(ship.aliases).toBeDefined();
         expect(ship.account).toBeDefined();
-        expect(ship.keys).toBeDefined();
         
         // Test resource method availability
         expect(typeof ship.deployments.list).toBe('function');
