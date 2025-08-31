@@ -57,8 +57,7 @@ describe('AccountResource', () => {
           name: 'Paid User',
           picture: 'https://example.com/avatar.jpg',
           plan: 'active' as const,
-          created: 1234567890,
-          subscribed: 1234567900
+          created: 1234567890
         }
       ];
       

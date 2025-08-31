@@ -37,8 +37,7 @@ const mockAccount: Account = {
   name: 'Test User',
   picture: 'https://example.com/avatar.jpg',
   plan: 'free',
-  created: 1640995000,
-  subscribed: 1640995000
+  created: 1640995000
 };
 
 let server: Server | null = null;
