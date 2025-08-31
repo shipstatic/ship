@@ -1,5 +1,5 @@
 /**
- * @file All Ship SDK resources in one place - impossibly simple.
+ * @file Ship SDK resource implementations for deployments, aliases, and accounts.
  */
 import type { 
   Deployment, 

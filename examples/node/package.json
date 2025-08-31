@@ -5,7 +5,7 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@shipstatic/ship": "^0.2.2",
-    "@shipstatic/types": "^0.2.1"
+    "@shipstatic/ship": "^0.2.4",
+    "@shipstatic/types": "^0.2.3"
   }
 }

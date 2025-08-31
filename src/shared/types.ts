@@ -105,6 +105,23 @@ export interface ShipClientOptions {
   timeout?: number | undefined;
 }
 
+// =============================================================================
+// EVENTS
+// =============================================================================
+
+/**
+ * Event map for Ship SDK events
+ * Core events for observability: request, response, error
+ */
+export interface ShipEvents extends Record<string, any[]> {
+  /** Emitted before each API request */
+  request: [url: string, init: RequestInit];
+  /** Emitted after successful API response */
+  response: [response: Response, url: string];
+  /** Emitted when API request fails */
+  error: [error: Error, url: string];
+}
+
 // StaticFile is now imported from @shipstatic/types
 
 // =============================================================================

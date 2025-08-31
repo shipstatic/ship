@@ -4,7 +4,7 @@
 
 import { ApiHttp } from './api/http.js';
 import { ShipError } from '@shipstatic/types';
-import type { ShipClientOptions } from './types.js';
+import type { ShipClientOptions, ShipEvents } from './types.js';
 import type { Deployment } from '@shipstatic/types';
 
 // Resource imports
@@ -117,6 +117,41 @@ export abstract class Ship {
    */
   get account(): AccountResource {
     return this._account;
+  }
+
+  /**
+   * Add event listener
+   * @param event - Event name
+   * @param handler - Event handler function
+   */
+  on<K extends keyof ShipEvents>(event: K, handler: (...args: ShipEvents[K]) => void): void {
+    this.http.on(event, handler);
+  }
+
+  /**
+   * Remove event listener
+   * @param event - Event name
+   * @param handler - Event handler function
+   */
+  off<K extends keyof ShipEvents>(event: K, handler: (...args: ShipEvents[K]) => void): void {
+    this.http.off(event, handler);
+  }
+
+  /**
+   * Replace HTTP client while preserving event listeners
+   * Used during initialization to maintain user event subscriptions
+   * @protected
+   */
+  protected replaceHttpClient(newClient: ApiHttp): void {
+    if (this.http?.transferEventsTo) {
+      try {
+        this.http.transferEventsTo(newClient);
+      } catch (error) {
+        // Event transfer failed - log but continue (better than crashing initialization)
+        console.warn('Event transfer failed during client replacement:', error);
+      }
+    }
+    this.http = newClient;
   }
   
 }
