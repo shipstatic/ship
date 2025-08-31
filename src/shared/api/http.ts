@@ -132,8 +132,15 @@ export class ApiHttp {
     const fetchOptions: RequestInit = {
       ...options,
       headers,
-      // No credentials needed - we use Bearer token authentication via headers
     };
+
+    // If no apiKey, deployToken, or Authorization header is provided, attempt to use cookie-based authentication
+    const hasInstanceCredentials = !!(this.apiKey || this.deployToken);
+    const hasAuthorizationHeader = !!(headers as any)?.Authorization;
+    
+    if (!hasInstanceCredentials && !hasAuthorizationHeader) {
+      fetchOptions.credentials = 'include';
+    }
 
     try {
       const response = await fetch(url, fetchOptions);
