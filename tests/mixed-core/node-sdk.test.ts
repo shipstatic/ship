@@ -327,23 +327,43 @@ describe('NodeShipClient', () => {
     
     it('should validate total upload size during processing', async () => {
       const { ShipError } = await import('@shipstatic/types');
-      
+
       // Setup the mock to throw an error for total size
       fileUtilsMock.processFilesForNode.mockImplementationOnce(() => {
         throw ShipError.business(`Total upload size is too large. Maximum allowed is 25MB.`);
       });
-      
+
       // Call upload with multiple files that collectively exceed the size limit
       await expect(client.deployments.create([
-        '/path/to/file1.txt', 
-        '/path/to/file2.txt', 
-        '/path/to/file3.txt', 
-        '/path/to/file4.txt', 
+        '/path/to/file1.txt',
+        '/path/to/file2.txt',
+        '/path/to/file3.txt',
+        '/path/to/file4.txt',
         '/path/to/file5.txt'
       ], {})).rejects.toThrow(
         ShipError.business(`Total upload size is too large. Maximum allowed is 25MB.`)
       );
     });
-    
+
+    it('should pass tags option to deploy in Node.js environment', async () => {
+      const tags = ['production', 'v2.1.0', 'staging'];
+      const filePaths = ['/path/to/app.js', '/path/to/index.html'];
+
+      fileUtilsMock.processFilesForNode.mockResolvedValueOnce([
+        { path: 'app.js', content: Buffer.from('console.log("hello")'), md5: 'abc123', size: 20 },
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'def456', size: 13 }
+      ]);
+
+      await client.deployments.create(filePaths, { tags });
+
+      // Verify tags are passed through to the HTTP layer
+      expect(apiClientMock.deploy).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          tags: ['production', 'v2.1.0', 'staging']
+        })
+      );
+    });
+
   });
 });
