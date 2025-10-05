@@ -43,9 +43,14 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
     delete testEnv.NODE_ENV;
     
     // Only set environment variables if not explicitly testing CLI validation
+    // and if they're not already set via options.env
     if (!hasApiKey && !hasApiUrl) {
-      testEnv.SHIP_API_URL = 'http://localhost:3000';
-      testEnv.SHIP_API_KEY = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+      if (!testEnv.SHIP_API_URL) {
+        testEnv.SHIP_API_URL = 'http://localhost:3000';
+      }
+      if (!testEnv.SHIP_API_KEY) {
+        testEnv.SHIP_API_KEY = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+      }
     }
     
     // Add the --api-key flag to ensure explicit authentication (69 chars: ship- + 64 hex chars)

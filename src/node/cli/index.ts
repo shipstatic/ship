@@ -141,7 +141,8 @@ function collect(value: string, previous: string[] = []): string[] {
  */
 function processOptions(command: any): any {
   // Use Commander's built-in option merging - much simpler!
-  const options = command.opts();
+  // Use optsWithGlobals() to get both command-level and global options
+  const options = command.optsWithGlobals ? command.optsWithGlobals() : command.opts();
   
   // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
   if (options.color === false) {
