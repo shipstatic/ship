@@ -6,7 +6,7 @@
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { processFilesForNode } from '@/node/core/node-files';
-import { setConfig } from '@/node/core/platform-config';
+import { setConfig } from '@/shared/core/platform-config';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';

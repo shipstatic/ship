@@ -36,11 +36,13 @@ async function deploy() {
 
   try {
     const result = await ship.deployments.create([directoryToDeploy], {
+      tags: ['production', 'v1.0.0'],
       onProgress: (progress) => {
         console.log(`Deploy progress: ${Math.round(progress)}%`);
       }
     });
     console.log(`Deployed: ${result.url}`);
+    console.log(`Tags: ${result.tags?.join(', ') || 'none'}`);
   } catch (error) {
     console.log(`Error: ${error.message}`);
   }

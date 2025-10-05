@@ -200,15 +200,15 @@ export class ApiHttp extends SimpleEvents {
   async deploy(files: StaticFile[], options: ApiDeployOptions = {}): Promise<Deployment> {
     this.validateFiles(files);
 
-    const { requestBody, requestHeaders } = await this.prepareRequestPayload(files);
-    
+    const { requestBody, requestHeaders } = await this.prepareRequestPayload(files, options.tags);
+
     let authHeaders = {};
     if (options.deployToken) {
       authHeaders = { 'Authorization': `Bearer ${options.deployToken}` };
     } else if (options.apiKey) {
       authHeaders = { 'Authorization': `Bearer ${options.apiKey}` };
     }
-    
+
     const fetchOptions: RequestInit = {
       method: 'POST',
       body: requestBody,
@@ -231,11 +231,16 @@ export class ApiHttp extends SimpleEvents {
     await this.request<DeploymentRemoveResponse>(`${this.apiUrl}${DEPLOY_ENDPOINT}/${id}`, { method: 'DELETE' }, 'Remove Deployment');
   }
 
-  async setAlias(name: string, deployment: string): Promise<Alias> {
+  async setAlias(name: string, deployment: string, tags?: string[]): Promise<Alias> {
+    const requestBody: { deployment: string; tags?: string[] } = { deployment };
+    if (tags && tags.length > 0) {
+      requestBody.tags = tags;
+    }
+
     const options: RequestInit = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deployment })
+      body: JSON.stringify(requestBody)
     };
     
     const headers = this.getAuthHeaders(options.headers as Record<string, string>);
@@ -287,8 +292,20 @@ export class ApiHttp extends SimpleEvents {
     await this.request<void>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'DELETE' }, 'Remove Alias');
   }
 
-  async checkAlias(name: string): Promise<{ message: string }> {
-    return await this.request<{ message: string }>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}/dns-check`, { method: 'POST' }, 'Check Alias');
+  async confirmAlias(name: string): Promise<{ message: string }> {
+    return await this.request<{ message: string }>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}/confirm`, { method: 'POST' }, 'Confirm Alias');
+  }
+
+  async getAliasDns(name: string): Promise<{ alias: string; dns: any }> {
+    return await this.request<{ alias: string; dns: any }>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}/dns`, { method: 'GET' }, 'Get Alias DNS');
+  }
+
+  async getAliasRecords(name: string): Promise<{ alias: string; records: any[] }> {
+    return await this.request<{ alias: string; records: any[] }>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}/records`, { method: 'GET' }, 'Get Alias Records');
+  }
+
+  async getAliasShare(name: string): Promise<{ alias: string; hash: string }> {
+    return await this.request<{ alias: string; hash: string }>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}/share`, { method: 'GET' }, 'Get Alias Share');
   }
 
   async getAccount(): Promise<Account> {
@@ -344,43 +361,48 @@ export class ApiHttp extends SimpleEvents {
     }
   }
 
-  private async prepareRequestPayload(files: StaticFile[]): Promise<{
+  private async prepareRequestPayload(files: StaticFile[], tags?: string[]): Promise<{
     requestBody: FormData | ArrayBuffer;
     requestHeaders: Record<string, string>;
   }> {
     if (getENV() === 'browser') {
-      return { requestBody: this.createBrowserBody(files), requestHeaders: {} };
+      return { requestBody: this.createBrowserBody(files, tags), requestHeaders: {} };
     } else if (getENV() === 'node') {
-      const { body, headers } = await this.createNodeBody(files);
-      return { 
+      const { body, headers } = await this.createNodeBody(files, tags);
+      return {
         requestBody: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer,
-        requestHeaders: headers 
+        requestHeaders: headers
       };
     } else {
       throw ShipError.business('Unknown or unsupported execution environment');
     }
   }
 
-  private createBrowserBody(files: StaticFile[]): FormData {
+  private createBrowserBody(files: StaticFile[], tags?: string[]): FormData {
     const formData = new FormData();
     const checksums: string[] = [];
-    
+
     for (const file of files) {
       if (!(file.content instanceof File || file.content instanceof Blob)) {
         throw ShipError.file(`Unsupported file.content type for browser FormData: ${file.path}`, file.path);
       }
-      
+
       const contentType = this.getBrowserContentType(file.content instanceof File ? file.content : file.path);
       const fileWithPath = new File([file.content], file.path, { type: contentType });
       formData.append('files[]', fileWithPath);
       checksums.push(file.md5!);
     }
-    
+
     formData.append('checksums', JSON.stringify(checksums));
+
+    if (tags && tags.length > 0) {
+      formData.append('tags', JSON.stringify(tags));
+    }
+
     return formData;
   }
 
-  private async createNodeBody(files: StaticFile[]): Promise<{body: Buffer, headers: Record<string, string>}> {
+  private async createNodeBody(files: StaticFile[], tags?: string[]): Promise<{body: Buffer, headers: Record<string, string>}> {
     const { FormData: FormDataClass, File: FileClass } = await import('formdata-node');
     const { FormDataEncoder } = await import('form-data-encoder');
     const formData = new FormDataClass();
@@ -388,7 +410,7 @@ export class ApiHttp extends SimpleEvents {
 
     for (const file of files) {
       const contentType = _mime.lookup(file.path) || 'application/octet-stream';
-      
+
       let fileInstance;
       if (Buffer.isBuffer(file.content)) {
         fileInstance = new FileClass([file.content], file.path, { type: contentType });
@@ -397,13 +419,17 @@ export class ApiHttp extends SimpleEvents {
       } else {
         throw ShipError.file(`Unsupported file.content type for Node.js FormData: ${file.path}`, file.path);
       }
-      
+
       const preservedPath = file.path.startsWith('/') ? file.path : '/' + file.path;
       formData.append('files[]', fileInstance, preservedPath);
       checksums.push(file.md5!);
     }
 
     formData.append('checksums', JSON.stringify(checksums));
+
+    if (tags && tags.length > 0) {
+      formData.append('tags', JSON.stringify(tags));
+    }
 
     const encoder = new FormDataEncoder(formData);
     const chunks = [];
@@ -412,8 +438,8 @@ export class ApiHttp extends SimpleEvents {
     }
     const body = Buffer.concat(chunks);
 
-    return { 
-      body, 
+    return {
+      body,
       headers: {
         'Content-Type': encoder.contentType,
         'Content-Length': Buffer.byteLength(body).toString()

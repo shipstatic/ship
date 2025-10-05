@@ -7,13 +7,13 @@ describe('AliasResource', () => {
   let aliases: AliasResource;
 
   beforeEach(() => {
-    // Mock the ApiHttp client with the new methods
+    // Mock the ApiHttp client
     mockApi = {
       setAlias: vi.fn(),
       getAlias: vi.fn(),
       listAliases: vi.fn(),
       removeAlias: vi.fn(),
-      checkAlias: vi.fn(),
+      confirmAlias: vi.fn(),
       deploy: vi.fn(),
       ping: vi.fn()
     } as unknown as ApiHttp;
@@ -25,10 +25,10 @@ describe('AliasResource', () => {
     it('should call api.setAlias and return the alias directly (no double API call)', async () => {
       const mockSetResponse = { alias: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev', isCreate: true };
       (mockApi.setAlias as any).mockResolvedValue(mockSetResponse);
-      
+
       const result = await aliases.set('staging', 'abc123');
-      
-      expect(mockApi.setAlias).toHaveBeenCalledWith('staging', 'abc123');
+
+      expect(mockApi.setAlias).toHaveBeenCalledWith('staging', 'abc123', undefined);
       expect(mockApi.getAlias).not.toHaveBeenCalled(); // Should NOT make a second API call
       expect(result).toEqual(mockSetResponse);
     });
@@ -36,11 +36,22 @@ describe('AliasResource', () => {
     it('should handle different deployment and alias combinations', async () => {
       const mockSetResponse = { alias: 'production', deployment: 'def456', url: 'https://production.statichost.dev', isCreate: false };
       (mockApi.setAlias as any).mockResolvedValue(mockSetResponse);
-      
+
       const result = await aliases.set('production', 'def456');
-      
-      expect(mockApi.setAlias).toHaveBeenCalledWith('production', 'def456');
+
+      expect(mockApi.setAlias).toHaveBeenCalledWith('production', 'def456', undefined);
       expect(mockApi.getAlias).not.toHaveBeenCalled(); // Should NOT make a second API call
+      expect(result).toEqual(mockSetResponse);
+    });
+
+    it('should pass tags to api.setAlias when provided', async () => {
+      const tags = ['production', 'v1.0.0'];
+      const mockSetResponse = { alias: 'prod', deployment: 'xyz789', url: 'https://prod.statichost.dev', tags, isCreate: true };
+      (mockApi.setAlias as any).mockResolvedValue(mockSetResponse);
+
+      const result = await aliases.set('prod', 'xyz789', tags);
+
+      expect(mockApi.setAlias).toHaveBeenCalledWith('prod', 'xyz789', tags);
       expect(result).toEqual(mockSetResponse);
     });
   });
@@ -96,24 +107,24 @@ describe('AliasResource', () => {
     });
   });
 
-  describe('check', () => {
-    it('should call api.checkAlias with correct parameter', async () => {
-      const mockResponse = { message: 'DNS check queued successfully' };
-      (mockApi.checkAlias as any).mockResolvedValue(mockResponse);
-      
-      const result = await aliases.check('example.com');
-      
-      expect(mockApi.checkAlias).toHaveBeenCalledWith('example.com');
+  describe('confirm', () => {
+    it('should call api.confirmAlias with correct parameter', async () => {
+      const mockResponse = { message: 'DNS confirmation queued successfully' };
+      (mockApi.confirmAlias as any).mockResolvedValue(mockResponse);
+
+      const result = await aliases.confirm('example.com');
+
+      expect(mockApi.confirmAlias).toHaveBeenCalledWith('example.com');
       expect(result).toEqual(mockResponse);
     });
 
-    it('should handle different alias names for DNS check', async () => {
-      const mockResponse = { message: 'DNS check queued successfully' };
-      (mockApi.checkAlias as any).mockResolvedValue(mockResponse);
-      
-      const result = await aliases.check('api.mysite.com');
-      
-      expect(mockApi.checkAlias).toHaveBeenCalledWith('api.mysite.com');
+    it('should handle different alias names for DNS confirmation', async () => {
+      const mockResponse = { message: 'DNS confirmation queued successfully' };
+      (mockApi.confirmAlias as any).mockResolvedValue(mockResponse);
+
+      const result = await aliases.confirm('api.mysite.com');
+
+      expect(mockApi.confirmAlias).toHaveBeenCalledWith('api.mysite.com');
       expect(result).toEqual(mockResponse);
     });
   });
@@ -125,7 +136,7 @@ describe('AliasResource', () => {
       expect(typeof aliases.get).toBe('function');
       expect(typeof aliases.list).toBe('function');
       expect(typeof aliases.remove).toBe('function');
-      expect(typeof aliases.check).toBe('function');
+      expect(typeof aliases.confirm).toBe('function');
     });
 
     it('should return promises from all methods', () => {
@@ -133,13 +144,14 @@ describe('AliasResource', () => {
       (mockApi.getAlias as any).mockResolvedValue({});
       (mockApi.listAliases as any).mockResolvedValue({});
       (mockApi.removeAlias as any).mockResolvedValue({});
-      (mockApi.checkAlias as any).mockResolvedValue({});
+      (mockApi.confirmAlias as any).mockResolvedValue({});
 
       expect(aliases.set('test', 'abc123')).toBeInstanceOf(Promise);
+      expect(aliases.set('test', 'abc123', ['tag1'])).toBeInstanceOf(Promise);
       expect(aliases.get('test')).toBeInstanceOf(Promise);
       expect(aliases.list()).toBeInstanceOf(Promise);
       expect(aliases.remove('test')).toBeInstanceOf(Promise);
-      expect(aliases.check('test')).toBeInstanceOf(Promise);
+      expect(aliases.confirm('test')).toBeInstanceOf(Promise);
     });
   });
 });

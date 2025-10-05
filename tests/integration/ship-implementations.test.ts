@@ -87,13 +87,13 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       expect(typeof nodeShip.aliases.get).toBe('function');
       expect(typeof nodeShip.aliases.list).toBe('function');
       expect(typeof nodeShip.aliases.remove).toBe('function');
-      expect(typeof nodeShip.aliases.check).toBe('function');
+      expect(typeof nodeShip.aliases.confirm).toBe('function');
 
       expect(typeof browserShip.aliases.set).toBe('function');
       expect(typeof browserShip.aliases.get).toBe('function');
       expect(typeof browserShip.aliases.list).toBe('function');
       expect(typeof browserShip.aliases.remove).toBe('function');
-      expect(typeof browserShip.aliases.check).toBe('function');
+      expect(typeof browserShip.aliases.confirm).toBe('function');
     });
   });
 
@@ -199,11 +199,12 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       // Mock HTTP clients
       (nodeShip as any).http = {
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({})
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       (browserShip as any).http = {
-        ping: vi.fn().mockResolvedValue(true)
+        ping: vi.fn().mockResolvedValue(true),
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       // Both should handle ping (which triggers initialization) successfully

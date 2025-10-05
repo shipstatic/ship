@@ -17,7 +17,7 @@ import {
 import { processFilesForNode } from '../../src/node/core/node-files'; // Import processFilesForNode for testing
 import { __setTestEnvironment } from '../../src/index';
 import { ShipError } from '@shipstatic/types';
-import { setConfig } from '../../src/node/core/platform-config';
+import { setConfig } from '../../src/shared/core/platform-config';
 
 // Mock API HTTP client
 const mockApiHttpInstance = {

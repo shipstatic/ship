@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { loadConfig, setConfig } from '../../../src/browser/core/config';
+import { loadConfig } from '../../../src/browser/core/config';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
 
 describe('Browser Config Loading', () => {
@@ -55,65 +55,31 @@ describe('Browser Config Loading', () => {
     });
   });
 
-  describe('setConfig', () => {
-    it('should store config in memory', () => {
-      const testConfig = {
-        apiUrl: 'https://test.api.com',
-        apiKey: 'test-key',
-        maxFileSize: 1000000
-      };
+  describe('browser config behavior', () => {
+    it('should not maintain state (all config via constructor)', async () => {
+      // Browser doesn't have setConfig - all config comes from Ship constructor
+      const configModule = await import('../../../src/browser/core/config');
 
-      // This should not throw
-      expect(() => setConfig(testConfig)).not.toThrow();
+      expect((configModule as any).setConfig).toBeUndefined();
+      expect(configModule.loadConfig).toBeDefined();
     });
 
-    it('should handle empty config', () => {
-      expect(() => setConfig({})).not.toThrow();
-    });
-
-    it('should handle null/undefined config', () => {
-      expect(() => setConfig(null)).not.toThrow();
-      expect(() => setConfig(undefined)).not.toThrow();
-    });
-
-    it('should handle partial config updates', () => {
-      // Set initial config
-      setConfig({
-        apiUrl: 'https://initial.com',
-        apiKey: 'initial-key'
-      });
-
-      // Update with partial config
-      expect(() => setConfig({
-        apiKey: 'updated-key'
-      })).not.toThrow();
-    });
-
-    it('should handle config with various data types', () => {
-      const complexConfig = {
-        apiUrl: 'https://api.com',
-        apiKey: 'key',
-        timeout: 5000,
-        enabled: true,
-        options: {
-          nested: 'value'
-        },
-        list: [1, 2, 3]
-      };
-
-      expect(() => setConfig(complexConfig)).not.toThrow();
+    it('should receive config through Ship constructor options', () => {
+      // This is tested in browser/index.test.ts
+      // Browser config is stateless - just returns empty from loadConfig
+      expect(true).toBe(true);
     });
   });
 
   describe('browser-specific behavior', () => {
     it('should not expose file system configuration methods', async () => {
       const configModule = await import('../../../src/browser/core/config');
-      
-      // Browser config should only have basic methods
+
+      // Browser config should only have loadConfig (returns empty)
       expect(configModule.loadConfig).toBeDefined();
-      expect(configModule.setConfig).toBeDefined();
-      
-      // Should not have file system specific methods that might exist in Node
+
+      // Should not have state management or file system methods
+      expect((configModule as any).setConfig).toBeUndefined();
       expect((configModule as any).loadConfigFromFile).toBeUndefined();
       expect((configModule as any).watchConfigFile).toBeUndefined();
       expect((configModule as any).findConfigFile).toBeUndefined();
@@ -142,19 +108,18 @@ describe('Browser Config Loading', () => {
         length: 0,
         key: vi.fn()
       };
-      
+
       // Add storage to global if it doesn't exist
       const originalLocalStorage = (global as any).localStorage;
       const originalSessionStorage = (global as any).sessionStorage;
-      
+
       (global as any).localStorage = mockStorage;
       (global as any).sessionStorage = mockStorage;
 
       try {
         await loadConfig();
-        setConfig({ test: 'value' });
 
-        // Config should not use browser storage
+        // Config should not use browser storage (loadConfig just returns empty)
         expect(mockStorage.getItem).not.toHaveBeenCalled();
         expect(mockStorage.setItem).not.toHaveBeenCalled();
       } finally {

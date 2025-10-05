@@ -7,7 +7,7 @@ import { ShipError } from '@shipstatic/types';
 import { getENV } from '../shared/lib/env.js';
 import { loadConfig } from './core/config.js';
 import { resolveConfig } from '../shared/core/config.js';
-import { setConfig } from './core/platform-config.js';
+import { setConfig } from '../shared/core/platform-config.js';
 import { ApiHttp } from '../shared/api/http.js';
 import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile } from '../shared/types.js';
 
@@ -107,7 +107,10 @@ export default Ship;
 
 // Node.js specific exports
 export { loadConfig } from './core/config.js';
-export { setConfig, getCurrentConfig } from './core/platform-config.js';
+export { setConfig as setPlatformConfig, getCurrentConfig } from '../shared/core/platform-config.js';
+
+// Backward compatibility - setConfig is an alias for setPlatformConfig
+export { setConfig } from '../shared/core/platform-config.js';
 
 // Node.js utilities
 export { processFilesForNode } from './core/node-files.js';

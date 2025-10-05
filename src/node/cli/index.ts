@@ -128,6 +128,14 @@ ${applyDim('Please report any issues to https://github.com/shipstatic/ship/issue
 }
 
 /**
+ * Collector function for Commander.js to accumulate repeated option values.
+ * Used for --tag flag that can be specified multiple times.
+ */
+function collect(value: string, previous: string[] = []): string[] {
+  return previous.concat([value]);
+}
+
+/**
  * Process CLI options using Commander's built-in option merging.
  * Applies CLI-specific transformations and validations.
  */
@@ -389,12 +397,17 @@ async function performDeploy(client: Ship, path: string, cmdOptions: any, comman
   }
   
   const deployOptions: any = {};
-  
+
+  // Handle tags option - Commander.js collect gives us an array directly
+  if (cmdOptions?.tag && cmdOptions.tag.length > 0) {
+    deployOptions.tags = cmdOptions.tag;
+  }
+
   // Handle path detection flag
   if (cmdOptions?.noPathDetect !== undefined) {
     deployOptions.pathDetect = !cmdOptions.noPathDetect;
   }
-  
+
   // Handle SPA detection flag
   if (cmdOptions?.noSpaDetect !== undefined) {
     deployOptions.spaDetect = !cmdOptions.noSpaDetect;
@@ -580,10 +593,11 @@ deploymentsCmd
 deploymentsCmd
   .command('create <path>')
   .description('Create deployment from file or directory')
+  .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(
-    function(this: any, client: Ship, path: string, cmdOptions: any) { 
+    function(this: any, client: Ship, path: string, cmdOptions: any) {
       return performDeploy(client, path, cmdOptions, this);
     },
     { operation: 'create' }
@@ -641,18 +655,23 @@ aliasesCmd
   ));
 
 aliasesCmd
-  .command('check <name>')
-  .description('Manually trigger DNS check for external alias')
+  .command('confirm <name>')
+  .description('Trigger DNS confirmation for external alias')
   .action(withErrorHandling(
-    (client, name: string) => client.aliases.check(name),
-    { operation: 'check', resourceType: 'Alias', getResourceId: (name: string) => name }
+    (client, name: string) => client.aliases.confirm(name),
+    { operation: 'confirm', resourceType: 'Alias', getResourceId: (name: string) => name }
   ));
 
 aliasesCmd
   .command('set <name> <deployment>')
   .description('Create or update alias pointing to deployment')
+  .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
   .action(withErrorHandling(
-    (client: Ship, name: string, deployment: string) => client.aliases.set(name, deployment),
+    (client: Ship, name: string, deployment: string, cmdOptions: any) => {
+      // Commander.js collect gives us an array directly
+      const tags = cmdOptions?.tag && cmdOptions.tag.length > 0 ? cmdOptions.tag : undefined;
+      return client.aliases.set(name, deployment, tags);
+    },
     { operation: 'set', resourceType: 'Alias', getResourceId: (name: string) => name }
   ));
 

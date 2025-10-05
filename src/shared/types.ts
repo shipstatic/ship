@@ -27,14 +27,16 @@ export interface DeploymentOptions {
   maxConcurrency?: number;
   /** Timeout in milliseconds for the deploy request. */
   timeout?: number;
-  /** API key for this specific deploy. Overrides client's default. */
+  /** API key for this specific deploy. Overrides client's default (format: ship-<64-char-hex>, total 69 chars). */
   apiKey?: string;
-  /** Deploy token for this specific deploy. Overrides client's default. */
+  /** Deploy token for this specific deploy. Overrides client's default (format: token-<64-char-hex>, total 70 chars). */
   deployToken?: string;
   /** Whether to auto-detect and optimize file paths by flattening common directories. Defaults to true. */
   pathDetect?: boolean;
   /** Whether to auto-detect SPAs and generate ship.json configuration. Defaults to true. */
   spaDetect?: boolean;
+  /** Optional array of tags for categorization and filtering (lowercase, alphanumeric with separators). */
+  tags?: string[];
   /** Callback for overall deploy progress (0-100). */
   onProgress?: (progress: number) => void;
   /** Callback for detailed progress statistics. */
@@ -76,9 +78,9 @@ export interface ProgressStats {
 export interface ShipClientOptions {
   /** Default API URL for the client instance. */
   apiUrl?: string | undefined;
-  /** API key for authenticated deployments. */
+  /** API key for authenticated deployments (format: ship-<64-char-hex>, total 69 chars). */
   apiKey?: string | undefined;
-  /** Deploy token for single-use deployments. */
+  /** Deploy token for single-use deployments (format: token-<64-char-hex>, total 70 chars). */
   deployToken?: string | undefined;
   /** Path to custom config file. */
   configFile?: string | undefined;

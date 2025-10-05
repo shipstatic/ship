@@ -3,23 +3,23 @@ import type { ConfigResponse } from '@shipstatic/types';
 import { ShipError } from '@shipstatic/types';
 
 // SUT (System Under Test) functions
-let setConfigUnderTest: typeof import('../../src/node/core/platform-config').setConfig;
-let getCurrentConfigUnderTest: typeof import('../../src/node/core/platform-config').getCurrentConfig;
-let isConfigInitializedUnderTest: typeof import('../../src/node/core/platform-config').isConfigInitialized;
-let resetConfigUnderTest: typeof import('../../src/node/core/platform-config').resetConfig;
+let setConfigUnderTest: typeof import('../../src/shared/core/platform-config').setConfig;
+let getCurrentConfigUnderTest: typeof import('../../src/shared/core/platform-config').getCurrentConfig;
+let isConfigInitializedUnderTest: typeof import('../../src/shared/core/platform-config').isConfigInitialized;
+let resetConfigUnderTest: typeof import('../../src/shared/core/platform-config').resetConfig;
 
 describe('Platform Config Module Tests', () => {
   beforeEach(async () => {
     // Reset modules to ensure clean state
     vi.resetModules();
-    
+
     // Import fresh instances for each test
-    const platformConfigModule = await import('../../src/node/core/platform-config');
+    const platformConfigModule = await import('../../src/shared/core/platform-config');
     setConfigUnderTest = platformConfigModule.setConfig;
     getCurrentConfigUnderTest = platformConfigModule.getCurrentConfig;
     isConfigInitializedUnderTest = platformConfigModule.isConfigInitialized;
     resetConfigUnderTest = platformConfigModule.resetConfig;
-    
+
     // Reset config state for each test
     resetConfigUnderTest();
   });

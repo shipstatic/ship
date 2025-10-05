@@ -9,7 +9,7 @@ function setStatus(text) {
 }
 
 const ship = new Ship({
-  // deployToken: 'token-your-deploy-token-here'
+  // deployToken: 'token-here'
 });
 
 deployButton?.addEventListener('click', async () => {

@@ -119,7 +119,7 @@ describe('Base Ship Class (Abstract)', () => {
       expect(typeof ship.aliases.get).toBe('function');
       expect(typeof ship.aliases.list).toBe('function');
       expect(typeof ship.aliases.remove).toBe('function');
-      expect(typeof ship.aliases.check).toBe('function');
+      expect(typeof ship.aliases.confirm).toBe('function');
       
       expect(typeof ship.account.get).toBe('function');
     });

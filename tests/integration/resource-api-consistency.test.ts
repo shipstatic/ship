@@ -188,7 +188,7 @@ describe('Resource API Cross-Environment Consistency', () => {
         expect(typeof aliasResource.set).toBe('function');
         expect(typeof aliasResource.get).toBe('function');
         expect(typeof aliasResource.remove).toBe('function');
-        expect(typeof aliasResource.check).toBe('function');
+        expect(typeof aliasResource.confirm).toBe('function');
 
         // Test method behavior
         const result = await aliasResource.list();
@@ -230,7 +230,7 @@ describe('Resource API Cross-Environment Consistency', () => {
       // Results should be identical
       expect(results[0]).toEqual(results[1]);
       expect(mockApiClient.setAlias).toHaveBeenCalledTimes(2);
-      expect(mockApiClient.setAlias).toHaveBeenCalledWith(aliasName, deployment);
+      expect(mockApiClient.setAlias).toHaveBeenCalledWith(aliasName, deployment, undefined);
     });
   });
 
