@@ -36,6 +36,11 @@ COMMANDS
   ship aliases check <name>             Manually trigger DNS check for external alias
   ship aliases remove <name>            Delete alias permanently
 
+  🔑 Tokens
+  ship tokens list                      List all deploy tokens
+  ship tokens create                    Create a new deploy token
+  ship tokens remove <token>            Delete token permanently
+
   🦸 Account
   ship whoami                           Get current account information
 
@@ -75,6 +80,56 @@ COMMANDS
   ship aliases get <name>               Show alias information
   ship aliases check <name>             Manually trigger DNS check for external alias
   ship aliases remove <name>            Delete alias permanently
+
+  🔑 Tokens
+  ship tokens list                      List all deploy tokens
+  ship tokens create                    Create a new deploy token
+  ship tokens remove <token>            Delete token permanently
+
+  🦸 Account
+  ship whoami                           Get current account information
+
+  🛠️  Completion
+  ship completion install               Install shell completion script
+  ship completion uninstall             Uninstall shell completion script
+
+FLAGS
+  --api-key <key>           API key for authenticated deployments
+  --deploy-token <token>    Deploy token for single-use deployments
+  --config <file>           Custom config file path
+  --no-path-detect          Disable automatic path optimization and flattening
+  --no-spa-detect           Disable automatic SPA detection and configuration
+  --no-color                Disable colored output
+  --json                    Output results in JSON format
+  --version                 Show version information
+
+Please report any issues to https://github.com/shipstatic/ship/issues
+
+"
+`;
+
+exports[`CLI Basics > Tokens Command Snapshots > tokens help should match expected structure 1`] = `
+"USAGE
+  ship <path>               🚀 Deploy static sites with simplicity
+
+COMMANDS
+  📦 Deployments
+  ship deployments list                 List all deployments
+  ship deployments create <path>        Create deployment from file or directory
+  ship deployments get <deployment>     Show deployment information
+  ship deployments remove <deployment>  Delete deployment permanently
+
+  🌎 Aliases
+  ship aliases list                     List all aliases
+  ship aliases set <name> <deployment>  Create or update alias pointing to deployment
+  ship aliases get <name>               Show alias information
+  ship aliases check <name>             Manually trigger DNS check for external alias
+  ship aliases remove <name>            Delete alias permanently
+
+  🔑 Tokens
+  ship tokens list                      List all deploy tokens
+  ship tokens create                    Create a new deploy token
+  ship tokens remove <token>            Delete token permanently
 
   🦸 Account
   ship whoami                           Get current account information

@@ -4,18 +4,20 @@
  */
 
 import * as _mime from 'mime-types';
-import type { 
-  Deployment, 
-  DeploymentListResponse, 
-  PingResponse, 
-  ConfigResponse, 
-  DeploymentRemoveResponse, 
-  Alias, 
-  AliasListResponse, 
-  Account, 
-  SPACheckRequest, 
+import type {
+  Deployment,
+  DeploymentListResponse,
+  PingResponse,
+  ConfigResponse,
+  DeploymentRemoveResponse,
+  Alias,
+  AliasListResponse,
+  Account,
+  SPACheckRequest,
   SPACheckResponse,
-  StaticFile
+  StaticFile,
+  TokenCreateResponse,
+  TokenListResponse
 } from '@shipstatic/types';
 import type { ApiDeployOptions, ShipClientOptions, ShipEvents } from '../types.js';
 import { ShipError, DEFAULT_API } from '@shipstatic/types';
@@ -28,6 +30,7 @@ const PING_ENDPOINT = '/ping';
 const ALIASES_ENDPOINT = '/aliases';
 const CONFIG_ENDPOINT = '/config';
 const ACCOUNT_ENDPOINT = '/account';
+const TOKENS_ENDPOINT = '/tokens';
 const SPA_CHECK_ENDPOINT = '/spa-check';
 
 /**
@@ -310,6 +313,42 @@ export class ApiHttp extends SimpleEvents {
 
   async getAccount(): Promise<Account> {
     return await this.request<Account>(`${this.apiUrl}${ACCOUNT_ENDPOINT}`, { method: 'GET' }, 'Get Account');
+  }
+
+  async createToken(ttl?: number, tags?: string[]): Promise<TokenCreateResponse> {
+    const requestBody: { ttl?: number; tags?: string[] } = {};
+    if (ttl !== undefined) {
+      requestBody.ttl = ttl;
+    }
+    if (tags && tags.length > 0) {
+      requestBody.tags = tags;
+    }
+
+    return await this.request<TokenCreateResponse>(
+      `${this.apiUrl}${TOKENS_ENDPOINT}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      },
+      'Create Token'
+    );
+  }
+
+  async listTokens(): Promise<TokenListResponse> {
+    return await this.request<TokenListResponse>(
+      `${this.apiUrl}${TOKENS_ENDPOINT}`,
+      { method: 'GET' },
+      'List Tokens'
+    );
+  }
+
+  async removeToken(token: string): Promise<void> {
+    await this.request<void>(
+      `${this.apiUrl}${TOKENS_ENDPOINT}/${encodeURIComponent(token)}`,
+      { method: 'DELETE' },
+      'Remove Token'
+    );
   }
 
   async checkSPA(files: StaticFile[]): Promise<boolean> {

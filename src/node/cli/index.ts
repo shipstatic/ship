@@ -104,6 +104,11 @@ ${applyBold('COMMANDS')}
   ship aliases check <name>             Manually trigger DNS check for external alias
   ship aliases remove <name>            Delete alias permanently
 
+  🔑 ${applyBold('Tokens')}
+  ship tokens list                      List all deploy tokens
+  ship tokens create                    Create a new deploy token
+  ship tokens remove <token>            Delete token permanently
+
   🦸 ${applyBold('Account')}
   ship whoami                           Get current account information
 
@@ -710,6 +715,55 @@ aliasesCmd
   .action(withErrorHandling(
     (client, name: string) => client.aliases.remove(name),
     { operation: 'remove', resourceType: 'Alias', getResourceId: (name: string) => name }
+  ));
+
+// Tokens commands
+const tokensCmd = program
+  .command('tokens')
+  .description('Manage deploy tokens')
+  .action((...args) => {
+    const globalOptions = processOptions(program);
+
+    // Get the command object (last argument)
+    const commandObj = args[args.length - 1];
+
+    // Check if an unknown subcommand was provided
+    if (commandObj && commandObj.args && commandObj.args.length > 0) {
+      const unknownArg = commandObj.args.find((arg: string) => !['list', 'create', 'remove'].includes(arg));
+      if (unknownArg) {
+        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
+      }
+    }
+
+    displayHelp(globalOptions.noColor);
+    process.exit(1);
+  });
+
+tokensCmd
+  .command('list')
+  .description('List all tokens')
+  .action(withErrorHandling((client) => client.tokens.list()));
+
+tokensCmd
+  .command('create')
+  .description('Create a new deploy token')
+  .option('--ttl <seconds>', 'Time to live in seconds (default: never expires)', parseInt)
+  .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
+  .action(withErrorHandling(
+    (client: Ship, cmdOptions: any) => {
+      const ttl = cmdOptions?.ttl;
+      const tags = cmdOptions?.tag && cmdOptions.tag.length > 0 ? cmdOptions.tag : undefined;
+      return client.tokens.create(ttl, tags);
+    },
+    { operation: 'create', resourceType: 'Token' }
+  ));
+
+tokensCmd
+  .command('remove <token>')
+  .description('Delete token permanently')
+  .action(withErrorHandling(
+    (client, token: string) => client.tokens.remove(token),
+    { operation: 'remove', resourceType: 'Token', getResourceId: (token: string) => token }
   ));
 
 // Account commands

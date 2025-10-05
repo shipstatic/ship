@@ -29,6 +29,50 @@ describe('CLI Commands', () => {
   });
 
 
+  describe('Tokens Commands', () => {
+    it('should handle tokens list command', async () => {
+      // Tokens list requires authentication - expect auth error without API key
+      const result = await runCli(['tokens', 'list'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      // Should fail with authentication error, not command error
+      expect(result.stderr).toContain('error');
+    });
+
+    it('should handle tokens create command', async () => {
+      // Tokens create requires authentication
+      const result = await runCli(['tokens', 'create'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('error');
+    });
+
+    it('should handle tokens create with --ttl flag', async () => {
+      // Tokens create with TTL requires authentication
+      const result = await runCli(['tokens', 'create', '--ttl', '3600'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('error');
+    });
+
+    it('should handle tokens create with --tag flag', async () => {
+      // Tokens create with tags requires authentication
+      const result = await runCli(['tokens', 'create', '--tag', 'production'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('error');
+    });
+
+    it('should handle tokens remove command', async () => {
+      // Tokens remove requires authentication
+      const result = await runCli(['tokens', 'remove', 'token-abc123'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('error');
+    });
+
+    it('should show tokens help', async () => {
+      const result = await runCli(['tokens', '--help']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('tokens');
+    });
+  });
+
   describe('Completion Commands', () => {
     it('should install bash completion', async () => {
       // Completion commands work without network

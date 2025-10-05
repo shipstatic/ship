@@ -102,6 +102,41 @@ describe('CLI Basics', () => {
     });
   });
 
+  describe('Tokens Command Snapshots', () => {
+    it('tokens help output should include all commands', async () => {
+      const result = await runCli(['tokens', '--help']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('tokens');
+      expect(result.stdout).toContain('list');
+      expect(result.stdout).toContain('create');
+      expect(result.stdout).toContain('remove');
+    });
+
+    it('tokens list should fail gracefully without auth', async () => {
+      const result = await runCli(['tokens', 'list'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('error');
+    });
+
+    it('tokens create should fail gracefully without auth', async () => {
+      const result = await runCli(['tokens', 'create'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('error');
+    });
+
+    it('tokens remove should fail gracefully without auth', async () => {
+      const result = await runCli(['tokens', 'remove', 'token-abc123'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('error');
+    });
+
+    it('tokens help should match expected structure', async () => {
+      const result = await runCli(['tokens', '--help']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toMatchSnapshot();
+    });
+  });
+
   describe('CLI Philosophy', () => {
     it('should embody impossible simplicity', () => {
       // The CLI design should be impossibly simple
@@ -113,11 +148,13 @@ describe('CLI Basics', () => {
       const helpResult = await runCli(['--help']);
       expect(helpResult.stdout).toContain('deployments');
       expect(helpResult.stdout).toContain('aliases');
+      expect(helpResult.stdout).toContain('tokens');
       expect(helpResult.stdout).toContain('account');
-      
+
       // Commands should be logical and predictable
       expect(helpResult.stdout).toContain('deployments');
       expect(helpResult.stdout).toContain('aliases');
+      expect(helpResult.stdout).toContain('tokens');
       expect(helpResult.stdout).toContain('account');
     });
   });
