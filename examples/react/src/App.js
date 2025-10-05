@@ -20,11 +20,12 @@ function App() {
 
     try {
       const result = await ship.deployments.create(files, {
+        tags: ['production', 'v1.0.0'],
         onProgress: (progress) => {
           setStatus(`Deploy progress: ${Math.round(progress)}%`);
         }
       });
-      setStatus(`Deployed: ${result.url}`);
+      setStatus(`Deployed: ${result.url}\nTags: ${result.tags?.join(', ') || 'none'}`);
     } catch (error) {
       setStatus(`Error: ${error.message}`);
     }

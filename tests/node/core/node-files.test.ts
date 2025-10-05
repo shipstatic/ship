@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processFilesForNode } from '../../../src/node/core/node-files';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
 import { ShipError, ShipErrorType } from '@shipstatic/types';
-import { setConfig } from '../../../src/node/core/platform-config';
+import { setConfig } from '../../../src/shared/core/platform-config';
 
 // Define mock implementations using vi.hoisted()
 const { MOCK_CALCULATE_MD5_FN } = vi.hoisted(() => ({ MOCK_CALCULATE_MD5_FN: vi.fn() }));

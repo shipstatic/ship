@@ -3,7 +3,7 @@
  */
 
 import { Ship as BaseShip } from '../shared/base-ship.js';
-import { setConfig } from './core/config.js';
+import { setConfig as setPlatformConfig } from '../shared/core/platform-config.js';
 import { resolveConfig } from '../shared/core/config.js';
 import { ApiHttp } from '../shared/api/http.js';
 import { ShipError } from '@shipstatic/types';
@@ -42,19 +42,10 @@ export class Ship extends BaseShip {
 
   protected async loadFullConfig(): Promise<void> {
     try {
-      // Load config from browser config (returns empty object)
-      const { loadConfig } = await import('./core/config.js');
-      const loadedConfig = await loadConfig(this.clientOptions.configFile);
-      
-      // Set browser config from constructor options
-      setConfig({
-        apiUrl: this.clientOptions.apiUrl,
-        deployToken: this.clientOptions.deployToken,
-        apiKey: this.clientOptions.apiKey
-      });
-      
-      // In browser, we skip platform config loading to avoid CORS issues
-      // The API client already has the apiUrl, so we're ready to use
+      // Browser receives all client config through constructor options (no file loading needed)
+      // Fetch platform configuration from API
+      const platformConfig = await this.http.getConfig();
+      setPlatformConfig(platformConfig);
     } catch (error) {
       // Reset initialization promise so it can be retried
       this.initPromise = null;
@@ -106,7 +97,8 @@ export class Ship extends BaseShip {
 export default Ship;
 
 // Browser specific exports
-export { loadConfig, setConfig } from './core/config.js';
+export { loadConfig } from './core/config.js';
+export { setConfig as setPlatformConfig, getCurrentConfig } from '../shared/core/platform-config.js';
 
 // Browser utilities
 export { processFilesForBrowser } from './lib/browser-files.js';

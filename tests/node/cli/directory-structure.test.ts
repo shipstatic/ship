@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { processFilesForNode } from '@/node/core/node-files';
-import { setConfig } from '@/node/core/platform-config';
+import { setConfig } from '@/shared/core/platform-config';
 
 describe('CLI Directory Structure Preservation', () => {
   let tempDir: string;

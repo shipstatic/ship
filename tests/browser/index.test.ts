@@ -12,9 +12,8 @@ vi.mock('../../src/browser/lib/browser-files', () => ({
   ])
 }));
 
-// Mock browser config
+// Mock browser config (browser only has loadConfig, no setConfig)
 vi.mock('../../src/browser/core/config', () => ({
-  setConfig: vi.fn(),
   loadConfig: vi.fn().mockResolvedValue({})
 }));
 
@@ -43,26 +42,26 @@ describe('Ship - Browser Implementation', () => {
   });
 
   describe('configuration handling', () => {
-    it('should use constructor options directly (no file loading)', async () => {
-      const ship = new Ship({ 
+    it('should use constructor options directly (no client config storage)', async () => {
+      const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://custom-api.com' 
+        apiUrl: 'https://custom-api.com'
       });
-      
+
       // Mock the HTTP client to avoid actual network calls
+      const getConfigSpy = vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 });
       (ship as any).http = {
-        ping: vi.fn().mockResolvedValue(true)
+        ping: vi.fn().mockResolvedValue(true),
+        getConfig: getConfigSpy
       };
 
       await ship.ping(); // This triggers initialization
 
-      // Verify that browser config was set with constructor options
-      const { setConfig } = await import('../../src/browser/core/config');
-      expect(setConfig).toHaveBeenCalledWith({
-        apiUrl: 'https://custom-api.com',
-        deployToken: 'token-xxxx',
-        apiKey: undefined
-      });
+      // Verify that platform config was fetched from API
+      expect(getConfigSpy).toHaveBeenCalled();
+
+      // Browser doesn't store client config - loadConfig just returns empty
+      // All config comes through constructor options
     });
   });
 
@@ -79,7 +78,8 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_browser_123',
           url: 'https://dep_browser_123.shipstatic.dev'
         }),
-        checkSPA: vi.fn().mockResolvedValue(false)
+        checkSPA: vi.fn().mockResolvedValue(false),
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       // Create mock File objects
@@ -108,7 +108,8 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_filelist_123',
           url: 'https://dep_filelist_123.shipstatic.dev'
         }),
-        checkSPA: vi.fn().mockResolvedValue(false)
+        checkSPA: vi.fn().mockResolvedValue(false),
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       // Create mock FileList
@@ -141,7 +142,8 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_spa_123',
           url: 'https://dep_spa_123.shipstatic.dev'
         }),
-        checkSPA: vi.fn().mockResolvedValue(true) // SPA detected
+        checkSPA: vi.fn().mockResolvedValue(true), // SPA detected
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const mockFiles = [
@@ -158,10 +160,13 @@ describe('Ship - Browser Implementation', () => {
   describe('exported utilities', () => {
     it('should export browser-specific utilities', async () => {
       const browserModule = await import('../../src/browser/index');
-      
+
       expect(browserModule.loadConfig).toBeDefined();
-      expect(browserModule.setConfig).toBeDefined();
+      expect(browserModule.setPlatformConfig).toBeDefined(); // Platform config, not client config
       expect(browserModule.processFilesForBrowser).toBeDefined();
+
+      // Should NOT export client config setConfig (dead code removed)
+      expect((browserModule as any).setConfig).toBeUndefined();
     });
 
     it('should re-export shared utilities', async () => {
@@ -188,22 +193,27 @@ describe('Ship - Browser Implementation', () => {
   });
 
   describe('browser-specific behavior', () => {
-    it('should not attempt to load config files (CORS protection)', async () => {
-      const ship = new Ship({ 
+    it('should receive all config via constructor (no file loading)', async () => {
+      const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.dev'
       });
-      
+
       // Mock the HTTP client
+      const getConfigSpy = vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 });
       (ship as any).http = {
-        ping: vi.fn().mockResolvedValue(true)
+        ping: vi.fn().mockResolvedValue(true),
+        getConfig: getConfigSpy
       };
 
       await ship.ping(); // This triggers initialization
 
-      // Verify that loadConfig was called but returned empty (no file access)
-      const { loadConfig } = await import('../../src/browser/core/config');
-      expect(loadConfig).toHaveBeenCalled();
+      // Browser loadFullConfig should only fetch platform config, not load client config files
+      expect(getConfigSpy).toHaveBeenCalled();
+
+      // loadConfig is available but not called during initialization (browser gets config from constructor)
+      const configModule = await import('../../src/browser/core/config');
+      expect(configModule.loadConfig).toBeDefined();
     });
   });
 
@@ -231,7 +241,8 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_input_123',
           url: 'https://dep_input_123.shipstatic.dev'
         }),
-        checkSPA: vi.fn().mockResolvedValue(false)
+        checkSPA: vi.fn().mockResolvedValue(false),
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       // Create mock HTMLInputElement with files
@@ -274,7 +285,8 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_options_123',
           url: 'https://dep_options_123.shipstatic.dev'
         }),
-        checkSPA: vi.fn().mockResolvedValue(false)
+        checkSPA: vi.fn().mockResolvedValue(false),
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const mockFiles = [new File(['test'], 'test.txt')];
@@ -304,7 +316,8 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_empty_123',
           url: 'https://dep_empty_123.shipstatic.dev'
         }),
-        checkSPA: vi.fn().mockResolvedValue(false)
+        checkSPA: vi.fn().mockResolvedValue(false),
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const emptyFileList = {
@@ -331,7 +344,8 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_mime_123',
           url: 'https://dep_mime_123.shipstatic.dev'
         }),
-        checkSPA: vi.fn().mockResolvedValue(false)
+        checkSPA: vi.fn().mockResolvedValue(false),
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const mockFiles = [
@@ -353,30 +367,42 @@ describe('Ship - Browser Implementation', () => {
 
   describe('standardized error handling', () => {
     it('should reject string paths with consistent error message', async () => {
-      const ship = new Ship({ 
+      const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.dev'
       });
+
+      (ship as any).http = {
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+      };
 
       await expect(ship.deploy('/path/to/file' as any))
         .rejects.toThrow('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
     });
 
     it('should reject Node.js-style string arrays with consistent error message', async () => {
-      const ship = new Ship({ 
+      const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.dev'
       });
+
+      (ship as any).http = {
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+      };
 
       await expect(ship.deploy(['./file1.html', './file2.css'] as any))
         .rejects.toThrow('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
     });
 
     it('should reject invalid object types with consistent error message', async () => {
-      const ship = new Ship({ 
+      const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.dev'
       });
+
+      (ship as any).http = {
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+      };
 
       await expect(ship.deploy({ invalid: 'object' } as any))
         .rejects.toThrow('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
@@ -391,7 +417,8 @@ describe('Ship - Browser Implementation', () => {
       // Mock network timeout
       (ship as any).http = {
         deploy: vi.fn().mockRejectedValue(new Error('Request timeout after 30000ms')),
-        checkSPA: vi.fn().mockResolvedValue(false)
+        checkSPA: vi.fn().mockResolvedValue(false),
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const mockFiles = [new File(['test'], 'test.html')];
@@ -409,7 +436,8 @@ describe('Ship - Browser Implementation', () => {
       // Mock API error
       (ship as any).http = {
         deploy: vi.fn().mockRejectedValue(new Error('API key is invalid')),
-        checkSPA: vi.fn().mockResolvedValue(false)
+        checkSPA: vi.fn().mockResolvedValue(false),
+        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const mockFiles = [new File(['test'], 'test.html')];

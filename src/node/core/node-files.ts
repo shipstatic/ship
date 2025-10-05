@@ -7,7 +7,7 @@ import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
 import { filterJunk } from '../../shared/lib/junk.js';
 import { ShipError } from '@shipstatic/types';
-import { getCurrentConfig } from './platform-config.js';
+import { getCurrentConfig } from '../../shared/core/platform-config.js';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
 import { findCommonParent } from '../../shared/lib/path.js';
 
