@@ -187,21 +187,25 @@ describe('Environment Switching Cross-Platform Validation', () => {
   });
 
   describe('Configuration Environment Isolation', () => {
-    it('should isolate browser and node configurations', async () => {
-      // Set browser config
+    it('should use shared platform configuration across environments', async () => {
+      // Both browser and node now use the same shared platform-config module
       __setTestEnvironment('browser');
-      const { setConfig: setBrowserConfig } = await import('../../src/browser/core/config');
-      setBrowserConfig({ apiUrl: 'https://browser-api.com' });
-      
-      // Set node config
+      const { setConfig: setPlatformConfig } = await import('../../src/shared/core/platform-config');
+
+      const testConfig = {
+        maxFileSize: 10 * 1024 * 1024,
+        maxFilesCount: 1000,
+        maxTotalSize: 100 * 1024 * 1024,
+      };
+
+      setPlatformConfig(testConfig);
+
+      // Switch to node environment - should still access the same shared config
       __setTestEnvironment('node');
-      const { setConfig: setNodeConfig } = await import('../../src/node/core/platform-config');
-      setNodeConfig({ apiUrl: 'https://node-api.com' });
-      
-      // Configs should be isolated (this depends on implementation)
-      // Each environment should maintain its own config state
-      expect(() => setBrowserConfig({ test: 'value' })).not.toThrow();
-      expect(() => setNodeConfig({ test: 'value' })).not.toThrow();
+      const { getCurrentConfig } = await import('../../src/shared/core/platform-config');
+
+      // Platform config is shared across environments
+      expect(getCurrentConfig()).toEqual(testConfig);
     });
 
     it('should handle config loading consistently across environment switches', async () => {

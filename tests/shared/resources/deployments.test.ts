@@ -80,6 +80,71 @@ describe('Deployment Resource (Unified Architecture)', () => {
       });
     });
 
+    it('should pass tags option to API deploy call', async () => {
+      const mockInput = ['./dist'];
+      const tags = ['production', 'v1.0.0'];
+      const options: DeploymentOptions = { tags };
+
+      (mockApiHttp.deploy as any).mockResolvedValue({
+        id: 'dep_456',
+        url: 'https://dep_456.shipstatic.dev',
+        files: [],
+        tags
+      });
+
+      const result = await deploymentResource.create(mockInput as any, options);
+
+      // Verify tags were passed through the pipeline
+      expect(mockApiHttp.deploy).toHaveBeenCalled();
+      const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
+      const deployOptions = deployCallArgs[1];
+      expect(deployOptions.tags).toEqual(tags);
+      expect(result.tags).toEqual(tags);
+    });
+
+    it('should handle deployment with multiple tags', async () => {
+      const mockInput = ['./dist'];
+      const tags = ['production', 'v2.0.0', 'stable', 'release-2024'];
+      const options: DeploymentOptions = { tags };
+
+      (mockApiHttp.deploy as any).mockResolvedValue({
+        id: 'dep_789',
+        url: 'https://dep_789.shipstatic.dev',
+        files: [],
+        tags
+      });
+
+      const result = await deploymentResource.create(mockInput as any, options);
+
+      const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
+      const deployOptions = deployCallArgs[1];
+      expect(deployOptions.tags).toEqual(tags);
+      expect(result.tags).toEqual(tags);
+    });
+
+    it('should handle deployment without tags', async () => {
+      const mockInput = ['./dist'];
+      const options: DeploymentOptions = {};
+
+      const result = await deploymentResource.create(mockInput as any, options);
+
+      const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
+      const deployOptions = deployCallArgs[1];
+      expect(deployOptions.tags).toBeUndefined();
+      expect(result.tags).toBeUndefined();
+    });
+
+    it('should handle empty tags array', async () => {
+      const mockInput = ['./dist'];
+      const options: DeploymentOptions = { tags: [] };
+
+      const result = await deploymentResource.create(mockInput as any, options);
+
+      const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
+      const deployOptions = deployCallArgs[1];
+      expect(deployOptions.tags).toEqual([]);
+    });
+
     it('should apply SPA detection universally in shared resource', async () => {
       const mockInput = ['./dist'];
       const options: DeploymentOptions = { spaDetect: true };

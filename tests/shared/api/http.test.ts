@@ -133,7 +133,7 @@ describe('ApiHttp', () => {
       const mockFiles = [
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
       ];
-      (global.fetch as any).mockResolvedValue(createMockResponse({ 
+      (global.fetch as any).mockResolvedValue(createMockResponse({
         deployment: 'test-deployment',
         files: 1,
         size: 13
@@ -154,6 +154,37 @@ describe('ApiHttp', () => {
         deployment: 'test-deployment',
         files: 1,
         size: 13
+      });
+    });
+
+    it('should deploy files array with tags', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      const tags = ['production', 'v1.0.0'];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13,
+        tags: tags
+      }));
+
+      const result = await apiHttp.deploy(mockFiles, { tags });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/deployments',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test-api-key'
+          })
+        })
+      );
+      expect(result).toEqual({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13,
+        tags: tags
       });
     });
 
@@ -411,6 +442,27 @@ describe('ApiHttp', () => {
             'Content-Type': 'application/json'
           }),
           body: JSON.stringify({ deployment: 'test-deployment' })
+        })
+      );
+      expect(result).toEqual({ ...mockAlias, isCreate: true });
+    });
+
+    it('should set alias with tags', async () => {
+      const tags = ['production', 'v2.0.0'];
+      const mockAlias = { alias: 'prod', deployment: 'test-deployment', tags };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias, 201));
+
+      const result = await apiHttp.setAlias('prod', 'test-deployment', tags);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/aliases/prod',
+        expect.objectContaining({
+          method: 'PUT',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test-api-key',
+            'Content-Type': 'application/json'
+          }),
+          body: JSON.stringify({ deployment: 'test-deployment', tags })
         })
       );
       expect(result).toEqual({ ...mockAlias, isCreate: true });

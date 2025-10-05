@@ -79,10 +79,9 @@ export function createDeploymentResource(
 
 export function createAliasResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): AliasResource {
   return {
-    set: async (aliasName: string, deployment: string) => {
+    set: async (aliasName: string, deployment: string, tags?: string[]) => {
       if (ensureInit) await ensureInit();
-      // Set alias and return the created/updated alias directly
-      return getApi().setAlias(aliasName, deployment);
+      return getApi().setAlias(aliasName, deployment, tags);
     },
 
     get: async (aliasName: string) => {
@@ -98,12 +97,26 @@ export function createAliasResource(getApi: () => ApiHttp, ensureInit?: () => Pr
     remove: async (aliasName: string) => {
       if (ensureInit) await ensureInit();
       await getApi().removeAlias(aliasName);
-      // Return void for deletion operations
     },
 
-    check: async (aliasName: string) => {
+    confirm: async (aliasName: string) => {
       if (ensureInit) await ensureInit();
-      return getApi().checkAlias(aliasName);
+      return getApi().confirmAlias(aliasName);
+    },
+
+    dns: async (aliasName: string) => {
+      if (ensureInit) await ensureInit();
+      return getApi().getAliasDns(aliasName);
+    },
+
+    records: async (aliasName: string) => {
+      if (ensureInit) await ensureInit();
+      return getApi().getAliasRecords(aliasName);
+    },
+
+    share: async (aliasName: string) => {
+      if (ensureInit) await ensureInit();
+      return getApi().getAliasShare(aliasName);
     }
   };
 }

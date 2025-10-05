@@ -90,6 +90,9 @@ ship ./dist
 # Or deploy current directory
 ship
 
+# Deploy with tags
+ship deployments create ./dist --tag production --tag v1.0.0
+
 # Explicit commands
 ship deploy ./build          # Deploy project from path
 ship list                    # List deployments
@@ -97,8 +100,12 @@ ship get abc123              # Get deployment details
 ship remove abc123           # Remove deployment
 
 # Manage aliases
-ship aliases                 # List aliases
-ship alias staging abc123    # Set alias to deployment
+ship aliases list                                   # List aliases
+ship aliases set staging abc123                     # Set alias to deployment
+ship aliases set prod abc123 --tag production       # Set alias with tag
+ship aliases set prod abc123 --tag prod --tag v1    # Set alias with multiple tags
+ship aliases confirm www.example.com                # Trigger DNS confirmation
+ship aliases remove staging                         # Remove alias
 
 # Account
 ship account                 # Get account details
@@ -190,15 +197,47 @@ interface DeployOptions {
   apiUrl?: string;
   apiKey?: string;                  // API key: ship- prefix + 64-char hex (69 chars total)
   deployToken?: string;             // Deploy token: token- prefix + 64-char hex (70 chars total)
-  signal?: AbortSignal;           // Cancellation
-  subdomain?: string;             // Custom subdomain
+  tags?: string[];                  // Optional array of tags for categorization
+  signal?: AbortSignal;             // Cancellation
+  subdomain?: string;               // Custom subdomain
   onCancel?: () => void;
   onProgress?: (progress: number) => void;
   progress?: (stats: ProgressStats) => void;
   maxConcurrency?: number;
   timeout?: number;
-  stripCommonPrefix?: boolean;    // Remove common path prefix
+  stripCommonPrefix?: boolean;      // Remove common path prefix
 }
+```
+
+### Aliases Resource
+
+```typescript
+// Set or update an alias (with optional tags)
+await ship.aliases.set(aliasName, deploymentId, tags?)
+
+// Get alias details
+await ship.aliases.get(aliasName)
+
+// List all aliases
+await ship.aliases.list()
+
+// Remove alias
+await ship.aliases.remove(aliasName)
+
+// Trigger DNS confirmation for external alias
+await ship.aliases.confirm(aliasName)
+```
+
+**Examples:**
+```javascript
+// Set alias without tags
+await ship.aliases.set('staging', 'dep_abc123');
+
+// Set alias with tags
+await ship.aliases.set('production', 'dep_xyz789', ['prod', 'v1.0.0']);
+
+// Confirm DNS for external alias
+await ship.aliases.confirm('www.example.com');
 ```
 
 ### Environment-Specific Examples

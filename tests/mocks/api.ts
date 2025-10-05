@@ -14,6 +14,7 @@ const mockDeployments: Deployment[] = [
     size: 1024000,
     status: 'success',
     config: false,
+    tags: ['production', 'v1.0.0'],
     url: 'https://test-deployment-1.shipstatic.com',
     created: 1640995200, // 2022-01-01
     expires: 1672531200  // 2023-01-01
@@ -141,8 +142,9 @@ export const apiHandlers = [
     // Extract files from multipart form data to test directory structure
     const formData = await request.formData();
     const files: any[] = [];
-    
-    // Process uploaded files
+    let tags: string[] | undefined = undefined;
+
+    // Process uploaded files and tags
     for (const [key, value] of formData.entries()) {
       if (key === 'files[]' && value instanceof File) {
         files.push({
@@ -151,25 +153,34 @@ export const apiHandlers = [
           type: value.type
         });
       }
+      if (key === 'tags' && typeof value === 'string') {
+        try {
+          tags = JSON.parse(value);
+        } catch (e) {
+          // Invalid tags format
+        }
+      }
     }
-    
+
     const newDeployment: Deployment = {
       deployment: 'newly-created-deployment',
       files: files,
       size: files.reduce((total, f) => total + (f.size || 0), 0),
       status: 'success',
+      tags: tags,
       url: 'https://newly-created-deployment.shipstatic.com',
       created: Math.floor(Date.now() / 1000),
       expires: Math.floor(Date.now() / 1000) + 86400
     };
-    
+
     // Store request for testing inspection
     (globalThis as any).__lastMockRequest = {
       method: 'POST',
       formData,
-      files
+      files,
+      tags
     };
-    
+
     return HttpResponse.json(newDeployment, { status: 201 });
   }),
 
@@ -225,14 +236,14 @@ export const apiHandlers = [
 
   // PUT /aliases/:name - Create/update alias
   http.put('*/aliases/:name', async ({ params, request }) => {
-    const body = await request.json() as { deployment: string };
-    
+    const body = await request.json() as { deployment: string; tags?: string[] };
+
     // Check if deployment exists
     const deploymentExists = mockDeployments.some(d => d.deployment === body.deployment);
     if (!deploymentExists) {
       return HttpResponse.json(
-        { 
-          error: 'not_found', 
+        {
+          error: 'not_found',
           message: `Deployment ${body.deployment} not found`,
           status: 404
         },
@@ -244,6 +255,7 @@ export const apiHandlers = [
       alias: params.name as string,
       deployment: body.deployment,
       status: 'success',
+      tags: body.tags,
       url: `https://${params.name}.shipstatic.com`,
       created: Math.floor(Date.now() / 1000),
       confirmed: Math.floor(Date.now() / 1000),

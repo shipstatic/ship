@@ -8,8 +8,8 @@ import { ShipError, DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
 import { getENV } from '../../shared/lib/env.js';
 import { processFilesForNode } from './node-files.js';
 import { processFilesForBrowser } from '../../browser/lib/browser-files.js';
-import { getCurrentConfig } from './platform-config.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
+import { getCurrentConfig } from '../../shared/core/platform-config.js';
 
 
 /**
@@ -122,7 +122,7 @@ export async function convertBrowserInput(
   validateInputEarly(input, 'browser');
 
   let fileArray: File[];
-  
+
   if (input instanceof HTMLInputElement) {
     fileArray = Array.from(input.files!);
   } else if (
@@ -155,7 +155,7 @@ export async function convertBrowserInput(
 
   // Pass options directly to browser processor - no conflicting logic here
   const staticFiles: StaticFile[] = await processFilesForBrowser(fileArray as File[], options);
-  
+
   // Apply shared validation and post-processing
   return postProcessFiles(staticFiles);
 }

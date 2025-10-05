@@ -32,8 +32,14 @@ ship .
 # Deploy with API key
 ship ./dist --api-key ship-your-key
 
+# Deploy with tags
+ship ./dist --tag production --tag v1.0.0
+
 # List deployments
 ship deployments list
+
+# Set alias with tags
+ship aliases set staging abc123 --tag prod
 
 # Check account
 ship whoami
