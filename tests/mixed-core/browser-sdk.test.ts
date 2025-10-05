@@ -151,21 +151,21 @@ describe('BrowserShipClient', () => {
         apiKey: 'specific_key_for_deploy',
         apiUrl: 'https://specific.host.for.deploy'
       };
-      
+
       // Create a valid browser input (File array) and mock processFilesForBrowser
       const file1 = mockF('test.txt', 'content');
       const files = [file1];
       fileUtilsMock.processFilesForBrowser.mockResolvedValueOnce([{ path: 'file.txt', content: new Blob(['content']), md5:'m', size:1 }]);
-      
+
       // Call deploy with browser-compatible input
       await client.deployments.create(files, specificDeployOptions);
-      
+
       // Verify we're passing the options through correctly to processFiles
       expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
         expect.any(Array),
         expect.objectContaining({ stripCommonPrefix: false })
       );
-      
+
       // uploadFiles is called internally by client.deploy after processing input
       // It then calls http.upload. We check the options passed to http.upload (via apiClientMock.deploy)
       expect(apiClientMock.deploy).toHaveBeenCalledWith(
@@ -174,6 +174,26 @@ describe('BrowserShipClient', () => {
           timeout: 12345,
           apiKey: 'specific_key_for_deploy',
           apiUrl: 'https://specific.host.for.deploy'
+        })
+      );
+    });
+
+    it('should pass tags option to deploy in browser environment', async () => {
+      const tags = ['production', 'v2.1.0', 'staging'];
+      const file1 = mockF('app.js', 'console.log("hello")');
+      const files = [file1];
+
+      fileUtilsMock.processFilesForBrowser.mockResolvedValueOnce([
+        { path: 'app.js', content: new Blob(['console.log("hello")']), md5: 'abc123', size: 20 }
+      ]);
+
+      await client.deployments.create(files, { tags });
+
+      // Verify tags are passed through to the HTTP layer
+      expect(apiClientMock.deploy).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          tags: ['production', 'v2.1.0', 'staging']
         })
       );
     });
