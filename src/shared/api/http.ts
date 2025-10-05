@@ -407,8 +407,6 @@ export class ApiHttp extends SimpleEvents {
       console.log('🚢 [HTTP] No tags to add (tags is empty or undefined)');
     }
 
-    console.log('🚢 [HTTP] FormData created. Entries:', Array.from(formData.entries()).map(([key, val]) => [key, val instanceof File ? `File: ${val.name}` : val]));
-
     return formData;
   }
 
