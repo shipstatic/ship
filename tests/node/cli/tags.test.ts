@@ -49,6 +49,31 @@ describe('CLI --tag Flag', () => {
             }
           }
 
+          // Validate tags if present
+          if (tags && tags.length > 0) {
+            // Check max count
+            if (tags.length > 10) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                error: 'business_logic_error',
+                message: 'Maximum 10 tags allowed'
+              }));
+              return;
+            }
+
+            // Check min length
+            for (const tag of tags) {
+              if (tag.length < 3) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  error: 'business_logic_error',
+                  message: 'Tags must be at least 3 characters long'
+                }));
+                return;
+              }
+            }
+          }
+
           res.writeHead(201, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             deployment: 'test-deployment-123',
@@ -254,6 +279,42 @@ describe('CLI --tag Flag', () => {
       // Both should have the same tags format
       expect(deployOutput.tags).toEqual(aliasOutput.tags);
       expect(aliasOutput.tags).toEqual(['v1.0.0', 'production']);
+    });
+
+    it('should reject tags shorter than 3 characters', async () => {
+      const result = await runCli([
+        '--json',
+        'deployments', 'create', DEMO_SITE_PATH,
+        '--tag', 'ab'
+      ], testEnv());
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBeTruthy();
+      const error = JSON.parse(result.stderr.trim());
+      expect(error.error).toContain('at least 3 characters');
+    });
+
+    it('should reject more than 10 tags', async () => {
+      const result = await runCli([
+        '--json',
+        'deployments', 'create', DEMO_SITE_PATH,
+        '--tag', 'tag01',
+        '--tag', 'tag02',
+        '--tag', 'tag03',
+        '--tag', 'tag04',
+        '--tag', 'tag05',
+        '--tag', 'tag06',
+        '--tag', 'tag07',
+        '--tag', 'tag08',
+        '--tag', 'tag09',
+        '--tag', 'tag10',
+        '--tag', 'tag11'
+      ], testEnv());
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBeTruthy();
+      const error = JSON.parse(result.stderr.trim());
+      expect(error.error).toContain('Maximum 10 tags');
     });
   });
 });
