@@ -198,9 +198,6 @@ export class ApiHttp extends SimpleEvents {
   }
 
   async deploy(files: StaticFile[], options: ApiDeployOptions = {}): Promise<Deployment> {
-    console.log('🚢 [HTTP] deploy() called with options:', options);
-    console.log('🚢 [HTTP] tags from options:', options.tags);
-
     this.validateFiles(files);
 
     const { requestBody, requestHeaders } = await this.prepareRequestPayload(files, options.tags);
@@ -382,8 +379,6 @@ export class ApiHttp extends SimpleEvents {
   }
 
   private createBrowserBody(files: StaticFile[], tags?: string[]): FormData {
-    console.log('🚢 [HTTP] createBrowserBody() called with tags:', tags);
-
     const formData = new FormData();
     const checksums: string[] = [];
 
@@ -401,10 +396,7 @@ export class ApiHttp extends SimpleEvents {
     formData.append('checksums', JSON.stringify(checksums));
 
     if (tags && tags.length > 0) {
-      console.log('🚢 [HTTP] Adding tags to FormData:', tags);
       formData.append('tags', JSON.stringify(tags));
-    } else {
-      console.log('🚢 [HTTP] No tags to add (tags is empty or undefined)');
     }
 
     return formData;
