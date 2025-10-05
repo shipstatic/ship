@@ -8,16 +8,18 @@ import type { ShipClientOptions, ShipEvents } from './types.js';
 import type { Deployment } from '@shipstatic/types';
 
 // Resource imports
-import { 
-  createDeploymentResource, 
-  createAliasResource, 
+import {
+  createDeploymentResource,
+  createAliasResource,
   createAccountResource,
+  createTokenResource,
   type DeployInput
 } from './resources.js';
-import type { 
-  DeploymentResource, 
-  AliasResource, 
-  AccountResource
+import type {
+  DeploymentResource,
+  AliasResource,
+  AccountResource,
+  TokenResource
 } from '@shipstatic/types';
 
 import type { StaticFile } from '@shipstatic/types';
@@ -38,6 +40,7 @@ export abstract class Ship {
   protected _deployments: DeploymentResource;
   protected _aliases: AliasResource;
   protected _account: AccountResource;
+  protected _tokens: TokenResource;
 
   constructor(options: ShipClientOptions = {}) {
     this.clientOptions = options;
@@ -52,13 +55,14 @@ export abstract class Ship {
     
     // Pass the processInput method to deployment resource
     this._deployments = createDeploymentResource(
-      getApi, 
-      this.clientOptions, 
+      getApi,
+      this.clientOptions,
       initCallback,
       (input, options) => this.processInput(input, options)
     );
     this._aliases = createAliasResource(getApi, initCallback);
     this._account = createAccountResource(getApi, initCallback);
+    this._tokens = createTokenResource(getApi, initCallback);
   }
 
   // Abstract methods that environments must implement
@@ -117,6 +121,13 @@ export abstract class Ship {
    */
   get account(): AccountResource {
     return this._account;
+  }
+
+  /**
+   * Get tokens resource
+   */
+  get tokens(): TokenResource {
+    return this._tokens;
   }
 
   /**

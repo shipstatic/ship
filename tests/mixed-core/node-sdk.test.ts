@@ -19,6 +19,9 @@ const mockApiHttpInstance = {
     maxFilesCount: 1000,
     maxTotalSize: 100 * 1024 * 1024,
   }),
+  createToken: vi.fn(),
+  listTokens: vi.fn(),
+  removeToken: vi.fn(),
 };
 
 const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => {
@@ -365,5 +368,71 @@ describe('NodeShipClient', () => {
       );
     });
 
+  });
+
+  describe('NodeShipClient.tokens', () => {
+    it('should create token without parameters', async () => {
+      apiClientMock.createToken = vi.fn().mockResolvedValue({
+        token: 'token-abc123',
+        expires: null,
+        message: 'Token created successfully'
+      });
+
+      const result = await client.tokens.create();
+
+      expect(apiClientMock.createToken).toHaveBeenCalledWith(undefined, undefined);
+      expect(result.token).toBe('token-abc123');
+    });
+
+    it('should create token with ttl', async () => {
+      apiClientMock.createToken = vi.fn().mockResolvedValue({
+        token: 'token-def456',
+        expires: 1234567890,
+        message: 'Token created successfully'
+      });
+
+      const result = await client.tokens.create(3600);
+
+      expect(apiClientMock.createToken).toHaveBeenCalledWith(3600, undefined);
+      expect(result.expires).toBe(1234567890);
+    });
+
+    it('should create token with tags', async () => {
+      const tags = ['production', 'api', 'automated'];
+      apiClientMock.createToken = vi.fn().mockResolvedValue({
+        token: 'token-ghi789',
+        expires: null,
+        message: 'Token created successfully'
+      });
+
+      const result = await client.tokens.create(undefined, tags);
+
+      expect(apiClientMock.createToken).toHaveBeenCalledWith(undefined, ['production', 'api', 'automated']);
+      expect(result.token).toBe('token-ghi789');
+    });
+
+    it('should list tokens', async () => {
+      apiClientMock.listTokens = vi.fn().mockResolvedValue({
+        tokens: [
+          { token: 'hash1', account: 'acc1', created: 1234567890, tags: ['production'] },
+          { token: 'hash2', account: 'acc1', created: 1234567891, tags: ['staging'] }
+        ],
+        count: 2
+      });
+
+      const result = await client.tokens.list();
+
+      expect(apiClientMock.listTokens).toHaveBeenCalled();
+      expect(result.tokens).toHaveLength(2);
+      expect(result.count).toBe(2);
+    });
+
+    it('should remove token', async () => {
+      apiClientMock.removeToken = vi.fn().mockResolvedValue(undefined);
+
+      await client.tokens.remove('token-abc123');
+
+      expect(apiClientMock.removeToken).toHaveBeenCalledWith('token-abc123');
+    });
   });
 });

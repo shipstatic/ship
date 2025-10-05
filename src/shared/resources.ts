@@ -1,17 +1,13 @@
 /**
  * @file Ship SDK resource implementations for deployments, aliases, and accounts.
  */
-import type { 
-  Deployment, 
-  DeploymentListResponse, 
-  Alias, 
-  AliasListResponse, 
-  Account,
+import type {
   StaticFile,
   DeployInput,
   DeploymentResource,
   AliasResource,
-  AccountResource
+  AccountResource,
+  TokenResource
 } from '@shipstatic/types';
 import type { ApiHttp } from './api/http.js';
 import type { ShipClientOptions, DeploymentOptions } from './types.js';
@@ -130,6 +126,29 @@ export function createAccountResource(getApi: () => ApiHttp, ensureInit?: () => 
     get: async () => {
       if (ensureInit) await ensureInit();
       return getApi().getAccount();
+    }
+  };
+}
+
+// =============================================================================
+// TOKEN RESOURCE
+// =============================================================================
+
+export function createTokenResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): TokenResource {
+  return {
+    create: async (ttl?: number, tags?: string[]) => {
+      if (ensureInit) await ensureInit();
+      return getApi().createToken(ttl, tags);
+    },
+
+    list: async () => {
+      if (ensureInit) await ensureInit();
+      return getApi().listTokens();
+    },
+
+    remove: async (token: string) => {
+      if (ensureInit) await ensureInit();
+      await getApi().removeToken(token);
     }
   };
 }
