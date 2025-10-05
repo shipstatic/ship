@@ -264,28 +264,29 @@ function withErrorHandling<T extends any[], R>(
     try {
       // Get processed options using Commander's built-in merging (including validation!)
       const globalOptions = processOptions(this);
-      
+
       const client = createClient();
       const result = await handler(client, ...args);
-      
+
       // Build context for output if provided
       const outputContext = context ? {
         operation: context.operation,
         resourceType: context.resourceType,
-        resourceId: context.getResourceId ? context.getResourceId(...args) : undefined
-      } : undefined;
-      
-      output(result, outputContext, globalOptions);
+        resourceId: context.getResourceId ? context.getResourceId(...args) : undefined,
+        client // Pass client for async operations in formatters
+      } : { client };
+
+      await output(result, outputContext, globalOptions);
     } catch (error: any) {
       const errorContext = context ? {
         operation: context.operation,
         resourceType: context.resourceType,
         resourceId: context.getResourceId ? context.getResourceId(...args) : undefined
       } : undefined;
-      
+
       // Get processed options using Commander's built-in merging
       const globalOptions = processOptions(this);
-      
+
       handleError(error, errorContext, globalOptions);
     }
   };
@@ -350,18 +351,45 @@ const formatters = {
     const listColumns = ['alias', 'deployment', 'url', 'created'];
     console.log(formatTable(result.aliases, listColumns, noColor));
   },
-  alias: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
+  alias: async (result: any, context?: { operation?: string; client?: Ship }, isJson?: boolean, noColor?: boolean) => {
     // Always show success message for alias operations, particularly 'set'
     if (result.alias) {
       const operation = result.isCreate ? 'created' : 'updated';
       success(`${result.alias} alias ${operation}`, isJson, noColor);
     }
-    
-    // Show DNS CNAME warning for external aliases that are not confirmed
-    if (!isJson && result.alias && result.alias.includes('.') && !result.confirmed) {
-      warn(`To complete setup, create a DNS CNAME record pointing ${result.alias} to cname.statichost.com`, isJson, noColor);
+
+    // For external aliases that were just created and not confirmed, fetch DNS info
+    if (!isJson && result.isCreate && result.alias?.includes('.') && !result.confirmed && context?.client) {
+      try {
+        // Fetch records and share info in parallel
+        const [records, share] = await Promise.all([
+          context.client.aliases.records(result.alias),
+          context.client.aliases.share(result.alias)
+        ]);
+
+        // Display DNS records
+        if (records.records && records.records.length > 0) {
+          console.log();
+          info('DNS Records to configure:', isJson, noColor);
+          records.records.forEach((record: any) => {
+            console.log(`  ${record.type}: ${record.name} → ${record.value}`);
+          });
+        }
+
+        // Display instructions link
+        if (share.hash) {
+          const instructionsUrl = `https://setup.shipstatic.com/${share.hash}/${result.alias}`;
+          console.log();
+          info(`Setup instructions: ${instructionsUrl}`, isJson, noColor);
+        }
+      } catch (err) {
+        // Fallback to generic message if fetching fails
+        console.log();
+        warn(`To complete setup, configure DNS records for ${result.alias}`, isJson, noColor);
+      }
     }
-    
+
+    console.log();
     console.log(formatDetails(result, noColor));
   },
   deployment: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
@@ -455,9 +483,9 @@ async function performDeploy(client: Ship, path: string, cmdOptions: any, comman
 /**
  * Format output based on --json flag
  */
-function output(result: any, context?: { operation?: string; resourceType?: string; resourceId?: string }, options?: any) {
+async function output(result: any, context?: { operation?: string; resourceType?: string; resourceId?: string; client?: Ship }, options?: any) {
   const opts = options || program.opts();
-  
+
   // Handle void/undefined results (removal operations)
   if (result === undefined) {
     if (context?.operation === 'remove' && context.resourceType && context.resourceId) {
@@ -467,7 +495,7 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
     }
     return;
   }
-  
+
   // Handle ping result (boolean or object with success property)
   if (result === true || (result && typeof result === 'object' && result.hasOwnProperty('success'))) {
     const isSuccess = result === true || result.success;
@@ -478,22 +506,22 @@ function output(result: any, context?: { operation?: string; resourceType?: stri
     }
     return;
   }
-  
+
   // For regular results in JSON mode, output the raw JSON
   if (opts.json) {
     console.log(JSON.stringify(result, null, 2));
     console.log();
     return;
   }
-  
+
   // Find appropriate formatter based on result properties (non-JSON mode)
   for (const [key, formatter] of Object.entries(formatters)) {
     if (result[key]) {
-      formatter(result, context, opts.json, opts.noColor);
+      await formatter(result, context, opts.json, opts.noColor);
       return;
     }
   }
-  
+
   // Default fallback
   success('success', opts.json, opts.noColor);
 }
