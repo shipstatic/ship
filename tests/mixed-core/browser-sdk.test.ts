@@ -18,6 +18,9 @@ const mockApiHttpInstance = {
     maxFilesCount: 1000,
     maxTotalSize: 100 * 1024 * 1024,
   }),
+  createToken: vi.fn(),
+  listTokens: vi.fn(),
+  removeToken: vi.fn(),
 };
 
 const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => {
@@ -151,21 +154,21 @@ describe('BrowserShipClient', () => {
         apiKey: 'specific_key_for_deploy',
         apiUrl: 'https://specific.host.for.deploy'
       };
-      
+
       // Create a valid browser input (File array) and mock processFilesForBrowser
       const file1 = mockF('test.txt', 'content');
       const files = [file1];
       fileUtilsMock.processFilesForBrowser.mockResolvedValueOnce([{ path: 'file.txt', content: new Blob(['content']), md5:'m', size:1 }]);
-      
+
       // Call deploy with browser-compatible input
       await client.deployments.create(files, specificDeployOptions);
-      
+
       // Verify we're passing the options through correctly to processFiles
       expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
         expect.any(Array),
         expect.objectContaining({ stripCommonPrefix: false })
       );
-      
+
       // uploadFiles is called internally by client.deploy after processing input
       // It then calls http.upload. We check the options passed to http.upload (via apiClientMock.deploy)
       expect(apiClientMock.deploy).toHaveBeenCalledWith(
@@ -176,6 +179,92 @@ describe('BrowserShipClient', () => {
           apiUrl: 'https://specific.host.for.deploy'
         })
       );
+    });
+
+    it('should pass tags option to deploy in browser environment', async () => {
+      const tags = ['production', 'v2.1.0', 'staging'];
+      const file1 = mockF('app.js', 'console.log("hello")');
+      const files = [file1];
+
+      fileUtilsMock.processFilesForBrowser.mockResolvedValueOnce([
+        { path: 'app.js', content: new Blob(['console.log("hello")']), md5: 'abc123', size: 20 }
+      ]);
+
+      await client.deployments.create(files, { tags });
+
+      // Verify tags are passed through to the HTTP layer
+      expect(apiClientMock.deploy).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          tags: ['production', 'v2.1.0', 'staging']
+        })
+      );
+    });
+  });
+
+  describe('BrowserShipClient.tokens', () => {
+    it('should create token without parameters', async () => {
+      apiClientMock.createToken = vi.fn().mockResolvedValue({
+        token: 'token-abc123',
+        expires: null,
+        message: 'Token created successfully'
+      });
+
+      const result = await client.tokens.create();
+
+      expect(apiClientMock.createToken).toHaveBeenCalledWith(undefined, undefined);
+      expect(result.token).toBe('token-abc123');
+    });
+
+    it('should create token with ttl', async () => {
+      apiClientMock.createToken = vi.fn().mockResolvedValue({
+        token: 'token-def456',
+        expires: 1234567890,
+        message: 'Token created successfully'
+      });
+
+      const result = await client.tokens.create(3600);
+
+      expect(apiClientMock.createToken).toHaveBeenCalledWith(3600, undefined);
+      expect(result.expires).toBe(1234567890);
+    });
+
+    it('should create token with tags', async () => {
+      const tags = ['production', 'api', 'automated'];
+      apiClientMock.createToken = vi.fn().mockResolvedValue({
+        token: 'token-ghi789',
+        expires: null,
+        message: 'Token created successfully'
+      });
+
+      const result = await client.tokens.create(undefined, tags);
+
+      expect(apiClientMock.createToken).toHaveBeenCalledWith(undefined, ['production', 'api', 'automated']);
+      expect(result.token).toBe('token-ghi789');
+    });
+
+    it('should list tokens', async () => {
+      apiClientMock.listTokens = vi.fn().mockResolvedValue({
+        tokens: [
+          { token: 'hash1', account: 'acc1', created: 1234567890, tags: ['production'] },
+          { token: 'hash2', account: 'acc1', created: 1234567891, tags: ['staging'] }
+        ],
+        count: 2
+      });
+
+      const result = await client.tokens.list();
+
+      expect(apiClientMock.listTokens).toHaveBeenCalled();
+      expect(result.tokens).toHaveLength(2);
+      expect(result.count).toBe(2);
+    });
+
+    it('should remove token', async () => {
+      apiClientMock.removeToken = vi.fn().mockResolvedValue(undefined);
+
+      await client.tokens.remove('token-abc123');
+
+      expect(apiClientMock.removeToken).toHaveBeenCalledWith('token-abc123');
     });
   });
 });

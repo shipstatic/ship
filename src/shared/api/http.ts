@@ -4,18 +4,20 @@
  */
 
 import * as _mime from 'mime-types';
-import type { 
-  Deployment, 
-  DeploymentListResponse, 
-  PingResponse, 
-  ConfigResponse, 
-  DeploymentRemoveResponse, 
-  Alias, 
-  AliasListResponse, 
-  Account, 
-  SPACheckRequest, 
+import type {
+  Deployment,
+  DeploymentListResponse,
+  PingResponse,
+  ConfigResponse,
+  DeploymentRemoveResponse,
+  Alias,
+  AliasListResponse,
+  Account,
+  SPACheckRequest,
   SPACheckResponse,
-  StaticFile
+  StaticFile,
+  TokenCreateResponse,
+  TokenListResponse
 } from '@shipstatic/types';
 import type { ApiDeployOptions, ShipClientOptions, ShipEvents } from '../types.js';
 import { ShipError, DEFAULT_API } from '@shipstatic/types';
@@ -28,6 +30,7 @@ const PING_ENDPOINT = '/ping';
 const ALIASES_ENDPOINT = '/aliases';
 const CONFIG_ENDPOINT = '/config';
 const ACCOUNT_ENDPOINT = '/account';
+const TOKENS_ENDPOINT = '/tokens';
 const SPA_CHECK_ENDPOINT = '/spa-check';
 
 /**
@@ -198,9 +201,6 @@ export class ApiHttp extends SimpleEvents {
   }
 
   async deploy(files: StaticFile[], options: ApiDeployOptions = {}): Promise<Deployment> {
-    console.log('🚢 [HTTP] deploy() called with options:', options);
-    console.log('🚢 [HTTP] tags from options:', options.tags);
-
     this.validateFiles(files);
 
     const { requestBody, requestHeaders } = await this.prepareRequestPayload(files, options.tags);
@@ -315,6 +315,42 @@ export class ApiHttp extends SimpleEvents {
     return await this.request<Account>(`${this.apiUrl}${ACCOUNT_ENDPOINT}`, { method: 'GET' }, 'Get Account');
   }
 
+  async createToken(ttl?: number, tags?: string[]): Promise<TokenCreateResponse> {
+    const requestBody: { ttl?: number; tags?: string[] } = {};
+    if (ttl !== undefined) {
+      requestBody.ttl = ttl;
+    }
+    if (tags && tags.length > 0) {
+      requestBody.tags = tags;
+    }
+
+    return await this.request<TokenCreateResponse>(
+      `${this.apiUrl}${TOKENS_ENDPOINT}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      },
+      'Create Token'
+    );
+  }
+
+  async listTokens(): Promise<TokenListResponse> {
+    return await this.request<TokenListResponse>(
+      `${this.apiUrl}${TOKENS_ENDPOINT}`,
+      { method: 'GET' },
+      'List Tokens'
+    );
+  }
+
+  async removeToken(token: string): Promise<void> {
+    await this.request<void>(
+      `${this.apiUrl}${TOKENS_ENDPOINT}/${encodeURIComponent(token)}`,
+      { method: 'DELETE' },
+      'Remove Token'
+    );
+  }
+
   async checkSPA(files: StaticFile[]): Promise<boolean> {
     const indexFile = files.find(f => f.path === 'index.html' || f.path === '/index.html');
     if (!indexFile || indexFile.size > 100 * 1024) {
@@ -382,8 +418,6 @@ export class ApiHttp extends SimpleEvents {
   }
 
   private createBrowserBody(files: StaticFile[], tags?: string[]): FormData {
-    console.log('🚢 [HTTP] createBrowserBody() called with tags:', tags);
-
     const formData = new FormData();
     const checksums: string[] = [];
 
@@ -401,10 +435,7 @@ export class ApiHttp extends SimpleEvents {
     formData.append('checksums', JSON.stringify(checksums));
 
     if (tags && tags.length > 0) {
-      console.log('🚢 [HTTP] Adding tags to FormData:', tags);
       formData.append('tags', JSON.stringify(tags));
-    } else {
-      console.log('🚢 [HTTP] No tags to add (tags is empty or undefined)');
     }
 
     return formData;

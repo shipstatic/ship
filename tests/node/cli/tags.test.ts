@@ -106,6 +106,51 @@ describe('CLI --tag Flag', () => {
           return;
         }
 
+        // Handle tokens create
+        if (req.method === 'POST' && url === '/tokens') {
+          let requestData: any = {};
+
+          try {
+            requestData = JSON.parse(body);
+          } catch (e) {
+            // Ignore parse errors
+          }
+
+          // Validate tags if present
+          if (requestData.tags && requestData.tags.length > 0) {
+            // Check max count
+            if (requestData.tags.length > 10) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                error: 'business_logic_error',
+                message: 'Maximum 10 tags allowed'
+              }));
+              return;
+            }
+
+            // Check min length
+            for (const tag of requestData.tags) {
+              if (tag.length < 3) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  error: 'business_logic_error',
+                  message: 'Tags must be at least 3 characters long'
+                }));
+                return;
+              }
+            }
+          }
+
+          res.writeHead(201, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            token: 'token-abc123def456',
+            expires: requestData.ttl ? Date.now() + (requestData.ttl * 1000) : null,
+            message: 'Token created successfully',
+            ...(requestData.tags && requestData.tags.length > 0 ? { tags: requestData.tags } : {})
+          }));
+          return;
+        }
+
         // Handle config endpoint
         if (req.method === 'GET' && url === '/config') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -298,6 +343,114 @@ describe('CLI --tag Flag', () => {
       const result = await runCli([
         '--json',
         'deployments', 'create', DEMO_SITE_PATH,
+        '--tag', 'tag01',
+        '--tag', 'tag02',
+        '--tag', 'tag03',
+        '--tag', 'tag04',
+        '--tag', 'tag05',
+        '--tag', 'tag06',
+        '--tag', 'tag07',
+        '--tag', 'tag08',
+        '--tag', 'tag09',
+        '--tag', 'tag10',
+        '--tag', 'tag11'
+      ], testEnv());
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBeTruthy();
+      const error = JSON.parse(result.stderr.trim());
+      expect(error.error).toContain('Maximum 10 tags');
+    });
+  });
+
+  describe('tokens create --tag', () => {
+    it('should accept single --tag flag', async () => {
+      const result = await runCli([
+        '--json',
+        'tokens', 'create',
+        '--tag', 'production'
+      ], testEnv());
+
+      expect(result.exitCode).toBe(0);
+      const output = JSON.parse(result.stdout.trim());
+      expect(output.token).toBe('token-abc123def456');
+      expect(output.tags).toEqual(['production']);
+    });
+
+    it('should accept multiple --tag flags', async () => {
+      const result = await runCli([
+        '--json',
+        'tokens', 'create',
+        '--tag', 'production',
+        '--tag', 'api',
+        '--tag', 'automated'
+      ], testEnv());
+
+      expect(result.exitCode).toBe(0);
+      const output = JSON.parse(result.stdout.trim());
+      expect(output.token).toBe('token-abc123def456');
+      expect(output.tags).toEqual(['production', 'api', 'automated']);
+    });
+
+    it('should accept --tag with --ttl flag', async () => {
+      const result = await runCli([
+        '--json',
+        'tokens', 'create',
+        '--ttl', '3600',
+        '--tag', 'temporary',
+        '--tag', 'test'
+      ], testEnv());
+
+      expect(result.exitCode).toBe(0);
+      const output = JSON.parse(result.stdout.trim());
+      expect(output.token).toBe('token-abc123def456');
+      expect(output.expires).toBeTruthy();
+      expect(output.tags).toEqual(['temporary', 'test']);
+    });
+
+    it('should work without --tag flag', async () => {
+      const result = await runCli([
+        '--json',
+        'tokens', 'create'
+      ], testEnv());
+
+      expect(result.exitCode).toBe(0);
+      const output = JSON.parse(result.stdout.trim());
+      expect(output.token).toBe('token-abc123def456');
+      expect(output.tags).toBeUndefined();
+    });
+
+    it('should handle tags with special characters', async () => {
+      const result = await runCli([
+        '--json',
+        'tokens', 'create',
+        '--tag', 'ci-cd',
+        '--tag', 'version_2.0',
+        '--tag', 'env:staging'
+      ], testEnv());
+
+      expect(result.exitCode).toBe(0);
+      const output = JSON.parse(result.stdout.trim());
+      expect(output.tags).toEqual(['ci-cd', 'version_2.0', 'env:staging']);
+    });
+
+    it('should reject tags shorter than 3 characters', async () => {
+      const result = await runCli([
+        '--json',
+        'tokens', 'create',
+        '--tag', 'ab'
+      ], testEnv());
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBeTruthy();
+      const error = JSON.parse(result.stderr.trim());
+      expect(error.error).toContain('at least 3 characters');
+    });
+
+    it('should reject more than 10 tags', async () => {
+      const result = await runCli([
+        '--json',
+        'tokens', 'create',
         '--tag', 'tag01',
         '--tag', 'tag02',
         '--tag', 'tag03',
