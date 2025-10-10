@@ -1,11 +1,11 @@
 /**
- * @file Ship SDK resource implementations for deployments, aliases, and accounts.
+ * @file Ship SDK resource implementations for deployments, domains, and accounts.
  */
 import type {
   StaticFile,
   DeployInput,
   DeploymentResource,
-  AliasResource,
+  DomainResource,
   AccountResource,
   TokenResource
 } from '@shipstatic/types';
@@ -70,49 +70,49 @@ export function createDeploymentResource(
 }
 
 // =============================================================================
-// ALIAS RESOURCE
+// DOMAIN RESOURCE
 // =============================================================================
 
-export function createAliasResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): AliasResource {
+export function createDomainResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): DomainResource {
   return {
-    set: async (aliasName: string, deployment: string, tags?: string[]) => {
+    set: async (domainName: string, deployment: string, tags?: string[]) => {
       if (ensureInit) await ensureInit();
-      return getApi().setAlias(aliasName, deployment, tags);
+      return getApi().setDomain(domainName, deployment, tags);
     },
 
-    get: async (aliasName: string) => {
+    get: async (domainName: string) => {
       if (ensureInit) await ensureInit();
-      return getApi().getAlias(aliasName);
+      return getApi().getDomain(domainName);
     },
 
     list: async () => {
       if (ensureInit) await ensureInit();
-      return getApi().listAliases();
+      return getApi().listDomains();
     },
 
-    remove: async (aliasName: string) => {
+    remove: async (domainName: string) => {
       if (ensureInit) await ensureInit();
-      await getApi().removeAlias(aliasName);
+      await getApi().removeDomain(domainName);
     },
 
-    confirm: async (aliasName: string) => {
+    confirm: async (domainName: string) => {
       if (ensureInit) await ensureInit();
-      return getApi().confirmAlias(aliasName);
+      return getApi().confirmDomain(domainName);
     },
 
-    dns: async (aliasName: string) => {
+    dns: async (domainName: string) => {
       if (ensureInit) await ensureInit();
-      return getApi().getAliasDns(aliasName);
+      return getApi().getDomainDns(domainName);
     },
 
-    records: async (aliasName: string) => {
+    records: async (domainName: string) => {
       if (ensureInit) await ensureInit();
-      return getApi().getAliasRecords(aliasName);
+      return getApi().getDomainRecords(domainName);
     },
 
-    share: async (aliasName: string) => {
+    share: async (domainName: string) => {
       if (ensureInit) await ensureInit();
-      return getApi().getAliasShare(aliasName);
+      return getApi().getDomainShare(domainName);
     }
   };
 }

@@ -38,8 +38,8 @@ ship ./dist --tag production --tag v1.0.0
 # List deployments
 ship deployments list
 
-# Set alias with tags
-ship aliases set staging abc123 --tag prod
+# Set domain with tags
+ship domains set staging abc123 --tag prod
 
 # Check account
 ship whoami

@@ -18,9 +18,9 @@ describe('Import Validation for New Structure', () => {
   });
 
   it('should import shared resources', async () => {
-    const { createDeploymentResource, createAliasResource } = await import('../src/shared/resources');
+    const { createDeploymentResource, createDomainResource } = await import('../src/shared/resources');
     expect(typeof createDeploymentResource).toBe('function');
-    expect(typeof createAliasResource).toBe('function');
+    expect(typeof createDomainResource).toBe('function');
   });
 
   it('should import Node.js Ship implementation', async () => {

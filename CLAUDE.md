@@ -38,7 +38,7 @@ Tables follow industry standards (ps, kubectl, docker) for maximum scriptability
 
 **Column Filtering for List Views:**
 - **Deployments list**: Hides `files`, `size`, `status`, `expires` for cleaner output
-- **Aliases list**: Hides `status`, `confirmed` for cleaner output
+- **Domains list**: Hides `status`, `confirmed` for cleaner output
 - **Details views**: Show all fields - no filtering applied
 - Filtering improves readability while maintaining scriptability
 
@@ -47,7 +47,7 @@ Tables follow industry standards (ps, kubectl, docker) for maximum scriptability
 # Examples of CLI scriptability with common Unix tools
 ship deployments list | awk '{print $1}'           # Extract deployment names
 ship deployments list | cut -d' ' -f1              # Alternative extraction
-ship aliases list | grep -E '^prod-'               # Filter by pattern
+ship domains list | grep -E '^prod-'               # Filter by pattern
 ```
 
 ### Details Output Format

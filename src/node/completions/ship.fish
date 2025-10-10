@@ -34,7 +34,7 @@ end
 complete -c ship -f -n '__fish_use_subcommand' -a 'ping' -d 'Check API connectivity'
 complete -c ship -f -n '__fish_use_subcommand' -a 'whoami' -d 'Get current account information'
 complete -c ship -f -n '__fish_use_subcommand' -a 'deployments' -d 'Manage deployments'
-complete -c ship -f -n '__fish_use_subcommand' -a 'aliases' -d 'Manage aliases'
+complete -c ship -f -n '__fish_use_subcommand' -a 'domains' -d 'Manage domains'
 complete -c ship -f -n '__fish_use_subcommand' -a 'account' -d 'Manage account'
 complete -c ship -f -n '__fish_use_subcommand' -a 'completion' -d 'Setup shell completion'
 
@@ -57,11 +57,11 @@ complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'remove' -d 
 complete -c ship -l no-path-detect -d 'Disable automatic path optimization and flattening'
 complete -c ship -l no-spa-detect -d 'Disable automatic SPA detection and configuration'
 
-# Aliases subcommands
-complete -c ship -f -n '__fish_seen_subcommand_from aliases' -a 'list' -d 'List all aliases'
-complete -c ship -f -n '__fish_seen_subcommand_from aliases' -a 'get' -d 'Show alias information'
-complete -c ship -f -n '__fish_seen_subcommand_from aliases' -a 'set' -d 'Create or update alias pointing to deployment'
-complete -c ship -f -n '__fish_seen_subcommand_from aliases' -a 'remove' -d 'Delete alias permanently'
+# Domains subcommands
+complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'list' -d 'List all domains'
+complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'get' -d 'Show domain information'
+complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'set' -d 'Create or update domain pointing to deployment'
+complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'remove' -d 'Delete domain permanently'
 
 # Account subcommands
 complete -c ship -f -n '__fish_seen_subcommand_from account' -a 'get' -d 'Show account information'

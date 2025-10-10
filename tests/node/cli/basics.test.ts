@@ -23,7 +23,7 @@ describe('CLI Basics', () => {
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
       expect(result.stdout).toContain('deployments');
-      expect(result.stdout).toContain('aliases');
+      expect(result.stdout).toContain('domains');
       expect(result.stdout).toContain('account');
       expect(result.stdout).toContain('completion');
     });
@@ -147,13 +147,13 @@ describe('CLI Basics', () => {
     it('should provide intuitive command structure', async () => {
       const helpResult = await runCli(['--help']);
       expect(helpResult.stdout).toContain('deployments');
-      expect(helpResult.stdout).toContain('aliases');
+      expect(helpResult.stdout).toContain('domains');
       expect(helpResult.stdout).toContain('tokens');
       expect(helpResult.stdout).toContain('account');
 
       // Commands should be logical and predictable
       expect(helpResult.stdout).toContain('deployments');
-      expect(helpResult.stdout).toContain('aliases');
+      expect(helpResult.stdout).toContain('domains');
       expect(helpResult.stdout).toContain('tokens');
       expect(helpResult.stdout).toContain('account');
     });

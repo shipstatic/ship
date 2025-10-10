@@ -202,12 +202,12 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       const resourceTests = async (ship: any) => {
         // Test resource access
         expect(ship.deployments).toBeDefined();
-        expect(ship.aliases).toBeDefined();
+        expect(ship.domains).toBeDefined();
         expect(ship.account).toBeDefined();
-        
+
         // Test resource method availability
         expect(typeof ship.deployments.list).toBe('function');
-        expect(typeof ship.aliases.list).toBe('function');
+        expect(typeof ship.domains.list).toBe('function');
         expect(typeof ship.account.get).toBe('function');
       };
       

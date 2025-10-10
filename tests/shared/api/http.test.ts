@@ -406,15 +406,15 @@ describe('ApiHttp', () => {
     });
   });
 
-  describe('alias operations', () => {
-    it('should set alias (update - 200 status)', async () => {
-      const mockAlias = { alias: 'staging', deployment: 'test-deployment' };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias, 200));
+  describe('domain operations', () => {
+    it('should set domain (update - 200 status)', async () => {
+      const mockDomain = { domain: 'staging', deployment: 'test-deployment' };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
 
-      const result = await apiHttp.setAlias('staging', 'test-deployment');
+      const result = await apiHttp.setDomain('staging', 'test-deployment');
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/aliases/staging',
+        'https://api.test.com/domains/staging',
         expect.objectContaining({
           method: 'PUT',
           headers: expect.objectContaining({
@@ -424,17 +424,17 @@ describe('ApiHttp', () => {
           body: JSON.stringify({ deployment: 'test-deployment' })
         })
       );
-      expect(result).toEqual({ ...mockAlias, isCreate: false });
+      expect(result).toEqual({ ...mockDomain, isCreate: false });
     });
 
-    it('should set alias (create - 201 status)', async () => {
-      const mockAlias = { alias: 'new-alias', deployment: 'test-deployment' };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias, 201));
+    it('should set domain (create - 201 status)', async () => {
+      const mockDomain = { domain: 'new-domain', deployment: 'test-deployment' };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 201));
 
-      const result = await apiHttp.setAlias('new-alias', 'test-deployment');
+      const result = await apiHttp.setDomain('new-domain', 'test-deployment');
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/aliases/new-alias',
+        'https://api.test.com/domains/new-domain',
         expect.objectContaining({
           method: 'PUT',
           headers: expect.objectContaining({
@@ -444,18 +444,18 @@ describe('ApiHttp', () => {
           body: JSON.stringify({ deployment: 'test-deployment' })
         })
       );
-      expect(result).toEqual({ ...mockAlias, isCreate: true });
+      expect(result).toEqual({ ...mockDomain, isCreate: true });
     });
 
-    it('should set alias with tags', async () => {
+    it('should set domain with tags', async () => {
       const tags = ['production', 'v2.0.0'];
-      const mockAlias = { alias: 'prod', deployment: 'test-deployment', tags };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias, 201));
+      const mockDomain = { domain: 'prod', deployment: 'test-deployment', tags };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 201));
 
-      const result = await apiHttp.setAlias('prod', 'test-deployment', tags);
+      const result = await apiHttp.setDomain('prod', 'test-deployment', tags);
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/aliases/prod',
+        'https://api.test.com/domains/prod',
         expect.objectContaining({
           method: 'PUT',
           headers: expect.objectContaining({
@@ -465,17 +465,17 @@ describe('ApiHttp', () => {
           body: JSON.stringify({ deployment: 'test-deployment', tags })
         })
       );
-      expect(result).toEqual({ ...mockAlias, isCreate: true });
+      expect(result).toEqual({ ...mockDomain, isCreate: true });
     });
 
-    it('should get alias', async () => {
-      const mockAlias = { alias: 'staging', deployment: 'test-deployment' };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockAlias));
+    it('should get domain', async () => {
+      const mockDomain = { domain: 'staging', deployment: 'test-deployment' };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain));
 
-      const result = await apiHttp.getAlias('staging');
+      const result = await apiHttp.getDomain('staging');
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/aliases/staging',
+        'https://api.test.com/domains/staging',
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
@@ -483,22 +483,22 @@ describe('ApiHttp', () => {
           })
         })
       );
-      expect(result).toEqual(mockAlias);
+      expect(result).toEqual(mockDomain);
     });
 
-    it('should list aliases', async () => {
-      const mockAliases = {
-        aliases: [
-          { alias: 'staging', deployment: 'test-1' },
-          { alias: 'production', deployment: 'test-2' }
+    it('should list domains', async () => {
+      const mockDomains = {
+        domains: [
+          { domain: 'staging', deployment: 'test-1' },
+          { domain: 'production', deployment: 'test-2' }
         ]
       };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockAliases));
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomains));
 
-      const result = await apiHttp.listAliases();
+      const result = await apiHttp.listDomains();
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/aliases',
+        'https://api.test.com/domains',
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
@@ -506,16 +506,16 @@ describe('ApiHttp', () => {
           })
         })
       );
-      expect(result).toEqual(mockAliases);
+      expect(result).toEqual(mockDomains);
     });
 
-    it('should remove alias', async () => {
+    it('should remove domain', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse(undefined, 204));
 
-      const result = await apiHttp.removeAlias('staging');
+      const result = await apiHttp.removeDomain('staging');
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/aliases/staging',
+        'https://api.test.com/domains/staging',
         expect.objectContaining({
           method: 'DELETE',
           headers: expect.objectContaining({

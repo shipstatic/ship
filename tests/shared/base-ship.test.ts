@@ -64,13 +64,13 @@ describe('Base Ship Class (Abstract)', () => {
     it('should initialize with provided options', () => {
       const options = { apiUrl: 'https://custom-api.com', apiKey: 'test-key' };
       const testShip = new TestShip(options);
-      
+
       expect((testShip as any).clientOptions).toEqual(options);
     });
 
     it('should create resource instances', () => {
       expect(ship.deployments).toBeDefined();
-      expect(ship.aliases).toBeDefined();
+      expect(ship.domains).toBeDefined();
       expect(ship.account).toBeDefined();
     });
   });
@@ -114,13 +114,13 @@ describe('Base Ship Class (Abstract)', () => {
       expect(typeof ship.deployments.list).toBe('function');
       expect(typeof ship.deployments.get).toBe('function');
       expect(typeof ship.deployments.remove).toBe('function');
-      
-      expect(typeof ship.aliases.set).toBe('function');
-      expect(typeof ship.aliases.get).toBe('function');
-      expect(typeof ship.aliases.list).toBe('function');
-      expect(typeof ship.aliases.remove).toBe('function');
-      expect(typeof ship.aliases.confirm).toBe('function');
-      
+
+      expect(typeof ship.domains.set).toBe('function');
+      expect(typeof ship.domains.get).toBe('function');
+      expect(typeof ship.domains.list).toBe('function');
+      expect(typeof ship.domains.remove).toBe('function');
+      expect(typeof ship.domains.confirm).toBe('function');
+
       expect(typeof ship.account.get).toBe('function');
     });
   });

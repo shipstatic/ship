@@ -181,13 +181,13 @@ describe('Ship - Browser Implementation', () => {
 
   describe('resource functionality', () => {
     it('should provide access to all resources (same as Node.js)', () => {
-      const ship = new Ship({ 
+      const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.dev'
       });
-      
+
       expect(ship.deployments).toBeDefined();
-      expect(ship.aliases).toBeDefined();
+      expect(ship.domains).toBeDefined();
       expect(ship.account).toBeDefined();
     });
   });

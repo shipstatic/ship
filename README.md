@@ -99,13 +99,13 @@ ship list                    # List deployments
 ship get abc123              # Get deployment details
 ship remove abc123           # Remove deployment
 
-# Manage aliases
-ship aliases list                                   # List aliases
-ship aliases set staging abc123                     # Set alias to deployment
-ship aliases set prod abc123 --tag production       # Set alias with tag
-ship aliases set prod abc123 --tag prod --tag v1    # Set alias with multiple tags
-ship aliases confirm www.example.com                # Trigger DNS confirmation
-ship aliases remove staging                         # Remove alias
+# Manage domains
+ship domains list                                   # List domains
+ship domains set staging abc123                     # Set domain to deployment
+ship domains set prod abc123 --tag production       # Set domain with tag
+ship domains set prod abc123 --tag prod --tag v1    # Set domain with multiple tags
+ship domains confirm www.example.com                # Trigger DNS confirmation
+ship domains remove staging                         # Remove domain
 
 # Account
 ship account                 # Get account details
@@ -157,7 +157,7 @@ interface ShipOptions {
 
 - `ship.ping()` - Check API connectivity
 - `ship.deployments` - Access deployment resource
-- `ship.aliases` - Access alias resource  
+- `ship.domains` - Access domain resource
 - `ship.account` - Access account resource
 - `ship.on(event, handler)` - Add event listener for API observability
 - `ship.off(event, handler)` - Remove event listener
@@ -209,35 +209,35 @@ interface DeployOptions {
 }
 ```
 
-### Aliases Resource
+### Domains Resource
 
 ```typescript
-// Set or update an alias (with optional tags)
-await ship.aliases.set(aliasName, deploymentId, tags?)
+// Set or update a domain (with optional tags)
+await ship.domains.set(domainName, deploymentId, tags?)
 
-// Get alias details
-await ship.aliases.get(aliasName)
+// Get domain details
+await ship.domains.get(domainName)
 
-// List all aliases
-await ship.aliases.list()
+// List all domains
+await ship.domains.list()
 
-// Remove alias
-await ship.aliases.remove(aliasName)
+// Remove domain
+await ship.domains.remove(domainName)
 
-// Trigger DNS confirmation for external alias
-await ship.aliases.confirm(aliasName)
+// Trigger DNS confirmation for external domain
+await ship.domains.confirm(domainName)
 ```
 
 **Examples:**
 ```javascript
-// Set alias without tags
-await ship.aliases.set('staging', 'dep_abc123');
+// Set domain without tags
+await ship.domains.set('staging', 'dep_abc123');
 
-// Set alias with tags
-await ship.aliases.set('production', 'dep_xyz789', ['prod', 'v1.0.0']);
+// Set domain with tags
+await ship.domains.set('production', 'dep_xyz789', ['prod', 'v1.0.0']);
 
-// Confirm DNS for external alias
-await ship.aliases.confirm('www.example.com');
+// Confirm DNS for external domain
+await ship.domains.confirm('www.example.com');
 ```
 
 ### Environment-Specific Examples
@@ -586,11 +586,11 @@ ship get abc123         # Get deployment details
 ship remove abc123      # Remove deployment
 ```
 
-### Alias Commands
+### Domain Commands
 
 ```bash
-ship aliases            # List aliases
-ship alias staging abc123  # Set alias to deployment
+ship domains            # List domains
+ship domains set staging abc123  # Set domain to deployment
 ```
 
 ### Account Commands
@@ -705,7 +705,7 @@ File Objects → Path Extraction → Junk Filtering → Content Processing → S
 Ship SDK provides comprehensive deployment functionality:
 
 - **Deployment Resource**: Complete operations (create, list, get, remove)
-- **Alias Resource**: Complete operations (set, get, list, remove)  
+- **Domain Resource**: Complete operations (set, get, list, remove)
 - **Account Resource**: Account information retrieval
 - **Event System**: Comprehensive observability with request, response, error events
 - **Unified Error System**: Single `ShipError` class with factory methods
