@@ -97,12 +97,12 @@ ${applyBold('COMMANDS')}
   ship deployments get <deployment>     Show deployment information
   ship deployments remove <deployment>  Delete deployment permanently
 
-  🌎 ${applyBold('Aliases')}
-  ship aliases list                     List all aliases
-  ship aliases set <name> <deployment>  Create or update alias pointing to deployment
-  ship aliases get <name>               Show alias information
-  ship aliases check <name>             Manually trigger DNS check for external alias
-  ship aliases remove <name>            Delete alias permanently
+  🌎 ${applyBold('Domains')}
+  ship domains list                     List all domains
+  ship domains set <name> <deployment>  Create or update domain pointing to deployment
+  ship domains get <name>               Show domain information
+  ship domains check <name>             Manually trigger DNS check for external domain
+  ship domains remove <name>            Delete domain permanently
 
   🔑 ${applyBold('Tokens')}
   ship tokens list                      List all deploy tokens
@@ -211,7 +211,7 @@ function handleError(err: any, context?: { operation?: string; resourceType?: st
       const resourceId = context.resourceId || '';
       message = `${resourceId} ${resourceType.toLowerCase()} not found`;
     } else {
-      // For other operations (like aliases set), use consistent format
+      // For other operations (like domains set), use consistent format
       const originalMessage = err.details.data.message || 'Resource not found';
       // Convert "Deployment X not found" to "Deployment not found: X" format
       const match = originalMessage.match(/^(.*?)\s+(.+?)\s+not found$/);
@@ -341,35 +341,35 @@ const formatters = {
     const listColumns = ['deployment', 'url', 'created'];
     console.log(formatTable(result.deployments, listColumns, noColor));
   },
-  aliases: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
-    if (!result.aliases || result.aliases.length === 0) {
+  domains: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
+    if (!result.domains || result.domains.length === 0) {
       if (isJson) {
-        console.log(JSON.stringify({ aliases: [] }, null, 2));
+        console.log(JSON.stringify({ domains: [] }, null, 2));
       } else {
-        console.log('no aliases found');
+        console.log('no domains found');
         console.log();
       }
       return;
     }
-    
-    // For aliases list: hide status, confirmed for cleaner output
-    const listColumns = ['alias', 'deployment', 'url', 'created'];
-    console.log(formatTable(result.aliases, listColumns, noColor));
+
+    // For domains list: hide status, confirmed for cleaner output
+    const listColumns = ['domain', 'deployment', 'url', 'created'];
+    console.log(formatTable(result.domains, listColumns, noColor));
   },
-  alias: async (result: any, context?: { operation?: string; client?: Ship }, isJson?: boolean, noColor?: boolean) => {
-    // Always show success message for alias operations, particularly 'set'
-    if (result.alias) {
+  domain: async (result: any, context?: { operation?: string; client?: Ship }, isJson?: boolean, noColor?: boolean) => {
+    // Always show success message for domain operations, particularly 'set'
+    if (result.domain) {
       const operation = result.isCreate ? 'created' : 'updated';
-      success(`${result.alias} alias ${operation}`, isJson, noColor);
+      success(`${result.domain} domain ${operation}`, isJson, noColor);
     }
 
-    // For external aliases that were just created and not confirmed, fetch DNS info
-    if (!isJson && result.isCreate && result.alias?.includes('.') && !result.confirmed && context?.client) {
+    // For external domains that were just created and not confirmed, fetch DNS info
+    if (!isJson && result.isCreate && result.domain?.includes('.') && !result.confirmed && context?.client) {
       try {
         // Fetch records and share info in parallel
         const [records, share] = await Promise.all([
-          context.client.aliases.records(result.alias),
-          context.client.aliases.share(result.alias)
+          context.client.domains.records(result.domain),
+          context.client.domains.share(result.domain)
         ]);
 
         // Display DNS records
@@ -383,14 +383,14 @@ const formatters = {
 
         // Display instructions link
         if (share.hash) {
-          const instructionsUrl = `https://setup.shipstatic.com/${share.hash}/${result.alias}`;
+          const instructionsUrl = `https://setup.shipstatic.com/${share.hash}/${result.domain}`;
           console.log();
           info(`Setup instructions: ${instructionsUrl}`, isJson, noColor);
         }
       } catch (err) {
         // Fallback to generic message if fetching fails
         console.log();
-        warn(`To complete setup, configure DNS records for ${result.alias}`, isJson, noColor);
+        warn(`To complete setup, configure DNS records for ${result.domain}`, isJson, noColor);
       }
     }
 
@@ -653,16 +653,16 @@ deploymentsCmd
     { operation: 'remove', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
   ));
 
-// Aliases commands
-const aliasesCmd = program
-  .command('aliases')
-  .description('Manage aliases')
+// Domains commands
+const domainsCmd = program
+  .command('domains')
+  .description('Manage domains')
   .action((...args) => {
     const globalOptions = processOptions(program);
-    
+
     // Get the command object (last argument)
     const commandObj = args[args.length - 1];
-    
+
     // Check if an unknown subcommand was provided
     if (commandObj && commandObj.args && commandObj.args.length > 0) {
       const unknownArg = commandObj.args.find((arg: string) => !['list', 'get', 'set', 'remove'].includes(arg));
@@ -670,51 +670,51 @@ const aliasesCmd = program
         error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
       }
     }
-    
+
     displayHelp(globalOptions.noColor);
     process.exit(1);
   });
 
-aliasesCmd
+domainsCmd
   .command('list')
-  .description('List all aliases')
-  .action(withErrorHandling((client) => client.aliases.list()));
+  .description('List all domains')
+  .action(withErrorHandling((client) => client.domains.list()));
 
-aliasesCmd
+domainsCmd
   .command('get <name>')
-  .description('Show alias information')
+  .description('Show domain information')
   .action(withErrorHandling(
-    (client, name: string) => client.aliases.get(name),
-    { operation: 'get', resourceType: 'Alias', getResourceId: (name: string) => name }
+    (client, name: string) => client.domains.get(name),
+    { operation: 'get', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
-aliasesCmd
+domainsCmd
   .command('confirm <name>')
-  .description('Trigger DNS confirmation for external alias')
+  .description('Trigger DNS confirmation for external domain')
   .action(withErrorHandling(
-    (client, name: string) => client.aliases.confirm(name),
-    { operation: 'confirm', resourceType: 'Alias', getResourceId: (name: string) => name }
+    (client, name: string) => client.domains.confirm(name),
+    { operation: 'confirm', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
-aliasesCmd
+domainsCmd
   .command('set <name> <deployment>')
-  .description('Create or update alias pointing to deployment')
+  .description('Create or update domain pointing to deployment')
   .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
   .action(withErrorHandling(
     (client: Ship, name: string, deployment: string, cmdOptions: any) => {
       // Commander.js collect gives us an array directly
       const tags = cmdOptions?.tag && cmdOptions.tag.length > 0 ? cmdOptions.tag : undefined;
-      return client.aliases.set(name, deployment, tags);
+      return client.domains.set(name, deployment, tags);
     },
-    { operation: 'set', resourceType: 'Alias', getResourceId: (name: string) => name }
+    { operation: 'set', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
-aliasesCmd
+domainsCmd
   .command('remove <name>')
-  .description('Delete alias permanently')
+  .description('Delete domain permanently')
   .action(withErrorHandling(
-    (client, name: string) => client.aliases.remove(name),
-    { operation: 'remove', resourceType: 'Alias', getResourceId: (name: string) => name }
+    (client, name: string) => client.domains.remove(name),
+    { operation: 'remove', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
 // Tokens commands
@@ -1025,10 +1025,10 @@ function handleCompletion() {
   const isBash = args.includes('--compbash');
   const isZsh = args.includes('--compzsh');
   const isFish = args.includes('--compfish');
-  
+
   if (!isBash && !isZsh && !isFish) return;
 
-  const completions = ['ping', 'whoami', 'deployments', 'aliases', 'account', 'completion'];
+  const completions = ['ping', 'whoami', 'deployments', 'domains', 'account', 'completion'];
   console.log(completions.join(isFish ? '\n' : ' '));
   process.exit(0);
 }

@@ -4,7 +4,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import type { DeploymentListResponse, AliasListResponse, Deployment, Alias, Account } from '@shipstatic/types';
+import type { DeploymentListResponse, DomainListResponse, Deployment, Domain, Account } from '@shipstatic/types';
 
 // Mock data - predictable and minimal for testing
 const mockDeployments: Deployment[] = [
@@ -30,9 +30,9 @@ const mockDeployments: Deployment[] = [
   }
 ];
 
-const mockAliases: Alias[] = [
+const mockDomains: Domain[] = [
   {
-    alias: 'staging',
+    domain: 'staging',
     deployment: 'test-deployment-1',
     status: 'success',
     url: 'https://staging.shipstatic.com',
@@ -40,7 +40,7 @@ const mockAliases: Alias[] = [
     confirmed: 1640995200
   },
   {
-    alias: 'production',
+    domain: 'production',
     deployment: 'test-deployment-2',
     status: 'success',
     url: 'https://production.shipstatic.com',
@@ -60,7 +60,7 @@ const mockAccount: Account = {
 // Default: Return empty lists for deterministic tests
 const emptyState = {
   deployments: [],
-  aliases: []
+  domains: []
 };
 
 /**
@@ -204,38 +204,38 @@ export const apiHandlers = [
     }, { status: 202 });
   }),
 
-  // GET /aliases - Default: empty list for predictable tests
-  http.get('*/aliases', ({ request }) => {
+  // GET /domains - Default: empty list for predictable tests
+  http.get('*/domains', ({ request }) => {
     const url = new URL(request.url);
     const populate = url.searchParams.get('populate');
-    
-    const response: AliasListResponse = {
-      aliases: populate === 'true' ? mockAliases : emptyState.aliases,
+
+    const response: DomainListResponse = {
+      domains: populate === 'true' ? mockDomains : emptyState.domains,
       cursor: null,
-      total: populate === 'true' ? mockAliases.length : 0
+      total: populate === 'true' ? mockDomains.length : 0
     };
-    
+
     return HttpResponse.json(response);
   }),
 
-  // GET /aliases/:name
-  http.get('*/aliases/:name', ({ params }) => {
-    const alias = mockAliases.find(a => a.alias === params.name);
-    if (!alias) {
+  // GET /domains/:name
+  http.get('*/domains/:name', ({ params }) => {
+    const domain = mockDomains.find(d => d.domain === params.name);
+    if (!domain) {
       return HttpResponse.json(
-        { 
-          error: 'not_found', 
-          message: `Alias ${params.name} not found`,
+        {
+          error: 'not_found',
+          message: `Domain ${params.name} not found`,
           status: 404
         },
         { status: 404 }
       );
     }
-    return HttpResponse.json(alias);
+    return HttpResponse.json(domain);
   }),
 
-  // PUT /aliases/:name - Create/update alias
-  http.put('*/aliases/:name', async ({ params, request }) => {
+  // PUT /domains/:name - Create/update domain
+  http.put('*/domains/:name', async ({ params, request }) => {
     const body = await request.json() as { deployment: string; tags?: string[] };
 
     // Check if deployment exists
@@ -251,8 +251,8 @@ export const apiHandlers = [
       );
     }
 
-    const aliasResult: Alias = {
-      alias: params.name as string,
+    const domainResult: Domain = {
+      domain: params.name as string,
       deployment: body.deployment,
       status: 'success',
       tags: body.tags,
@@ -262,17 +262,17 @@ export const apiHandlers = [
       isCreate: true
     };
 
-    return HttpResponse.json(aliasResult, { status: 201 });
+    return HttpResponse.json(domainResult, { status: 201 });
   }),
 
-  // DELETE /aliases/:name
-  http.delete('*/aliases/:name', ({ params }) => {
-    const alias = mockAliases.find(a => a.alias === params.name);
-    if (!alias) {
+  // DELETE /domains/:name
+  http.delete('*/domains/:name', ({ params }) => {
+    const domain = mockDomains.find(d => d.domain === params.name);
+    if (!domain) {
       return HttpResponse.json(
-        { 
-          error: 'not_found', 
-          message: `Alias ${params.name} not found`,
+        {
+          error: 'not_found',
+          message: `Domain ${params.name} not found`,
           status: 404
         },
         { status: 404 }

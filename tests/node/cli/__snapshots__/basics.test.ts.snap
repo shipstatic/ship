@@ -29,12 +29,12 @@ COMMANDS
   ship deployments get <deployment>     Show deployment information
   ship deployments remove <deployment>  Delete deployment permanently
 
-  🌎 Aliases
-  ship aliases list                     List all aliases
-  ship aliases set <name> <deployment>  Create or update alias pointing to deployment
-  ship aliases get <name>               Show alias information
-  ship aliases check <name>             Manually trigger DNS check for external alias
-  ship aliases remove <name>            Delete alias permanently
+  🌎 Domains
+  ship domains list                     List all domains
+  ship domains set <name> <deployment>  Create or update domain pointing to deployment
+  ship domains get <name>               Show domain information
+  ship domains check <name>             Manually trigger DNS check for external domain
+  ship domains remove <name>            Delete domain permanently
 
   🔑 Tokens
   ship tokens list                      List all deploy tokens
@@ -74,12 +74,12 @@ COMMANDS
   ship deployments get <deployment>     Show deployment information
   ship deployments remove <deployment>  Delete deployment permanently
 
-  🌎 Aliases
-  ship aliases list                     List all aliases
-  ship aliases set <name> <deployment>  Create or update alias pointing to deployment
-  ship aliases get <name>               Show alias information
-  ship aliases check <name>             Manually trigger DNS check for external alias
-  ship aliases remove <name>            Delete alias permanently
+  🌎 Domains
+  ship domains list                     List all domains
+  ship domains set <name> <deployment>  Create or update domain pointing to deployment
+  ship domains get <name>               Show domain information
+  ship domains check <name>             Manually trigger DNS check for external domain
+  ship domains remove <name>            Delete domain permanently
 
   🔑 Tokens
   ship tokens list                      List all deploy tokens
@@ -119,12 +119,12 @@ COMMANDS
   ship deployments get <deployment>     Show deployment information
   ship deployments remove <deployment>  Delete deployment permanently
 
-  🌎 Aliases
-  ship aliases list                     List all aliases
-  ship aliases set <name> <deployment>  Create or update alias pointing to deployment
-  ship aliases get <name>               Show alias information
-  ship aliases check <name>             Manually trigger DNS check for external alias
-  ship aliases remove <name>            Delete alias permanently
+  🌎 Domains
+  ship domains list                     List all domains
+  ship domains set <name> <deployment>  Create or update domain pointing to deployment
+  ship domains get <name>               Show domain information
+  ship domains check <name>             Manually trigger DNS check for external domain
+  ship domains remove <name>            Delete domain permanently
 
   🔑 Tokens
   ship tokens list                      List all deploy tokens

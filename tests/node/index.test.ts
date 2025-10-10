@@ -139,9 +139,9 @@ describe('Ship - Node.js Implementation', () => {
   describe('resource functionality', () => {
     it('should provide access to all resources', () => {
       const ship = new Ship({ apiKey: 'test-key' });
-      
+
       expect(ship.deployments).toBeDefined();
-      expect(ship.aliases).toBeDefined();
+      expect(ship.domains).toBeDefined();
       expect(ship.account).toBeDefined();
     });
   });

@@ -45,11 +45,11 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
 
       // Both should have identical resource getters
       expect(nodeShip.deployments).toBeDefined();
-      expect(nodeShip.aliases).toBeDefined();
+      expect(nodeShip.domains).toBeDefined();
       expect(nodeShip.account).toBeDefined();
 
       expect(browserShip.deployments).toBeDefined();
-      expect(browserShip.aliases).toBeDefined();
+      expect(browserShip.domains).toBeDefined();
       expect(browserShip.account).toBeDefined();
 
       // Both should have identical convenience methods
@@ -82,18 +82,18 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       expect(typeof browserShip.deployments.get).toBe('function');
       expect(typeof browserShip.deployments.remove).toBe('function');
 
-      // Alias resource methods
-      expect(typeof nodeShip.aliases.set).toBe('function');
-      expect(typeof nodeShip.aliases.get).toBe('function');
-      expect(typeof nodeShip.aliases.list).toBe('function');
-      expect(typeof nodeShip.aliases.remove).toBe('function');
-      expect(typeof nodeShip.aliases.confirm).toBe('function');
+      // Domain resource methods
+      expect(typeof nodeShip.domains.set).toBe('function');
+      expect(typeof nodeShip.domains.get).toBe('function');
+      expect(typeof nodeShip.domains.list).toBe('function');
+      expect(typeof nodeShip.domains.remove).toBe('function');
+      expect(typeof nodeShip.domains.confirm).toBe('function');
 
-      expect(typeof browserShip.aliases.set).toBe('function');
-      expect(typeof browserShip.aliases.get).toBe('function');
-      expect(typeof browserShip.aliases.list).toBe('function');
-      expect(typeof browserShip.aliases.remove).toBe('function');
-      expect(typeof browserShip.aliases.confirm).toBe('function');
+      expect(typeof browserShip.domains.set).toBe('function');
+      expect(typeof browserShip.domains.get).toBe('function');
+      expect(typeof browserShip.domains.list).toBe('function');
+      expect(typeof browserShip.domains.remove).toBe('function');
+      expect(typeof browserShip.domains.confirm).toBe('function');
     });
   });
 

@@ -47,7 +47,7 @@ if [[ -n ${ZSH_VERSION-} ]]; then
             ;;
         esac
         ;;
-      "aliases")
+      "domains")
         case "${words[3]}" in
           "set")
             if [[ $CURRENT -eq 5 ]]; then
@@ -57,14 +57,14 @@ if [[ -n ${ZSH_VERSION-} ]]; then
             ;;
           "get"|"remove")
             if [[ $CURRENT -eq 4 ]]; then
-              # Would ideally complete alias names, but keep simple
+              # Would ideally complete domain names, but keep simple
               return
             fi
             ;;
           *)
             if [[ $CURRENT -eq 3 ]]; then
-              completions=("list:List all aliases" "get:Show alias information" "set:Create or update alias pointing to deployment" "remove:Delete alias permanently")
-              _describe 'aliases commands' completions
+              completions=("list:List all domains" "get:Show domain information" "set:Create or update domain pointing to deployment" "remove:Delete domain permanently")
+              _describe 'domains commands' completions
               return
             fi
             ;;
@@ -101,7 +101,7 @@ if [[ -n ${ZSH_VERSION-} ]]; then
 
     # Top-level commands
     if [[ $CURRENT -eq 2 ]]; then
-      completions=("ping:Check API connectivity" "whoami:Get current account information" "deployments:Manage deployments" "aliases:Manage aliases" "account:Manage account" "completion:Setup shell completion")
+      completions=("ping:Check API connectivity" "whoami:Get current account information" "deployments:Manage deployments" "domains:Manage domains" "account:Manage account" "completion:Setup shell completion")
       _describe 'commands' completions
       return
     fi

@@ -85,9 +85,9 @@ describe('CLI --tag Flag', () => {
           return;
         }
 
-        // Handle aliases set
-        if (req.method === 'PUT' && url.startsWith('/aliases/')) {
-          const aliasName = url.split('/aliases/')[1];
+        // Handle domains set
+        if (req.method === 'PUT' && url.startsWith('/domains/')) {
+          const domainName = url.split('/domains/')[1];
           let requestData: any = {};
 
           try {
@@ -98,9 +98,9 @@ describe('CLI --tag Flag', () => {
 
           res.writeHead(201, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
-            alias: aliasName,
+            domain: domainName,
             deployment: requestData.deployment || 'test-deployment-123',
-            url: `https://${aliasName}.shipstatic.dev`,
+            url: `https://${domainName}.shipstatic.dev`,
             ...(requestData.tags && requestData.tags.length > 0 ? { tags: requestData.tags } : {})
           }));
           return;
@@ -241,24 +241,24 @@ describe('CLI --tag Flag', () => {
     });
   });
 
-  describe('aliases set --tag', () => {
+  describe('domains set --tag', () => {
     it('should accept single --tag flag', async () => {
       const result = await runCli([
         '--json',
-        'aliases', 'set', 'staging', 'test-deployment-123',
+        'domains', 'set', 'staging', 'test-deployment-123',
         '--tag', 'production'
       ], testEnv());
 
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.alias).toBe('staging');
+      expect(output.domain).toBe('staging');
       expect(output.tags).toEqual(['production']);
     });
 
     it('should accept multiple --tag flags', async () => {
       const result = await runCli([
         '--json',
-        'aliases', 'set', 'production', 'test-deployment-456',
+        'domains', 'set', 'production', 'test-deployment-456',
         '--tag', 'prod',
         '--tag', 'v1.0.0',
         '--tag', 'stable'
@@ -266,19 +266,19 @@ describe('CLI --tag Flag', () => {
 
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.alias).toBe('production');
+      expect(output.domain).toBe('production');
       expect(output.tags).toEqual(['prod', 'v1.0.0', 'stable']);
     });
 
     it('should work without --tag flag', async () => {
       const result = await runCli([
         '--json',
-        'aliases', 'set', 'test-alias', 'test-deployment-xyz'
+        'domains', 'set', 'test-domain', 'test-deployment-xyz'
       ], testEnv());
 
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.alias).toBe('test-alias');
+      expect(output.domain).toBe('test-domain');
       expect(output.tags).toBeUndefined();
     });
   });
@@ -310,20 +310,20 @@ describe('CLI --tag Flag', () => {
       expect(deployResult.exitCode).toBe(0);
       const deployOutput = JSON.parse(deployResult.stdout.trim());
 
-      // Set alias with same tags
-      const aliasResult = await runCli([
+      // Set domain with same tags
+      const domainResult = await runCli([
         '--json',
-        'aliases', 'set', 'prod', deployOutput.deployment,
+        'domains', 'set', 'prod', deployOutput.deployment,
         '--tag', 'v1.0.0',
         '--tag', 'production'
       ], testEnv());
 
-      expect(aliasResult.exitCode).toBe(0);
-      const aliasOutput = JSON.parse(aliasResult.stdout.trim());
+      expect(domainResult.exitCode).toBe(0);
+      const domainOutput = JSON.parse(domainResult.stdout.trim());
 
       // Both should have the same tags format
-      expect(deployOutput.tags).toEqual(aliasOutput.tags);
-      expect(aliasOutput.tags).toEqual(['v1.0.0', 'production']);
+      expect(deployOutput.tags).toEqual(domainOutput.tags);
+      expect(domainOutput.tags).toEqual(['v1.0.0', 'production']);
     });
 
     it('should reject tags shorter than 3 characters', async () => {
