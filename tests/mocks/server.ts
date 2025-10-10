@@ -5,7 +5,7 @@
 
 import { createServer } from 'http';
 import type { Server } from 'http';
-import type { DeploymentListResponse, AliasListResponse, Deployment, Alias, Account } from '@shipstatic/types';
+import type { DeploymentListResponse, DomainListResponse, Deployment, Domain, Account } from '@shipstatic/types';
 
 // Mock data - predictable and minimal for testing
 const mockDeployments: Deployment[] = [
@@ -21,9 +21,9 @@ const mockDeployments: Deployment[] = [
   }
 ];
 
-const mockAliases: Alias[] = [
+const mockDomains: Domain[] = [
   {
-    alias: 'staging',
+    domain: 'staging',
     deployment: 'test-deployment-1',
     status: 'success',
     url: 'https://staging.statichost.dev',
@@ -192,33 +192,33 @@ function handleRequest(req: any, res: any) {
         }));
       }
     }
-    else if (path === '/aliases' && method === 'GET') {
+    else if (path === '/domains' && method === 'GET') {
       const populate = url.searchParams.get('populate');
-      const response: AliasListResponse = {
-        aliases: populate === 'true' ? mockAliases : [],
+      const response: DomainListResponse = {
+        domains: populate === 'true' ? mockDomains : [],
         cursor: null,
-        total: populate === 'true' ? mockAliases.length : 0
+        total: populate === 'true' ? mockDomains.length : 0
       };
       res.writeHead(200);
       res.end(JSON.stringify(response));
     }
-    else if (path.startsWith('/aliases/') && method === 'GET') {
-      const aliasName = path.split('/')[2];
-      const alias = mockAliases.find(a => a.alias === aliasName);
-      if (!alias) {
+    else if (path.startsWith('/domains/') && method === 'GET') {
+      const domainName = path.split('/')[2];
+      const domain = mockDomains.find(d => d.domain === domainName);
+      if (!domain) {
         res.writeHead(404);
-        res.end(JSON.stringify({ 
-          error: 'not_found', 
-          message: `Alias ${aliasName} not found`,
+        res.end(JSON.stringify({
+          error: 'not_found',
+          message: `Domain ${domainName} not found`,
           status: 404
         }));
       } else {
         res.writeHead(200);
-        res.end(JSON.stringify(alias));
+        res.end(JSON.stringify(domain));
       }
     }
-    else if (path.startsWith('/aliases/') && method === 'PUT') {
-      const aliasName = path.split('/')[2];
+    else if (path.startsWith('/domains/') && method === 'PUT') {
+      const domainName = path.split('/')[2];
       let body = '';
       req.on('data', (chunk: any) => body += chunk);
       req.on('end', () => {
@@ -226,42 +226,42 @@ function handleRequest(req: any, res: any) {
           const data = JSON.parse(body);
           if (!data.deployment) {
             res.writeHead(400);
-            res.end(JSON.stringify({ 
-              error: 'validation_error', 
+            res.end(JSON.stringify({
+              error: 'validation_error',
               message: 'deployment is required',
               status: 400
             }));
             return;
           }
-          
+
           // Check if deployment exists
           const deploymentExists = mockDeployments.some(d => d.deployment === data.deployment);
           if (!deploymentExists) {
             res.writeHead(404);
-            res.end(JSON.stringify({ 
-              error: 'not_found', 
+            res.end(JSON.stringify({
+              error: 'not_found',
               message: `Deployment ${data.deployment} not found`,
               status: 404
             }));
             return;
           }
-          
+
           const now = Math.floor(Date.now() / 1000);
-          const aliasResult = {
-            alias: aliasName,
+          const domainResult = {
+            domain: domainName,
             deployment: data.deployment,
             status: 'success' as const,
-            url: `https://${aliasName}.statichost.dev`,
+            url: `https://${domainName}.statichost.dev`,
             created: now,
             confirmed: now
           };
-          
+
           res.writeHead(201);
-          res.end(JSON.stringify(aliasResult));
+          res.end(JSON.stringify(domainResult));
         } catch (e) {
           res.writeHead(400);
-          res.end(JSON.stringify({ 
-            error: 'invalid_json', 
+          res.end(JSON.stringify({
+            error: 'invalid_json',
             message: 'Invalid JSON in request body',
             status: 400
           }));
@@ -269,14 +269,14 @@ function handleRequest(req: any, res: any) {
       });
       return; // Important: return here to prevent the response from ending immediately
     }
-    else if (path.startsWith('/aliases/') && method === 'DELETE') {
-      const aliasName = path.split('/')[2];
-      const alias = mockAliases.find(a => a.alias === aliasName);
-      if (!alias) {
+    else if (path.startsWith('/domains/') && method === 'DELETE') {
+      const domainName = path.split('/')[2];
+      const domain = mockDomains.find(d => d.domain === domainName);
+      if (!domain) {
         res.writeHead(404);
-        res.end(JSON.stringify({ 
-          error: 'not_found', 
-          message: `Alias ${aliasName} not found`,
+        res.end(JSON.stringify({
+          error: 'not_found',
+          message: `Domain ${domainName} not found`,
           status: 404
         }));
       } else {
@@ -350,9 +350,9 @@ export function resetMockServer() {
     expires: 1672531200  // 2023-01-01T00:00:00Z
   });
   
-  mockAliases.length = 0;
-  mockAliases.push({
-    alias: 'staging',
+  mockDomains.length = 0;
+  mockDomains.push({
+    domain: 'staging',
     deployment: 'test-deployment-1',
     status: 'success',
     url: 'https://staging.statichost.dev',

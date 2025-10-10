@@ -105,7 +105,7 @@ describe('CLI Output', () => {
       
       // Verify all main commands are present
       expect(result.stdout).toContain('deployments');
-      expect(result.stdout).toContain('aliases');
+      expect(result.stdout).toContain('domains');
       expect(result.stdout).toContain('account');
       expect(result.stdout).toContain('completion');
       // ping command is hidden from help but still functional

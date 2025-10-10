@@ -38,7 +38,7 @@ _ship_completions() {
           ;;
       esac
       ;;
-    "aliases")
+    "domains")
       case "${COMP_WORDS[2]}" in
         "set")
           if [[ ${COMP_CWORD} -eq 4 ]]; then
@@ -49,7 +49,7 @@ _ship_completions() {
           ;;
         "get"|"remove")
           if [[ ${COMP_CWORD} -eq 3 ]]; then
-            # Would ideally complete alias names, but keep simple
+            # Would ideally complete domain names, but keep simple
             COMPREPLY=()
             return
           fi
@@ -94,7 +94,7 @@ _ship_completions() {
 
   # Top-level commands
   if [[ ${COMP_CWORD} -eq 1 ]]; then
-    completions="ping whoami deployments aliases account completion"
+    completions="ping whoami deployments domains account completion"
     COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
     return
   fi

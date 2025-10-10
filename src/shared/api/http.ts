@@ -10,8 +10,8 @@ import type {
   PingResponse,
   ConfigResponse,
   DeploymentRemoveResponse,
-  Alias,
-  AliasListResponse,
+  Domain,
+  DomainListResponse,
   Account,
   SPACheckRequest,
   SPACheckResponse,
@@ -27,7 +27,7 @@ import { getENV } from '../lib/env.js';
 // Internal endpoints
 const DEPLOY_ENDPOINT = '/deployments';
 const PING_ENDPOINT = '/ping';
-const ALIASES_ENDPOINT = '/aliases';
+const DOMAINS_ENDPOINT = '/domains';
 const CONFIG_ENDPOINT = '/config';
 const ACCOUNT_ENDPOINT = '/account';
 const TOKENS_ENDPOINT = '/tokens';
@@ -234,7 +234,7 @@ export class ApiHttp extends SimpleEvents {
     await this.request<DeploymentRemoveResponse>(`${this.apiUrl}${DEPLOY_ENDPOINT}/${id}`, { method: 'DELETE' }, 'Remove Deployment');
   }
 
-  async setAlias(name: string, deployment: string, tags?: string[]): Promise<Alias> {
+  async setDomain(name: string, deployment: string, tags?: string[]): Promise<Domain> {
     const requestBody: { deployment: string; tags?: string[] } = { deployment };
     if (tags && tags.length > 0) {
       requestBody.tags = tags;
@@ -245,7 +245,7 @@ export class ApiHttp extends SimpleEvents {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)
     };
-    
+
     const headers = this.getAuthHeaders(options.headers as Record<string, string>);
     const fetchOptions: RequestInit = {
       ...options,
@@ -254,61 +254,61 @@ export class ApiHttp extends SimpleEvents {
     };
 
     // Emit request event
-    this.emit('request', `${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, fetchOptions);
+    this.emit('request', `${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, fetchOptions);
 
     try {
-      const response = await fetch(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, fetchOptions);
-      
+      const response = await fetch(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, fetchOptions);
+
       if (!response.ok) {
-        await this.handleResponseError(response, 'Set Alias');
+        await this.handleResponseError(response, 'Set Domain');
       }
 
       // Clone response BEFORE any consumption for reliable event handling
       const responseForEvent = this.safeClone(response);
       const responseForParsing = this.safeClone(response);
-      
+
       // Emit event with dedicated clone
-      this.emit('response', responseForEvent, `${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`);
-      
+      this.emit('response', responseForEvent, `${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`);
+
       // Parse response and add isCreate flag based on status code
-      const result = await this.parseResponse<Alias>(responseForParsing);
+      const result = await this.parseResponse<Domain>(responseForParsing);
       return {
         ...result,
         isCreate: response.status === 201
       };
     } catch (error: any) {
-      this.emit('error', error, `${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`);
-      this.handleFetchError(error, 'Set Alias');
+      this.emit('error', error, `${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`);
+      this.handleFetchError(error, 'Set Domain');
       throw error;
     }
   }
 
-  async getAlias(name: string): Promise<Alias> {
-    return await this.request<Alias>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'GET' }, 'Get Alias');
+  async getDomain(name: string): Promise<Domain> {
+    return await this.request<Domain>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'GET' }, 'Get Domain');
   }
 
-  async listAliases(): Promise<AliasListResponse> {
-    return await this.request<AliasListResponse>(`${this.apiUrl}${ALIASES_ENDPOINT}`, { method: 'GET' }, 'List Aliases');
+  async listDomains(): Promise<DomainListResponse> {
+    return await this.request<DomainListResponse>(`${this.apiUrl}${DOMAINS_ENDPOINT}`, { method: 'GET' }, 'List Domains');
   }
 
-  async removeAlias(name: string): Promise<void> {
-    await this.request<void>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'DELETE' }, 'Remove Alias');
+  async removeDomain(name: string): Promise<void> {
+    await this.request<void>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'DELETE' }, 'Remove Domain');
   }
 
-  async confirmAlias(name: string): Promise<{ message: string }> {
-    return await this.request<{ message: string }>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}/confirm`, { method: 'POST' }, 'Confirm Alias');
+  async confirmDomain(name: string): Promise<{ message: string }> {
+    return await this.request<{ message: string }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/confirm`, { method: 'POST' }, 'Confirm Domain');
   }
 
-  async getAliasDns(name: string): Promise<{ alias: string; dns: any }> {
-    return await this.request<{ alias: string; dns: any }>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}/dns`, { method: 'GET' }, 'Get Alias DNS');
+  async getDomainDns(name: string): Promise<{ domain: string; dns: any }> {
+    return await this.request<{ domain: string; dns: any }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/dns`, { method: 'GET' }, 'Get Domain DNS');
   }
 
-  async getAliasRecords(name: string): Promise<{ alias: string; records: any[] }> {
-    return await this.request<{ alias: string; records: any[] }>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}/records`, { method: 'GET' }, 'Get Alias Records');
+  async getDomainRecords(name: string): Promise<{ domain: string; records: any[] }> {
+    return await this.request<{ domain: string; records: any[] }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/records`, { method: 'GET' }, 'Get Domain Records');
   }
 
-  async getAliasShare(name: string): Promise<{ alias: string; hash: string }> {
-    return await this.request<{ alias: string; hash: string }>(`${this.apiUrl}${ALIASES_ENDPOINT}/${encodeURIComponent(name)}/share`, { method: 'GET' }, 'Get Alias Share');
+  async getDomainShare(name: string): Promise<{ domain: string; hash: string }> {
+    return await this.request<{ domain: string; hash: string }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/share`, { method: 'GET' }, 'Get Domain Share');
   }
 
   async getAccount(): Promise<Account> {

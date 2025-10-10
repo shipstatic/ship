@@ -10,14 +10,14 @@ import type { Deployment } from '@shipstatic/types';
 // Resource imports
 import {
   createDeploymentResource,
-  createAliasResource,
+  createDomainResource,
   createAccountResource,
   createTokenResource,
   type DeployInput
 } from './resources.js';
 import type {
   DeploymentResource,
-  AliasResource,
+  DomainResource,
   AccountResource,
   TokenResource
 } from '@shipstatic/types';
@@ -38,7 +38,7 @@ export abstract class Ship {
   
   // Resource instances (initialized during creation)
   protected _deployments: DeploymentResource;
-  protected _aliases: AliasResource;
+  protected _domains: DomainResource;
   protected _account: AccountResource;
   protected _tokens: TokenResource;
 
@@ -52,7 +52,7 @@ export abstract class Ship {
     // Initialize resources with lazy loading support
     const initCallback = () => this.ensureInitialized();
     const getApi = () => this.http;
-    
+
     // Pass the processInput method to deployment resource
     this._deployments = createDeploymentResource(
       getApi,
@@ -60,7 +60,7 @@ export abstract class Ship {
       initCallback,
       (input, options) => this.processInput(input, options)
     );
-    this._aliases = createAliasResource(getApi, initCallback);
+    this._domains = createDomainResource(getApi, initCallback);
     this._account = createAccountResource(getApi, initCallback);
     this._tokens = createTokenResource(getApi, initCallback);
   }
@@ -108,14 +108,14 @@ export abstract class Ship {
   get deployments(): DeploymentResource {
     return this._deployments;
   }
-  
+
   /**
-   * Get aliases resource
+   * Get domains resource
    */
-  get aliases(): AliasResource {
-    return this._aliases;
+  get domains(): DomainResource {
+    return this._domains;
   }
-  
+
   /**
    * Get account resource
    */

@@ -14,7 +14,7 @@ describe('CLI Completion', () => {
     expect(completions).toContain('ping');
     expect(completions).toContain('whoami');
     expect(completions).toContain('deployments');
-    expect(completions).toContain('aliases');
+    expect(completions).toContain('domains');
     expect(completions).toContain('account');
     expect(completions).toContain('completion');
   });
@@ -29,7 +29,7 @@ describe('CLI Completion', () => {
     expect(completions).toContain('ping');
     expect(completions).toContain('whoami');
     expect(completions).toContain('deployments');
-    expect(completions).toContain('aliases');
+    expect(completions).toContain('domains');
     expect(completions).toContain('account');
     expect(completions).toContain('completion');
   });
@@ -44,8 +44,8 @@ describe('CLI Completion', () => {
     expect(completions).toContain('ping');
     expect(completions).toContain('whoami');
     expect(completions).toContain('deployments');
-    expect(completions).toContain('aliases');
-    expect(completions).toContain('account');  
+    expect(completions).toContain('domains');
+    expect(completions).toContain('account');
     expect(completions).toContain('completion');
   });
 

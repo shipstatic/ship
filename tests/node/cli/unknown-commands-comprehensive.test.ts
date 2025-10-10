@@ -42,8 +42,8 @@ describe('Unknown Commands - Comprehensive Protection', () => {
       expect(result.stdout).toContain('🦸');
     });
 
-    it('should show error + help for unknown aliases subcommand', async () => {
-      const result = await runCli(['aliases', 'invalid'], { expectFailure: true });
+    it('should show error + help for unknown domains subcommand', async () => {
+      const result = await runCli(['domains', 'invalid'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unknown command 'invalid'");
       expect(result.stdout).toContain('USAGE');
@@ -116,7 +116,7 @@ describe('Unknown Commands - Comprehensive Protection', () => {
       expect(result.stdout).toContain('COMMANDS');
       expect(result.stdout).toContain('FLAGS');
       expect(result.stdout).toContain('Deployments');
-      expect(result.stdout).toContain('Aliases');  
+      expect(result.stdout).toContain('Domains');
       expect(result.stdout).toContain('Account');
       expect(result.stdout).toContain('Completion');
       
@@ -127,7 +127,7 @@ describe('Unknown Commands - Comprehensive Protection', () => {
     it('should maintain consistent format across all subcommand types', async () => {
       const subcommands = [
         ['deployments', 'bad'],
-        ['aliases', 'bad'], 
+        ['domains', 'bad'],
         ['account', 'bad'],
         ['completion', 'bad']
       ];

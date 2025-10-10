@@ -19,4 +19,4 @@ export * from './lib/env.js';
 
 // Re-export types from @shipstatic/types
 export { ShipError, ShipErrorType } from '@shipstatic/types';
-export type { PingResponse, Deployment, Alias, Account } from '@shipstatic/types';
+export type { PingResponse, Deployment, Domain, Account } from '@shipstatic/types';

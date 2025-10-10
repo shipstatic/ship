@@ -29,14 +29,14 @@ const createMockApiClient = () => ({
     files: []
   }),
   removeDeployment: vi.fn().mockResolvedValue(undefined),
-  listAliases: vi.fn().mockResolvedValue({
-    aliases: [
+  listDomains: vi.fn().mockResolvedValue({
+    domains: [
       { domain: 'example.com', deployment: 'dep_123', verified: true },
       { domain: 'test.com', deployment: 'dep_456', verified: false }
     ],
     count: 2
   }),
-  createAlias: vi.fn().mockResolvedValue({
+  createDomain: vi.fn().mockResolvedValue({
     domain: 'new.example.com',
     deployment: 'dep_123',
     verified: false
@@ -172,33 +172,33 @@ describe('Resource API Cross-Environment Consistency', () => {
     });
   });
 
-  describe('Alias Resource Consistency', () => {
-    it('should provide identical alias resource interface across environments', async () => {
+  describe('Domain Resource Consistency', () => {
+    it('should provide identical domain resource interface across environments', async () => {
       // Test in both environments
       const environments = ['node', 'browser'] as const;
       const results: any[] = [];
 
       for (const env of environments) {
         __setTestEnvironment(env);
-        const { createAliasResource } = await import('../../src/shared/resources');
-        const aliasResource = createAliasResource(() => mockApiClient);
+        const { createDomainResource } = await import('../../src/shared/resources');
+        const domainResource = createDomainResource(() => mockApiClient);
 
         // Validate interface
-        expect(typeof aliasResource.list).toBe('function');
-        expect(typeof aliasResource.set).toBe('function');
-        expect(typeof aliasResource.get).toBe('function');
-        expect(typeof aliasResource.remove).toBe('function');
-        expect(typeof aliasResource.confirm).toBe('function');
+        expect(typeof domainResource.list).toBe('function');
+        expect(typeof domainResource.set).toBe('function');
+        expect(typeof domainResource.get).toBe('function');
+        expect(typeof domainResource.remove).toBe('function');
+        expect(typeof domainResource.confirm).toBe('function');
 
         // Test method behavior
-        const result = await aliasResource.list();
+        const result = await domainResource.list();
         results.push(result);
       }
 
       // Results should be identical
       expect(results[0]).toEqual(results[1]);
       expect(results[0]).toEqual({
-        aliases: [
+        domains: [
           { domain: 'example.com', deployment: 'dep_123', verified: true },
           { domain: 'test.com', deployment: 'dep_456', verified: false }
         ],
@@ -206,31 +206,31 @@ describe('Resource API Cross-Environment Consistency', () => {
       });
     });
 
-    it('should set aliases consistently across environments', async () => {
-      const aliasName = 'example.com';
+    it('should set domains consistently across environments', async () => {
+      const domainName = 'example.com';
       const deployment = 'dep_123';
       const results: any[] = [];
 
-      // Mock the setAlias API method
-      mockApiClient.setAlias = vi.fn().mockResolvedValue({
-        domain: aliasName,
+      // Mock the setDomain API method
+      mockApiClient.setDomain = vi.fn().mockResolvedValue({
+        domain: domainName,
         deployment: deployment,
         verified: false
       });
 
       for (const env of ['node', 'browser'] as const) {
         __setTestEnvironment(env);
-        const { createAliasResource } = await import('../../src/shared/resources');
-        const aliasResource = createAliasResource(() => mockApiClient);
+        const { createDomainResource } = await import('../../src/shared/resources');
+        const domainResource = createDomainResource(() => mockApiClient);
 
-        const result = await aliasResource.set(aliasName, deployment);
+        const result = await domainResource.set(domainName, deployment);
         results.push(result);
       }
 
       // Results should be identical
       expect(results[0]).toEqual(results[1]);
-      expect(mockApiClient.setAlias).toHaveBeenCalledTimes(2);
-      expect(mockApiClient.setAlias).toHaveBeenCalledWith(aliasName, deployment, undefined);
+      expect(mockApiClient.setDomain).toHaveBeenCalledTimes(2);
+      expect(mockApiClient.setDomain).toHaveBeenCalledWith(domainName, deployment, undefined);
     });
   });
 
@@ -268,26 +268,26 @@ describe('Resource API Cross-Environment Consistency', () => {
     it('should handle network errors consistently across all resources', async () => {
       const networkError = new Error('Network timeout');
       mockApiClient.listDeployments.mockRejectedValue(networkError);
-      mockApiClient.listAliases.mockRejectedValue(networkError);
+      mockApiClient.listDomains.mockRejectedValue(networkError);
       mockApiClient.getAccount.mockRejectedValue(networkError);
 
       for (const env of ['node', 'browser'] as const) {
         __setTestEnvironment(env);
-        
-        const { createDeploymentResource, createAliasResource, createAccountResource } = await import('../../src/shared/resources');
-        
+
+        const { createDeploymentResource, createDomainResource, createAccountResource } = await import('../../src/shared/resources');
+
         const deploymentResource = createDeploymentResource(
           () => mockApiClient,
           {},
           vi.fn().mockResolvedValue(undefined),
           vi.fn()
         );
-        const aliasResource = createAliasResource(() => mockApiClient);
+        const domainResource = createDomainResource(() => mockApiClient);
         const accountResource = createAccountResource(() => mockApiClient);
 
         // All should throw the same error
         await expect(deploymentResource.list()).rejects.toThrow('Network timeout');
-        await expect(aliasResource.list()).rejects.toThrow('Network timeout');
+        await expect(domainResource.list()).rejects.toThrow('Network timeout');
         await expect(accountResource.get()).rejects.toThrow('Network timeout');
       }
     });
@@ -295,26 +295,26 @@ describe('Resource API Cross-Environment Consistency', () => {
     it('should handle API authentication errors consistently', async () => {
       const authError = new Error('Invalid API key');
       mockApiClient.listDeployments.mockRejectedValue(authError);
-      mockApiClient.listAliases.mockRejectedValue(authError);
+      mockApiClient.listDomains.mockRejectedValue(authError);
       mockApiClient.getAccount.mockRejectedValue(authError);
 
       for (const env of ['node', 'browser'] as const) {
         __setTestEnvironment(env);
-        
-        const { createDeploymentResource, createAliasResource, createAccountResource } = await import('../../src/shared/resources');
-        
+
+        const { createDeploymentResource, createDomainResource, createAccountResource } = await import('../../src/shared/resources');
+
         const deploymentResource = createDeploymentResource(
           () => mockApiClient,
           {},
           vi.fn().mockResolvedValue(undefined),
           vi.fn()
         );
-        const aliasResource = createAliasResource(() => mockApiClient);
+        const domainResource = createDomainResource(() => mockApiClient);
         const accountResource = createAccountResource(() => mockApiClient);
 
         // All should throw the same error
         await expect(deploymentResource.list()).rejects.toThrow('Invalid API key');
-        await expect(aliasResource.list()).rejects.toThrow('Invalid API key');
+        await expect(domainResource.list()).rejects.toThrow('Invalid API key');
         await expect(accountResource.get()).rejects.toThrow('Invalid API key');
       }
     });
@@ -326,23 +326,23 @@ describe('Resource API Cross-Environment Consistency', () => {
 
       for (const env of ['node', 'browser'] as const) {
         __setTestEnvironment(env);
-        
-        const { createDeploymentResource, createAliasResource, createAccountResource } = await import('../../src/shared/resources');
-        
+
+        const { createDeploymentResource, createDomainResource, createAccountResource } = await import('../../src/shared/resources');
+
         const deploymentResource = createDeploymentResource(
           () => mockApiClient,
           {},
           vi.fn().mockResolvedValue(undefined),
           vi.fn()
         );
-        const aliasResource = createAliasResource(() => mockApiClient);
+        const domainResource = createDomainResource(() => mockApiClient);
         const accountResource = createAccountResource(() => mockApiClient);
 
         methodSignatures[env] = [
           // Deployment methods
           Object.getOwnPropertyNames(deploymentResource).sort(),
-          // Alias methods  
-          Object.getOwnPropertyNames(aliasResource).sort(),
+          // Domain methods
+          Object.getOwnPropertyNames(domainResource).sort(),
           // Account methods
           Object.getOwnPropertyNames(accountResource).sort()
         ];
