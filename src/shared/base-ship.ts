@@ -5,7 +5,8 @@
 import { ApiHttp } from './api/http.js';
 import { ShipError } from '@shipstatic/types';
 import type { ShipClientOptions, ShipEvents } from './types.js';
-import type { Deployment } from '@shipstatic/types';
+import type { Deployment, ConfigResponse } from '@shipstatic/types';
+import { getCurrentConfig } from './core/platform-config.js';
 
 // Resource imports
 import {
@@ -35,7 +36,8 @@ export abstract class Ship {
   protected http: ApiHttp;
   protected readonly clientOptions: ShipClientOptions;
   protected initPromise: Promise<void> | null = null;
-  
+  protected _config: ConfigResponse | null = null;
+
   // Resource instances (initialized during creation)
   protected _deployments: DeploymentResource;
   protected _domains: DomainResource;
@@ -128,6 +130,21 @@ export abstract class Ship {
    */
   get tokens(): TokenResource {
     return this._tokens;
+  }
+
+  /**
+   * Get API configuration (file upload limits, etc.)
+   * Reuses platform config fetched during initialization, then caches the result
+   */
+  async getConfig(): Promise<ConfigResponse> {
+    if (this._config) {
+      return this._config;
+    }
+
+    await this.ensureInitialized();
+    // After initialization, platform config is already fetched - reuse it instead of making another API call
+    this._config = getCurrentConfig();
+    return this._config;
   }
 
   /**
