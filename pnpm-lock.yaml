@@ -29,9 +29,9 @@ importers:
       junk:
         specifier: ^4.0.1
         version: 4.0.1
-      mime-types:
-        specifier: ^3.0.1
-        version: 3.0.1
+      mime-db:
+        specifier: ^1.54.0
+        version: 1.54.0
       spark-md5:
         specifier: ^3.0.2
         version: 3.0.2
@@ -48,9 +48,9 @@ importers:
       '@types/columnify':
         specifier: ^1.5.4
         version: 1.5.4
-      '@types/mime-types':
-        specifier: ^3.0.1
-        version: 3.0.1
+      '@types/mime-db':
+        specifier: ^1.43.6
+        version: 1.43.6
       '@types/node':
         specifier: ^20.19.19
         version: 20.19.19
@@ -72,9 +72,6 @@ importers:
       msw:
         specifier: ^2.11.3
         version: 2.11.3(@types/node@20.19.19)(typescript@5.9.3)
-      path-browserify:
-        specifier: ^1.0.1
-        version: 1.0.1
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@20.19.19)(typescript@5.9.3)
@@ -691,8 +688,8 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
-  '@types/mime-types@3.0.1':
-    resolution: {integrity: sha512-xRMsfuQbnRq1Ef+C+RKaENOxXX87Ygl38W1vDfPHRku02TgQr+Qd8iivLtAMcR0KF5/29xlnFihkTlbqFrGOVQ==}
+  '@types/mime-db@1.43.6':
+    resolution: {integrity: sha512-r2cqxAt/Eo5yWBOQie1lyM1JZFCiORa5xtLlhSZI0w8RJggBPKw8c4g/fgQCzWydaDR5bL4imnmix2d1n52iBw==}
 
   '@types/node@20.19.19':
     resolution: {integrity: sha512-pb1Uqj5WJP7wrcbLU7Ru4QtA0+3kAXrkutGiD26wUKzSMgNNaPARTUDQmElUXp64kh3cWdou3Q0C7qwwxqSFmg==}
@@ -1181,10 +1178,6 @@ packages:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
     engines: {node: '>= 0.6'}
 
-  mime-types@3.0.1:
-    resolution: {integrity: sha512-xRc4oEhT6eaBpU1XF7AjpOFD+xQmXNB5OVKwp4tqCuBpHLS/ZbBDrc07mYTDqVMg6PfxUjjNp85O6Cd2Z/5HWA==}
-    engines: {node: '>= 0.6'}
-
   minimatch@9.0.5:
     resolution: {integrity: sha512-G6T0ZX48xgozx7587koeX9Ys2NYy6Gmv//P89sEte9V9whIapMNF4idKxnW2QtCcLiTWlb/wfCabAtAFWhhBow==}
     engines: {node: '>=16 || 14 >=14.17'}
@@ -1244,9 +1237,6 @@ packages:
 
   parse5@7.3.0:
     resolution: {integrity: sha512-IInvU7fabl34qmi9gY8XOVxhYyMyuH2xUNpb2q8/Y+7552KlejkRvqvD19nMoUW/uQGGbqNpA6Tufu5FL5BZgw==}
-
-  path-browserify@1.0.1:
-    resolution: {integrity: sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==}
 
   path-key@3.1.1:
     resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
@@ -2145,7 +2135,7 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
-  '@types/mime-types@3.0.1': {}
+  '@types/mime-db@1.43.6': {}
 
   '@types/node@20.19.19':
     dependencies:
@@ -2648,10 +2638,6 @@ snapshots:
     dependencies:
       mime-db: 1.52.0
 
-  mime-types@3.0.1:
-    dependencies:
-      mime-db: 1.54.0
-
   minimatch@9.0.5:
     dependencies:
       brace-expansion: 2.0.2
@@ -2725,8 +2711,6 @@ snapshots:
   parse5@7.3.0:
     dependencies:
       entities: 6.0.1
-
-  path-browserify@1.0.1: {}
 
   path-key@3.1.1: {}
 

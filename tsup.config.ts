@@ -9,9 +9,8 @@ const nodeExternals = [
   'form-data-encoder',
   'formdata-node',
   'junk',
-  'mime-types',
+  'mime-db',
   'spark-md5',
-  'path-browserify',
   'yocto-spinner',
   'yoctocolors',
   'columnify',
@@ -21,7 +20,7 @@ const nodeExternals = [
 // Dependencies to be bundled into the browser build
 const browserBundleDeps = [
   'spark-md5',
-  'mime-types', 
+  'mime-db',
   'form-data-encoder',
   'junk',
   'zod',
@@ -64,7 +63,6 @@ export default defineConfig((tsupOptions: Options): Options[] => [
       // Use build-time aliasing for Node.js modules
       options.alias = {
         ...options.alias,
-        path: 'path-browserify',
         fs: path.resolve('./build-shims/empty.cjs'),
         crypto: path.resolve('./build-shims/empty.cjs'),
         os: path.resolve('./build-shims/empty.cjs'),

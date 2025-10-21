@@ -3,7 +3,7 @@
  * Clean, direct implementation with reliable error handling
  */
 
-import * as _mime from 'mime-types';
+import { getMimeType } from '../utils/mimeType';
 import type {
   Deployment,
   DeploymentListResponse,
@@ -448,7 +448,7 @@ export class ApiHttp extends SimpleEvents {
     const checksums: string[] = [];
 
     for (const file of files) {
-      const contentType = _mime.lookup(file.path) || 'application/octet-stream';
+      const contentType = getMimeType(file.path);
 
       let fileInstance;
       if (Buffer.isBuffer(file.content)) {
@@ -488,9 +488,9 @@ export class ApiHttp extends SimpleEvents {
 
   private getBrowserContentType(file: File | string): string {
     if (typeof file === 'string') {
-      return _mime.lookup(file) || 'application/octet-stream';
+      return getMimeType(file);
     } else {
-      return _mime.lookup(file.name) || file.type || 'application/octet-stream';
+      return file.type || getMimeType(file.name);
     }
   }
 }
