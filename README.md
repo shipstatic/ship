@@ -5,9 +5,10 @@ A modern, lightweight SDK and CLI for deploying static files, designed for both 
 ## Features
 
 - **🚀 Modern Resource API**: Clean `ship.deployments.create()` interface - no legacy wrappers
-- **🌍 Universal**: Automatic environment detection (Node.js/Browser) with optimized implementations  
+- **🌍 Universal**: Automatic environment detection (Node.js/Browser) with optimized implementations
 - **📡 Event System**: Complete observability with request, response, and error events
 - **🔧 Dynamic Configuration**: Automatically fetches platform limits from API
+- **✅ Client-Side Validation**: Validate files before upload (size, count, MIME types)
 - **📁 Flexible Input**: File paths (Node.js) or File objects (Browser/drag-drop)
 - **🔐 Secure**: MD5 checksums and data integrity validation
 - **📊 Progress Tracking**: Real-time deployment progress and statistics
@@ -132,6 +133,56 @@ const ship = new Ship({ apiKey: 'ship-your-key' });
 - **Single source of truth** - Limits only need to be changed on the API side
 - **Always current** - SDK always uses current platform limits
 - **Fail fast** - SDK fails if unable to fetch valid configuration
+
+## Client-Side File Validation
+
+Ship SDK provides utilities for validating files before upload. Validation is **atomic** - if any file is invalid, the entire upload is rejected.
+
+```typescript
+import { validateFiles, formatFileSize } from '@shipstatic/ship';
+
+// Get platform configuration
+const config = await ship.getConfig();
+
+// Validate files before upload
+const result = validateFiles(files, config);
+
+if (result.error) {
+  // Global summary
+  console.error(result.error.details); // "2 files failed validation"
+
+  // All specific errors
+  result.error.errors.forEach(err => console.error(err));
+  // "file1.wasm: File type 'application/wasm' is not allowed"
+  // "file2.txt: File size (10 MB) exceeds limit of 5 MB"
+
+  // Per-file status (all files marked failed in atomic validation)
+  result.files.forEach(f => {
+    console.log(`${f.name}: ${f.statusMessage}`);
+  });
+} else {
+  console.log(`${result.validFiles.length} files ready to upload`);
+  await ship.deployments.create(result.validFiles);
+}
+```
+
+**Validation checks:**
+- File count limit
+- Individual file size limit
+- Total deployment size limit
+- MIME type validation (against allowed categories)
+- Empty file detection
+
+**Error handling:**
+- `error.details` - Human-readable summary ("2 files failed validation")
+- `error.errors` - Array of all validation errors for detailed display
+- `file.statusMessage` - Individual file status for UI highlighting
+
+**Utilities:**
+- `validateFiles(files, config)` - Validate files against config limits
+- `formatFileSize(bytes, decimals?)` - Format bytes to human-readable string
+- `getValidFiles(files)` - Filter files with `READY` status
+- `FILE_VALIDATION_STATUS` - Status constants for file processing
 
 ## API Reference
 
