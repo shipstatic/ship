@@ -68,11 +68,8 @@ function validateInputEarly(input: any, environment: string): void {
     if (!input.every(item => typeof item === 'string')) {
       throw ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.');
     }
-  } else if (environment === 'browser') {
-    if (input instanceof HTMLInputElement && !input.files) {
-      throw ShipError.business('No files selected in HTMLInputElement');
-    }
   }
+  // Browser environment validation happens in browser/index.ts
 }
 
 /**
@@ -112,10 +109,10 @@ export async function convertNodeInput(
 }
 
 /**
- * Converts browser FileList/File[]/HTMLInputElement to StaticFile[]
+ * Converts browser File[] to StaticFile[]
  */
 export async function convertBrowserInput(
-  input: FileList | File[] | HTMLInputElement,
+  input: File[],
   options: DeploymentOptions = {}
 ): Promise<StaticFile[]> {
   // Early validation - fail fast before processing
@@ -123,22 +120,13 @@ export async function convertBrowserInput(
 
   let fileArray: File[];
 
-  if (input instanceof HTMLInputElement) {
-    fileArray = Array.from(input.files!);
-  } else if (
-    typeof input === 'object' &&
-    input !== null &&
-    typeof (input as any).length === 'number' &&
-    typeof (input as any).item === 'function'
-  ) {
-    fileArray = Array.from(input as FileList);
-  } else if (Array.isArray(input)) {
+  if (Array.isArray(input)) {
     if (input.length > 0 && typeof input[0] === 'string') {
-      throw ShipError.business('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
+      throw ShipError.business('Invalid input type for browser environment. Expected File[].');
     }
     fileArray = input as File[];
   } else {
-    throw ShipError.business('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
+    throw ShipError.business('Invalid input type for browser environment. Expected File[].');
   }
 
   // Filter out empty files first
@@ -154,7 +142,7 @@ export async function convertBrowserInput(
   validateFiles(fileArray);
 
   // Pass options directly to browser processor - no conflicting logic here
-  const staticFiles: StaticFile[] = await processFilesForBrowser(fileArray as File[], options);
+  const staticFiles: StaticFile[] = await processFilesForBrowser(fileArray, options);
 
   // Apply shared validation and post-processing
   return postProcessFiles(staticFiles);
@@ -188,7 +176,7 @@ export async function convertDeployInput(
       throw ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.');
     }
   } else {
-    files = await convertBrowserInput(input as FileList | File[] | HTMLInputElement, options);
+    files = await convertBrowserInput(input as File[], options);
   }
   
   return files;

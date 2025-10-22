@@ -96,37 +96,6 @@ describe('Ship - Browser Implementation', () => {
       });
     });
 
-    it('should process FileList correctly', async () => {
-      const ship = new Ship({ 
-        deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
-      });
-      
-      // Mock the API client
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({
-          id: 'dep_filelist_123',
-          url: 'https://dep_filelist_123.shipstatic.dev'
-        }),
-        checkSPA: vi.fn().mockResolvedValue(false),
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
-      };
-
-      // Create mock FileList
-      const mockFileList = {
-        0: new File(['<html></html>'], 'index.html', { type: 'text/html' }),
-        1: new File(['body {}'], 'style.css', { type: 'text/css' }),
-        length: 2,
-        item: (index: number) => index < 2 ? mockFileList[index as keyof typeof mockFileList] : null
-      } as FileList;
-
-      const result = await ship.deploy(mockFileList);
-
-      expect(result).toEqual({
-        id: 'dep_filelist_123',
-        url: 'https://dep_filelist_123.shipstatic.dev'
-      });
-    });
   });
 
   describe('SPA detection in browser', () => {
@@ -229,44 +198,6 @@ describe('Ship - Browser Implementation', () => {
         .rejects.toThrow();
     });
 
-    it('should process HTMLInputElement correctly', async () => {
-      const ship = new Ship({ 
-        deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
-      });
-      
-      // Mock the API client
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({
-          id: 'dep_input_123',
-          url: 'https://dep_input_123.shipstatic.dev'
-        }),
-        checkSPA: vi.fn().mockResolvedValue(false),
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
-      };
-
-      // Create mock HTMLInputElement with files
-      const mockInput = document.createElement('input') as HTMLInputElement;
-      mockInput.type = 'file';
-      const file1 = new File(['content1'], 'file1.txt');
-      const file2 = new File(['content2'], 'file2.txt');
-      
-      Object.defineProperty(mockInput, 'files', {
-        value: {
-          0: file1,
-          1: file2,
-          length: 2,
-          item: (index: number) => index === 0 ? file1 : index === 1 ? file2 : null
-        } as FileList
-      });
-
-      const result = await ship.deploy(mockInput);
-
-      expect(result).toEqual({
-        id: 'dep_input_123',
-        url: 'https://dep_input_123.shipstatic.dev'
-      });
-    });
 
     it('should pass deployment options correctly', async () => {
       const ship = new Ship({ 
@@ -305,12 +236,12 @@ describe('Ship - Browser Implementation', () => {
       );
     });
 
-    it('should handle empty FileList', async () => {
-      const ship = new Ship({ 
+    it('should handle empty File[]', async () => {
+      const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.dev'
       });
-      
+
       (ship as any).http = {
         deploy: vi.fn().mockResolvedValue({
           id: 'dep_empty_123',
@@ -320,12 +251,9 @@ describe('Ship - Browser Implementation', () => {
         getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
-      const emptyFileList = {
-        length: 0,
-        item: () => null
-      } as FileList;
+      const emptyFiles: File[] = [];
 
-      const result = await ship.deploy(emptyFileList);
+      const result = await ship.deploy(emptyFiles);
 
       expect(result).toEqual({
         id: 'dep_empty_123',
@@ -377,7 +305,7 @@ describe('Ship - Browser Implementation', () => {
       };
 
       await expect(ship.deploy('/path/to/file' as any))
-        .rejects.toThrow('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
+        .rejects.toThrow('Invalid input type for browser environment. Expected File[].');
     });
 
     it('should reject Node.js-style string arrays with consistent error message', async () => {
@@ -391,7 +319,7 @@ describe('Ship - Browser Implementation', () => {
       };
 
       await expect(ship.deploy(['./file1.html', './file2.css'] as any))
-        .rejects.toThrow('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
+        .rejects.toThrow('Invalid input type for browser environment. Expected File[].');
     });
 
     it('should reject invalid object types with consistent error message', async () => {
@@ -405,7 +333,7 @@ describe('Ship - Browser Implementation', () => {
       };
 
       await expect(ship.deploy({ invalid: 'object' } as any))
-        .rejects.toThrow('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
+        .rejects.toThrow('Invalid input type for browser environment. Expected File[].');
     });
 
     it('should handle network errors consistently', async () => {
