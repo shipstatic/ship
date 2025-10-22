@@ -41,30 +41,10 @@ describe('Browser File Processing', () => {
       });
     });
 
-    it('should process FileList into StaticFile format', async () => {
-      const mockFileList = {
-        0: new File(['<html>Test</html>'], 'index.html', { type: 'text/html' }),
-        1: new File(['console.log("hello")'], 'app', { type: 'application/javascript' }),
-        length: 2,
-        item: function(index: number) { 
-          return index < this.length ? this[index as keyof Omit<typeof this, 'length' | 'item'>] : null; 
-        }
-      } as FileList;
+    it('should handle empty file array', async () => {
+      const emptyFiles: File[] = [];
 
-      const result = await processFilesForBrowser(mockFileList, {});
-
-      expect(result).toHaveLength(2);
-      expect(result[0].path).toBe('index.html');
-      expect(result[1].path).toBe('app');
-    });
-
-    it('should handle empty file list', async () => {
-      const emptyFileList = {
-        length: 0,
-        item: () => null
-      } as FileList;
-
-      const result = await processFilesForBrowser(emptyFileList, {});
+      const result = await processFilesForBrowser(emptyFiles, {});
 
       expect(result).toHaveLength(0);
     });
@@ -271,20 +251,6 @@ describe('Browser File Processing', () => {
       expect(result[0].path).toBe('timed-file.txt');
     });
 
-    it('should handle malformed FileList objects', async () => {
-      // Simulate a FileList that might have missing methods
-      const malformedFileList = {
-        0: new File(['content'], 'file1.txt'),
-        1: new File(['content'], 'file2.txt'),
-        length: 2,
-        // Missing item method
-      } as any;
-
-      const result = await processFilesForBrowser(malformedFileList, {});
-
-      expect(result).toHaveLength(2);
-      expect(result.map(f => f.path)).toEqual(['file1.txt', 'file2.txt']);
-    });
 
     it('should handle files with identical names', async () => {
       const duplicateFiles = [

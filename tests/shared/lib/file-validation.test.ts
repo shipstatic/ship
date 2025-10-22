@@ -332,7 +332,7 @@ describe('File Validation', () => {
 
       expect(result.validFiles).toHaveLength(0);
       expect(result.error?.error).toBe('Invalid File Name');
-      expect(result.error?.errors[0]).toContain('Invalid file name. File name contains invalid characters');
+      expect(result.error?.errors[0]).toContain('traversal');
     });
 
     it('should reject file names with null bytes (atomic)', () => {
@@ -345,7 +345,7 @@ describe('File Validation', () => {
 
       expect(result.validFiles).toHaveLength(0);
       expect(result.error?.error).toBe('Invalid File Name');
-      expect(result.error?.errors[0]).toContain('Invalid file name. File name contains invalid characters');
+      expect(result.error?.errors[0]).toContain('null byte');
     });
   });
 
@@ -640,6 +640,161 @@ describe('File Validation', () => {
       expect(FILE_VALIDATION_STATUS.EMPTY_FILE).toBe('empty_file');
       expect(FILE_VALIDATION_STATUS.VALIDATION_FAILED).toBe('validation_failed');
       expect(FILE_VALIDATION_STATUS.READY).toBe('ready');
+    });
+  });
+
+  describe('validateFiles - Filename Validation', () => {
+    const config: ConfigResponse = {
+      maxFileSize: 5 * 1024 * 1024,
+      maxTotalSize: 25 * 1024 * 1024,
+      maxFilesCount: 100,
+      allowedMimeTypes: ['text/', 'image/', 'application/'],
+    };
+
+    it('should reject files with URL-unsafe characters', () => {
+      const unsafeNames = [
+        'file?.txt',
+        'file&name.txt',
+        'file#hash.txt',
+        'file%percent.txt',
+        'file<less.txt',
+        'file>greater.txt',
+        'file[bracket.txt',
+        'file{brace.txt',
+        'file|pipe.txt',
+        'file\\backslash.txt',
+        'file^caret.txt',
+        'file~tilde.txt',
+        'file`backtick.txt',
+      ];
+
+      unsafeNames.forEach(name => {
+        const result = validateFiles([createMockFile(name, 100)], config);
+        expect(result.error?.error).toBe('Invalid File Name');
+        expect(result.validFiles).toHaveLength(0);
+        expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      });
+    });
+
+    it('should reject files with shell-dangerous characters', () => {
+      const dangerousNames = [
+        'file;semicolon.txt',
+        'file$dollar.txt',
+        'file(paren.txt',
+        'file)paren.txt',
+        "file'quote.txt",
+        'file"doublequote.txt',
+        'file*asterisk.txt',
+      ];
+
+      dangerousNames.forEach(name => {
+        const result = validateFiles([createMockFile(name, 100)], config);
+        expect(result.error?.error).toBe('Invalid File Name');
+        expect(result.validFiles).toHaveLength(0);
+      });
+    });
+
+    it('should reject files with control characters', () => {
+      const result1 = validateFiles([createMockFile('file\rcarriage.txt', 100)], config);
+      expect(result1.error?.error).toBe('Invalid File Name');
+
+      const result2 = validateFiles([createMockFile('file\nline.txt', 100)], config);
+      expect(result2.error?.error).toBe('Invalid File Name');
+
+      const result3 = validateFiles([createMockFile('file\ttab.txt', 100)], config);
+      expect(result3.error?.error).toBe('Invalid File Name');
+    });
+
+    it('should reject files with Windows reserved names', () => {
+      const reservedNames = [
+        'CON',
+        'CON.txt',
+        'PRN.log',
+        'AUX.dat',
+        'NUL.txt',
+        'COM1.txt',
+        'COM9.txt',
+        'LPT1.txt',
+        'LPT9.txt',
+      ];
+
+      reservedNames.forEach(name => {
+        const result = validateFiles([createMockFile(name, 100)], config);
+        expect(result.error?.error).toBe('Invalid File Name');
+        expect(result.validFiles).toHaveLength(0);
+      });
+    });
+
+    it('should reject files with leading/trailing spaces', () => {
+      const result1 = validateFiles([createMockFile(' leading.txt', 100)], config);
+      expect(result1.error?.error).toBe('Invalid File Name');
+
+      const result2 = validateFiles([createMockFile('trailing.txt ', 100)], config);
+      expect(result2.error?.error).toBe('Invalid File Name');
+    });
+
+    it('should reject files ending with dots', () => {
+      const result = validateFiles([createMockFile('file.txt.', 100)], config);
+      expect(result.error?.error).toBe('Invalid File Name');
+    });
+
+    it('should reject files with path traversal (..)', () => {
+      const result = validateFiles([createMockFile('../../../etc/passwd', 100, 'text/plain')], config);
+      expect(result.error?.error).toBe('Invalid File Name');
+      expect(result.error?.details).toContain('traversal');
+    });
+
+    it('should accept valid filenames', () => {
+      const validFiles = [
+        { name: 'file.txt', type: 'text/plain' },
+        { name: 'my-file.txt', type: 'text/plain' },
+        { name: 'my_file.txt', type: 'text/plain' },
+        { name: 'file123.txt', type: 'text/plain' },
+        { name: 'FILE.TXT', type: 'text/plain' },
+        { name: 'file.tar.gz', type: 'application/gzip' },
+        { name: 'index.html', type: 'text/html' },
+        { name: 'README.md', type: 'text/markdown' },
+        { name: 'package.json', type: 'application/json' },
+        { name: '.gitignore', type: 'text/plain' }, // Hidden files are allowed
+        { name: '.env', type: 'text/plain' },
+        { name: '.htaccess', type: 'text/plain' },
+      ];
+
+      validFiles.forEach(({ name, type }) => {
+        const result = validateFiles([createMockFile(name, 100, type)], config);
+        expect(result.error).toBeNull();
+        expect(result.validFiles).toHaveLength(1);
+        expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.READY);
+      });
+    });
+
+    it('should support nested paths (for subdirectories)', () => {
+      const result = validateFiles([
+        createMockFile('folder/file.txt', 100),
+        createMockFile('folder/subfolder/file.txt', 100),
+        createMockFile('assets/images/logo.png', 100, 'image/png'),
+      ], config);
+
+      expect(result.error).toBeNull();
+      expect(result.validFiles).toHaveLength(3);
+    });
+
+    it('should atomically reject all files if any filename is invalid', () => {
+      const files = [
+        createMockFile('valid1.txt', 100),
+        createMockFile('invalid?.txt', 100), // Invalid
+        createMockFile('valid2.txt', 100),
+      ];
+
+      const result = validateFiles(files, config);
+
+      // ATOMIC: All files marked as VALIDATION_FAILED
+      expect(result.error?.error).toBe('Invalid File Name');
+      expect(result.validFiles).toHaveLength(0);
+      expect(result.files).toHaveLength(3);
+      result.files.forEach(f => {
+        expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      });
     });
   });
 });

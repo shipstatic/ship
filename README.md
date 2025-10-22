@@ -231,14 +231,21 @@ await ship.deployments.get(id)
 
 #### Deploy Input Types
 
-**Node.js Environment:**
 ```typescript
-type NodeDeployInput = string[];  // File paths
+type DeployInput = File[] | string | string[];
 ```
 
+**Node.js Environment:**
+- `string` - Single file or directory path
+- `string[]` - Multiple file/directory paths
+
 **Browser Environment:**
+- `File[]` - Array of File objects
+
+**Note:** For `<input type="file">` elements, convert FileList to File[]:
 ```typescript
-type BrowserDeployInput = FileList | File[] | HTMLInputElement;
+const files = Array.from(fileInput.files);
+await ship.deploy(files);
 ```
 
 #### Deploy Options
@@ -335,17 +342,14 @@ const ship = new Ship({
   apiKey: 'ship-your-64-char-hex-string'  // 69 chars total
 });
 
-// From file input
+// From file input - convert FileList to File[]
 const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-const result = await ship.deployments.create(fileInput, {
+const files: File[] = Array.from(fileInput.files || []);
+const result = await ship.deployments.create(files, {
   onProgress: (progress) => {
     document.getElementById('progress').textContent = `${progress}%`;
   }
 });
-
-// From File objects
-const files: File[] = Array.from(fileInput.files || []);
-const result2 = await ship.deployments.create(files);
 ```
 
 ## Event System

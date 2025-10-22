@@ -20,25 +20,6 @@ function createMockFileWithPath(name: string, webkitRelativePath: string, conten
   return file;
 }
 
-// Helper to create a mock FileList
-function createMockFileList(files: File[]): FileList {
-  const fileList = {
-    length: files.length,
-    item: (index: number) => files[index] || null,
-    [Symbol.iterator]: function* () {
-      for (let i = 0; i < files.length; i++) {
-        yield files[i];
-      }
-    }
-  };
-  
-  // Add indexed properties
-  files.forEach((file, index) => {
-    (fileList as any)[index] = file;
-  });
-  
-  return fileList as FileList;
-}
 
 describe('Browser SDK Directory Structure Preservation', () => {
   beforeEach(() => {
@@ -70,8 +51,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('Button.jsx', 'my-app/components/ui/Button.jsx', 'export const Button = () => {};')
     ];
 
-    const fileList = createMockFileList(files);
-    const processedFiles = await processFilesForBrowser(fileList);
+    const processedFiles = await processFilesForBrowser(files);
     
     // Extract the paths from processed files  
     const filePaths = processedFiles.map(f => f.path);
@@ -114,8 +94,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('favicon.ico', 'dist/favicon.ico', 'ico-data')
     ];
 
-    const fileList = createMockFileList(files);
-    const processedFiles = await processFilesForBrowser(fileList);
+    const processedFiles = await processFilesForBrowser(files);
     
     const filePaths = processedFiles.map(f => f.path);
 
@@ -140,8 +119,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       new File(['console.log("app");'], 'app', { type: 'application/javascript' })
     ];
 
-    const fileList = createMockFileList(files);
-    const processedFiles = await processFilesForBrowser(fileList);
+    const processedFiles = await processFilesForBrowser(files);
     
     const filePaths = processedFiles.map(f => f.path);
 
@@ -160,8 +138,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('index.html', 'project/public/index.html', '<html>App</html>')
     ];
 
-    const fileList = createMockFileList(files);
-    const processedFiles = await processFilesForBrowser(fileList);
+    const processedFiles = await processFilesForBrowser(files);
     
     const filePaths = processedFiles.map(f => f.path);
 
@@ -185,8 +162,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('README.md', 'webapp/docs/README.md', '# Documentation')
     ];
 
-    const fileList = createMockFileList(files);
-    const processedFiles = await processFilesForBrowser(fileList);
+    const processedFiles = await processFilesForBrowser(files);
     
     const filePaths = processedFiles.map(f => f.path);
 
@@ -225,8 +201,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('app', '', 'console.log("app");')
     ];
 
-    const fileList = createMockFileList(files);
-    const processedFiles = await processFilesForBrowser(fileList);
+    const processedFiles = await processFilesForBrowser(files);
     
     const filePaths = processedFiles.map(f => f.path);
 

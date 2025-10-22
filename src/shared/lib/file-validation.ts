@@ -86,6 +86,45 @@ export function formatFileSize(bytes: number, decimals: number = 1): string {
 }
 
 /**
+ * Validate filename for deployment safety
+ * Rejects filenames that would cause issues in URLs, filesystems, or shells
+ *
+ * Rejected patterns:
+ * - URL-unsafe: ?, &, #, %, <, >, [, ], {, }, |, \, ^, ~, `
+ * - Path traversal: .. (already checked separately)
+ * - Shell dangerous: ; $ ( ) ' " *
+ * - Control characters: \0, \r, \n, \t
+ * - Reserved names: CON, PRN, AUX, NUL, COM1-9, LPT1-9 (Windows)
+ * - Leading/trailing dots or spaces
+ */
+function validateFileName(filename: string): { valid: boolean; reason?: string } {
+  // Check for URL-unsafe and shell-dangerous characters
+  const unsafeChars = /[?&#%<>\[\]{}|\\^~`;$()'"*\r\n\t]/;
+  if (unsafeChars.test(filename)) {
+    return { valid: false, reason: 'File name contains unsafe characters' };
+  }
+
+  // Check for leading or trailing dots or spaces (problematic in many filesystems)
+  if (filename.startsWith('.') === false && (filename.startsWith(' ') || filename.endsWith(' ') || filename.endsWith('.'))) {
+    return { valid: false, reason: 'File name cannot start/end with spaces or end with dots' };
+  }
+
+  // Check for Windows reserved names (case-insensitive)
+  const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i;
+  const nameWithoutPath = filename.split('/').pop() || filename;
+  if (reservedNames.test(nameWithoutPath)) {
+    return { valid: false, reason: 'File name uses a reserved system name' };
+  }
+
+  // Check for consecutive dots (often problematic)
+  if (filename.includes('..')) {
+    return { valid: false, reason: 'File name contains path traversal pattern' };
+  }
+
+  return { valid: true };
+}
+
+/**
  * Validate that file extension matches MIME type
  * Prevents file masquerading (e.g., .exe file with image/png MIME type)
  *
@@ -185,6 +224,9 @@ export function validateFiles<T extends ValidatableFile>(
     let fileStatus: string = FILE_VALIDATION_STATUS.READY;
     let statusMessage: string = 'Ready for upload';
 
+    // Pre-compute filename validation result (used in multiple checks)
+    const nameValidation = file.name ? validateFileName(file.name) : { valid: false, reason: 'File name cannot be empty' };
+
     // Check for processing errors (e.g., MD5 calculation failure)
     if (file.status === FILE_VALIDATION_STATUS.PROCESSING_ERROR) {
       fileStatus = FILE_VALIDATION_STATUS.PROCESSING_ERROR;
@@ -197,16 +239,16 @@ export function validateFiles<T extends ValidatableFile>(
       statusMessage = 'File name cannot be empty';
       errors.push(`${file.name || '(empty)'}: ${statusMessage}`);
     }
-    // Check file name for path traversal
-    else if (file.name.includes('..')) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = 'Invalid file name. File name contains invalid characters';
-      errors.push(`${file.name}: ${statusMessage}`);
-    }
     // Check file name for null bytes
     else if (file.name.includes('\0')) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = 'Invalid file name. File name contains invalid characters';
+      statusMessage = 'File name contains invalid characters (null byte)';
+      errors.push(`${file.name}: ${statusMessage}`);
+    }
+    // Comprehensive filename validation (URL-safe, shell-safe, filesystem-safe)
+    else if (!nameValidation.valid) {
+      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
+      statusMessage = nameValidation.reason || 'Invalid file name';
       errors.push(`${file.name}: ${statusMessage}`);
     }
     // Check file size positive (not zero or negative)
@@ -277,7 +319,11 @@ export function validateFiles<T extends ValidatableFile>(
       errorType = 'Empty File';
     } else if (firstError?.statusMessage?.includes('File name cannot be empty')) {
       errorType = 'Invalid File Name';
-    } else if (firstError?.statusMessage?.includes('Invalid file name')) {
+    } else if (firstError?.statusMessage?.includes('Invalid file name') ||
+               firstError?.statusMessage?.includes('File name contains') ||
+               firstError?.statusMessage?.includes('File name uses') ||
+               firstError?.statusMessage?.includes('File name cannot start') ||
+               firstError?.statusMessage?.includes('traversal')) {
       errorType = 'Invalid File Name';
     } else if (firstError?.statusMessage?.includes('File size must be positive')) {
       errorType = 'Invalid File Size';

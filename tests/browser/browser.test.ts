@@ -79,22 +79,6 @@ const createMockFile = (name: string, content: string, type = 'text/plain', webk
   return file as File;
 };
 
-const createMockFileList = (files: File[]): FileList => {
-  const fileList = {
-    length: files.length,
-    item: (index: number) => files[index] || null,
-  } as any; // Cast to any to allow adding iterator and numeric properties
-  for(let i=0; i<files.length; i++) fileList[i] = files[i];
-  // Add iterator for FileList
-  fileList[Symbol.iterator] = function*() {
-    for (let i = 0; i < files.length; i++) {
-      yield files[i];
-    }
-  };
-  return fileList as FileList;
-};
-
-
 describe('Browser Entry Point (@/browser)', () => {
 
   beforeEach(() => {
@@ -132,13 +116,12 @@ describe('Browser Entry Point (@/browser)', () => {
   });
 
   describe('Browser-specific utility re-exports (processFilesForBrowser)', () => {
-    it('should process a FileList correctly', async () => {
+    it('should process File[] correctly', async () => {
       const files = [
         createMockFile('file1.txt', 'content1', 'text/plain', 'folder/file1.txt'),
         createMockFile('file2.jpg', 'image data', 'image/jpeg', 'folder/file2.jpg'),
       ];
-      const fileList = createMockFileList(files);
-      const staticFiles = await processFilesForBrowser(fileList);
+      const staticFiles = await processFilesForBrowser(files);
 
       expect(staticFiles).toHaveLength(2);
       expect(staticFiles[0].path).toBe('file1.txt'); // Now flattened by default

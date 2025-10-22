@@ -19,16 +19,16 @@ interface BrowserFileProcessItem {
 }
 
 /**
- * Processes browser files (FileList or File[]) into an array of StaticFile objects ready for deploy.
+ * Processes browser files into an array of StaticFile objects ready for deploy.
  * Calculates MD5, filters junk files, and applies automatic path optimization.
  *
- * @param browserFiles - FileList or File[] to process for deploy.
+ * @param browserFiles - File[] to process for deploy.
  * @param options - Processing options including pathDetect for automatic path optimization.
  * @returns Promise resolving to an array of StaticFile objects.
  * @throws {ShipClientError} If called outside a browser or with invalid input.
  */
 export async function processFilesForBrowser(
-  browserFiles: FileList | File[],
+  browserFiles: File[],
   options: DeploymentOptions = {}
 ): Promise<StaticFile[]> {
   // Check environment using getENV
@@ -37,7 +37,7 @@ export async function processFilesForBrowser(
     throw ShipError.business('processFilesForBrowser can only be called in a browser environment.');
   }
 
-  const filesArray = Array.isArray(browserFiles) ? browserFiles : Array.from(browserFiles);
+  const filesArray = browserFiles;
   
   // Extract file paths from browser files, preferring webkitRelativePath for directory structure
   const filePaths = filesArray.map(file => (file as any).webkitRelativePath || file.name);
