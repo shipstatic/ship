@@ -131,19 +131,7 @@ describe('BrowserShipClient', () => {
 
     it('should throw ShipError for non-browser input type', async () => {
       const { ShipError } = await import('@shipstatic/types');
-      await expect(client.deployments.create(['/path/to/file'] as any, {})).rejects.toThrow(ShipError.business('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.'));
-    });
-
-    it('should correctly process HTMLInputElement', async () => {
-      await client.deployments.create(mockInput, { stripCommonPrefix: false });
-      expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
-        Array.from(mockInput.files!), // Ensure FileList is converted to File[]
-        expect.objectContaining({
-          stripCommonPrefix: false,
-          apiKey: 'custom_test_key',
-          apiUrl: 'https://custom.example.com'
-        })
-      );
+      await expect(client.deployments.create(['/path/to/file'] as any, {})).rejects.toThrow(ShipError.business('Invalid input type for browser environment. Expected File[].'));
     });
 
 

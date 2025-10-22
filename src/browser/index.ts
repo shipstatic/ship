@@ -21,13 +21,13 @@ export * from '../shared/index.js';
  * @example
  * ```typescript
  * // Deploy with token obtained from server
- * const ship = new Ship({ 
+ * const ship = new Ship({
  *   deployToken: "token-xxxx",
- *   apiUrl: "https://api.shipstatic.dev" 
+ *   apiUrl: "https://api.shipstatic.dev"
  * });
- * 
+ *
  * // Deploy files from input element
- * const files = fileInput.files;
+ * const files = Array.from(fileInput.files);
  * await ship.deploy(files);
  * ```
  */
@@ -56,16 +56,11 @@ export class Ship extends BaseShip {
   protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
     // Validate input type for browser environment
     if (!this.#isValidBrowserInput(input)) {
-      throw ShipError.business('Invalid input type for browser environment. Expected File[], FileList, or HTMLInputElement.');
+      throw ShipError.business('Invalid input type for browser environment. Expected File[].');
     }
-    
-    // Determine the actual files to process
-    const filesToProcess = (input instanceof HTMLInputElement) 
-      ? Array.from(input.files as FileList)
-      : (input as File[] | FileList);
-    
+
     const { processFilesForBrowser } = await import('./lib/browser-files.js');
-    return processFilesForBrowser(filesToProcess, options);
+    return processFilesForBrowser(input as File[], options);
   }
 
   /**
@@ -73,22 +68,11 @@ export class Ship extends BaseShip {
    * @private
    */
   #isValidBrowserInput(input: DeployInput): boolean {
-    // Check for File array - must be array AND all items must be Files
+    // Only accept File[] - must be array AND all items must be Files
     if (Array.isArray(input)) {
       return input.length === 0 || input.every(item => item instanceof File);
     }
-    
-    // Check for FileList (has length and item method)
-    if (input && typeof input === 'object' && 'length' in input && typeof input.length === 'number') {
-      // More specific check - FileList should have an item method or be a real FileList
-      return 'item' in input || (input as any).constructor?.name === 'FileList';
-    }
-    
-    // Check for HTMLInputElement (would have files property)
-    if (input && typeof input === 'object' && 'files' in input) {
-      return true;
-    }
-    
+
     return false;
   }
 }
