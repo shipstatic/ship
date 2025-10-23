@@ -18,35 +18,45 @@ import { detectAndConfigureSPA } from './lib/prepare-input.js';
 export type { DeployInput };
 
 export function createDeploymentResource(
-  getApi: () => ApiHttp, 
+  getApi: () => ApiHttp,
   clientDefaults?: ShipClientOptions,
   ensureInit?: () => Promise<void>,
-  processInput?: (input: DeployInput, options: DeploymentOptions) => Promise<StaticFile[]>
+  processInput?: (input: DeployInput, options: DeploymentOptions) => Promise<StaticFile[]>,
+  hasAuth?: () => boolean
 ): DeploymentResource {
   return {
     create: async (input: DeployInput, options: DeploymentOptions = {}) => {
+      // Fail fast if no authentication credentials are configured
+      // Allow deployToken in options to bypass this check (per-deploy auth)
+      if (hasAuth && !hasAuth() && !options.deployToken && !options.apiKey) {
+        throw new Error(
+          'Authentication credentials are required for deployment. ' +
+          'Please call setDeployToken() or setApiKey() first, or pass credentials in the deployment options.'
+        );
+      }
+
       // Ensure full initialization before proceeding
       if (ensureInit) await ensureInit();
-      
+
       // Merge user options with client defaults
-      const mergedOptions = clientDefaults 
+      const mergedOptions = clientDefaults
         ? mergeDeployOptions(options, clientDefaults)
         : options;
-      
+
       // Get API client AFTER initialization is complete to avoid race conditions
       const apiClient = getApi();
-      
+
       // Use environment-specific input processing
       if (!processInput) {
         throw new Error('processInput function is not provided.');
       }
-      
+
       // 1. Process input from the specific environment
       let staticFiles: StaticFile[] = await processInput(input, mergedOptions);
-      
+
       // 2. 🆕 Apply SPA detection universally here (works for both Node.js and Browser!)
       staticFiles = await detectAndConfigureSPA(staticFiles, apiClient, mergedOptions);
-      
+
       // 3. Deploy using the API - now returns the full Deployment object directly
       return await apiClient.deploy(staticFiles, mergedOptions);
     },

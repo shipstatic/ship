@@ -74,7 +74,7 @@ describe('ApiHttp Browser Compatibility', () => {
   let apiHttp: ApiHttp;
   const mockOptions = {
     apiUrl: 'https://api.test.com',
-    apiKey: 'test-api-key'
+    getAuthHeaders: () => ({ 'Authorization': 'Bearer test-api-key' })
   };
 
   beforeEach(() => {

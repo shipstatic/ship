@@ -27,8 +27,17 @@ import type { StaticFile } from '@shipstatic/types';
 import type { DeploymentOptions } from './types.js';
 
 /**
+ * Authentication state for the Ship instance
+ * Discriminated union ensures only one auth method is active at a time
+ */
+type AuthState =
+  | { type: 'token'; value: string }
+  | { type: 'apiKey'; value: string }
+  | null;
+
+/**
  * Abstract base class for Ship SDK implementations.
- * 
+ *
  * Provides shared functionality while allowing environment-specific
  * implementations to handle configuration loading and deployment processing.
  */
@@ -38,6 +47,12 @@ export abstract class Ship {
   protected initPromise: Promise<void> | null = null;
   protected _config: ConfigResponse | null = null;
 
+  // Authentication state management
+  private auth: AuthState = null;
+
+  // Store the auth headers callback to reuse when replacing HTTP client
+  private readonly authHeadersCallback: () => Record<string, string>;
+
   // Resource instances (initialized during creation)
   protected _deployments: DeploymentResource;
   protected _domains: DomainResource;
@@ -46,11 +61,26 @@ export abstract class Ship {
 
   constructor(options: ShipClientOptions = {}) {
     this.clientOptions = options;
-    
+
+    // Initialize auth state from constructor options
+    // Prioritize deployToken over apiKey if both are provided
+    if (options.deployToken) {
+      this.auth = { type: 'token', value: options.deployToken };
+    } else if (options.apiKey) {
+      this.auth = { type: 'apiKey', value: options.apiKey };
+    }
+
+    // Create the auth headers callback once and reuse it
+    this.authHeadersCallback = () => this.getAuthHeaders();
+
     // Initialize HTTP client with constructor options for immediate use
     const config = this.resolveInitialConfig(options);
-    this.http = new ApiHttp({ ...options, ...config });
-    
+    this.http = new ApiHttp({
+      ...options,
+      ...config,
+      getAuthHeaders: this.authHeadersCallback
+    });
+
     // Initialize resources with lazy loading support
     const initCallback = () => this.ensureInitialized();
     const getApi = () => this.http;
@@ -60,7 +90,8 @@ export abstract class Ship {
       getApi,
       this.clientOptions,
       initCallback,
-      (input, options) => this.processInput(input, options)
+      (input, options) => this.processInput(input, options),
+      () => this.hasAuth()
     );
     this._domains = createDomainResource(getApi, initCallback);
     this._account = createAccountResource(getApi, initCallback);
@@ -181,5 +212,58 @@ export abstract class Ship {
     }
     this.http = newClient;
   }
-  
+
+  /**
+   * Sets the deploy token for authentication.
+   * This will override any previously set API key or deploy token.
+   * @param token The deploy token (format: token-<64-char-hex>)
+   */
+  public setDeployToken(token: string): void {
+    if (!token || typeof token !== 'string') {
+      throw ShipError.business('Invalid deploy token provided. Deploy token must be a non-empty string.');
+    }
+    this.auth = { type: 'token', value: token };
+  }
+
+  /**
+   * Sets the API key for authentication.
+   * This will override any previously set API key or deploy token.
+   * @param key The API key (format: ship-<64-char-hex>)
+   */
+  public setApiKey(key: string): void {
+    if (!key || typeof key !== 'string') {
+      throw ShipError.business('Invalid API key provided. API key must be a non-empty string.');
+    }
+    this.auth = { type: 'apiKey', value: key };
+  }
+
+  /**
+   * Generate authorization headers based on current auth state
+   * Called dynamically on each request to ensure latest credentials are used
+   * @private
+   */
+  private getAuthHeaders(): Record<string, string> {
+    if (!this.auth) {
+      return {};
+    }
+
+    switch (this.auth.type) {
+      case 'token':
+        return { 'Authorization': `Bearer ${this.auth.value}` };
+      case 'apiKey':
+        return { 'Authorization': `Bearer ${this.auth.value}` };
+      default:
+        return {};
+    }
+  }
+
+  /**
+   * Check if authentication credentials are configured
+   * Used by resources to fail fast if auth is required
+   * @private
+   */
+  private hasAuth(): boolean {
+    return this.auth !== null;
+  }
+
 }
