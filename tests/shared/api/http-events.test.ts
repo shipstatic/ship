@@ -14,8 +14,9 @@ describe('ApiHttp Events', () => {
       })
     );
 
-    const apiHttp = new ApiHttp({ 
-      apiUrl: 'https://api.example.com'
+    const apiHttp = new ApiHttp({
+      apiUrl: 'https://api.example.com',
+      getAuthHeaders: () => ({})
     });
 
     const requestHandler = vi.fn();
@@ -41,8 +42,9 @@ describe('ApiHttp Events', () => {
 
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse);
 
-    const apiHttp = new ApiHttp({ 
-      apiUrl: 'https://api.example.com'
+    const apiHttp = new ApiHttp({
+      apiUrl: 'https://api.example.com',
+      getAuthHeaders: () => ({})
     });
 
     const responseHandler = vi.fn();

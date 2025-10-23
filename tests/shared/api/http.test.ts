@@ -26,8 +26,7 @@ describe('ApiHttp', () => {
   let apiHttp: ApiHttp;
   const mockOptions = {
     apiUrl: 'https://api.test.com',
-    apiKey: 'test-api-key',
-    timeout: 5000
+    getAuthHeaders: () => ({ 'Authorization': 'Bearer test-api-key' })
   };
 
   beforeEach(() => {
@@ -42,7 +41,10 @@ describe('ApiHttp', () => {
     });
 
     it('should work with minimal options', () => {
-      const api = new ApiHttp({ apiUrl: 'https://test.com' });
+      const api = new ApiHttp({
+        apiUrl: 'https://test.com',
+        getAuthHeaders: () => ({})
+      });
       expect(api).toBeDefined();
     });
   });
@@ -529,17 +531,17 @@ describe('ApiHttp', () => {
 
   describe('Cookie-based Authentication', () => {
     let apiHttpNoCredentials: ApiHttp;
-    
+
     beforeEach(() => {
       vi.clearAllMocks();
-      // Create ApiHttp instance without apiKey or deployToken
+      // Create ApiHttp instance with callback that returns no auth headers
       apiHttpNoCredentials = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        timeout: 5000
+        getAuthHeaders: () => ({}) // No auth headers - should use cookies
       });
     });
 
-    it('should include credentials when no apiKey or deployToken is provided', async () => {
+    it('should include credentials when no Authorization header is returned', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
 
       await apiHttpNoCredentials.ping();
@@ -556,11 +558,10 @@ describe('ApiHttp', () => {
       );
     });
 
-    it('should NOT include credentials when apiKey is provided', async () => {
+    it('should NOT include credentials when Authorization header is returned', async () => {
       const apiHttpWithKey = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        apiKey: 'test-key',
-        timeout: 5000
+        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-key' })
       });
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
 
@@ -575,17 +576,16 @@ describe('ApiHttp', () => {
           })
         })
       );
-      
-      // Ensure credentials is NOT set when we have an apiKey
+
+      // Ensure credentials is NOT set when we have an Authorization header
       const fetchCall = (fetch as any).mock.calls[0][1];
       expect(fetchCall.credentials).toBeUndefined();
     });
 
-    it('should NOT include credentials when deployToken is provided', async () => {
+    it('should support deploy tokens via callback', async () => {
       const apiHttpWithToken = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        deployToken: 'test-token',
-        timeout: 5000
+        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-token' })
       });
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
 
@@ -600,7 +600,7 @@ describe('ApiHttp', () => {
           })
         })
       );
-      
+
       // Ensure credentials is NOT set when we have a deployToken
       const fetchCall = (fetch as any).mock.calls[0][1];
       expect(fetchCall.credentials).toBeUndefined();
