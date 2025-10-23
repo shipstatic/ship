@@ -36,14 +36,15 @@ describe('Base Ship Class (Abstract)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Mock the API deploy method
     mockApiDeploy = vi.fn().mockResolvedValue({
       id: 'dep_123',
       url: 'https://dep_123.shipstatic.dev'
     });
 
-    ship = new TestShip({ apiUrl: 'https://test-api.com' });
+    // Initialize with apiKey for authentication
+    ship = new TestShip({ apiUrl: 'https://test-api.com', apiKey: 'ship-test-key-1234567890' });
     
     // Override the http client with our mock
     (ship as any).http = {

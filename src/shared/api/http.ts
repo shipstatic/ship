@@ -41,14 +41,12 @@ const SPA_CHECK_ENDPOINT = '/spa-check';
  */
 export class ApiHttp extends SimpleEvents {
   private readonly apiUrl: string;
-  private readonly apiKey: string;
-  private readonly deployToken: string;
+  private readonly getAuthHeadersCallback: () => Record<string, string>;
 
-  constructor(options: ShipClientOptions) {
+  constructor(options: ShipClientOptions & { getAuthHeaders: () => Record<string, string> }) {
     super();
     this.apiUrl = options.apiUrl || DEFAULT_API;
-    this.apiKey = options.apiKey ?? "";
-    this.deployToken = options.deployToken ?? "";
+    this.getAuthHeadersCallback = options.getAuthHeaders;
   }
 
   /**
@@ -64,11 +62,11 @@ export class ApiHttp extends SimpleEvents {
    */
   private async request<T>(url: string, options: RequestInit = {}, operationName: string): Promise<T> {
     const headers = this.getAuthHeaders(options.headers as Record<string, string>);
-    
+
     const fetchOptions: RequestInit = {
       ...options,
       headers,
-      credentials: this.needsCredentials(headers) ? 'include' : undefined,
+      credentials: !headers.Authorization ? 'include' : undefined,
     };
 
     // Emit request event
@@ -98,25 +96,11 @@ export class ApiHttp extends SimpleEvents {
   }
 
   /**
-   * Generate auth headers
+   * Generate auth headers from Ship instance callback
    */
   private getAuthHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
-    const headers = { ...customHeaders };
-    
-    if (this.deployToken) {
-      headers['Authorization'] = `Bearer ${this.deployToken}`;
-    } else if (this.apiKey) {
-      headers['Authorization'] = `Bearer ${this.apiKey}`;
-    }
-    
-    return headers;
-  }
-
-  /**
-   * Check if credentials are needed
-   */
-  private needsCredentials(headers: Record<string, string>): boolean {
-    return !this.apiKey && !this.deployToken && !headers.Authorization;
+    const authHeaders = this.getAuthHeadersCallback();
+    return { ...customHeaders, ...authHeaders };
   }
 
   /**
@@ -250,7 +234,7 @@ export class ApiHttp extends SimpleEvents {
     const fetchOptions: RequestInit = {
       ...options,
       headers,
-      credentials: this.needsCredentials(headers) ? 'include' : undefined,
+      credentials: !headers.Authorization ? 'include' : undefined,
     };
 
     // Emit request event
