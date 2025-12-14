@@ -74,7 +74,7 @@ export class ApiHttp extends SimpleEvents {
 
     try {
       const response = await fetch(url, fetchOptions);
-      
+
       if (!response.ok) {
         await this.handleResponseError(response, operationName);
       }
@@ -82,10 +82,10 @@ export class ApiHttp extends SimpleEvents {
       // Clone response BEFORE any consumption for reliable event handling
       const responseForEvent = this.safeClone(response);
       const responseForParsing = this.safeClone(response);
-      
+
       // Emit event with dedicated clone
       this.emit('response', responseForEvent, url);
-      
+
       // Parse response with dedicated clone
       return await this.parseResponse<T>(responseForParsing);
     } catch (error: any) {
@@ -120,11 +120,11 @@ export class ApiHttp extends SimpleEvents {
    */
   private async parseResponse<T>(response: Response): Promise<T> {
     const contentLength = response.headers.get('Content-Length');
-    
+
     if (contentLength === '0' || response.status === 204) {
       return undefined as T;
     }
-    
+
     return await response.json() as T;
   }
 
@@ -145,11 +145,11 @@ export class ApiHttp extends SimpleEvents {
     }
 
     const message = errorData.message || errorData.error || `${operationName} failed due to API error`;
-    
+
     if (response.status === 401) {
       throw ShipError.authentication(message);
     }
-    
+
     throw ShipError.api(message, response.status, errorData.code, errorData);
   }
 
@@ -340,7 +340,7 @@ export class ApiHttp extends SimpleEvents {
     if (!indexFile || indexFile.size > 100 * 1024) {
       return false;
     }
-    
+
     let indexContent: string;
     if (typeof Buffer !== 'undefined' && Buffer.isBuffer(indexFile.content)) {
       indexContent = indexFile.content.toString('utf-8');
@@ -351,22 +351,22 @@ export class ApiHttp extends SimpleEvents {
     } else {
       return false;
     }
-    
+
     const requestData: SPACheckRequest = {
       files: files.map(f => f.path),
       index: indexContent
     };
-    
+
     const response = await this.request<SPACheckResponse>(
-      `${this.apiUrl}${SPA_CHECK_ENDPOINT}`, 
-      { 
+      `${this.apiUrl}${SPA_CHECK_ENDPOINT}`,
+      {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData)
-      }, 
+      },
       'SPA Check'
     );
-    
+
     return response.isSPA;
   }
 
@@ -376,7 +376,7 @@ export class ApiHttp extends SimpleEvents {
     if (!files.length) {
       throw ShipError.business('No files to deploy.');
     }
-    
+
     for (const file of files) {
       if (!file.md5) {
         throw ShipError.file(`MD5 checksum missing for file: ${file.path}`, file.path);
@@ -425,7 +425,7 @@ export class ApiHttp extends SimpleEvents {
     return formData;
   }
 
-  private async createNodeBody(files: StaticFile[], tags?: string[]): Promise<{body: Buffer, headers: Record<string, string>}> {
+  private async createNodeBody(files: StaticFile[], tags?: string[]): Promise<{ body: Buffer, headers: Record<string, string> }> {
     const { FormData: FormDataClass, File: FileClass } = await import('formdata-node');
     const { FormDataEncoder } = await import('form-data-encoder');
     const formData = new FormDataClass();
