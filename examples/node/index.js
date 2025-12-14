@@ -12,8 +12,8 @@ async function deploy() {
   try {
     const result = await ship.deployments.create([directoryToDeploy], {
       tags: ['production', 'v1.0.0'],
-      onProgress: (progress) => {
-        console.log(`Deploy progress: ${Math.round(progress)}%`);
+      onProgress: ({ percent }) => {
+        console.log(`Deploy progress: ${Math.round(percent)}%`);
       },
     });
     console.log(`Deployed: ${result.url}`);

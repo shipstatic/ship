@@ -14,7 +14,7 @@ export type Config = PlatformConfig;
  */
 export async function loadConfig(configFile?: string): Promise<Config> {
   const env = getENV();
-  
+
   if (env === 'browser') {
     // In browser, return empty config (no file system access)
     return {};
@@ -33,7 +33,7 @@ export async function loadConfig(configFile?: string): Promise<Config> {
  * This is the single source of truth for config resolution.
  */
 export function resolveConfig(
-  userOptions: ShipClientOptions = {}, 
+  userOptions: ShipClientOptions = {},
   loadedConfig: Partial<ShipClientOptions> = {}
 ): { apiUrl: string; apiKey?: string; deployToken?: string } {
   const finalConfig = {
@@ -45,10 +45,10 @@ export function resolveConfig(
   const result: { apiUrl: string; apiKey?: string; deployToken?: string } = {
     apiUrl: finalConfig.apiUrl
   };
-  
+
   if (finalConfig.apiKey !== undefined) result.apiKey = finalConfig.apiKey;
   if (finalConfig.deployToken !== undefined) result.deployToken = finalConfig.deployToken;
-  
+
   return result;
 }
 
@@ -57,11 +57,11 @@ export function resolveConfig(
  * This is shared logic used by both environments.
  */
 export function mergeDeployOptions(
-  options: DeploymentOptions, 
+  options: DeploymentOptions,
   clientDefaults: ShipClientOptions
 ): DeploymentOptions {
   const result: DeploymentOptions = { ...options };
-  
+
   // Only add defined values from client defaults
   if (result.apiUrl === undefined && clientDefaults.apiUrl !== undefined) {
     result.apiUrl = clientDefaults.apiUrl;
@@ -81,9 +81,6 @@ export function mergeDeployOptions(
   if (result.onProgress === undefined && clientDefaults.onProgress !== undefined) {
     result.onProgress = clientDefaults.onProgress;
   }
-  if (result.onProgressStats === undefined && clientDefaults.onProgressStats !== undefined) {
-    result.onProgressStats = clientDefaults.onProgressStats;
-  }
-  
+
   return result;
 }

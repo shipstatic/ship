@@ -263,6 +263,10 @@ export abstract class Ship {
    * @private
    */
   private hasAuth(): boolean {
+    // useCredentials means cookies are used for auth - no explicit token needed
+    if (this.clientOptions.useCredentials) {
+      return true;
+    }
     return this.auth !== null;
   }
 

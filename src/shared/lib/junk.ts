@@ -24,15 +24,44 @@ export const JUNK_DIRECTORIES = [
 
 /**
  * Filters an array of file paths, removing those considered junk
- * 
+ *
  * A path is filtered out if either:
  * 1. The basename is identified as junk by the 'junk' package (e.g., .DS_Store, Thumbs.db)
  * 2. Any directory segment in the path matches an entry in JUNK_DIRECTORIES (case-insensitive)
  *
  * All path separators are normalized to forward slashes for consistent cross-platform behavior.
- * 
+ *
  * @param filePaths - An array of file path strings to filter
  * @returns A new array containing only non-junk file paths
+ *
+ * @example
+ * ```typescript
+ * import { filterJunk } from '@shipstatic/ship';
+ *
+ * // Filter an array of file paths
+ * const paths = ['index.html', '.DS_Store', '__MACOSX/file.txt', 'app.js'];
+ * const clean = filterJunk(paths);
+ * // Result: ['index.html', 'app.js']
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // Use with browser File objects
+ * import { filterJunk } from '@shipstatic/ship';
+ *
+ * const files: File[] = [...]; // From input or drag-drop
+ *
+ * // Extract paths from File objects
+ * const filePaths = files.map(f => f.webkitRelativePath || f.name);
+ *
+ * // Filter out junk paths
+ * const validPaths = new Set(filterJunk(filePaths));
+ *
+ * // Filter the original File array
+ * const validFiles = files.filter(f =>
+ *   validPaths.has(f.webkitRelativePath || f.name)
+ * );
+ * ```
  */
 export function filterJunk(filePaths: string[]): string[] {
   if (!filePaths || filePaths.length === 0) {
