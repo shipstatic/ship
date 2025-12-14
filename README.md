@@ -76,7 +76,7 @@ const ship = new Ship({
 
 // Deploy project - SDK automatically fetches platform configuration
 const result = await ship.deployments.create(['./dist'], {
-  onProgress: (progress) => console.log(`${progress}%`)
+  onProgress: ({ percent }) => console.log(`${percent}%`)
 });
 
 console.log(`Deployed: ${result.deployment}`);
@@ -201,6 +201,7 @@ interface ShipOptions {
   apiKey?: string;        // API key: ship- prefix + 64-char hex (69 chars total)
   deployToken?: string;   // Deploy token: token- prefix + 64-char hex (70 chars total)
   timeout?: number;       // Request timeout (ms)
+  useCredentials?: boolean; // Use HTTP-only cookies for auth (skips token check)
 }
 ```
 
@@ -259,8 +260,7 @@ interface DeployOptions {
   signal?: AbortSignal;             // Cancellation
   subdomain?: string;               // Custom subdomain
   onCancel?: () => void;
-  onProgress?: (progress: number) => void;
-  progress?: (stats: ProgressStats) => void;
+  onProgress?: (info: ProgressInfo) => void;  // Progress with percent (0-100), loaded, total bytes
   maxConcurrency?: number;
   timeout?: number;
   stripCommonPrefix?: boolean;      // Remove common path prefix
@@ -321,8 +321,8 @@ const result = await ship.deployments.create([
   './public'
 ], {
   stripCommonPrefix: true,
-  onProgress: (progress) => {
-    console.log(`Deployment: ${progress}% complete`);
+  onProgress: ({ percent }) => {
+    console.log(`Deployment: ${percent}% complete`);
   }
 });
 
@@ -346,8 +346,8 @@ const ship = new Ship({
 const fileInput = document.getElementById('fileInput') as HTMLInputElement;
 const files: File[] = Array.from(fileInput.files || []);
 const result = await ship.deployments.create(files, {
-  onProgress: (progress) => {
-    document.getElementById('progress').textContent = `${progress}%`;
+  onProgress: ({ percent }) => {
+    document.getElementById('progress').textContent = `${percent}%`;
   }
 });
 ```
@@ -691,7 +691,7 @@ import type {
   BrowserDeployInput, 
   DeployOptions,
   DeploySuccessResponse,
-  ProgressStats,
+  ProgressInfo,
   StaticFile,
   ShipError,
   ErrorType

@@ -37,10 +37,8 @@ export interface DeploymentOptions {
   spaDetect?: boolean;
   /** Optional array of tags for categorization and filtering (lowercase, alphanumeric with separators). */
   tags?: string[];
-  /** Callback for overall deploy progress (0-100). */
-  onProgress?: (progress: number) => void;
-  /** Callback for detailed progress statistics. */
-  onProgressStats?: (progressStats: ProgressStats) => void;
+  /** Callback for deploy progress with detailed statistics. */
+  onProgress?: (info: ProgressInfo) => void;
 }
 
 /**
@@ -54,16 +52,17 @@ export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
 // =============================================================================
 
 /**
- * Detailed statistics about the progress of an deploy operation.
+ * Progress information for deploy operations.
+ * Provides consistent percentage-based progress with byte-level details.
  */
-export interface ProgressStats {
-  /** The number of bytes loaded so far. */
+export interface ProgressInfo {
+  /** Progress percentage (0-100). */
+  percent: number;
+  /** Number of bytes loaded so far. */
   loaded: number;
-  /** The total number of bytes to be loaded. May be 0 if unknown initially. */
+  /** Total number of bytes to be loaded. May be 0 if unknown initially. */
   total: number;
-  /** The progress as a fraction (loaded/total). Value is between 0 and 1. */
-  progress: number;
-  /** Optional identifier for the file this progress pertains to, if applicable. */
+  /** Current file being processed (optional). */
   file?: string;
 }
 
@@ -85,15 +84,10 @@ export interface ShipClientOptions {
   /** Path to custom config file. */
   configFile?: string | undefined;
   /**
-   * Default callback for overall deploy progress for deploys made with this client.
-   * @param progress - A number between 0 and 100.
+   * Default callback for deploy progress for deploys made with this client.
+   * @param info - Progress information including percentage and byte counts.
    */
-  onProgress?: ((progress: number) => void) | undefined;
-  /**
-   * Default callback for detailed progress statistics for deploys made with this client.
-   * @param progressStats - Progress statistics object.
-   */
-  onProgressStats?: ((progressStats: ProgressStats) => void) | undefined;
+  onProgress?: ((info: ProgressInfo) => void) | undefined;
   /**
    * Default for maximum concurrent deploys.
    * Used if an deploy operation doesn't specify its own `maxConcurrency`.
@@ -105,6 +99,15 @@ export interface ShipClientOptions {
    * Used if an deploy operation doesn't specify its own timeout.
    */
   timeout?: number | undefined;
+  /**
+   * When true, indicates the client should use HTTP-only cookies for authentication
+   * instead of explicit tokens. This is useful for internal browser applications
+   * where authentication is handled via secure cookies set by the API.
+   * 
+   * When set, the pre-request authentication check is skipped, allowing requests
+   * to proceed with cookie-based credentials.
+   */
+  useCredentials?: boolean | undefined;
 }
 
 // =============================================================================

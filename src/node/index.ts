@@ -35,11 +35,11 @@ export * from '../shared/index.js';
 export class Ship extends BaseShip {
   constructor(options: ShipClientOptions = {}) {
     const environment = getENV();
-    
+
     if (environment !== 'node') {
       throw ShipError.business('Node.js Ship class can only be used in Node.js environment.');
     }
-    
+
     super(options);
   }
 
@@ -62,7 +62,7 @@ export class Ship extends BaseShip {
         getAuthHeaders: (this as any).authHeadersCallback
       });
       this.replaceHttpClient(newClient);
-      
+
       const platformConfig = await this.http.getConfig();
       setConfig(platformConfig);
     } catch (error) {
@@ -77,12 +77,12 @@ export class Ship extends BaseShip {
     if (!this.#isValidNodeInput(input)) {
       throw ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.');
     }
-    
+
     // Check for empty array specifically
     if (Array.isArray(input) && input.length === 0) {
       throw ShipError.business('No files to deploy.');
     }
-    
+
     const { convertDeployInput } = await import('./core/prepare-input.js');
     return convertDeployInput(input, options, this.http);
   }
@@ -96,13 +96,13 @@ export class Ship extends BaseShip {
     if (typeof input === 'string') {
       return true;
     }
-    
+
     if (Array.isArray(input)) {
       // Allow empty arrays (will be handled as "No files to deploy") 
       // and arrays of strings only
       return input.every(item => typeof item === 'string');
     }
-    
+
     return false;
   }
 }
