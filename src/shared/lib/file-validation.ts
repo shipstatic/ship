@@ -3,7 +3,16 @@
  * Provides client-side validation for file uploads before deployment
  */
 
-import type { ConfigResponse } from '@shipstatic/types';
+import type {
+  ConfigResponse,
+  FileValidationResult,
+  ValidatableFile,
+  ValidationError,
+  FileValidationStatusType
+} from '@shipstatic/types';
+import {
+  FileValidationStatus as FILE_VALIDATION_STATUS
+} from '@shipstatic/types';
 // @ts-ignore: mime-db uses CommonJS export, TypeScript import interop handled at runtime
 import mimeDb from 'mime-db';
 
@@ -25,54 +34,7 @@ const MIME_TYPE_EXTENSIONS = new Map(
     .map(([type, data]) => [type, new Set((data as any).extensions)])
 );
 
-/**
- * File status constants for validation state tracking
- */
-export const FILE_VALIDATION_STATUS = {
-  PENDING: 'pending',
-  PROCESSING_ERROR: 'processing_error',
-  EMPTY_FILE: 'empty_file',
-  VALIDATION_FAILED: 'validation_failed',
-  READY: 'ready',
-} as const;
-
-export type FileValidationStatus = (typeof FILE_VALIDATION_STATUS)[keyof typeof FILE_VALIDATION_STATUS];
-
-/**
- * Client-side validation error structure
- */
-export interface ValidationError {
-  error: string;
-  details: string;
-  errors: string[];
-  isClientError: true;
-}
-
-/**
- * Minimal file interface required for validation
- */
-export interface ValidatableFile {
-  name: string;
-  size: number;
-  type: string;
-  status?: string;
-  statusMessage?: string;
-}
-
-/**
- * File validation result
- *
- * NOTE: Validation is ATOMIC - if any file fails validation, ALL files are rejected.
- * This ensures deployments are all-or-nothing for data integrity.
- */
-export interface FileValidationResult<T extends ValidatableFile> {
-  /** All files with updated status */
-  files: T[];
-  /** Files that passed validation (empty if ANY file failed - atomic validation) */
-  validFiles: T[];
-  /** Validation error if any files failed */
-  error: ValidationError | null;
-}
+export { FILE_VALIDATION_STATUS };
 
 /**
  * Format file size to human-readable string
@@ -320,10 +282,10 @@ export function validateFiles<T extends ValidatableFile>(
     } else if (firstError?.statusMessage?.includes('File name cannot be empty')) {
       errorType = 'Invalid File Name';
     } else if (firstError?.statusMessage?.includes('Invalid file name') ||
-               firstError?.statusMessage?.includes('File name contains') ||
-               firstError?.statusMessage?.includes('File name uses') ||
-               firstError?.statusMessage?.includes('File name cannot start') ||
-               firstError?.statusMessage?.includes('traversal')) {
+      firstError?.statusMessage?.includes('File name contains') ||
+      firstError?.statusMessage?.includes('File name uses') ||
+      firstError?.statusMessage?.includes('File name cannot start') ||
+      firstError?.statusMessage?.includes('traversal')) {
       errorType = 'Invalid File Name';
     } else if (firstError?.statusMessage?.includes('File size must be positive')) {
       errorType = 'Invalid File Size';
