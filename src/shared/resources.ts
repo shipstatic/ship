@@ -7,7 +7,8 @@ import type {
   DeploymentResource,
   DomainResource,
   AccountResource,
-  TokenResource
+  TokenResource,
+  SubscriptionResource
 } from '@shipstatic/types';
 import type { ApiHttp } from './api/http.js';
 import type { ShipClientOptions, DeploymentOptions } from './types.js';
@@ -160,6 +161,32 @@ export function createTokenResource(getApi: () => ApiHttp, ensureInit?: () => Pr
       if (ensureInit) await ensureInit();
       await getApi().removeToken(token);
     }
+  };
+}
+
+// =============================================================================
+// SUBSCRIPTION RESOURCE
+// =============================================================================
+
+export function createSubscriptionResource(
+  getApi: () => ApiHttp,
+  ensureInit?: () => Promise<void>
+): SubscriptionResource {
+  return {
+    checkout: async () => {
+      if (ensureInit) await ensureInit();
+      return getApi().createCheckout();
+    },
+
+    status: async () => {
+      if (ensureInit) await ensureInit();
+      return getApi().getSubscriptionStatus();
+    },
+
+    sync: async (subscriptionId: string) => {
+      if (ensureInit) await ensureInit();
+      return getApi().syncSubscription(subscriptionId);
+    },
   };
 }
 

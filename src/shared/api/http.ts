@@ -17,7 +17,10 @@ import type {
   SPACheckResponse,
   StaticFile,
   TokenCreateResponse,
-  TokenListResponse
+  TokenListResponse,
+  CheckoutSession,
+  SubscriptionStatus,
+  SubscriptionSyncResponse
 } from '@shipstatic/types';
 import type { ApiDeployOptions, ShipClientOptions, ShipEvents } from '../types.js';
 import { ShipError, DEFAULT_API } from '@shipstatic/types';
@@ -31,6 +34,7 @@ const DOMAINS_ENDPOINT = '/domains';
 const CONFIG_ENDPOINT = '/config';
 const ACCOUNT_ENDPOINT = '/account';
 const TOKENS_ENDPOINT = '/tokens';
+const SUBSCRIPTIONS_ENDPOINT = '/subscriptions';
 const SPA_CHECK_ENDPOINT = '/spa-check';
 
 /**
@@ -332,6 +336,53 @@ export class ApiHttp extends SimpleEvents {
       `${this.apiUrl}${TOKENS_ENDPOINT}/${encodeURIComponent(token)}`,
       { method: 'DELETE' },
       'Remove Token'
+    );
+  }
+
+  /**
+   * Create a Creem checkout session for subscription
+   * POST /subscriptions/checkout
+   */
+  async createCheckout(): Promise<CheckoutSession> {
+    return this.request<CheckoutSession>(
+      `${this.apiUrl}${SUBSCRIPTIONS_ENDPOINT}/checkout`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      },
+      'Create checkout session'
+    );
+  }
+
+  /**
+   * Get current subscription status and usage
+   * GET /subscriptions/status
+   */
+  async getSubscriptionStatus(): Promise<SubscriptionStatus> {
+    return this.request<SubscriptionStatus>(
+      `${this.apiUrl}${SUBSCRIPTIONS_ENDPOINT}/status`,
+      {
+        method: 'GET',
+      },
+      'Get subscription status'
+    );
+  }
+
+  /**
+   * Sync subscription ID after checkout redirect
+   * POST /subscriptions/sync
+   *
+   * @param subscriptionId - Subscription ID from Creem redirect URL
+   */
+  async syncSubscription(subscriptionId: string): Promise<SubscriptionSyncResponse> {
+    return this.request<SubscriptionSyncResponse>(
+      `${this.apiUrl}${SUBSCRIPTIONS_ENDPOINT}/sync`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionId }),
+      },
+      'Sync subscription'
     );
   }
 
