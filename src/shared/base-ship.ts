@@ -14,13 +14,15 @@ import {
   createDomainResource,
   createAccountResource,
   createTokenResource,
+  createSubscriptionResource,
   type DeployInput
 } from './resources.js';
 import type {
   DeploymentResource,
   DomainResource,
   AccountResource,
-  TokenResource
+  TokenResource,
+  SubscriptionResource
 } from '@shipstatic/types';
 
 import type { StaticFile } from '@shipstatic/types';
@@ -58,6 +60,7 @@ export abstract class Ship {
   protected _domains: DomainResource;
   protected _account: AccountResource;
   protected _tokens: TokenResource;
+  protected _subscriptions: SubscriptionResource;
 
   constructor(options: ShipClientOptions = {}) {
     this.clientOptions = options;
@@ -96,6 +99,7 @@ export abstract class Ship {
     this._domains = createDomainResource(getApi, initCallback);
     this._account = createAccountResource(getApi, initCallback);
     this._tokens = createTokenResource(getApi, initCallback);
+    this._subscriptions = createSubscriptionResource(getApi, initCallback);
   }
 
   // Abstract methods that environments must implement
@@ -161,6 +165,13 @@ export abstract class Ship {
    */
   get tokens(): TokenResource {
     return this._tokens;
+  }
+
+  /**
+   * Get subscriptions resource
+   */
+  get subscriptions(): SubscriptionResource {
+    return this._subscriptions;
   }
 
   /**
