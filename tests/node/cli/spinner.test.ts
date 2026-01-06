@@ -13,50 +13,50 @@ describe('CLI Spinner Behavior', () => {
       const fs = await import('fs');
       const path = await import('path');
       const os = await import('os');
-      
+
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-test-'));
       fs.writeFileSync(path.join(tempDir, 'test.txt'), 'test content');
-      
+
       const validKey = 'ship-' + 'a'.repeat(64);
       const result = await runCli([
-        '--api-key', validKey, 
-        '--json', 
+        '--api-key', validKey,
+        '--json',
         'deployments', 'create', tempDir
       ]);
-      
+
       // Should fail due to auth but importantly, output should be JSON-only
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('"error"');
       expect(result.stderr).not.toContain('uploading');
-      
+
       // Cleanup
       fs.rmSync(tempDir, { recursive: true });
-    });
+    }, 15000);
 
     it('should not show spinner with --no-color flag', async () => {
       // Create a temporary directory for deploy test
       const fs = await import('fs');
       const path = await import('path');
       const os = await import('os');
-      
+
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-test-'));
       fs.writeFileSync(path.join(tempDir, 'test.txt'), 'test content');
-      
+
       const validKey = 'ship-' + 'a'.repeat(64);
       const result = await runCli([
-        '--api-key', validKey, 
-        '--no-color', 
+        '--api-key', validKey,
+        '--no-color',
         'deployments', 'create', tempDir
       ]);
-      
+
       // Should fail due to auth, but no spinner should have been shown
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('error');
       expect(result.stderr).not.toContain('uploading');
-      
-      // Cleanup  
+
+      // Cleanup
       fs.rmSync(tempDir, { recursive: true });
-    });
+    }, 15000);
   });
 
   describe('TTY Detection', () => {

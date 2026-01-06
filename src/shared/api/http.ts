@@ -19,8 +19,7 @@ import type {
   TokenCreateResponse,
   TokenListResponse,
   CheckoutSession,
-  SubscriptionStatus,
-  SubscriptionSyncResponse
+  SubscriptionStatus
 } from '@shipstatic/types';
 import type { ApiDeployOptions, ShipClientOptions, ShipEvents } from '../types.js';
 import { ShipError, DEFAULT_API } from '@shipstatic/types';
@@ -369,22 +368,10 @@ export class ApiHttp extends SimpleEvents {
   }
 
   /**
-   * Sync subscription ID after checkout redirect
-   * POST /subscriptions/sync
-   *
-   * @param subscriptionId - Subscription ID from Creem redirect URL
+   * IMPOSSIBLE SIMPLICITY: No sync endpoint needed!
+   * Webhooks are the single source of truth.
+   * Frontend just polls getSubscriptionStatus() after checkout redirect.
    */
-  async syncSubscription(subscriptionId: string): Promise<SubscriptionSyncResponse> {
-    return this.request<SubscriptionSyncResponse>(
-      `${this.apiUrl}${SUBSCRIPTIONS_ENDPOINT}/sync`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscriptionId }),
-      },
-      'Sync subscription'
-    );
-  }
 
   async checkSPA(files: StaticFile[]): Promise<boolean> {
     const indexFile = files.find(f => f.path === 'index.html' || f.path === '/index.html');
