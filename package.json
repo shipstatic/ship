@@ -56,7 +56,7 @@
   "license": "MIT",
   "sideEffects": false,
   "dependencies": {
-    "@shipstatic/types": "^0.3.6",
+    "@shipstatic/types": "^0.3.7",
     "columnify": "^1.6.0",
     "commander": "^12.1.0",
     "cosmiconfig": "^9.0.0",
@@ -67,7 +67,7 @@
     "spark-md5": "^3.0.2",
     "yocto-spinner": "^1.0.0",
     "yoctocolors": "^2.1.2",
-    "zod": "^4.3.2"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/columnify": "^1.5.4",
