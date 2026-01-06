@@ -11,7 +11,6 @@ describe('SubscriptionResource', () => {
     mockApi = {
       createCheckout: vi.fn(),
       getSubscriptionStatus: vi.fn(),
-      syncSubscription: vi.fn(),
     } as unknown as ApiHttp;
 
     subscriptions = createSubscriptionResource(() => mockApi);
@@ -77,41 +76,24 @@ describe('SubscriptionResource', () => {
     });
   });
 
-  describe('sync', () => {
-    it('should call API syncSubscription with subscription ID', async () => {
-      const subscriptionId = 'sub_123';
-      const mockResponse = {
-        success: true,
-        subscriptionId: 'sub_123'
-      };
-
-      (mockApi.syncSubscription as any).mockResolvedValue(mockResponse);
-
-      const result = await subscriptions.sync(subscriptionId);
-
-      expect(mockApi.syncSubscription).toHaveBeenCalledWith(subscriptionId);
-      expect(result).toEqual(mockResponse);
-      expect(result.success).toBe(true);
-      expect(result.subscriptionId).toBe(subscriptionId);
-    });
-  });
+  /**
+   * IMPOSSIBLE SIMPLICITY: No sync() tests needed!
+   * Webhooks are the single source of truth. Frontend polls status().
+   */
 
   describe('integration', () => {
     it('should create subscription resource with API client', () => {
       expect(subscriptions).toBeDefined();
       expect(typeof subscriptions.checkout).toBe('function');
       expect(typeof subscriptions.status).toBe('function');
-      expect(typeof subscriptions.sync).toBe('function');
     });
 
     it('should return promises from all methods', () => {
       (mockApi.createCheckout as any).mockResolvedValue({});
       (mockApi.getSubscriptionStatus as any).mockResolvedValue({});
-      (mockApi.syncSubscription as any).mockResolvedValue({});
 
       expect(subscriptions.checkout()).toBeInstanceOf(Promise);
       expect(subscriptions.status()).toBeInstanceOf(Promise);
-      expect(subscriptions.sync('sub_123')).toBeInstanceOf(Promise);
     });
   });
 });

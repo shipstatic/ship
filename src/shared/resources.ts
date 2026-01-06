@@ -168,6 +168,10 @@ export function createTokenResource(getApi: () => ApiHttp, ensureInit?: () => Pr
 // SUBSCRIPTION RESOURCE
 // =============================================================================
 
+/**
+ * IMPOSSIBLE SIMPLICITY: No sync() method needed!
+ * Webhooks are the single source of truth. Frontend just polls status().
+ */
 export function createSubscriptionResource(
   getApi: () => ApiHttp,
   ensureInit?: () => Promise<void>
@@ -181,11 +185,6 @@ export function createSubscriptionResource(
     status: async () => {
       if (ensureInit) await ensureInit();
       return getApi().getSubscriptionStatus();
-    },
-
-    sync: async (subscriptionId: string) => {
-      if (ensureInit) await ensureInit();
-      return getApi().syncSubscription(subscriptionId);
     },
   };
 }

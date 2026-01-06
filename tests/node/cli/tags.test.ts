@@ -23,8 +23,6 @@ describe('CLI --tag Flag', () => {
 
   beforeAll(async () => {
     // Start mock API server
-    serverPort = 3333;
-
     mockServer = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = req.url || '';
 
@@ -176,7 +174,15 @@ describe('CLI --tag Flag', () => {
     });
 
     await new Promise<void>((resolve) => {
-      mockServer.listen(serverPort, () => resolve());
+      // Pass 0 to let the OS assign a random free port
+      mockServer.listen(0, () => {
+        // Retrieve the actual port assigned
+        const address = mockServer.address();
+        if (address && typeof address === 'object') {
+          serverPort = address.port;
+        }
+        resolve();
+      });
     });
   });
 
