@@ -17,9 +17,7 @@ import type {
   SPACheckResponse,
   StaticFile,
   TokenCreateResponse,
-  TokenListResponse,
-  CheckoutSession,
-  SubscriptionStatus
+  TokenListResponse
 } from '@shipstatic/types';
 import type { ApiDeployOptions, ShipClientOptions, ShipEvents } from '../types.js';
 import { ShipError, DEFAULT_API } from '@shipstatic/types';
@@ -33,7 +31,6 @@ const DOMAINS_ENDPOINT = '/domains';
 const CONFIG_ENDPOINT = '/config';
 const ACCOUNT_ENDPOINT = '/account';
 const TOKENS_ENDPOINT = '/tokens';
-const SUBSCRIPTIONS_ENDPOINT = '/subscriptions';
 const SPA_CHECK_ENDPOINT = '/spa-check';
 
 /**
@@ -337,41 +334,6 @@ export class ApiHttp extends SimpleEvents {
       'Remove Token'
     );
   }
-
-  /**
-   * Create a Creem checkout session for subscription
-   * POST /subscriptions/checkout
-   */
-  async createCheckout(): Promise<CheckoutSession> {
-    return this.request<CheckoutSession>(
-      `${this.apiUrl}${SUBSCRIPTIONS_ENDPOINT}/checkout`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      },
-      'Create checkout session'
-    );
-  }
-
-  /**
-   * Get current subscription status and usage
-   * GET /subscriptions/status
-   */
-  async getSubscriptionStatus(): Promise<SubscriptionStatus> {
-    return this.request<SubscriptionStatus>(
-      `${this.apiUrl}${SUBSCRIPTIONS_ENDPOINT}/status`,
-      {
-        method: 'GET',
-      },
-      'Get subscription status'
-    );
-  }
-
-  /**
-   * IMPOSSIBLE SIMPLICITY: No sync endpoint needed!
-   * Webhooks are the single source of truth.
-   * Frontend just polls getSubscriptionStatus() after checkout redirect.
-   */
 
   async checkSPA(files: StaticFile[]): Promise<boolean> {
     const indexFile = files.find(f => f.path === 'index.html' || f.path === '/index.html');
