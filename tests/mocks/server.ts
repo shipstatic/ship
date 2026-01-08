@@ -65,7 +65,7 @@ function handleRequest(req: any, res: any) {
   // Mock authentication check - accept any auth header or test API key in env
   const isPublicEndpoint = path === '/ping' || path === '/config';
   const hasAuth = req.headers.authorization || req.headers['x-api-key'];
-  
+
   if (!isPublicEndpoint && !hasAuth) {
     res.writeHead(401);
     res.end(JSON.stringify({ error: 'authentication_failed', status: 401 }));
@@ -77,7 +77,7 @@ function handleRequest(req: any, res: any) {
     if (path === '/ping' && method === 'GET') {
       res.writeHead(200);
       res.end(JSON.stringify({ success: true, timestamp: Date.now() }));
-    } 
+    }
     else if (path === '/account' && method === 'GET') {
       res.writeHead(200);
       res.end(JSON.stringify(mockAccount));
@@ -103,19 +103,18 @@ function handleRequest(req: any, res: any) {
           const indexContent = data.index || '';
           const hasReactRoot = indexContent.includes('id="root"') || indexContent.includes("id='root'");
           const isSPA = hasIndexHtml && hasReactRoot;
-          
+
           res.writeHead(200);
           res.end(JSON.stringify({
             isSPA,
             debug: {
-              tier: isSPA ? 'inclusions' : 'exclusions',
               reason: isSPA ? 'React mount point detected' : 'No SPA indicators found'
             }
           }));
         } catch (e) {
           res.writeHead(400);
-          res.end(JSON.stringify({ 
-            error: 'invalid_json', 
+          res.end(JSON.stringify({
+            error: 'invalid_json',
             message: 'Invalid JSON in request body',
             status: 400
           }));
@@ -149,10 +148,10 @@ function handleRequest(req: any, res: any) {
           created: Math.floor(Date.now() / 1000),
           expires: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) // 7 days
         };
-        
+
         // Add to mock deployments for subsequent queries
         mockDeployments.push(deployment);
-        
+
         res.writeHead(201);
         res.end(JSON.stringify(deployment));
       });
@@ -163,8 +162,8 @@ function handleRequest(req: any, res: any) {
       const deployment = mockDeployments.find(d => d.deployment === id);
       if (!deployment) {
         res.writeHead(404);
-        res.end(JSON.stringify({ 
-          error: 'not_found', 
+        res.end(JSON.stringify({
+          error: 'not_found',
           message: `Deployment ${id} not found`,
           status: 404
         }));
@@ -178,8 +177,8 @@ function handleRequest(req: any, res: any) {
       const deployment = mockDeployments.find(d => d.deployment === id);
       if (!deployment) {
         res.writeHead(404);
-        res.end(JSON.stringify({ 
-          error: 'not_found', 
+        res.end(JSON.stringify({
+          error: 'not_found',
           message: `Deployment ${id} not found`,
           status: 404
         }));
@@ -304,7 +303,7 @@ export function setupMockServer(): Promise<void> {
     }
 
     server = createServer(handleRequest);
-    
+
     server.on('error', (err: any) => {
       if (err.code === 'EADDRINUSE') {
         console.log('Mock server: Port 3000 already in use, assuming it\'s already running');
@@ -349,7 +348,7 @@ export function resetMockServer() {
     created: 1640995200, // 2022-01-01T00:00:00Z
     expires: 1672531200  // 2023-01-01T00:00:00Z
   });
-  
+
   mockDomains.length = 0;
   mockDomains.push({
     domain: 'staging',

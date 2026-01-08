@@ -69,7 +69,7 @@ const emptyState = {
 export async function setupMockApiServer() {
   // Clear any previous requests
   (globalThis as any).__lastMockRequest = null;
-  
+
   return {
     getLastRequest() {
       return (globalThis as any).__lastMockRequest;
@@ -96,9 +96,9 @@ export async function teardownMockApiServer(server: any) {
 export const apiHandlers = [
   // GET /ping
   http.get('*/ping', () => {
-    return HttpResponse.json({ 
-      success: true, 
-      timestamp: Date.now() 
+    return HttpResponse.json({
+      success: true,
+      timestamp: Date.now()
     });
   }),
 
@@ -111,13 +111,13 @@ export const apiHandlers = [
   http.get('*/deployments', ({ request }) => {
     const url = new URL(request.url);
     const populate = url.searchParams.get('populate');
-    
+
     const response: DeploymentListResponse = {
       deployments: populate === 'true' ? mockDeployments : emptyState.deployments,
       cursor: null,
       total: populate === 'true' ? mockDeployments.length : 0
     };
-    
+
     return HttpResponse.json(response);
   }),
 
@@ -126,8 +126,8 @@ export const apiHandlers = [
     const deployment = mockDeployments.find(d => d.deployment === params.id);
     if (!deployment) {
       return HttpResponse.json(
-        { 
-          error: 'not_found', 
+        {
+          error: 'not_found',
           message: `Deployment ${params.id} not found`,
           status: 404
         },
@@ -189,8 +189,8 @@ export const apiHandlers = [
     const deployment = mockDeployments.find(d => d.deployment === params.id);
     if (!deployment) {
       return HttpResponse.json(
-        { 
-          error: 'not_found', 
+        {
+          error: 'not_found',
           message: `Deployment ${params.id} not found`,
           status: 404
         },

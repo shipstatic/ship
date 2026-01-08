@@ -35,11 +35,11 @@ describe('AccountResource', () => {
         plan: 'free',
         created: 1234567890
       };
-      
+
       (mockApi.getAccount as any).mockResolvedValue(mockResponse);
-      
+
       const result = await account.get();
-      
+
       expect(mockApi.getAccount).toHaveBeenCalledWith();
       expect(result).toEqual(mockResponse);
     });
@@ -60,10 +60,10 @@ describe('AccountResource', () => {
           created: 1234567890
         }
       ];
-      
+
       for (const testCase of testCases) {
         (mockApi.getAccount as any).mockResolvedValue(testCase);
-        
+
         const result = await account.get();
         expect(mockApi.getAccount).toHaveBeenCalledWith();
         expect(result.email).toBe(testCase.email);

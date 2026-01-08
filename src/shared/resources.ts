@@ -7,16 +7,23 @@ import type {
   DeploymentResource,
   DomainResource,
   AccountResource,
-  TokenResource,
-  SubscriptionResource
+  TokenResource
 } from '@shipstatic/types';
+
+export type {
+  StaticFile,
+  DeployInput,
+  DeploymentResource,
+  DomainResource,
+  AccountResource,
+  TokenResource
+};
 import type { ApiHttp } from './api/http.js';
 import type { ShipClientOptions, DeploymentOptions } from './types.js';
 import { mergeDeployOptions } from './core/config.js';
 import { detectAndConfigureSPA } from './lib/prepare-input.js';
 
-// Re-export DeployInput for external use
-export type { DeployInput };
+
 
 export function createDeploymentResource(
   getApi: () => ApiHttp,
@@ -163,29 +170,3 @@ export function createTokenResource(getApi: () => ApiHttp, ensureInit?: () => Pr
     }
   };
 }
-
-// =============================================================================
-// SUBSCRIPTION RESOURCE
-// =============================================================================
-
-/**
- * IMPOSSIBLE SIMPLICITY: No sync() method needed!
- * Webhooks are the single source of truth. Frontend just polls status().
- */
-export function createSubscriptionResource(
-  getApi: () => ApiHttp,
-  ensureInit?: () => Promise<void>
-): SubscriptionResource {
-  return {
-    checkout: async () => {
-      if (ensureInit) await ensureInit();
-      return getApi().createCheckout();
-    },
-
-    status: async () => {
-      if (ensureInit) await ensureInit();
-      return getApi().getSubscriptionStatus();
-    },
-  };
-}
-
