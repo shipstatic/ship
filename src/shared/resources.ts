@@ -93,7 +93,7 @@ export function createDeploymentResource(
 
 export function createDomainResource(getApi: () => ApiHttp, ensureInit?: () => Promise<void>): DomainResource {
   return {
-    set: async (domainName: string, deployment: string, tags?: string[]) => {
+    set: async (domainName: string, deployment?: string, tags?: string[]) => {
       if (ensureInit) await ensureInit();
       return getApi().setDomain(domainName, deployment, tags);
     },

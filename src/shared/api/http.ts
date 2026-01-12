@@ -218,8 +218,11 @@ export class ApiHttp extends SimpleEvents {
     await this.request<DeploymentRemoveResponse>(`${this.apiUrl}${DEPLOY_ENDPOINT}/${id}`, { method: 'DELETE' }, 'Remove Deployment');
   }
 
-  async setDomain(name: string, deployment: string, tags?: string[]): Promise<Domain> {
-    const requestBody: { deployment: string; tags?: string[] } = { deployment };
+  async setDomain(name: string, deployment?: string, tags?: string[]): Promise<Domain> {
+    const requestBody: { deployment?: string; tags?: string[] } = {};
+    if (deployment) {
+      requestBody.deployment = deployment;
+    }
     if (tags && tags.length > 0) {
       requestBody.tags = tags;
     }
