@@ -4,6 +4,10 @@
  */
 
 import { ShipError } from '@shipstatic/types';
+import { ensureShipError } from '../index.js';
+
+// Re-export for CLI consumers
+export { ensureShipError };
 
 /**
  * Context for error message generation
@@ -73,19 +77,6 @@ export function getUserMessage(
 
   // Server errors - generic but actionable
   return 'server error: please try again or check https://status.shipstatic.com';
-}
-
-/**
- * Wrap any error as a ShipError.
- * Ensures consistent error handling even for unexpected errors.
- */
-export function ensureShipError(err: any): ShipError {
-  if (err instanceof ShipError) {
-    return err;
-  }
-  // Handle null/undefined gracefully
-  const message = err?.message || String(err ?? 'Unknown error');
-  return ShipError.business(message);
 }
 
 /**
