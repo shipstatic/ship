@@ -4,6 +4,9 @@
  * Core types come from @shipstatic/types, while SDK-specific types are defined here.
  */
 
+// Import types used in this file
+import type { ProgressInfo } from '@shipstatic/types';
+
 // Re-export all types from @shipstatic/types for convenience
 export * from '@shipstatic/types';
 
