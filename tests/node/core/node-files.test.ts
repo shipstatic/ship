@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processFilesForNode } from '../../../src/node/core/node-files';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
-import { ShipError, ShipErrorType } from '@shipstatic/types';
+import { ShipError, ErrorType } from '@shipstatic/types';
 import { setConfig } from '../../../src/shared/core/platform-config';
 
 // Define mock implementations using vi.hoisted()
 const { MOCK_CALCULATE_MD5_FN } = vi.hoisted(() => ({ MOCK_CALCULATE_MD5_FN: vi.fn() }));
 
 const { MOCK_FS_IMPLEMENTATION } = vi.hoisted(() => ({
-  MOCK_FS_IMPLEMENTATION: { readdirSync: vi.fn(), statSync: vi.fn(), readFileSync: vi.fn() }
+  MOCK_FS_IMPLEMENTATION: { readdirSync: vi.fn(), statSync: vi.fn(), readFileSync: vi.fn(), realpathSync: vi.fn() }
 }));
 
 const { MOCK_PATH_MODULE_IMPLEMENTATION } = vi.hoisted(() => {
@@ -148,16 +148,32 @@ describe('Node File Utilities', () => {
     MOCK_FS_IMPLEMENTATION.readFileSync.mockImplementation((filePath: string) => {
       const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
       const fileData = files[normalizedPath];
-      
+
       if (!fileData) {
         throw new Error(`ENOENT: no such file or directory, read '${normalizedPath}'`);
       }
-      
+
       if (fileData.type === 'dir') {
         throw new Error(`EISDIR: illegal operation on a directory, read '${normalizedPath}'`);
       }
-      
+
       return Buffer.from(fileData.content || '');
+    });
+
+    // realpathSync mock - for tests without symlinks, just return the resolved path
+    MOCK_FS_IMPLEMENTATION.realpathSync.mockImplementation((filePath: string) => {
+      const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
+      // Check if path exists in our mock filesystem
+      const fileData = files[normalizedPath];
+      if (fileData) {
+        return normalizedPath;
+      }
+      // Check if it's an implicit directory
+      const prefix = normalizedPath + '/';
+      if (Object.keys(files).some(k => k.startsWith(prefix))) {
+        return normalizedPath;
+      }
+      throw Object.assign(new Error(`ENOENT: no such file or directory, realpath '${normalizedPath}'`), { code: 'ENOENT' });
     });
   };
 
@@ -813,6 +829,105 @@ describe('Node File Utilities', () => {
       expect(results[0]).toHaveLength(17);
       expect(results[1]).toHaveLength(17);
       expect(results[2]).toHaveLength(16);
+    });
+  });
+
+  describe('error handling during file processing', () => {
+    it('should re-throw ShipError instances directly', async () => {
+      // Setup a file that will trigger a ShipError during validation
+      setupMockFsNode({
+        '/mock/cwd/test.txt': { type: 'file', content: 'content', size: 1 }
+      });
+
+      // Override the statSync to throw a ShipError on the second call (during processing)
+      let callCount = 0;
+      MOCK_FS_IMPLEMENTATION.statSync.mockImplementation((filePath: string) => {
+        callCount++;
+        const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
+
+        // First call is for path validation, return valid directory
+        if (callCount === 1) {
+          return { isDirectory: () => false, isFile: () => true, size: 1 };
+        }
+
+        // Second call during file processing - throw ShipError
+        throw ShipError.business('Simulated ShipError during file processing');
+      });
+
+      await expect(processFilesForNode(['test.txt']))
+        .rejects.toThrow('Simulated ShipError during file processing');
+    });
+
+    it('should convert non-ShipError exceptions to ShipError.file', async () => {
+      // Setup file that exists initially but fails during read
+      setupMockFsNode({
+        '/mock/cwd/problem.txt': { type: 'file', content: 'content', size: 10 }
+      });
+
+      // Make readFileSync throw a generic error
+      MOCK_FS_IMPLEMENTATION.readFileSync.mockImplementation((filePath: string) => {
+        throw new Error('EACCES: permission denied');
+      });
+
+      await expect(processFilesForNode(['problem.txt']))
+        .rejects.toThrow('Failed to read file');
+    });
+
+    it('should convert non-Error exceptions to ShipError.file', async () => {
+      setupMockFsNode({
+        '/mock/cwd/weird.txt': { type: 'file', content: 'content', size: 10 }
+      });
+
+      // Make readFileSync throw a string (non-Error)
+      MOCK_FS_IMPLEMENTATION.readFileSync.mockImplementation(() => {
+        throw 'Some string error';
+      });
+
+      await expect(processFilesForNode(['weird.txt']))
+        .rejects.toThrow('Failed to read file');
+    });
+  });
+
+  describe('final file count validation', () => {
+    it('should throw when results exceed maxFilesCount', async () => {
+      // Set a very low max file count
+      setConfig({
+        maxFileSize: 10 * 1024 * 1024,
+        maxFilesCount: 5,
+        maxTotalSize: 100 * 1024 * 1024,
+      });
+
+      // Create more files than allowed
+      setupMockFsNode({
+        '/mock/cwd/file1.txt': { type: 'file', content: 'a' },
+        '/mock/cwd/file2.txt': { type: 'file', content: 'b' },
+        '/mock/cwd/file3.txt': { type: 'file', content: 'c' },
+        '/mock/cwd/file4.txt': { type: 'file', content: 'd' },
+        '/mock/cwd/file5.txt': { type: 'file', content: 'e' },
+        '/mock/cwd/file6.txt': { type: 'file', content: 'f' }
+      });
+
+      await expect(processFilesForNode([
+        'file1.txt', 'file2.txt', 'file3.txt',
+        'file4.txt', 'file5.txt', 'file6.txt'
+      ])).rejects.toThrow('Too many files to deploy. Maximum allowed is 5 files.');
+    });
+
+    it('should pass when results exactly match maxFilesCount', async () => {
+      setConfig({
+        maxFileSize: 10 * 1024 * 1024,
+        maxFilesCount: 3,
+        maxTotalSize: 100 * 1024 * 1024,
+      });
+
+      setupMockFsNode({
+        '/mock/cwd/file1.txt': { type: 'file', content: 'a' },
+        '/mock/cwd/file2.txt': { type: 'file', content: 'b' },
+        '/mock/cwd/file3.txt': { type: 'file', content: 'c' }
+      });
+
+      const result = await processFilesForNode(['file1.txt', 'file2.txt', 'file3.txt']);
+      expect(result).toHaveLength(3);
     });
   });
 });

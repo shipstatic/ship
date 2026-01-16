@@ -19,5 +19,5 @@ export * from './lib/env.js';
 export * from './lib/file-validation.js';
 
 // Re-export types from @shipstatic/types
-export { ShipError, ShipErrorType } from '@shipstatic/types';
+export { ShipError, ErrorType } from '@shipstatic/types';
 export type { PingResponse, Deployment, Domain, Account } from '@shipstatic/types';

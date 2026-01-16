@@ -33,7 +33,7 @@ COMMANDS
   ship domains list                     List all domains
   ship domains set <name> <deployment>  Create or update domain pointing to deployment
   ship domains get <name>               Show domain information
-  ship domains check <name>             Manually trigger DNS check for external domain
+  ship domains confirm <name>           Manually trigger DNS confirmation for external domain
   ship domains remove <name>            Delete domain permanently
 
   🔑 Tokens
@@ -78,7 +78,7 @@ COMMANDS
   ship domains list                     List all domains
   ship domains set <name> <deployment>  Create or update domain pointing to deployment
   ship domains get <name>               Show domain information
-  ship domains check <name>             Manually trigger DNS check for external domain
+  ship domains confirm <name>           Manually trigger DNS confirmation for external domain
   ship domains remove <name>            Delete domain permanently
 
   🔑 Tokens
@@ -123,7 +123,7 @@ COMMANDS
   ship domains list                     List all domains
   ship domains set <name> <deployment>  Create or update domain pointing to deployment
   ship domains get <name>               Show domain information
-  ship domains check <name>             Manually trigger DNS check for external domain
+  ship domains confirm <name>           Manually trigger DNS confirmation for external domain
   ship domains remove <name>            Delete domain permanently
 
   🔑 Tokens

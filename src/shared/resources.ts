@@ -34,22 +34,22 @@ export function createDeploymentResource(
 ): DeploymentResource {
   return {
     create: async (input: DeployInput, options: DeploymentOptions = {}) => {
-      // Fail fast if no authentication credentials are configured
-      // Allow deployToken in options to bypass this check (per-deploy auth)
-      if (hasAuth && !hasAuth() && !options.deployToken && !options.apiKey) {
-        throw new Error(
-          'Authentication credentials are required for deployment. ' +
-          'Please call setDeployToken() or setApiKey() first, or pass credentials in the deployment options.'
-        );
-      }
-
-      // Ensure full initialization before proceeding
+      // Ensure full initialization before proceeding (loads config from env/files)
       if (ensureInit) await ensureInit();
 
       // Merge user options with client defaults
       const mergedOptions = clientDefaults
         ? mergeDeployOptions(options, clientDefaults)
         : options;
+
+      // Auth check AFTER init so env vars and config files are loaded
+      // Check: instance auth OR per-deploy credentials in merged options
+      if (hasAuth && !hasAuth() && !mergedOptions.deployToken && !mergedOptions.apiKey) {
+        throw new Error(
+          'Authentication credentials are required for deployment. ' +
+          'Please call setDeployToken() or setApiKey() first, or pass credentials in the deployment options.'
+        );
+      }
 
       // Get API client AFTER initialization is complete to avoid race conditions
       const apiClient = getApi();

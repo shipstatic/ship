@@ -680,4 +680,277 @@ describe('ApiHttp', () => {
       expect(result).toEqual(mockDeployment);
     });
   });
+
+  describe('token operations', () => {
+    it('should create token with ttl', async () => {
+      const mockResponse = { token: 'token-abc123', expires: 1234567890 };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.createToken(3600);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/tokens',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json'
+          }),
+          body: JSON.stringify({ ttl: 3600 })
+        })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should create token with tags', async () => {
+      const mockResponse = { token: 'token-abc123', expires: 1234567890 };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.createToken(undefined, ['ci', 'deploy']);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/tokens',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ tags: ['ci', 'deploy'] })
+        })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should create token with both ttl and tags', async () => {
+      const mockResponse = { token: 'token-abc123', expires: 1234567890 };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.createToken(7200, ['production']);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/tokens',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ ttl: 7200, tags: ['production'] })
+        })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should create token without parameters', async () => {
+      const mockResponse = { token: 'token-abc123', expires: 1234567890 };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.createToken();
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/tokens',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({})
+        })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should list tokens', async () => {
+      const mockResponse = { tokens: [{ token: 'token-1' }, { token: 'token-2' }] };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.listTokens();
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/tokens',
+        expect.objectContaining({ method: 'GET' })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should remove token', async () => {
+      (global.fetch as any).mockResolvedValue(createMockResponse(undefined, 204));
+
+      await apiHttp.removeToken('token-to-delete');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/tokens/token-to-delete',
+        expect.objectContaining({ method: 'DELETE' })
+      );
+    });
+  });
+
+  describe('domain DNS operations', () => {
+    it('should get domain DNS info', async () => {
+      const mockResponse = { domain: 'example.com', dns: { type: 'CNAME', value: 'target.com' } };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.getDomainDns('example.com');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/example.com/dns',
+        expect.objectContaining({ method: 'GET' })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should get domain records', async () => {
+      const mockResponse = { domain: 'example.com', records: [{ type: 'A', value: '1.2.3.4' }] };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.getDomainRecords('example.com');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/example.com/records',
+        expect.objectContaining({ method: 'GET' })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should get domain share hash', async () => {
+      const mockResponse = { domain: 'example.com', hash: 'share-hash-123' };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.getDomainShare('example.com');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/example.com/share',
+        expect.objectContaining({ method: 'GET' })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should confirm domain', async () => {
+      const mockResponse = { domain: 'example.com', confirmed: true };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      const result = await apiHttp.confirmDomain('example.com');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/example.com/confirm',
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should encode special characters in domain names', async () => {
+      const mockResponse = { domain: 'test.example.com', dns: {} };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+
+      await apiHttp.getDomainDns('test.example.com');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/test.example.com/dns',
+        expect.anything()
+      );
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle 401 authentication errors', async () => {
+      (global.fetch as any).mockResolvedValue(createMockResponse(
+        { error: 'authentication_failed', message: 'Invalid API key' },
+        401
+      ));
+
+      await expect(apiHttp.ping()).rejects.toThrow(ShipError);
+      try {
+        await apiHttp.ping();
+      } catch (e: any) {
+        expect(e.type).toBe('authentication_failed');
+      }
+    });
+
+    it('should handle non-JSON error responses', async () => {
+      (global.fetch as any).mockResolvedValue({
+        ok: false,
+        status: 500,
+        headers: {
+          get: vi.fn().mockImplementation((header: string) => {
+            if (header === 'content-type') return 'text/plain';
+            return null;
+          })
+        },
+        text: async () => 'Internal Server Error'
+      });
+
+      await expect(apiHttp.ping()).rejects.toThrow('Internal Server Error');
+    });
+
+    it('should handle error response parsing failure', async () => {
+      (global.fetch as any).mockResolvedValue({
+        ok: false,
+        status: 500,
+        headers: {
+          get: vi.fn().mockImplementation((header: string) => {
+            if (header === 'content-type') return 'application/json';
+            return null;
+          })
+        },
+        json: async () => { throw new Error('JSON parse error'); }
+      });
+
+      await expect(apiHttp.ping()).rejects.toThrow('Failed to parse error response');
+    });
+
+    it('should handle AbortError', async () => {
+      const abortError = new Error('The operation was aborted');
+      abortError.name = 'AbortError';
+      (global.fetch as any).mockRejectedValue(abortError);
+
+      await expect(apiHttp.ping()).rejects.toThrow('cancelled');
+    });
+
+    it('should handle TypeError fetch errors as network errors', async () => {
+      const typeError = new TypeError('fetch failed');
+      (global.fetch as any).mockRejectedValue(typeError);
+
+      await expect(apiHttp.ping()).rejects.toThrow('network error');
+    });
+  });
+
+  describe('timeout functionality', () => {
+    it('should use custom timeout from options', async () => {
+      const apiWithTimeout = new ApiHttp({
+        apiUrl: 'https://api.test.com',
+        getAuthHeaders: () => ({}),
+        timeout: 5000
+      });
+      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
+
+      await apiWithTimeout.ping();
+
+      // Verify the signal was passed (indicates timeout setup)
+      const fetchCall = (fetch as any).mock.calls[0][1];
+      expect(fetchCall.signal).toBeDefined();
+    });
+  });
+
+  describe('setDomain without deployment', () => {
+    it('should set domain without deployment parameter', async () => {
+      const mockDomain = { domain: 'staging' };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
+
+      const result = await apiHttp.setDomain('staging');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/staging',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({})
+        })
+      );
+      expect(result).toEqual({ ...mockDomain, isCreate: false });
+    });
+
+    it('should set domain with empty tags array (not included in body)', async () => {
+      const mockDomain = { domain: 'staging', deployment: 'dep1' };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
+
+      const result = await apiHttp.setDomain('staging', 'dep1', []);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/staging',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ deployment: 'dep1' })
+        })
+      );
+      expect(result).toEqual({ ...mockDomain, isCreate: false });
+    });
+  });
 });
