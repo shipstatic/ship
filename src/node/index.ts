@@ -6,7 +6,7 @@ import { Ship as BaseShip } from '../shared/base-ship.js';
 import { ShipError } from '@shipstatic/types';
 import { getENV } from '../shared/lib/env.js';
 import { loadConfig } from './core/config.js';
-import { resolveConfig } from '../shared/core/config.js';
+import { resolveConfig, type ResolvedConfig } from '../shared/core/config.js';
 import { setConfig } from '../shared/core/platform-config.js';
 import { ApiHttp } from '../shared/api/http.js';
 import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile } from '../shared/types.js';
@@ -43,7 +43,7 @@ export class Ship extends BaseShip {
     super(options);
   }
 
-  protected resolveInitialConfig(options: ShipClientOptions): any {
+  protected resolveInitialConfig(options: ShipClientOptions): ResolvedConfig {
     return resolveConfig(options, {});
   }
 
@@ -54,12 +54,20 @@ export class Ship extends BaseShip {
       // Re-resolve and re-create the http client with the full config
       const finalConfig = resolveConfig(this.clientOptions, loadedConfig);
 
+      // Update auth state with loaded credentials (if not already set by constructor)
+      // This ensures hasAuth() returns true after loading from env/config files
+      if (finalConfig.deployToken && !this.clientOptions.deployToken) {
+        this.setDeployToken(finalConfig.deployToken);
+      } else if (finalConfig.apiKey && !this.clientOptions.apiKey) {
+        this.setApiKey(finalConfig.apiKey);
+      }
+
       // Replace HTTP client while preserving event listeners (clean intentional API)
       // Use the same getAuthHeaders callback as the initial client
       const newClient = new ApiHttp({
         ...this.clientOptions,
         ...finalConfig,
-        getAuthHeaders: (this as any).authHeadersCallback
+        getAuthHeaders: this.authHeadersCallback
       });
       this.replaceHttpClient(newClient);
 

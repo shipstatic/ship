@@ -1,13 +1,24 @@
 /**
  * @file Shared configuration logic for both environments.
+ *
+ * CONFIGURATION PRECEDENCE (highest to lowest):
+ * 1. Constructor options / CLI flags (passed directly to Ship())
+ * 2. Environment variables (SHIP_API_KEY, SHIP_DEPLOY_TOKEN, SHIP_API_URL)
+ * 3. Config file (.shiprc or package.json "ship" key)
+ * 4. Default values (DEFAULT_API)
+ *
+ * This means CLI flags always win, followed by env vars, then config files.
  */
 
-import { DEFAULT_API, type PlatformConfig } from '@shipstatic/types';
+import { DEFAULT_API, type PlatformConfig, type ResolvedConfig } from '@shipstatic/types';
 import type { ShipClientOptions, DeploymentOptions } from '../types.js';
 import { getENV } from '../lib/env.js';
 
 // Re-export for backward compatibility
 export type Config = PlatformConfig;
+
+// Re-export ResolvedConfig from types package
+export type { ResolvedConfig } from '@shipstatic/types';
 
 /**
  * Cross-environment config loader that dispatches to appropriate implementation.
@@ -35,14 +46,14 @@ export async function loadConfig(configFile?: string): Promise<Config> {
 export function resolveConfig(
   userOptions: ShipClientOptions = {},
   loadedConfig: Partial<ShipClientOptions> = {}
-): { apiUrl: string; apiKey?: string; deployToken?: string } {
+): ResolvedConfig {
   const finalConfig = {
     apiUrl: userOptions.apiUrl || loadedConfig.apiUrl || DEFAULT_API,
     apiKey: userOptions.apiKey !== undefined ? userOptions.apiKey : loadedConfig.apiKey,
     deployToken: userOptions.deployToken !== undefined ? userOptions.deployToken : loadedConfig.deployToken,
   };
 
-  const result: { apiUrl: string; apiKey?: string; deployToken?: string } = {
+  const result: ResolvedConfig = {
     apiUrl: finalConfig.apiUrl
   };
 

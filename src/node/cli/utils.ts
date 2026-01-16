@@ -96,16 +96,17 @@ const formatValue = (key: string, value: any, context: 'table' | 'details' = 'de
 
 /**
  * Format data as table with specified columns for easy parsing
+ * @param headerMap - Optional mapping of property names to display headers (e.g., { url: 'deployment' })
  */
-export const formatTable = (data: any[], columns?: string[], noColor?: boolean): string => {
+export const formatTable = (data: any[], columns?: string[], noColor?: boolean, headerMap?: Record<string, string>): string => {
   if (!data || data.length === 0) return '';
-  
+
   // Get column order from first item (preserves API order) or use provided columns
   const firstItem = data[0] || {};
-  const columnOrder = columns || Object.keys(firstItem).filter(key => 
+  const columnOrder = columns || Object.keys(firstItem).filter(key =>
     firstItem[key] !== undefined && key !== 'verified' && key !== 'isCreate'
   );
-  
+
   // Transform data preserving column order
   const transformedData = data.map(item => {
     const transformed: any = {};
@@ -116,12 +117,14 @@ export const formatTable = (data: any[], columns?: string[], noColor?: boolean):
     });
     return transformed;
   });
-  
+
   const output = columnify(transformedData, {
     columnSplitter: '   ', // Use 3 spaces for visual alignment
     columns: columnOrder, // Explicitly preserve order
     config: columnOrder.reduce((config, col) => {
-      config[col] = { headingTransform: (heading: string) => applyColor(dim, heading, noColor) };
+      config[col] = {
+        headingTransform: (heading: string) => applyColor(dim, headerMap?.[heading] || heading, noColor)
+      };
       return config;
     }, {} as any)
   });

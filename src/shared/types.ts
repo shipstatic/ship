@@ -47,24 +47,7 @@ export interface DeploymentOptions {
  */
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
 
-// =============================================================================
-// PROGRESS TRACKING
-// =============================================================================
-
-/**
- * Progress information for deploy operations.
- * Provides consistent percentage-based progress with byte-level details.
- */
-export interface ProgressInfo {
-  /** Progress percentage (0-100). */
-  percent: number;
-  /** Number of bytes loaded so far. */
-  loaded: number;
-  /** Total number of bytes to be loaded. May be 0 if unknown initially. */
-  total: number;
-  /** Current file being processed (optional). */
-  file?: string;
-}
+// ProgressInfo is now exported from @shipstatic/types (via export * above)
 
 // =============================================================================
 // CLIENT CONFIGURATION

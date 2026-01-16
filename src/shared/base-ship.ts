@@ -7,6 +7,7 @@ import { ShipError } from '@shipstatic/types';
 import type { ShipClientOptions, ShipEvents } from './types.js';
 import type { Deployment, ConfigResponse } from '@shipstatic/types';
 import { getCurrentConfig } from './core/platform-config.js';
+import type { ResolvedConfig } from './core/config.js';
 
 // Resource imports
 import {
@@ -51,7 +52,7 @@ export abstract class Ship {
   private auth: AuthState = null;
 
   // Store the auth headers callback to reuse when replacing HTTP client
-  private readonly authHeadersCallback: () => Record<string, string>;
+  protected readonly authHeadersCallback: () => Record<string, string>;
 
   // Resource instances (initialized during creation)
   protected _deployments: DeploymentResource;
@@ -99,7 +100,7 @@ export abstract class Ship {
   }
 
   // Abstract methods that environments must implement
-  protected abstract resolveInitialConfig(options: ShipClientOptions): any;
+  protected abstract resolveInitialConfig(options: ShipClientOptions): ResolvedConfig;
   protected abstract loadFullConfig(): Promise<void>;
   protected abstract processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]>;
 
