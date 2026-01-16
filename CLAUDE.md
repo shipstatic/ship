@@ -10,17 +10,29 @@ The CLI uses consistent formatting for all user-facing messages:
 
 **Success Messages:**
 ```
-message ✓
+message (in green)
 ```
-- Message first, followed by a space and bold green check mark
-- Implementation: `success(msg)` uses `${msg} ${bold(green('✓'))}\n`
+- Message in green, lowercase, trailing period removed
+- Implementation: `success(msg)` outputs green text with newline
 
 **Error Messages:**
 ```
-error: message ✗
+[error] message (in red)
 ```
-- Prefixed with "error: ", followed by message and bold red cross mark
-- Implementation: `error(msg)` uses `error: ${msg} ${bold(red('✗'))}\n`
+- Prefixed with inverse red `[error]` badge, followed by red message
+- Implementation: `error(msg)` uses inverse red prefix + red message
+
+**Warning Messages:**
+```
+[warning] message (in yellow)
+```
+- Prefixed with inverse yellow `[warning]` badge, followed by yellow message
+
+**Info Messages:**
+```
+[info] message (in blue)
+```
+- Prefixed with inverse blue `[info]` badge, followed by blue message
 
 ### Table Output Format
 

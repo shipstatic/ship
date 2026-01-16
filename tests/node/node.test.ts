@@ -58,7 +58,7 @@ const configLoaderMock = CONFIG_LOADER_MOCK_IMPLEMENTATION;
 // 1. Define mock implementations using vi.hoisted()
 const { MOCK_CALCULATE_MD5_FN } = vi.hoisted(() => ({ MOCK_CALCULATE_MD5_FN: vi.fn() }));
 const { MOCK_FS_IMPLEMENTATION } = vi.hoisted(() => ({
-    MOCK_FS_IMPLEMENTATION: { readdirSync: vi.fn(), statSync: vi.fn(), readFileSync: vi.fn() }
+    MOCK_FS_IMPLEMENTATION: { readdirSync: vi.fn(), statSync: vi.fn(), readFileSync: vi.fn(), realpathSync: vi.fn() }
 }));
 const { MOCK_PATH_MODULE_IMPLEMENTATION } = vi.hoisted(() => {
     const basenameFn = (p: string) => p.split(/[\/\\]/).pop() || '';
@@ -202,6 +202,15 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
           return Buffer.from(typeof fileData === 'string' ? fileData : fileData.content || '');
         }
         throw new Error('ENOENT read');
+      });
+      // realpathSync mock - for tests without symlinks, just return the resolved path
+      MOCK_FS_IMPLEMENTATION.realpathSync.mockImplementation((filePath: string) => {
+        const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
+        const fileData = files[normalizedPath];
+        if (normalizedPath === '/mock/cwd' && !fileData) return normalizedPath;
+        if (fileData) return normalizedPath;
+        if (Object.keys(files).some(k => k.startsWith(normalizedPath + '/'))) return normalizedPath;
+        throw Object.assign(new Error(`ENOENT: no such file or directory, realpath '${normalizedPath}'`), { code: 'ENOENT' });
       });
     };
 

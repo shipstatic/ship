@@ -8,6 +8,7 @@ import { validateApiKey, validateDeployToken, validateApiUrl } from '@shipstatic
 import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
 import { formatTable, formatDetails, success, error, info, warn } from './utils.js';
+import { getUserMessage, ensureShipError, formatErrorJson, type ErrorContext } from './error-handling.js';
 import { bold, dim } from 'yoctocolors';
 // Removed tabtab dependency - now using custom completion script
 import * as fs from 'fs';
@@ -101,7 +102,7 @@ ${applyBold('COMMANDS')}
   ship domains list                     List all domains
   ship domains set <name> <deployment>  Create or update domain pointing to deployment
   ship domains get <name>               Show domain information
-  ship domains check <name>             Manually trigger DNS check for external domain
+  ship domains confirm <name>           Manually trigger DNS confirmation for external domain
   ship domains remove <name>            Delete domain permanently
 
   🔑 ${applyBold('Tokens')}
@@ -141,119 +142,77 @@ function collect(value: string, previous: string[] = []): string[] {
 }
 
 /**
+ * Handle unknown subcommand for parent commands.
+ * Shows error for unknown subcommand, then displays help.
+ */
+function handleUnknownSubcommand(validSubcommands: string[]): (...args: any[]) => void {
+  return (...args: any[]) => {
+    const globalOptions = processOptions(program);
+
+    // Get the command object (last argument)
+    const commandObj = args[args.length - 1];
+
+    // Check if an unknown subcommand was provided
+    if (commandObj?.args?.length > 0) {
+      const unknownArg = commandObj.args.find((arg: string) => !validSubcommands.includes(arg));
+      if (unknownArg) {
+        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
+      }
+    }
+
+    displayHelp(globalOptions.noColor);
+    process.exit(1);
+  };
+}
+
+/**
  * Process CLI options using Commander's built-in option merging.
- * Applies CLI-specific transformations and validations.
+ * Applies CLI-specific transformations (validation is done in preAction hook).
  */
 function processOptions(command: any): any {
   // Use Commander's built-in option merging - much simpler!
   // Use optsWithGlobals() to get both command-level and global options
   const options = command.optsWithGlobals ? command.optsWithGlobals() : command.opts();
-  
+
   // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
   if (options.color === false) {
     options.noColor = true;
   }
-  
-  // Validate options early
-  try {
-    if (options.apiKey && typeof options.apiKey === 'string') {
-      validateApiKey(options.apiKey);
-    }
-    
-    if (options.deployToken && typeof options.deployToken === 'string') {
-      validateDeployToken(options.deployToken);
-    }
-    
-    if (options.apiUrl && typeof options.apiUrl === 'string') {
-      validateApiUrl(options.apiUrl);
-    }
-  } catch (validationError) {
-    if (validationError instanceof ShipError) {
-      error(validationError.message, options.json, options.noColor);
-      process.exit(1);
-    }
-    throw validationError;
-  }
-  
+
+  // Note: Validation is handled by the preAction hook to avoid duplication
   return options;
 }
 
 /**
- * Error handler using ShipError type guards - all errors should be ShipError instances
+ * Error handler - outputs errors consistently in text or JSON format.
+ * Message formatting is delegated to the error-handling module.
  */
-function handleError(err: any, context?: { operation?: string; resourceType?: string; resourceId?: string }, options?: any) {
-  // Always get options from the root program object to ensure global flags are included.
+function handleError(
+  err: any,
+  context?: ErrorContext
+) {
   const opts = program.opts();
-  // All errors in this codebase should be ShipError instances
-  if (!(err instanceof ShipError)) {
-    const message = err.message || err;
-    
-    if (opts.json) {
-      console.error(JSON.stringify({ 
-        error: message,
-        details: { originalError: message }
-      }, null, 2));
-      console.error();
-    } else {
-      error(message, opts.json, opts.noColor);
-      // Show help after error (unless in JSON mode)
-      displayHelp(opts.noColor);
-    }
-    process.exit(1);
-  }
 
-  let message = err.message;
-  
-  // Handle specific error types based on error details
-  if (err.details?.data?.error === 'not_found') {
-    if (context?.operation === 'remove') {
-      const resourceType = context.resourceType || 'resource';
-      const resourceId = context.resourceId || '';
-      message = `${resourceId} ${resourceType.toLowerCase()} not found`;
-    } else {
-      // For other operations (like domains set), use consistent format
-      const originalMessage = err.details.data.message || 'Resource not found';
-      // Convert "Deployment X not found" to "Deployment not found: X" format
-      const match = originalMessage.match(/^(.*?)\s+(.+?)\s+not found$/);
-      if (match) {
-        const [, resourceType, resourceId] = match;
-        message = `${resourceId} ${resourceType.toLowerCase()} not found`;
-      } else {
-        message = originalMessage;
-      }
-    }
-  }
-  // Handle business logic errors with detailed messages
-  else if (err.details?.data?.error === 'business_logic_error') {
-    message = err.details.data.message || 'Business logic error occurred';
-  }
-  // User-friendly messages for common error types  
-  else if (err.isAuthError()) {
-    message = 'authentication failed';
-  }
-  else if (err.isNetworkError()) {
-    message = 'network error';
-  }
-  // For file, validation, and client errors, trust the original message
-  // For server errors, provide generic fallback
-  else if (!err.isFileError() && !err.isValidationError() && !err.isClientError()) {
-    message = 'server error';
-  }
-  
+  // Wrap non-ShipError instances using the extracted helper
+  const shipError = ensureShipError(err);
+
+  // Get user-facing message using the extracted pure function
+  const message = getUserMessage(shipError, context, {
+    apiKey: opts.apiKey,
+    deployToken: opts.deployToken
+  });
+
+  // Output in appropriate format
   if (opts.json) {
-    console.error(JSON.stringify({ 
-      error: message,
-      ...(err.details ? { details: err.details } : {})
-    }, null, 2));
-    console.error();
+    console.error(formatErrorJson(message, shipError.details) + '\n');
   } else {
     error(message, opts.json, opts.noColor);
-    // Show help for validation errors related to unknown commands
-    if (err.isValidationError() && message.includes('unknown command')) {
+    // Show help only for unknown command errors (user CLI mistake)
+    if (shipError.isValidationError() && message.includes('unknown command')) {
       displayHelp(opts.noColor);
     }
-    // Don't show help for other ShipError instances - these are API/system errors, not user CLI mistakes
   }
+
   process.exit(1);
 }
 
@@ -266,10 +225,10 @@ function withErrorHandling<T extends any[], R>(
   context?: { operation?: string; resourceType?: string; getResourceId?: (...args: T) => string }
 ) {
   return async function(this: any, ...args: T) {
-    try {
-      // Get processed options using Commander's built-in merging (including validation!)
-      const globalOptions = processOptions(this);
+    // Process options once at the start (used by both success and error paths)
+    const globalOptions = processOptions(this);
 
+    try {
       const client = createClient();
       const result = await handler(client, ...args);
 
@@ -282,17 +241,14 @@ function withErrorHandling<T extends any[], R>(
       } : { client };
 
       await output(result, outputContext, globalOptions);
-    } catch (error: any) {
+    } catch (err: any) {
       const errorContext = context ? {
         operation: context.operation,
         resourceType: context.resourceType,
         resourceId: context.getResourceId ? context.getResourceId(...args) : undefined
       } : undefined;
 
-      // Get processed options using Commander's built-in merging
-      const globalOptions = processOptions(this);
-
-      handleError(error, errorContext, globalOptions);
+      handleError(err, errorContext);
     }
   };
 }
@@ -337,9 +293,9 @@ const formatters = {
       return;
     }
     
-    // For deployments list: hide files, size, status, expires for cleaner output
-    const listColumns = ['deployment', 'url', 'created'];
-    console.log(formatTable(result.deployments, listColumns, noColor));
+    // For deployments list: show url (as "deployment"), tags, created
+    const listColumns = ['url', 'tags', 'created'];
+    console.log(formatTable(result.deployments, listColumns, noColor, { url: 'deployment' }));
   },
   domains: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
     if (!result.domains || result.domains.length === 0) {
@@ -352,9 +308,9 @@ const formatters = {
       return;
     }
 
-    // For domains list: hide status, confirmed for cleaner output
-    const listColumns = ['domain', 'deployment', 'url', 'created'];
-    console.log(formatTable(result.domains, listColumns, noColor));
+    // For domains list: show url (as "domain"), deployment, tags, created
+    const listColumns = ['url', 'deployment', 'tags', 'created'];
+    console.log(formatTable(result.domains, listColumns, noColor, { url: 'domain' }));
   },
   domain: async (result: any, context?: { operation?: string; client?: Ship }, isJson?: boolean, noColor?: boolean) => {
     // Always show success message for domain operations, particularly 'set'
@@ -520,9 +476,11 @@ async function output(result: any, context?: { operation?: string; resourceType?
   }
 
   // Find appropriate formatter based on result properties (non-JSON mode)
-  for (const [key, formatter] of Object.entries(formatters)) {
+  // Explicit lookup order for deterministic behavior
+  const formatterOrder: (keyof typeof formatters)[] = ['deployments', 'domains', 'domain', 'deployment', 'email', 'message'];
+  for (const key of formatterOrder) {
     if (result[key]) {
-      await formatter(result, context, opts.json, opts.noColor);
+      await formatters[key](result, context, opts.json, opts.noColor);
       return;
     }
   }
@@ -601,23 +559,7 @@ program
 const deploymentsCmd = program
   .command('deployments')
   .description('Manage deployments')
-  .action((...args) => {
-    const globalOptions = processOptions(program);
-    
-    // Get the command object (last argument)
-    const commandObj = args[args.length - 1];
-    
-    // Check if an unknown subcommand was provided
-    if (commandObj && commandObj.args && commandObj.args.length > 0) {
-      const unknownArg = commandObj.args.find((arg: string) => !['list', 'create', 'get', 'remove'].includes(arg));
-      if (unknownArg) {
-        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
-      }
-    }
-    
-    displayHelp(globalOptions.noColor);
-    process.exit(1);
-  });
+  .action(handleUnknownSubcommand(['list', 'create', 'get', 'remove']));
 
 deploymentsCmd
   .command('list')
@@ -657,23 +599,7 @@ deploymentsCmd
 const domainsCmd = program
   .command('domains')
   .description('Manage domains')
-  .action((...args) => {
-    const globalOptions = processOptions(program);
-
-    // Get the command object (last argument)
-    const commandObj = args[args.length - 1];
-
-    // Check if an unknown subcommand was provided
-    if (commandObj && commandObj.args && commandObj.args.length > 0) {
-      const unknownArg = commandObj.args.find((arg: string) => !['list', 'get', 'set', 'remove'].includes(arg));
-      if (unknownArg) {
-        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
-      }
-    }
-
-    displayHelp(globalOptions.noColor);
-    process.exit(1);
-  });
+  .action(handleUnknownSubcommand(['list', 'get', 'set', 'confirm', 'remove']));
 
 domainsCmd
   .command('list')
@@ -721,23 +647,7 @@ domainsCmd
 const tokensCmd = program
   .command('tokens')
   .description('Manage deploy tokens')
-  .action((...args) => {
-    const globalOptions = processOptions(program);
-
-    // Get the command object (last argument)
-    const commandObj = args[args.length - 1];
-
-    // Check if an unknown subcommand was provided
-    if (commandObj && commandObj.args && commandObj.args.length > 0) {
-      const unknownArg = commandObj.args.find((arg: string) => !['list', 'create', 'remove'].includes(arg));
-      if (unknownArg) {
-        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
-      }
-    }
-
-    displayHelp(globalOptions.noColor);
-    process.exit(1);
-  });
+  .action(handleUnknownSubcommand(['list', 'create', 'remove']));
 
 tokensCmd
   .command('list')
@@ -770,23 +680,7 @@ tokensCmd
 const accountCmd = program
   .command('account')
   .description('Manage account')
-  .action((...args) => {
-    const globalOptions = processOptions(program);
-    
-    // Get the command object (last argument)
-    const commandObj = args[args.length - 1];
-    
-    // Check if an unknown subcommand was provided
-    if (commandObj && commandObj.args && commandObj.args.length > 0) {
-      const unknownArg = commandObj.args.find((arg: string) => !['get'].includes(arg));
-      if (unknownArg) {
-        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
-      }
-    }
-    
-    displayHelp(globalOptions.noColor);
-    process.exit(1);
-  });
+  .action(handleUnknownSubcommand(['get']));
 
 accountCmd
   .command('get')
@@ -800,23 +694,7 @@ accountCmd
 const completionCmd = program
   .command('completion')
   .description('Setup shell completion')
-  .action((...args) => {
-    const globalOptions = processOptions(program);
-    
-    // Get the command object (last argument)
-    const commandObj = args[args.length - 1];
-    
-    // Check if an unknown subcommand was provided
-    if (commandObj && commandObj.args && commandObj.args.length > 0) {
-      const unknownArg = commandObj.args.find((arg: string) => !['install', 'uninstall'].includes(arg));
-      if (unknownArg) {
-        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
-      }
-    }
-    
-    displayHelp(globalOptions.noColor);
-    process.exit(1);
-  });
+  .action(handleUnknownSubcommand(['install', 'uninstall']));
 
 completionCmd
   .command('install')
@@ -1003,13 +881,20 @@ program
         displayHelp(noColor);
         process.exit(0);
       }
-      
-      // Check if the argument looks like a path (not a command)
-      if (!path.includes('/') && !path.startsWith('.') && !path.startsWith('~')) {
-        // This looks like an unknown command, not a path
-        throw ShipError.validation(`unknown command '${path}'`);
+
+      // Check if the argument is a valid path by checking filesystem
+      // This correctly handles paths like "dist", "build", "public" without slashes
+      if (!existsSync(path)) {
+        // Path doesn't exist - could be unknown command or typo
+        // Check if it looks like a command (no path separators, no extension)
+        const looksLikeCommand = !path.includes('/') && !path.includes('\\') &&
+                                  !path.includes('.') && !path.startsWith('~');
+        if (looksLikeCommand) {
+          throw ShipError.validation(`unknown command '${path}'`);
+        }
+        // Otherwise let performDeploy handle the "path does not exist" error
       }
-      
+
       return performDeploy(client, path, cmdOptions, this);
     },
     { operation: 'create' }

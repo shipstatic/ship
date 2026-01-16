@@ -12,6 +12,8 @@ import type {
   DeploymentRemoveResponse,
   Domain,
   DomainListResponse,
+  DomainDnsResponse,
+  DomainRecordsResponse,
   Account,
   SPACheckRequest,
   SPACheckResponse,
@@ -33,6 +35,9 @@ const ACCOUNT_ENDPOINT = '/account';
 const TOKENS_ENDPOINT = '/tokens';
 const SPA_CHECK_ENDPOINT = '/spa-check';
 
+// Default timeout for HTTP requests (30 seconds)
+const DEFAULT_REQUEST_TIMEOUT = 30000;
+
 /**
  * HTTP client with integrated event system
  * - Direct event integration
@@ -42,11 +47,13 @@ const SPA_CHECK_ENDPOINT = '/spa-check';
 export class ApiHttp extends SimpleEvents {
   private readonly apiUrl: string;
   private readonly getAuthHeadersCallback: () => Record<string, string>;
+  private readonly timeout: number;
 
   constructor(options: ShipClientOptions & { getAuthHeaders: () => Record<string, string> }) {
     super();
     this.apiUrl = options.apiUrl || DEFAULT_API;
     this.getAuthHeadersCallback = options.getAuthHeaders;
+    this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
   }
 
   /**
@@ -58,15 +65,25 @@ export class ApiHttp extends SimpleEvents {
 
 
   /**
-   * Make authenticated HTTP request with events
+   * Make authenticated HTTP request with events and timeout
    */
   private async request<T>(url: string, options: RequestInit = {}, operationName: string): Promise<T> {
     const headers = this.getAuthHeaders(options.headers as Record<string, string>);
+
+    // Set up timeout with AbortController
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), this.timeout);
+
+    // Combine with any existing signal from options
+    const signal = options.signal
+      ? this.combineSignals(options.signal, timeoutController.signal)
+      : timeoutController.signal;
 
     const fetchOptions: RequestInit = {
       ...options,
       headers,
       credentials: !headers.Authorization ? 'include' : undefined,
+      signal,
     };
 
     // Emit request event
@@ -74,6 +91,7 @@ export class ApiHttp extends SimpleEvents {
 
     try {
       const response = await fetch(url, fetchOptions);
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         await this.handleResponseError(response, operationName);
@@ -89,6 +107,77 @@ export class ApiHttp extends SimpleEvents {
       // Parse response with dedicated clone
       return await this.parseResponse<T>(responseForParsing);
     } catch (error: any) {
+      clearTimeout(timeoutId);
+      this.emit('error', error, url);
+      this.handleFetchError(error, operationName);
+      throw error;
+    }
+  }
+
+  /**
+   * Combine multiple AbortSignals into one
+   */
+  private combineSignals(userSignal: AbortSignal, timeoutSignal: AbortSignal): AbortSignal {
+    const controller = new AbortController();
+
+    const abort = () => controller.abort();
+    userSignal.addEventListener('abort', abort);
+    timeoutSignal.addEventListener('abort', abort);
+
+    // If either is already aborted, abort immediately
+    if (userSignal.aborted || timeoutSignal.aborted) {
+      controller.abort();
+    }
+
+    return controller.signal;
+  }
+
+  /**
+   * Make request and return both data and HTTP status code
+   * Used when the caller needs to inspect the status (e.g., 201 vs 200)
+   */
+  private async requestWithStatus<T>(url: string, options: RequestInit = {}, operationName: string): Promise<{ data: T; status: number }> {
+    const headers = this.getAuthHeaders(options.headers as Record<string, string>);
+
+    // Set up timeout with AbortController
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), this.timeout);
+
+    // Combine with any existing signal from options
+    const signal = options.signal
+      ? this.combineSignals(options.signal, timeoutController.signal)
+      : timeoutController.signal;
+
+    const fetchOptions: RequestInit = {
+      ...options,
+      headers,
+      credentials: !headers.Authorization ? 'include' : undefined,
+      signal,
+    };
+
+    // Emit request event
+    this.emit('request', url, fetchOptions);
+
+    try {
+      const response = await fetch(url, fetchOptions);
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        await this.handleResponseError(response, operationName);
+      }
+
+      // Clone response BEFORE any consumption for reliable event handling
+      const responseForEvent = this.safeClone(response);
+      const responseForParsing = this.safeClone(response);
+
+      // Emit event with dedicated clone
+      this.emit('response', responseForEvent, url);
+
+      // Parse response with dedicated clone
+      const data = await this.parseResponse<T>(responseForParsing);
+      return { data, status: response.status };
+    } catch (error: any) {
+      clearTimeout(timeoutId);
       this.emit('error', error, url);
       this.handleFetchError(error, operationName);
       throw error;
@@ -227,47 +316,18 @@ export class ApiHttp extends SimpleEvents {
       requestBody.tags = tags;
     }
 
-    const options: RequestInit = {
+    const url = `${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`;
+    const { data, status } = await this.requestWithStatus<Domain>(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)
+    }, 'Set Domain');
+
+    // Add isCreate flag based on status code (201 = created, 200 = updated)
+    return {
+      ...data,
+      isCreate: status === 201
     };
-
-    const headers = this.getAuthHeaders(options.headers as Record<string, string>);
-    const fetchOptions: RequestInit = {
-      ...options,
-      headers,
-      credentials: !headers.Authorization ? 'include' : undefined,
-    };
-
-    // Emit request event
-    this.emit('request', `${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, fetchOptions);
-
-    try {
-      const response = await fetch(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, fetchOptions);
-
-      if (!response.ok) {
-        await this.handleResponseError(response, 'Set Domain');
-      }
-
-      // Clone response BEFORE any consumption for reliable event handling
-      const responseForEvent = this.safeClone(response);
-      const responseForParsing = this.safeClone(response);
-
-      // Emit event with dedicated clone
-      this.emit('response', responseForEvent, `${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`);
-
-      // Parse response and add isCreate flag based on status code
-      const result = await this.parseResponse<Domain>(responseForParsing);
-      return {
-        ...result,
-        isCreate: response.status === 201
-      };
-    } catch (error: any) {
-      this.emit('error', error, `${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`);
-      this.handleFetchError(error, 'Set Domain');
-      throw error;
-    }
   }
 
   async getDomain(name: string): Promise<Domain> {
@@ -286,12 +346,12 @@ export class ApiHttp extends SimpleEvents {
     return await this.request<{ message: string }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/confirm`, { method: 'POST' }, 'Confirm Domain');
   }
 
-  async getDomainDns(name: string): Promise<{ domain: string; dns: any }> {
-    return await this.request<{ domain: string; dns: any }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/dns`, { method: 'GET' }, 'Get Domain DNS');
+  async getDomainDns(name: string): Promise<DomainDnsResponse> {
+    return await this.request<DomainDnsResponse>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/dns`, { method: 'GET' }, 'Get Domain DNS');
   }
 
-  async getDomainRecords(name: string): Promise<{ domain: string; records: any[] }> {
-    return await this.request<{ domain: string; records: any[] }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/records`, { method: 'GET' }, 'Get Domain Records');
+  async getDomainRecords(name: string): Promise<DomainRecordsResponse> {
+    return await this.request<DomainRecordsResponse>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/records`, { method: 'GET' }, 'Get Domain Records');
   }
 
   async getDomainShare(name: string): Promise<{ domain: string; hash: string }> {
@@ -412,11 +472,14 @@ export class ApiHttp extends SimpleEvents {
       if (!(file.content instanceof File || file.content instanceof Blob)) {
         throw ShipError.file(`Unsupported file.content type for browser FormData: ${file.path}`, file.path);
       }
+      if (!file.md5) {
+        throw ShipError.file(`File missing md5 checksum: ${file.path}`, file.path);
+      }
 
       const contentType = this.getBrowserContentType(file.content instanceof File ? file.content : file.path);
       const fileWithPath = new File([file.content], file.path, { type: contentType });
       formData.append('files[]', fileWithPath);
-      checksums.push(file.md5!);
+      checksums.push(file.md5);
     }
 
     formData.append('checksums', JSON.stringify(checksums));
@@ -446,9 +509,13 @@ export class ApiHttp extends SimpleEvents {
         throw ShipError.file(`Unsupported file.content type for Node.js FormData: ${file.path}`, file.path);
       }
 
+      if (!file.md5) {
+        throw ShipError.file(`File missing md5 checksum: ${file.path}`, file.path);
+      }
+
       const preservedPath = file.path.startsWith('/') ? file.path : '/' + file.path;
       formData.append('files[]', fileInstance, preservedPath);
-      checksums.push(file.md5!);
+      checksums.push(file.md5);
     }
 
     formData.append('checksums', JSON.stringify(checksums));

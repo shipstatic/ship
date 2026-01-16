@@ -43,28 +43,28 @@ describe('Main SDK Index (src/index.ts)', () => {
     expect(typeof TypesExports.ProgressStats).toBe('undefined');
   });
 
-  it('should re-export unified ShipError class and ShipErrorType enum from @shipstatic/types', async () => {
+  it('should re-export unified ShipError class and ErrorType enum from @shipstatic/types', async () => {
     const ErrorExports = await import('@shipstatic/types');
     const Exports = await import('../../src/index');
     // Check that the unified ShipError class is exported
     expect(Exports.ShipError).toBe(ErrorExports.ShipError);
     expect(typeof Exports.ShipError).toBe('function'); // ShipError is a class (function)
-    
-    // Check that the ShipErrorType enum is exported
-    expect(Exports.ShipErrorType).toBe(ErrorExports.ShipErrorType);
-    expect(typeof Exports.ShipErrorType).toBe('object'); // Enum is an object
-    
+
+    // Check that the ErrorType enum is exported
+    expect(Exports.ErrorType).toBe(ErrorExports.ErrorType);
+    expect(typeof Exports.ErrorType).toBe('object'); // Enum is an object
+
     // Verify the enum has all the expected error types (from shared types)
-    expect(Exports.ShipErrorType.Validation).toBe('validation_failed');
-    expect(Exports.ShipErrorType.NotFound).toBe('not_found');
-    expect(Exports.ShipErrorType.RateLimit).toBe('rate_limit_exceeded');
-    expect(Exports.ShipErrorType.Authentication).toBe('authentication_failed');
-    expect(Exports.ShipErrorType.Business).toBe('business_logic_error');
-    expect(Exports.ShipErrorType.Api).toBe('internal_server_error');
-    expect(Exports.ShipErrorType.Network).toBe('network_error');
-    expect(Exports.ShipErrorType.Cancelled).toBe('operation_cancelled');
-    expect(Exports.ShipErrorType.File).toBe('file_error');
-    expect(Exports.ShipErrorType.Config).toBe('config_error');
+    expect(Exports.ErrorType.Validation).toBe('validation_failed');
+    expect(Exports.ErrorType.NotFound).toBe('not_found');
+    expect(Exports.ErrorType.RateLimit).toBe('rate_limit_exceeded');
+    expect(Exports.ErrorType.Authentication).toBe('authentication_failed');
+    expect(Exports.ErrorType.Business).toBe('business_logic_error');
+    expect(Exports.ErrorType.Api).toBe('internal_server_error');
+    expect(Exports.ErrorType.Network).toBe('network_error');
+    expect(Exports.ErrorType.Cancelled).toBe('operation_cancelled');
+    expect(Exports.ErrorType.File).toBe('file_error');
+    expect(Exports.ErrorType.Config).toBe('config_error');
   });
 
   it('should have Ship as the default export', async () => {

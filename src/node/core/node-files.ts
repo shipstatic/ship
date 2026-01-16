@@ -16,32 +16,37 @@ import * as path from 'path';
 
 
 /**
- * Simple recursive function to walk directory and return all file paths.
- * More declarative and focused than the previous implementation.
+ * Recursive function to walk directory and return all file paths.
+ * Includes symlink loop protection to prevent infinite recursion.
  * @param dirPath - Directory path to traverse
+ * @param visited - Set of already visited real paths (for cycle detection)
  * @returns Array of absolute file paths in the directory
  */
-function findAllFilePaths(dirPath: string): string[] {
+function findAllFilePaths(dirPath: string, visited: Set<string> = new Set()): string[] {
   const results: string[] = [];
-  
-  try {
-    const entries = fs.readdirSync(dirPath);
-    
-    for (const entry of entries) {
-      const fullPath = path.join(dirPath, entry);
-      const stats = fs.statSync(fullPath);
-      
-      if (stats.isDirectory()) {
-        const subFiles = findAllFilePaths(fullPath);
-        results.push(...subFiles);
-      } else if (stats.isFile()) {
-        results.push(fullPath);
-      }
-    }
-  } catch (error) {
-    console.error(`Error reading directory ${dirPath}:`, error);
+
+  // Resolve the real path to detect symlink cycles
+  const realPath = fs.realpathSync(dirPath);
+  if (visited.has(realPath)) {
+    // Already visited this directory (symlink cycle) - skip to prevent infinite loop
+    return results;
   }
-  
+  visited.add(realPath);
+
+  const entries = fs.readdirSync(dirPath);
+
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry);
+    const stats = fs.statSync(fullPath);
+
+    if (stats.isDirectory()) {
+      const subFiles = findAllFilePaths(fullPath, visited);
+      results.push(...subFiles);
+    } else if (stats.isFile()) {
+      results.push(fullPath);
+    }
+  }
+
   return results;
 }
 
@@ -151,10 +156,13 @@ export async function processFilesForNode(
         md5,
       });
     } catch (error) {
-      if (error instanceof ShipError && error.isClientError && error.isClientError()) {
+      // Re-throw ShipError instances directly
+      if (error instanceof ShipError) {
         throw error;
       }
-      console.error(`Could not process file ${filePath}:`, error);
+      // Convert file system errors to ShipError with clear message
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw ShipError.file(`Failed to read file "${filePath}": ${errorMessage}`, filePath);
     }
   }
 

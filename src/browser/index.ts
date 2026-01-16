@@ -4,7 +4,7 @@
 
 import { Ship as BaseShip } from '../shared/base-ship.js';
 import { setConfig as setPlatformConfig } from '../shared/core/platform-config.js';
-import { resolveConfig } from '../shared/core/config.js';
+import { resolveConfig, type ResolvedConfig } from '../shared/core/config.js';
 import { ApiHttp } from '../shared/api/http.js';
 import { ShipError } from '@shipstatic/types';
 import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile } from '../shared/types.js';
@@ -36,7 +36,7 @@ export class Ship extends BaseShip {
     super(options);
   }
 
-  protected resolveInitialConfig(options: ShipClientOptions): any {
+  protected resolveInitialConfig(options: ShipClientOptions): ResolvedConfig {
     return resolveConfig(options, {});
   }
 

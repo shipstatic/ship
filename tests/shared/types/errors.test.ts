@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { ShipError, ShipErrorType } from '@shipstatic/types';
+import { ShipError, ErrorType } from '@shipstatic/types';
 
 describe('Ship Error System', () => {
   describe('Base ShipError', () => {
     it('should be instantiable with direct constructor', () => {
-      const err = new ShipError(ShipErrorType.Business, 'Test message', 400);
+      const err = new ShipError(ErrorType.Business, 'Test message', 400);
       expect(err).toBeInstanceOf(Error);
       expect(err).toBeInstanceOf(ShipError);
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('Test message');
-      expect(err.type).toBe(ShipErrorType.Business);
+      expect(err.type).toBe(ErrorType.Business);
       expect(err.status).toBe(400);
     });
     
@@ -17,7 +17,7 @@ describe('Ship Error System', () => {
       const err = ShipError.validation('Validation failed', { field: 'test' });
       expect(err).toBeInstanceOf(Error);
       expect(err).toBeInstanceOf(ShipError);
-      expect(err.type).toBe(ShipErrorType.Validation);
+      expect(err.type).toBe(ErrorType.Validation);
       expect(err.message).toBe('Validation failed');
       expect(err.status).toBe(400);
       expect(err.details).toEqual({ field: 'test' });
@@ -33,7 +33,7 @@ describe('Ship Error System', () => {
       expect(err.status).toBe(500);
       expect(err.code).toBe('CODE123');
       expect(err.details).toEqual({ code: 'CODE123', data: { detail: 'some detail' } });
-      expect(err.type).toBe(ShipErrorType.Api);
+      expect(err.type).toBe(ErrorType.Api);
     });
   });
 
@@ -45,7 +45,7 @@ describe('Ship Error System', () => {
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('Connection failed');
       expect(err.details?.cause).toBe(cause);
-      expect(err.type).toBe(ShipErrorType.Network);
+      expect(err.type).toBe(ErrorType.Network);
       expect(err.status).toBe(undefined);
     });
   });
@@ -56,7 +56,7 @@ describe('Ship Error System', () => {
       expect(err).toBeInstanceOf(ShipError);
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('Operation was cancelled');
-      expect(err.type).toBe(ShipErrorType.Cancelled);
+      expect(err.type).toBe(ErrorType.Cancelled);
       expect(err.status).toBe(undefined);
     });
     
@@ -64,7 +64,7 @@ describe('Ship Error System', () => {
       const err = ShipError.business('Business rule violated', 422);
       expect(err).toBeInstanceOf(ShipError);
       expect(err.message).toBe('Business rule violated');
-      expect(err.type).toBe(ShipErrorType.Business);
+      expect(err.type).toBe(ErrorType.Business);
       expect(err.status).toBe(422);
     });
   });
@@ -75,7 +75,7 @@ describe('Ship Error System', () => {
       expect(err).toBeInstanceOf(ShipError);
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('Client side problem');
-      expect(err.type).toBe(ShipErrorType.Business); // client() is an alias for business()
+      expect(err.type).toBe(ErrorType.Business); // client() is an alias for business()
       expect(err.status).toBe(400);
     });
   });
@@ -87,7 +87,7 @@ describe('Ship Error System', () => {
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('File not found');
       expect(err.filePath).toBe('/path/to/file');
-      expect(err.type).toBe(ShipErrorType.File);
+      expect(err.type).toBe(ErrorType.File);
       expect(err.status).toBe(undefined);
     });
   });
@@ -98,7 +98,7 @@ describe('Ship Error System', () => {
       expect(err).toBeInstanceOf(ShipError);
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('Config is bad');
-      expect(err.type).toBe(ShipErrorType.Config);
+      expect(err.type).toBe(ErrorType.Config);
       expect(err.status).toBe(undefined);
     });
   });
@@ -108,7 +108,7 @@ describe('Ship Error System', () => {
       const original = ShipError.validation('Invalid input', { field: 'email' });
       const response = original.toResponse();
       
-      expect(response.error).toBe(ShipErrorType.Validation);
+      expect(response.error).toBe(ErrorType.Validation);
       expect(response.message).toBe('Invalid input');
       expect(response.status).toBe(400);
       expect(response.details).toEqual({ field: 'email' });
