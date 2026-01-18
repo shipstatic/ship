@@ -801,7 +801,7 @@ pnpm build && pnpm test --run
 - **Node.js tests**: Filesystem and path manipulation
 - **Error tests**: Unified error handling patterns
 
-**Current Status:** 614 tests passing (614 total) ✅
+**Current Status:** 1006 tests passing (1006 total) ✅
 
 ## Contributing
 
