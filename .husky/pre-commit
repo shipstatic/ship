@@ -4,7 +4,7 @@ STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(js
 
 if [ -n "$STAGED_FILES" ]; then
   # Only look at added or modified lines in staged files
-  # Exclude obvious fake test keys (repeating patterns like 1234567890abcdef)
+  # Exclude the standard fake test key pattern (1234567890abcdef repeating)
   MATCHES=$(git diff --cached --no-color --unified=0 $STAGED_FILES | grep -E '^\+' | grep -E '(ship|token)-[0-9a-f]{64}' | grep -v '1234567890abcdef' || true)
 
   if [ -n "$MATCHES" ]; then

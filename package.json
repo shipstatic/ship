@@ -28,6 +28,10 @@
   },
   "scripts": {
     "test": "vitest",
+    "test:unit": "vitest --project unit",
+    "test:integration": "vitest --project integration",
+    "test:e2e": "vitest --project e2e",
+    "test:ci": "vitest --run",
     "clean": "rm -rf dist",
     "build": "pnpm run clean && tsup && node scripts/post-build.cjs",
     "prepare": "husky"

@@ -112,16 +112,15 @@ describe('CLI Basics', () => {
       expect(result.stdout).toContain('remove');
     });
 
-    it('tokens list should fail gracefully without auth', async () => {
-      const result = await runCli(['tokens', 'list'], { expectFailure: true });
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('error');
+    it('tokens list should succeed with auth', async () => {
+      const result = await runCli(['tokens', 'list']);
+      expect(result.exitCode).toBe(0);
     });
 
-    it('tokens create should fail gracefully without auth', async () => {
-      const result = await runCli(['tokens', 'create'], { expectFailure: true });
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('error');
+    it('tokens create should succeed with auth', async () => {
+      const result = await runCli(['tokens', 'create']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('token');
     });
 
     it('tokens remove should fail gracefully without auth', async () => {
