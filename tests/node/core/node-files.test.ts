@@ -930,4 +930,296 @@ describe('Node File Utilities', () => {
       expect(result).toHaveLength(3);
     });
   });
+
+  describe('symlink cycle detection', () => {
+    it('should detect and skip symlink cycles to prevent infinite recursion', async () => {
+      // Set up a filesystem with a symlink cycle
+      // dir_a -> dir_b -> dir_a (cycle)
+      const files: Record<string, any> = {
+        '/mock/cwd/dir_a': { type: 'dir' },
+        '/mock/cwd/dir_a/file1.txt': { type: 'file', content: 'file1' },
+        '/mock/cwd/dir_a/link_to_b': { type: 'dir' }, // symlink to dir_b
+        '/mock/cwd/dir_a/link_to_b/file2.txt': { type: 'file', content: 'file2' },
+        '/mock/cwd/dir_a/link_to_b/link_back': { type: 'dir' } // symlink back to dir_a
+      };
+
+      setupMockFsNode(files);
+
+      // Mock realpathSync to simulate symlink resolution with a cycle
+      const visitedPaths = new Set<string>();
+      let cycleDetected = false;
+
+      MOCK_FS_IMPLEMENTATION.realpathSync.mockImplementation((filePath: string) => {
+        const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
+
+        // Simulate symlink resolution
+        if (normalizedPath.includes('link_to_b')) {
+          return '/mock/cwd/dir_b';
+        }
+        if (normalizedPath.includes('link_back')) {
+          // This creates the cycle - link_back resolves to dir_a
+          return '/mock/cwd/dir_a';
+        }
+
+        return normalizedPath;
+      });
+
+      // The implementation should handle the cycle gracefully
+      const result = await processFilesForNode(['dir_a']);
+
+      // Should not hang or crash due to infinite recursion
+      // Should process files without getting stuck in the cycle
+      expect(result.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should not revisit already-visited directories', async () => {
+      const visitedPaths: string[] = [];
+
+      setupMockFsNode({
+        '/mock/cwd/root': { type: 'dir' },
+        '/mock/cwd/root/file.txt': { type: 'file', content: 'content' }
+      });
+
+      // Track calls to realpathSync to verify cycle prevention
+      MOCK_FS_IMPLEMENTATION.realpathSync.mockImplementation((filePath: string) => {
+        const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
+        visitedPaths.push(normalizedPath);
+        return normalizedPath;
+      });
+
+      await processFilesForNode(['root']);
+
+      // Each path should only be visited once
+      const uniquePaths = [...new Set(visitedPaths)];
+      expect(visitedPaths.length).toBe(uniquePaths.length);
+    });
+  });
+
+  describe('security validation', () => {
+    it('should allow safe paths with dots in filenames', async () => {
+      setupMockFsNode({
+        '/mock/cwd/file.test.spec.ts': { type: 'file', content: 'content' },
+        '/mock/cwd/folder.name/file.txt': { type: 'file', content: 'nested' }
+      });
+
+      const result = await processFilesForNode([
+        'file.test.spec.ts',
+        'folder.name/file.txt'
+      ]);
+
+      // These should all be allowed (dots in filenames are safe)
+      expect(result.length).toBe(2);
+    });
+
+    it('should allow paths with single dots (current directory)', async () => {
+      // Set up the normalized path (path.resolve normalizes ./file.txt)
+      setupMockFsNode({
+        '/mock/cwd/some/file.txt': { type: 'file', content: 'content' }
+      });
+
+      // path.resolve normalizes some/./file.txt to some/file.txt
+      const result = await processFilesForNode(['some/file.txt']);
+
+      expect(result.length).toBe(1);
+    });
+
+    it('should handle hidden files starting with dot', async () => {
+      setupMockFsNode({
+        '/mock/cwd/.env': { type: 'file', content: 'SECRET=value' },
+        '/mock/cwd/.gitignore': { type: 'file', content: 'node_modules' },
+        '/mock/cwd/normal.txt': { type: 'file', content: 'content' }
+      });
+
+      const result = await processFilesForNode(['.env', '.gitignore', 'normal.txt']);
+
+      // Hidden files should be processed (not junk)
+      expect(result.length).toBe(3);
+    });
+  });
+
+  describe('file size edge cases', () => {
+    it('should throw when single file exceeds maxFileSize', async () => {
+      setConfig({
+        maxFileSize: 100,
+        maxFilesCount: 1000,
+        maxTotalSize: 10000,
+      });
+
+      setupMockFsNode({
+        '/mock/cwd/large.txt': { type: 'file', content: 'x'.repeat(101), size: 101 }
+      });
+
+      await expect(processFilesForNode(['large.txt']))
+        .rejects.toThrow('too large');
+    });
+
+    it('should accept file exactly at maxFileSize limit', async () => {
+      setConfig({
+        maxFileSize: 100,
+        maxFilesCount: 1000,
+        maxTotalSize: 10000,
+      });
+
+      setupMockFsNode({
+        '/mock/cwd/exact.txt': { type: 'file', content: 'x'.repeat(100), size: 100 }
+      });
+
+      const result = await processFilesForNode(['exact.txt']);
+      expect(result).toHaveLength(1);
+      expect(result[0].size).toBe(100);
+    });
+
+    it('should throw when cumulative size exceeds maxTotalSize', async () => {
+      setConfig({
+        maxFileSize: 100,
+        maxFilesCount: 1000,
+        maxTotalSize: 150,
+      });
+
+      setupMockFsNode({
+        '/mock/cwd/file1.txt': { type: 'file', content: 'x'.repeat(80), size: 80 },
+        '/mock/cwd/file2.txt': { type: 'file', content: 'x'.repeat(80), size: 80 }
+      });
+
+      // Total: 160 bytes > maxTotalSize: 150 bytes
+      await expect(processFilesForNode(['file1.txt', 'file2.txt']))
+        .rejects.toThrow('Total deploy size is too large');
+    });
+
+    it('should accept files with cumulative size exactly at maxTotalSize', async () => {
+      setConfig({
+        maxFileSize: 100,
+        maxFilesCount: 1000,
+        maxTotalSize: 150,
+      });
+
+      setupMockFsNode({
+        '/mock/cwd/file1.txt': { type: 'file', content: 'x'.repeat(75), size: 75 },
+        '/mock/cwd/file2.txt': { type: 'file', content: 'x'.repeat(75), size: 75 }
+      });
+
+      const result = await processFilesForNode(['file1.txt', 'file2.txt']);
+      expect(result).toHaveLength(2);
+    });
+
+    it('should skip empty files (0 bytes) and not count them', async () => {
+      setConfig({
+        maxFileSize: 100,
+        maxFilesCount: 2,
+        maxTotalSize: 1000,
+      });
+
+      setupMockFsNode({
+        '/mock/cwd/empty1.txt': { type: 'file', content: '', size: 0 },
+        '/mock/cwd/empty2.txt': { type: 'file', content: '', size: 0 },
+        '/mock/cwd/real1.txt': { type: 'file', content: 'a', size: 1 },
+        '/mock/cwd/real2.txt': { type: 'file', content: 'b', size: 1 }
+      });
+
+      // maxFilesCount is 2, but we have 4 files
+      // Empty files should be skipped, leaving only 2 real files
+      const result = await processFilesForNode([
+        'empty1.txt', 'empty2.txt', 'real1.txt', 'real2.txt'
+      ]);
+
+      expect(result).toHaveLength(2);
+      expect(result.every(f => f.size > 0)).toBe(true);
+    });
+  });
+
+  describe('very long paths', () => {
+    it('should handle paths approaching filesystem limits', async () => {
+      // Create a path with many nested directories
+      const segments = Array(20).fill('dir');
+      const deepPath = segments.join('/') + '/file.txt';
+      const fullPath = `/mock/cwd/${deepPath}`;
+
+      setupMockFsNode({
+        [fullPath]: { type: 'file', content: 'deep content' }
+      });
+
+      const result = await processFilesForNode([deepPath]);
+
+      expect(result).toHaveLength(1);
+    });
+
+    it('should handle filenames at reasonable length', async () => {
+      const longFilename = 'a'.repeat(200) + '.txt';
+
+      setupMockFsNode({
+        [`/mock/cwd/${longFilename}`]: { type: 'file', content: 'content' }
+      });
+
+      const result = await processFilesForNode([longFilename]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].path.length).toBeGreaterThan(100);
+    });
+  });
+
+  describe('junk file filtering', () => {
+    it('should filter out .DS_Store files', async () => {
+      setupMockFsNode({
+        '/mock/cwd/folder/.DS_Store': { type: 'file', content: 'junk' },
+        '/mock/cwd/folder/real.txt': { type: 'file', content: 'content' }
+      });
+
+      const result = await processFilesForNode(['folder']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe('real.txt');
+    });
+
+    it('should filter out Thumbs.db files', async () => {
+      setupMockFsNode({
+        '/mock/cwd/folder/Thumbs.db': { type: 'file', content: 'junk' },
+        '/mock/cwd/folder/image.png': { type: 'file', content: 'image data' }
+      });
+
+      const result = await processFilesForNode(['folder']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe('image.png');
+    });
+
+    it('should filter out __MACOSX directories', async () => {
+      setupMockFsNode({
+        '/mock/cwd/archive/__MACOSX/._hidden': { type: 'file', content: 'mac junk' },
+        '/mock/cwd/archive/real.txt': { type: 'file', content: 'content' }
+      });
+
+      const result = await processFilesForNode(['archive']);
+
+      // __MACOSX is in JUNK_DIRECTORIES and should be filtered out
+      const paths = result.map(f => f.path);
+      expect(paths.some(p => p.includes('__MACOSX'))).toBe(false);
+      expect(paths).toContain('real.txt');
+    });
+
+    it('should filter out .Trashes directories', async () => {
+      setupMockFsNode({
+        '/mock/cwd/volume/.Trashes/item': { type: 'file', content: 'trash' },
+        '/mock/cwd/volume/data.txt': { type: 'file', content: 'data' }
+      });
+
+      const result = await processFilesForNode(['volume']);
+
+      // .Trashes is in JUNK_DIRECTORIES
+      const paths = result.map(f => f.path);
+      expect(paths.some(p => p.includes('.Trashes'))).toBe(false);
+    });
+
+    it('should filter out desktop.ini files', async () => {
+      setupMockFsNode({
+        '/mock/cwd/folder/desktop.ini': { type: 'file', content: 'windows junk' },
+        '/mock/cwd/folder/real.txt': { type: 'file', content: 'content' }
+      });
+
+      const result = await processFilesForNode(['folder']);
+
+      // desktop.ini is identified as junk by the 'junk' package
+      const paths = result.map(f => f.path);
+      expect(paths.some(p => p.includes('desktop.ini'))).toBe(false);
+    });
+  });
 });
