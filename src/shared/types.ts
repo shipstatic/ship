@@ -4,8 +4,7 @@
  * Core types come from @shipstatic/types, while SDK-specific types are defined here.
  */
 
-// Import types used in this file
-import type { ProgressInfo } from '@shipstatic/types';
+import type { ProgressInfo, StaticFile } from '@shipstatic/types';
 
 // Re-export all types from @shipstatic/types for convenience
 export * from '@shipstatic/types';
@@ -42,15 +41,32 @@ export interface DeploymentOptions {
   tags?: string[];
   /** Callback for deploy progress with detailed statistics. */
   onProgress?: (info: ProgressInfo) => void;
+  /** Client/tool identifier for this deployment (e.g., 'sdk', 'cli', 'web'). Alphanumeric only. */
+  via?: string;
+  /** Caller identifier for multi-tenant deployments (alphanumeric, dot, underscore, hyphen). */
+  caller?: string;
+}
+
+export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
+
+/**
+ * Prepared request body for deployment.
+ * Created by platform-specific code, consumed by HTTP client.
+ */
+export interface DeployBody {
+  body: FormData | ArrayBuffer;
+  headers: Record<string, string>;
 }
 
 /**
- * Options for configuring an deploy operation via `apiClient.deployFiles`.
- * Derived from DeploymentOptions but excludes client-side only options.
+ * Function that creates a deploy request body from files.
+ * Implemented differently for Node.js and Browser.
  */
-export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
-
-// ProgressInfo is now exported from @shipstatic/types (via export * above)
+export type DeployBodyCreator = (
+  files: StaticFile[],
+  tags?: string[],
+  via?: string
+) => Promise<DeployBody>;
 
 // =============================================================================
 // CLIENT CONFIGURATION
@@ -89,11 +105,16 @@ export interface ShipClientOptions {
    * When true, indicates the client should use HTTP-only cookies for authentication
    * instead of explicit tokens. This is useful for internal browser applications
    * where authentication is handled via secure cookies set by the API.
-   * 
+   *
    * When set, the pre-request authentication check is skipped, allowing requests
    * to proceed with cookie-based credentials.
    */
   useCredentials?: boolean | undefined;
+  /**
+   * Default caller identifier for multi-tenant deployments.
+   * Alphanumeric characters, dots, underscores, and hyphens allowed (max 128 chars).
+   */
+  caller?: string | undefined;
 }
 
 // =============================================================================
@@ -112,11 +133,3 @@ export interface ShipEvents extends Record<string, any[]> {
   /** Emitted when API request fails */
   error: [error: Error, url: string];
 }
-
-// StaticFile is now imported from @shipstatic/types
-
-// =============================================================================
-// API RESPONSES
-// =============================================================================
-
-// PingResponse is imported from @shipstatic/types (single source of truth)

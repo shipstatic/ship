@@ -1,9 +1,6 @@
 /**
- * @file HTTP client with integrated event system
- * Clean, direct implementation with reliable error handling
+ * @file HTTP client for Ship API.
  */
-
-import { getMimeType } from '../utils/mimeType';
 import type {
   Deployment,
   DeploymentListResponse,
@@ -21,10 +18,9 @@ import type {
   TokenCreateResponse,
   TokenListResponse
 } from '@shipstatic/types';
-import type { ApiDeployOptions, ShipClientOptions, ShipEvents } from '../types.js';
+import type { ApiDeployOptions, ShipClientOptions, ShipEvents, DeployBodyCreator } from '../types.js';
 import { ShipError, DEFAULT_API } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
-import { getENV } from '../lib/env.js';
 
 // Internal endpoints
 const DEPLOY_ENDPOINT = '/deployments';
@@ -38,22 +34,23 @@ const SPA_CHECK_ENDPOINT = '/spa-check';
 // Default timeout for HTTP requests (30 seconds)
 const DEFAULT_REQUEST_TIMEOUT = 30000;
 
-/**
- * HTTP client with integrated event system
- * - Direct event integration
- * - Clean inheritance from SimpleEvents
- * - Reliable error handling
- */
+export interface ApiHttpOptions extends ShipClientOptions {
+  getAuthHeaders: () => Record<string, string>;
+  createDeployBody: DeployBodyCreator;
+}
+
 export class ApiHttp extends SimpleEvents {
   private readonly apiUrl: string;
   private readonly getAuthHeadersCallback: () => Record<string, string>;
   private readonly timeout: number;
+  private readonly createDeployBody: DeployBodyCreator;
 
-  constructor(options: ShipClientOptions & { getAuthHeaders: () => Record<string, string> }) {
+  constructor(options: ApiHttpOptions) {
     super();
     this.apiUrl = options.apiUrl || DEFAULT_API;
     this.getAuthHeadersCallback = options.getAuthHeaders;
     this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
+    this.createDeployBody = options.createDeployBody;
   }
 
   /**
@@ -97,14 +94,10 @@ export class ApiHttp extends SimpleEvents {
         await this.handleResponseError(response, operationName);
       }
 
-      // Clone response BEFORE any consumption for reliable event handling
       const responseForEvent = this.safeClone(response);
       const responseForParsing = this.safeClone(response);
 
-      // Emit event with dedicated clone
       this.emit('response', responseForEvent, url);
-
-      // Parse response with dedicated clone
       return await this.parseResponse<T>(responseForParsing);
     } catch (error: any) {
       clearTimeout(timeoutId);
@@ -166,14 +159,10 @@ export class ApiHttp extends SimpleEvents {
         await this.handleResponseError(response, operationName);
       }
 
-      // Clone response BEFORE any consumption for reliable event handling
       const responseForEvent = this.safeClone(response);
       const responseForParsing = this.safeClone(response);
 
-      // Emit event with dedicated clone
       this.emit('response', responseForEvent, url);
-
-      // Parse response with dedicated clone
       const data = await this.parseResponse<T>(responseForParsing);
       return { data, status: response.status };
     } catch (error: any) {
@@ -274,21 +263,31 @@ export class ApiHttp extends SimpleEvents {
   }
 
   async deploy(files: StaticFile[], options: ApiDeployOptions = {}): Promise<Deployment> {
-    this.validateFiles(files);
+    if (!files.length) {
+      throw ShipError.business('No files to deploy.');
+    }
+    for (const file of files) {
+      if (!file.md5) {
+        throw ShipError.file(`MD5 checksum missing for file: ${file.path}`, file.path);
+      }
+    }
 
-    const { requestBody, requestHeaders } = await this.prepareRequestPayload(files, options.tags);
+    const { body, headers: bodyHeaders } = await this.createDeployBody(files, options.tags, options.via);
 
-    let authHeaders = {};
+    const authHeaders: Record<string, string> = {};
     if (options.deployToken) {
-      authHeaders = { 'Authorization': `Bearer ${options.deployToken}` };
+      authHeaders['Authorization'] = `Bearer ${options.deployToken}`;
     } else if (options.apiKey) {
-      authHeaders = { 'Authorization': `Bearer ${options.apiKey}` };
+      authHeaders['Authorization'] = `Bearer ${options.apiKey}`;
+    }
+    if (options.caller) {
+      authHeaders['X-Caller'] = options.caller;
     }
 
     const fetchOptions: RequestInit = {
       method: 'POST',
-      body: requestBody,
-      headers: { ...requestHeaders, ...authHeaders },
+      body,
+      headers: { ...bodyHeaders, ...authHeaders },
       signal: options.signal || null
     };
 
@@ -342,8 +341,8 @@ export class ApiHttp extends SimpleEvents {
     await this.request<void>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'DELETE' }, 'Remove Domain');
   }
 
-  async confirmDomain(name: string): Promise<{ message: string }> {
-    return await this.request<{ message: string }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/confirm`, { method: 'POST' }, 'Confirm Domain');
+  async verifyDomain(name: string): Promise<{ message: string }> {
+    return await this.request<{ message: string }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/verify`, { method: 'POST' }, 'Verify Domain');
   }
 
   async getDomainDns(name: string): Promise<DomainDnsResponse> {
@@ -431,120 +430,5 @@ export class ApiHttp extends SimpleEvents {
     );
 
     return response.isSPA;
-  }
-
-  // File handling helpers
-
-  private validateFiles(files: StaticFile[]): void {
-    if (!files.length) {
-      throw ShipError.business('No files to deploy.');
-    }
-
-    for (const file of files) {
-      if (!file.md5) {
-        throw ShipError.file(`MD5 checksum missing for file: ${file.path}`, file.path);
-      }
-    }
-  }
-
-  private async prepareRequestPayload(files: StaticFile[], tags?: string[]): Promise<{
-    requestBody: FormData | ArrayBuffer;
-    requestHeaders: Record<string, string>;
-  }> {
-    if (getENV() === 'browser') {
-      return { requestBody: this.createBrowserBody(files, tags), requestHeaders: {} };
-    } else if (getENV() === 'node') {
-      const { body, headers } = await this.createNodeBody(files, tags);
-      return {
-        requestBody: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer,
-        requestHeaders: headers
-      };
-    } else {
-      throw ShipError.business('Unknown or unsupported execution environment');
-    }
-  }
-
-  private createBrowserBody(files: StaticFile[], tags?: string[]): FormData {
-    const formData = new FormData();
-    const checksums: string[] = [];
-
-    for (const file of files) {
-      if (!(file.content instanceof File || file.content instanceof Blob)) {
-        throw ShipError.file(`Unsupported file.content type for browser FormData: ${file.path}`, file.path);
-      }
-      if (!file.md5) {
-        throw ShipError.file(`File missing md5 checksum: ${file.path}`, file.path);
-      }
-
-      const contentType = this.getBrowserContentType(file.content instanceof File ? file.content : file.path);
-      const fileWithPath = new File([file.content], file.path, { type: contentType });
-      formData.append('files[]', fileWithPath);
-      checksums.push(file.md5);
-    }
-
-    formData.append('checksums', JSON.stringify(checksums));
-
-    if (tags && tags.length > 0) {
-      formData.append('tags', JSON.stringify(tags));
-    }
-
-    return formData;
-  }
-
-  private async createNodeBody(files: StaticFile[], tags?: string[]): Promise<{ body: Buffer, headers: Record<string, string> }> {
-    const { FormData: FormDataClass, File: FileClass } = await import('formdata-node');
-    const { FormDataEncoder } = await import('form-data-encoder');
-    const formData = new FormDataClass();
-    const checksums: string[] = [];
-
-    for (const file of files) {
-      const contentType = getMimeType(file.path);
-
-      let fileInstance;
-      if (Buffer.isBuffer(file.content)) {
-        fileInstance = new FileClass([file.content], file.path, { type: contentType });
-      } else if (typeof Blob !== "undefined" && file.content instanceof Blob) {
-        fileInstance = new FileClass([file.content], file.path, { type: contentType });
-      } else {
-        throw ShipError.file(`Unsupported file.content type for Node.js FormData: ${file.path}`, file.path);
-      }
-
-      if (!file.md5) {
-        throw ShipError.file(`File missing md5 checksum: ${file.path}`, file.path);
-      }
-
-      const preservedPath = file.path.startsWith('/') ? file.path : '/' + file.path;
-      formData.append('files[]', fileInstance, preservedPath);
-      checksums.push(file.md5);
-    }
-
-    formData.append('checksums', JSON.stringify(checksums));
-
-    if (tags && tags.length > 0) {
-      formData.append('tags', JSON.stringify(tags));
-    }
-
-    const encoder = new FormDataEncoder(formData);
-    const chunks = [];
-    for await (const chunk of encoder.encode()) {
-      chunks.push(Buffer.from(chunk));
-    }
-    const body = Buffer.concat(chunks);
-
-    return {
-      body,
-      headers: {
-        'Content-Type': encoder.contentType,
-        'Content-Length': Buffer.byteLength(body).toString()
-      }
-    };
-  }
-
-  private getBrowserContentType(file: File | string): string {
-    if (typeof file === 'string') {
-      return getMimeType(file);
-    } else {
-      return file.type || getMimeType(file.name);
-    }
   }
 }

@@ -13,12 +13,12 @@ describe('DomainResource', () => {
       getDomain: vi.fn(),
       listDomains: vi.fn(),
       removeDomain: vi.fn(),
-      confirmDomain: vi.fn(),
+      verifyDomain: vi.fn(),
       deploy: vi.fn(),
       ping: vi.fn()
     } as unknown as ApiHttp;
 
-    domains = createDomainResource(() => mockApi);
+    domains = createDomainResource({ getApi: () => mockApi, ensureInit: async () => {} });
   });
 
   describe('set', () => {
@@ -107,24 +107,24 @@ describe('DomainResource', () => {
     });
   });
 
-  describe('confirm', () => {
-    it('should call api.confirmDomain with correct parameter', async () => {
-      const mockResponse = { message: 'DNS confirmation queued successfully' };
-      (mockApi.confirmDomain as any).mockResolvedValue(mockResponse);
+  describe('verify', () => {
+    it('should call api.verifyDomain with correct parameter', async () => {
+      const mockResponse = { message: 'DNS verification queued successfully' };
+      (mockApi.verifyDomain as any).mockResolvedValue(mockResponse);
 
-      const result = await domains.confirm('example.com');
+      const result = await domains.verify('example.com');
 
-      expect(mockApi.confirmDomain).toHaveBeenCalledWith('example.com');
+      expect(mockApi.verifyDomain).toHaveBeenCalledWith('example.com');
       expect(result).toEqual(mockResponse);
     });
 
-    it('should handle different domain names for DNS confirmation', async () => {
-      const mockResponse = { message: 'DNS confirmation queued successfully' };
-      (mockApi.confirmDomain as any).mockResolvedValue(mockResponse);
+    it('should handle different domain names for DNS verification', async () => {
+      const mockResponse = { message: 'DNS verification queued successfully' };
+      (mockApi.verifyDomain as any).mockResolvedValue(mockResponse);
 
-      const result = await domains.confirm('api.mysite.com');
+      const result = await domains.verify('api.mysite.com');
 
-      expect(mockApi.confirmDomain).toHaveBeenCalledWith('api.mysite.com');
+      expect(mockApi.verifyDomain).toHaveBeenCalledWith('api.mysite.com');
       expect(result).toEqual(mockResponse);
     });
   });
@@ -136,7 +136,7 @@ describe('DomainResource', () => {
       expect(typeof domains.get).toBe('function');
       expect(typeof domains.list).toBe('function');
       expect(typeof domains.remove).toBe('function');
-      expect(typeof domains.confirm).toBe('function');
+      expect(typeof domains.verify).toBe('function');
     });
 
     it('should return promises from all methods', () => {
@@ -144,14 +144,14 @@ describe('DomainResource', () => {
       (mockApi.getDomain as any).mockResolvedValue({});
       (mockApi.listDomains as any).mockResolvedValue({});
       (mockApi.removeDomain as any).mockResolvedValue({});
-      (mockApi.confirmDomain as any).mockResolvedValue({});
+      (mockApi.verifyDomain as any).mockResolvedValue({});
 
       expect(domains.set('test', 'abc123')).toBeInstanceOf(Promise);
       expect(domains.set('test', 'abc123', ['tag1'])).toBeInstanceOf(Promise);
       expect(domains.get('test')).toBeInstanceOf(Promise);
       expect(domains.list()).toBeInstanceOf(Promise);
       expect(domains.remove('test')).toBeInstanceOf(Promise);
-      expect(domains.confirm('test')).toBeInstanceOf(Promise);
+      expect(domains.verify('test')).toBeInstanceOf(Promise);
     });
   });
 });

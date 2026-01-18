@@ -105,7 +105,7 @@ ship domains list                                   # List domains
 ship domains set staging abc123                     # Set domain to deployment
 ship domains set prod abc123 --tag production       # Set domain with tag
 ship domains set prod abc123 --tag prod --tag v1    # Set domain with multiple tags
-ship domains confirm www.example.com                # Trigger DNS confirmation
+ship domains verify www.example.com                # Trigger DNS verification
 ship domains remove staging                         # Remove domain
 
 # Account
@@ -202,6 +202,7 @@ interface ShipOptions {
   deployToken?: string;   // Deploy token: token- prefix + 64-char hex (70 chars total)
   timeout?: number;       // Request timeout (ms)
   useCredentials?: boolean; // Use HTTP-only cookies for auth (skips token check)
+  caller?: string;        // Identifier for multi-tenant deployments (e.g., CI system name)
 }
 ```
 
@@ -264,6 +265,8 @@ interface DeployOptions {
   maxConcurrency?: number;
   timeout?: number;
   stripCommonPrefix?: boolean;      // Remove common path prefix
+  via?: string;                     // Client identifier (auto-set: 'sdk' for SDK, 'cli' for CLI)
+  caller?: string;                  // Multi-tenant identifier (e.g., 'github-actions', 'jenkins')
 }
 ```
 
@@ -282,8 +285,8 @@ await ship.domains.list()
 // Remove domain
 await ship.domains.remove(domainName)
 
-// Trigger DNS confirmation for external domain
-await ship.domains.confirm(domainName)
+// Trigger DNS verification for external domain
+await ship.domains.verify(domainName)
 ```
 
 **Examples:**
@@ -294,8 +297,8 @@ await ship.domains.set('staging', 'dep_abc123');
 // Set domain with tags
 await ship.domains.set('production', 'dep_xyz789', ['prod', 'v1.0.0']);
 
-// Confirm DNS for external domain
-await ship.domains.confirm('www.example.com');
+// Verify DNS for external domain
+await ship.domains.verify('www.example.com');
 ```
 
 ### Environment-Specific Examples
@@ -798,7 +801,7 @@ pnpm build && pnpm test --run
 - **Node.js tests**: Filesystem and path manipulation
 - **Error tests**: Unified error handling patterns
 
-**Current Status:** 614 tests passing (614 total) ✅
+**Current Status:** 1006 tests passing (1006 total) ✅
 
 ## Contributing
 

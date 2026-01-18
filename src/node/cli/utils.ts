@@ -4,9 +4,8 @@
 import columnify from 'columnify';
 import { bold, dim, green, red, yellow, blue, inverse, hidden } from 'yoctocolors';
 
-/**
- * Helper to conditionally apply colors based on noColor flag
- */
+const INTERNAL_FIELDS = ['verified', 'isCreate'];
+
 const applyColor = (colorFn: (text: string) => string, text: string, noColor?: boolean): string => {
   return noColor ? text : colorFn(text);
 };
@@ -75,7 +74,7 @@ export const formatTimestamp = (timestamp?: number, context: 'table' | 'details'
  * Format value for display
  */
 const formatValue = (key: string, value: any, context: 'table' | 'details' = 'details', noColor?: boolean): string => {
-  if (typeof value === 'number' && (key === 'created' || key === 'expires' || key === 'confirmed')) {
+  if (typeof value === 'number' && (key === 'created' || key === 'expires' || key === 'verified')) {
     return formatTimestamp(value, context, noColor);
   }
   if (key === 'size' && typeof value === 'number') {
@@ -104,7 +103,7 @@ export const formatTable = (data: any[], columns?: string[], noColor?: boolean, 
   // Get column order from first item (preserves API order) or use provided columns
   const firstItem = data[0] || {};
   const columnOrder = columns || Object.keys(firstItem).filter(key =>
-    firstItem[key] !== undefined && key !== 'verified' && key !== 'isCreate'
+    firstItem[key] !== undefined && !INTERNAL_FIELDS.includes(key)
   );
 
   // Transform data preserving column order
@@ -119,14 +118,14 @@ export const formatTable = (data: any[], columns?: string[], noColor?: boolean, 
   });
 
   const output = columnify(transformedData, {
-    columnSplitter: '   ', // Use 3 spaces for visual alignment
-    columns: columnOrder, // Explicitly preserve order
-    config: columnOrder.reduce((config, col) => {
+    columnSplitter: '   ',
+    columns: columnOrder,
+    config: columnOrder.reduce<Record<string, { headingTransform: (h: string) => string }>>((config, col) => {
       config[col] = {
         headingTransform: (heading: string) => applyColor(dim, headerMap?.[heading] || heading, noColor)
       };
       return config;
-    }, {} as any)
+    }, {})
   });
   
   // Clean output: remove null bytes and ensure clean spacing
@@ -144,8 +143,7 @@ export const formatTable = (data: any[], columns?: string[], noColor?: boolean, 
  */
 export const formatDetails = (obj: any, noColor?: boolean): string => {
   const entries = Object.entries(obj).filter(([key, value]) => {
-    // Filter out internal properties only
-    if (key === 'verified' || key === 'isCreate') return false;
+    if (INTERNAL_FIELDS.includes(key)) return false;
     return value !== undefined;
   });
   

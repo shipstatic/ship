@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile } from '../../src/shared/types';
+import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
+
+const mockDeployBodyCreator: DeployBodyCreator = async () => ({
+    body: new ArrayBuffer(0),
+    headers: { 'Content-Type': 'multipart/form-data' }
+});
 
 // Concrete implementation for testing
 class TestShip extends Ship {
@@ -18,6 +23,10 @@ class TestShip extends Ship {
 
     protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
         return Promise.resolve([]);
+    }
+
+    protected getDeployBodyCreator(): DeployBodyCreator {
+        return mockDeployBodyCreator;
     }
 }
 

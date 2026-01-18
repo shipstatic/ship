@@ -22,11 +22,18 @@ function createMockResponse(data: any, status = 200) {
   };
 }
 
+// Mock deploy body creator for tests
+const mockCreateDeployBody = async (files: any[], tags?: string[], via?: string) => ({
+  body: new ArrayBuffer(0),
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+
 describe('ApiHttp', () => {
   let apiHttp: ApiHttp;
   const mockOptions = {
     apiUrl: 'https://api.test.com',
-    getAuthHeaders: () => ({ 'Authorization': 'Bearer test-api-key' })
+    getAuthHeaders: () => ({ 'Authorization': 'Bearer test-api-key' }),
+    createDeployBody: mockCreateDeployBody
   };
 
   beforeEach(() => {
@@ -43,7 +50,8 @@ describe('ApiHttp', () => {
     it('should work with minimal options', () => {
       const api = new ApiHttp({
         apiUrl: 'https://test.com',
-        getAuthHeaders: () => ({})
+        getAuthHeaders: () => ({}),
+        createDeployBody: mockCreateDeployBody
       });
       expect(api).toBeDefined();
     });
@@ -192,6 +200,84 @@ describe('ApiHttp', () => {
 
     it('should handle empty files array', async () => {
       await expect(apiHttp.deploy([])).rejects.toThrow('No files to deploy');
+    });
+
+    it('should deploy without via when not explicitly provided', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13
+      }));
+
+      await apiHttp.deploy(mockFiles);
+
+      const fetchCall = (global.fetch as any).mock.calls[0];
+      expect(fetchCall[0]).toBe('https://api.test.com/deployments');
+      expect(fetchCall[1].method).toBe('POST');
+      // via is not sent when not explicitly provided
+    });
+
+    it('should include custom via field when provided', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13,
+        via: 'cli'
+      }));
+
+      const result = await apiHttp.deploy(mockFiles, { via: 'cli' });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/deployments',
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(result.via).toBe('cli');
+    });
+
+    it('should include X-Caller header when caller option is provided', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13
+      }));
+
+      await apiHttp.deploy(mockFiles, { caller: 'my-ci-system' });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/deployments',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'X-Caller': 'my-ci-system'
+          })
+        })
+      );
+    });
+
+    it('should not include X-Caller header when caller option is not provided', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13
+      }));
+
+      await apiHttp.deploy(mockFiles);
+
+      const fetchCall = (global.fetch as any).mock.calls[0];
+      const headers = fetchCall[1].headers;
+      expect(headers['X-Caller']).toBeUndefined();
     });
   });
 
@@ -537,7 +623,8 @@ describe('ApiHttp', () => {
       // Create ApiHttp instance with callback that returns no auth headers
       apiHttpNoCredentials = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({}) // No auth headers - should use cookies
+        getAuthHeaders: () => ({}), // No auth headers - should use cookies
+        createDeployBody: mockCreateDeployBody
       });
     });
 
@@ -561,7 +648,8 @@ describe('ApiHttp', () => {
     it('should NOT include credentials when Authorization header is returned', async () => {
       const apiHttpWithKey = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-key' })
+        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-key' }),
+        createDeployBody: mockCreateDeployBody
       });
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
 
@@ -585,7 +673,8 @@ describe('ApiHttp', () => {
     it('should support deploy tokens via callback', async () => {
       const apiHttpWithToken = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-token' })
+        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-token' }),
+        createDeployBody: mockCreateDeployBody
       });
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
 
@@ -814,14 +903,14 @@ describe('ApiHttp', () => {
       expect(result).toEqual(mockResponse);
     });
 
-    it('should confirm domain', async () => {
-      const mockResponse = { domain: 'example.com', confirmed: true };
+    it('should verify domain', async () => {
+      const mockResponse = { domain: 'example.com', verified: true };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
-      const result = await apiHttp.confirmDomain('example.com');
+      const result = await apiHttp.verifyDomain('example.com');
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/domains/example.com/confirm',
+        'https://api.test.com/domains/example.com/verify',
         expect.objectContaining({ method: 'POST' })
       );
       expect(result).toEqual(mockResponse);
@@ -908,6 +997,7 @@ describe('ApiHttp', () => {
       const apiWithTimeout = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
+        createDeployBody: mockCreateDeployBody,
         timeout: 5000
       });
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));

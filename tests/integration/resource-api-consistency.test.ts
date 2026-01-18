@@ -66,26 +66,24 @@ describe('Resource API Cross-Environment Consistency', () => {
       // Test Node.js environment
       __setTestEnvironment('node');
       const { createDeploymentResource: createNodeDeploymentResource } = await import('../../src/shared/resources');
-      const nodeDeploymentResource = createNodeDeploymentResource(
-        () => mockApiClient,
-        {},
-        vi.fn().mockResolvedValue(undefined),
-        vi.fn().mockResolvedValue([
+      const nodeDeploymentResource = createNodeDeploymentResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn().mockResolvedValue(undefined),
+        processInput: vi.fn().mockResolvedValue([
           { path: 'test.html', content: Buffer.from('<html></html>'), size: 13, md5: 'hash' }
         ])
-      );
+      });
 
       // Test Browser environment
       __setTestEnvironment('browser');
       const { createDeploymentResource: createBrowserDeploymentResource } = await import('../../src/shared/resources');
-      const browserDeploymentResource = createBrowserDeploymentResource(
-        () => mockApiClient,
-        {},
-        vi.fn().mockResolvedValue(undefined),
-        vi.fn().mockResolvedValue([
+      const browserDeploymentResource = createBrowserDeploymentResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn().mockResolvedValue(undefined),
+        processInput: vi.fn().mockResolvedValue([
           { path: 'test.html', content: new ArrayBuffer(13), size: 13, md5: 'hash' }
         ])
-      );
+      });
 
       // Validate identical method signatures
       expect(typeof nodeDeploymentResource.create).toBe('function');
@@ -110,22 +108,20 @@ describe('Resource API Cross-Environment Consistency', () => {
       // Node.js deployment
       __setTestEnvironment('node');
       const { createDeploymentResource: createNodeResource } = await import('../../src/shared/resources');
-      const nodeResource = createNodeResource(
-        () => mockApiClient,
-        {},
-        vi.fn().mockResolvedValue(undefined),
-        vi.fn().mockResolvedValue([{ path: 'test.html', content: Buffer.from('test'), size: 4, md5: 'hash' }])
-      );
+      const nodeResource = createNodeResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn().mockResolvedValue(undefined),
+        processInput: vi.fn().mockResolvedValue([{ path: 'test.html', content: Buffer.from('test'), size: 4, md5: 'hash' }])
+      });
 
       // Browser deployment
       __setTestEnvironment('browser');
       const { createDeploymentResource: createBrowserResource } = await import('../../src/shared/resources');
-      const browserResource = createBrowserResource(
-        () => mockApiClient,
-        {},
-        vi.fn().mockResolvedValue(undefined),
-        vi.fn().mockResolvedValue([{ path: 'test.html', content: new ArrayBuffer(4), size: 4, md5: 'hash' }])
-      );
+      const browserResource = createBrowserResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn().mockResolvedValue(undefined),
+        processInput: vi.fn().mockResolvedValue([{ path: 'test.html', content: new ArrayBuffer(4), size: 4, md5: 'hash' }])
+      });
 
       const nodeResult = await nodeResource.create(['./test.html'] as any, {});
       const browserResult = await browserResource.create([new File(['test'], 'test.html')] as any, {});
@@ -146,22 +142,20 @@ describe('Resource API Cross-Environment Consistency', () => {
       // Test Node.js environment
       __setTestEnvironment('node');
       const { createDeploymentResource: createNodeResource } = await import('../../src/shared/resources');
-      const nodeResource = createNodeResource(
-        () => mockApiClient,
-        {},
-        vi.fn().mockResolvedValue(undefined),
-        vi.fn().mockResolvedValue([{ path: 'test.html', content: Buffer.from('test'), size: 4, md5: 'hash' }])
-      );
+      const nodeResource = createNodeResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn().mockResolvedValue(undefined),
+        processInput: vi.fn().mockResolvedValue([{ path: 'test.html', content: Buffer.from('test'), size: 4, md5: 'hash' }])
+      });
 
       // Test Browser environment
       __setTestEnvironment('browser');
       const { createDeploymentResource: createBrowserResource } = await import('../../src/shared/resources');
-      const browserResource = createBrowserResource(
-        () => mockApiClient,
-        {},
-        vi.fn().mockResolvedValue(undefined),
-        vi.fn().mockResolvedValue([{ path: 'test.html', content: new ArrayBuffer(4), size: 4, md5: 'hash' }])
-      );
+      const browserResource = createBrowserResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn().mockResolvedValue(undefined),
+        processInput: vi.fn().mockResolvedValue([{ path: 'test.html', content: new ArrayBuffer(4), size: 4, md5: 'hash' }])
+      });
 
       // Both should throw identical errors
       await expect(nodeResource.create(['./test.html'] as any, {}))
@@ -181,14 +175,14 @@ describe('Resource API Cross-Environment Consistency', () => {
       for (const env of environments) {
         __setTestEnvironment(env);
         const { createDomainResource } = await import('../../src/shared/resources');
-        const domainResource = createDomainResource(() => mockApiClient);
+        const domainResource = createDomainResource({ getApi: () => mockApiClient, ensureInit: async () => {} });
 
         // Validate interface
         expect(typeof domainResource.list).toBe('function');
         expect(typeof domainResource.set).toBe('function');
         expect(typeof domainResource.get).toBe('function');
         expect(typeof domainResource.remove).toBe('function');
-        expect(typeof domainResource.confirm).toBe('function');
+        expect(typeof domainResource.verify).toBe('function');
 
         // Test method behavior
         const result = await domainResource.list();
@@ -221,7 +215,7 @@ describe('Resource API Cross-Environment Consistency', () => {
       for (const env of ['node', 'browser'] as const) {
         __setTestEnvironment(env);
         const { createDomainResource } = await import('../../src/shared/resources');
-        const domainResource = createDomainResource(() => mockApiClient);
+        const domainResource = createDomainResource({ getApi: () => mockApiClient, ensureInit: async () => {} });
 
         const result = await domainResource.set(domainName, deployment);
         results.push(result);
@@ -241,7 +235,7 @@ describe('Resource API Cross-Environment Consistency', () => {
       for (const env of ['node', 'browser'] as const) {
         __setTestEnvironment(env);
         const { createAccountResource } = await import('../../src/shared/resources');
-        const accountResource = createAccountResource(() => mockApiClient);
+        const accountResource = createAccountResource({ getApi: () => mockApiClient, ensureInit: async () => {} });
 
         // Validate interface
         expect(typeof accountResource.get).toBe('function');
@@ -276,14 +270,13 @@ describe('Resource API Cross-Environment Consistency', () => {
 
         const { createDeploymentResource, createDomainResource, createAccountResource } = await import('../../src/shared/resources');
 
-        const deploymentResource = createDeploymentResource(
-          () => mockApiClient,
-          {},
-          vi.fn().mockResolvedValue(undefined),
-          vi.fn()
-        );
-        const domainResource = createDomainResource(() => mockApiClient);
-        const accountResource = createAccountResource(() => mockApiClient);
+        const deploymentResource = createDeploymentResource({
+          getApi: () => mockApiClient,
+          ensureInit: vi.fn().mockResolvedValue(undefined),
+          processInput: vi.fn()
+        });
+        const domainResource = createDomainResource({ getApi: () => mockApiClient, ensureInit: async () => {} });
+        const accountResource = createAccountResource({ getApi: () => mockApiClient, ensureInit: async () => {} });
 
         // All should throw the same error
         await expect(deploymentResource.list()).rejects.toThrow('Network timeout');
@@ -303,14 +296,13 @@ describe('Resource API Cross-Environment Consistency', () => {
 
         const { createDeploymentResource, createDomainResource, createAccountResource } = await import('../../src/shared/resources');
 
-        const deploymentResource = createDeploymentResource(
-          () => mockApiClient,
-          {},
-          vi.fn().mockResolvedValue(undefined),
-          vi.fn()
-        );
-        const domainResource = createDomainResource(() => mockApiClient);
-        const accountResource = createAccountResource(() => mockApiClient);
+        const deploymentResource = createDeploymentResource({
+          getApi: () => mockApiClient,
+          ensureInit: vi.fn().mockResolvedValue(undefined),
+          processInput: vi.fn()
+        });
+        const domainResource = createDomainResource({ getApi: () => mockApiClient, ensureInit: async () => {} });
+        const accountResource = createAccountResource({ getApi: () => mockApiClient, ensureInit: async () => {} });
 
         // All should throw the same error
         await expect(deploymentResource.list()).rejects.toThrow('Invalid API key');
@@ -329,14 +321,13 @@ describe('Resource API Cross-Environment Consistency', () => {
 
         const { createDeploymentResource, createDomainResource, createAccountResource } = await import('../../src/shared/resources');
 
-        const deploymentResource = createDeploymentResource(
-          () => mockApiClient,
-          {},
-          vi.fn().mockResolvedValue(undefined),
-          vi.fn()
-        );
-        const domainResource = createDomainResource(() => mockApiClient);
-        const accountResource = createAccountResource(() => mockApiClient);
+        const deploymentResource = createDeploymentResource({
+          getApi: () => mockApiClient,
+          ensureInit: vi.fn().mockResolvedValue(undefined),
+          processInput: vi.fn()
+        });
+        const domainResource = createDomainResource({ getApi: () => mockApiClient, ensureInit: async () => {} });
+        const accountResource = createAccountResource({ getApi: () => mockApiClient, ensureInit: async () => {} });
 
         methodSignatures[env] = [
           // Deployment methods

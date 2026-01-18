@@ -13,28 +13,42 @@ import type {
 import {
   FileValidationStatus as FILE_VALIDATION_STATUS
 } from '@shipstatic/types';
-// @ts-ignore: mime-db uses CommonJS export, TypeScript import interop handled at runtime
+// @ts-ignore: mime-db uses CommonJS export
 import mimeDb from 'mime-db';
 
-// ===== PERFORMANCE OPTIMIZATION: Pre-computed MIME type validation =====
+interface MimeEntry { extensions?: string[] }
 
-/**
- * Pre-computed Set of valid MIME types for O(1) lookup performance
- * Performance improvement: ~3x faster than mimeDb[type] lookup
- */
 const VALID_MIME_TYPES = new Set(Object.keys(mimeDb));
 
-/**
- * Pre-computed Map of MIME type extensions for fast validation
- * Performance improvement: ~5x faster than repeated mimeDb[type].extensions lookup
- */
 const MIME_TYPE_EXTENSIONS = new Map(
-  Object.entries(mimeDb)
-    .filter(([_, data]) => (data as any).extensions)
-    .map(([type, data]) => [type, new Set((data as any).extensions)])
+  Object.entries(mimeDb as Record<string, MimeEntry>)
+    .filter(([_, data]) => data.extensions)
+    .map(([type, data]) => [type, new Set(data.extensions)])
 );
 
 export { FILE_VALIDATION_STATUS };
+
+const ERROR_TYPE_PATTERNS: [RegExp, string][] = [
+  [/File name cannot|Invalid file name|File name contains|File name uses|traversal/i, 'Invalid File Name'],
+  [/File size must be positive/i, 'Invalid File Size'],
+  [/MIME type is required/i, 'Missing MIME Type'],
+  [/Invalid MIME type/i, 'Invalid MIME Type'],
+  [/not allowed/i, 'Invalid File Type'],
+  [/extension does not match/i, 'Extension Mismatch'],
+  [/Total size/i, 'Total Size Exceeded'],
+  [/exceeds limit/i, 'File Too Large'],
+];
+
+function getErrorType(status?: string, message?: string): string {
+  if (status === FILE_VALIDATION_STATUS.PROCESSING_ERROR) return 'Processing Error';
+  if (status === FILE_VALIDATION_STATUS.EMPTY_FILE) return 'Empty File';
+  if (!message) return 'Validation Failed';
+
+  for (const [pattern, errorType] of ERROR_TYPE_PATTERNS) {
+    if (pattern.test(message)) return errorType;
+  }
+  return 'Validation Failed';
+}
 
 /**
  * Format file size to human-readable string
@@ -60,25 +74,25 @@ export function formatFileSize(bytes: number, decimals: number = 1): string {
  * - Leading/trailing dots or spaces
  */
 function validateFileName(filename: string): { valid: boolean; reason?: string } {
-  // Check for URL-unsafe and shell-dangerous characters
   const unsafeChars = /[?&#%<>\[\]{}|\\^~`;$()'"*\r\n\t]/;
   if (unsafeChars.test(filename)) {
     return { valid: false, reason: 'File name contains unsafe characters' };
   }
 
-  // Check for leading or trailing dots or spaces (problematic in many filesystems)
-  if (filename.startsWith('.') === false && (filename.startsWith(' ') || filename.endsWith(' ') || filename.endsWith('.'))) {
-    return { valid: false, reason: 'File name cannot start/end with spaces or end with dots' };
+  if (filename.startsWith(' ') || filename.endsWith(' ')) {
+    return { valid: false, reason: 'File name cannot start/end with spaces' };
   }
 
-  // Check for Windows reserved names (case-insensitive)
+  if (filename.endsWith('.')) {
+    return { valid: false, reason: 'File name cannot end with dots' };
+  }
+
   const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i;
   const nameWithoutPath = filename.split('/').pop() || filename;
   if (reservedNames.test(nameWithoutPath)) {
     return { valid: false, reason: 'File name uses a reserved system name' };
   }
 
-  // Check for consecutive dots (often problematic)
   if (filename.includes('..')) {
     return { valid: false, reason: 'File name contains path traversal pattern' };
   }
@@ -96,8 +110,6 @@ function validateFileName(filename: string): { valid: boolean; reason?: string }
  * - Files with multiple dots use the last segment as extension (archive.tar.gz -> gz)
  */
 function validateFileExtension(filename: string, mimeType: string): boolean {
-  // Handle hidden files (starting with dot): .gitignore, .env, .htaccess
-  // These are treated as extensionless for validation purposes
   if (filename.startsWith('.')) {
     return true;
   }
@@ -268,40 +280,12 @@ export function validateFiles<T extends ValidatableFile>(
 
   // ATOMIC CHECK: If ANY file failed, reject ALL files
   if (errors.length > 0) {
-    // Get first error type for error.error field
     const firstError = fileStatuses.find(f =>
       f.status !== FILE_VALIDATION_STATUS.READY &&
       f.status !== FILE_VALIDATION_STATUS.PENDING
     );
 
-    let errorType = 'Validation Failed';
-    if (firstError?.status === FILE_VALIDATION_STATUS.PROCESSING_ERROR) {
-      errorType = 'Processing Error';
-    } else if (firstError?.status === FILE_VALIDATION_STATUS.EMPTY_FILE) {
-      errorType = 'Empty File';
-    } else if (firstError?.statusMessage?.includes('File name cannot be empty')) {
-      errorType = 'Invalid File Name';
-    } else if (firstError?.statusMessage?.includes('Invalid file name') ||
-      firstError?.statusMessage?.includes('File name contains') ||
-      firstError?.statusMessage?.includes('File name uses') ||
-      firstError?.statusMessage?.includes('File name cannot start') ||
-      firstError?.statusMessage?.includes('traversal')) {
-      errorType = 'Invalid File Name';
-    } else if (firstError?.statusMessage?.includes('File size must be positive')) {
-      errorType = 'Invalid File Size';
-    } else if (firstError?.statusMessage?.includes('MIME type is required')) {
-      errorType = 'Missing MIME Type';
-    } else if (firstError?.statusMessage?.includes('Invalid MIME type')) {
-      errorType = 'Invalid MIME Type';
-    } else if (firstError?.statusMessage?.includes('not allowed')) {
-      errorType = 'Invalid File Type';
-    } else if (firstError?.statusMessage?.includes('extension does not match')) {
-      errorType = 'Extension Mismatch';
-    } else if (firstError?.statusMessage?.includes('Total size')) {
-      errorType = 'Total Size Exceeded';
-    } else if (firstError?.statusMessage?.includes('exceeds limit')) {
-      errorType = 'File Too Large';
-    }
+    const errorType = getErrorType(firstError?.status, firstError?.statusMessage);
 
     return {
       files: fileStatuses.map(f => ({

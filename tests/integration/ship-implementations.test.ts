@@ -11,8 +11,8 @@ vi.mock('../../src/node/core/platform-config', () => ({
   getCurrentConfig: vi.fn().mockReturnValue({})
 }));
 
-vi.mock('../../src/node/core/prepare-input', () => ({
-  convertDeployInput: vi.fn().mockResolvedValue([
+vi.mock('../../src/node/core/node-files', () => ({
+  processFilesForNode: vi.fn().mockResolvedValue([
     { path: 'test.html', content: Buffer.from('<html></html>'), size: 13, md5: 'node-hash' }
   ])
 }));
@@ -87,13 +87,13 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       expect(typeof nodeShip.domains.get).toBe('function');
       expect(typeof nodeShip.domains.list).toBe('function');
       expect(typeof nodeShip.domains.remove).toBe('function');
-      expect(typeof nodeShip.domains.confirm).toBe('function');
+      expect(typeof nodeShip.domains.verify).toBe('function');
 
       expect(typeof browserShip.domains.set).toBe('function');
       expect(typeof browserShip.domains.get).toBe('function');
       expect(typeof browserShip.domains.list).toBe('function');
       expect(typeof browserShip.domains.remove).toBe('function');
-      expect(typeof browserShip.domains.confirm).toBe('function');
+      expect(typeof browserShip.domains.verify).toBe('function');
     });
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createSPAConfig, detectAndConfigureSPA } from '../../../src/shared/lib/prepare-input';
+import { createSPAConfig, detectAndConfigureSPA } from '../../../src/shared/lib/spa';
 import { ShipError, DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
 import type { StaticFile, DeploymentOptions } from '../../../src/shared/types';
 
@@ -8,15 +8,15 @@ vi.mock('../../../src/shared/lib/md5', () => ({
   calculateMD5: vi.fn().mockResolvedValue({ md5: 'mock-md5-hash' })
 }));
 
-describe('Shared SPA Detection (prepare-input)', () => {
+describe('SPA Detection (spa.ts)', () => {
   describe('createSPAConfig', () => {
     it('should create a valid SPA configuration file', async () => {
       const spaConfig = await createSPAConfig();
-      
+
       expect(spaConfig.path).toBe(DEPLOYMENT_CONFIG_FILENAME);
       expect(spaConfig.md5).toBe('mock-md5-hash');
       expect(spaConfig.size).toBeGreaterThan(0);
-      
+
       // Parse the content to verify it's valid JSON with the right structure
       const content = JSON.parse(spaConfig.content.toString());
       expect(content).toEqual({
@@ -37,7 +37,7 @@ describe('Shared SPA Detection (prepare-input)', () => {
       mockApiClient = {
         checkSPA: vi.fn()
       };
-      
+
       mockFiles = [
         {
           path: 'index.html',
@@ -46,18 +46,18 @@ describe('Shared SPA Detection (prepare-input)', () => {
           md5: 'test-hash'
         }
       ];
-      
+
       options = { spaDetect: true };
-      
+
       // Reset mocks
       vi.clearAllMocks();
     });
 
     it('should skip SPA detection when disabled', async () => {
       options.spaDetect = false;
-      
+
       const result = await detectAndConfigureSPA(mockFiles, mockApiClient, options);
-      
+
       expect(mockApiClient.checkSPA).not.toHaveBeenCalled();
       expect(result).toEqual(mockFiles);
     });
@@ -72,18 +72,18 @@ describe('Shared SPA Detection (prepare-input)', () => {
           md5: 'config-hash'
         }
       ];
-      
+
       const result = await detectAndConfigureSPA(filesWithConfig, mockApiClient, options);
-      
+
       expect(mockApiClient.checkSPA).not.toHaveBeenCalled();
       expect(result).toEqual(filesWithConfig);
     });
 
     it('should add SPA config when SPA is detected', async () => {
       mockApiClient.checkSPA.mockResolvedValue(true);
-      
+
       const result = await detectAndConfigureSPA(mockFiles, mockApiClient, options);
-      
+
       expect(mockApiClient.checkSPA).toHaveBeenCalledWith(mockFiles);
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual(mockFiles[0]);
@@ -92,18 +92,18 @@ describe('Shared SPA Detection (prepare-input)', () => {
 
     it('should not add SPA config when SPA is not detected', async () => {
       mockApiClient.checkSPA.mockResolvedValue(false);
-      
+
       const result = await detectAndConfigureSPA(mockFiles, mockApiClient, options);
-      
+
       expect(mockApiClient.checkSPA).toHaveBeenCalledWith(mockFiles);
       expect(result).toEqual(mockFiles);
     });
 
     it('should handle SPA detection API errors gracefully', async () => {
       mockApiClient.checkSPA.mockRejectedValue(new Error('API Error'));
-      
+
       const result = await detectAndConfigureSPA(mockFiles, mockApiClient, options);
-      
+
       expect(result).toEqual(mockFiles);
     });
   });

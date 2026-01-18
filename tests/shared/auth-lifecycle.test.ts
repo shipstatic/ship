@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile } from '../../src/shared/types';
+import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
+
+const mockDeployBodyCreator: DeployBodyCreator = async () => ({
+  body: new ArrayBuffer(0),
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
 
 // Create a concrete test implementation of the abstract Ship class
 class TestShip extends Ship {
@@ -25,6 +30,10 @@ class TestShip extends Ship {
         md5: 'test-hash'
       }
     ]);
+  }
+
+  protected getDeployBodyCreator(): DeployBodyCreator {
+    return mockDeployBodyCreator;
   }
 }
 

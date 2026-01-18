@@ -5,7 +5,7 @@ import type { StaticFile, DeploymentOptions } from '../../../src/shared/types';
 import { ShipError, DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
 
 // Mock the shared SPA detection
-vi.mock('../../../src/shared/lib/prepare-input', () => ({
+vi.mock('../../../src/shared/lib/spa', () => ({
   detectAndConfigureSPA: vi.fn((files, apiClient, options) => {
     // Simple mock that adds SPA config if not present and spaDetect is true
     if (options.spaDetect !== false && !files.some((f: any) => f.path === DEPLOYMENT_CONFIG_FILENAME)) {
@@ -54,12 +54,11 @@ describe('Deployment Resource (Unified Architecture)', () => {
     mockEnsureInit = vi.fn().mockResolvedValue(undefined);
 
     // Create deployment resource with mocks
-    deploymentResource = createDeploymentResource(
-      () => mockApiHttp,
-      undefined, // no client defaults
-      mockEnsureInit,
-      mockProcessInput
-    );
+    deploymentResource = createDeploymentResource({
+      getApi: () => mockApiHttp,
+      ensureInit: mockEnsureInit,
+      processInput: mockProcessInput
+    });
   });
 
   describe('create', () => {
@@ -161,12 +160,11 @@ describe('Deployment Resource (Unified Architecture)', () => {
     });
 
     it('should handle processInput function not provided', async () => {
-      const brokenResource = createDeploymentResource(
-        () => mockApiHttp,
-        undefined,
-        mockEnsureInit,
-        undefined // No processInput function
-      );
+      const brokenResource = createDeploymentResource({
+        getApi: () => mockApiHttp,
+        ensureInit: mockEnsureInit,
+        processInput: undefined as any
+      });
 
       await expect(brokenResource.create(['./dist'] as any, {}))
         .rejects.toThrow('processInput function is not provided.');
@@ -174,12 +172,12 @@ describe('Deployment Resource (Unified Architecture)', () => {
 
     it('should merge client defaults with options', async () => {
       const clientDefaults = { timeout: 5000, maxConcurrency: 3 };
-      const resourceWithDefaults = createDeploymentResource(
-        () => mockApiHttp,
-        clientDefaults,
-        mockEnsureInit,
-        mockProcessInput
-      );
+      const resourceWithDefaults = createDeploymentResource({
+        getApi: () => mockApiHttp,
+        ensureInit: mockEnsureInit,
+        processInput: mockProcessInput,
+        clientDefaults
+      });
 
       const options = { timeout: 10000 }; // Override timeout
       await resourceWithDefaults.create(['./dist'] as any, options);
