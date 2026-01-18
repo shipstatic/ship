@@ -82,11 +82,9 @@ export abstract class Ship {
       getAuthHeaders: this.authHeadersCallback
     });
 
-    // Initialize resources with lazy loading support
     const initCallback = () => this.ensureInitialized();
     const getApi = () => this.http;
 
-    // Pass the processInput method to deployment resource
     this._deployments = createDeploymentResource(
       getApi,
       this.clientOptions,
@@ -247,15 +245,7 @@ export abstract class Ship {
     if (!this.auth) {
       return {};
     }
-
-    switch (this.auth.type) {
-      case 'token':
-        return { 'Authorization': `Bearer ${this.auth.value}` };
-      case 'apiKey':
-        return { 'Authorization': `Bearer ${this.auth.value}` };
-      default:
-        return {};
-    }
+    return { 'Authorization': `Bearer ${this.auth.value}` };
   }
 
   /**

@@ -1,6 +1,17 @@
-# Ship CLI Development Guidelines
+# Ship SDK & CLI Development Guidelines
 
-This file documents the CLI conventions and patterns established for the Ship SDK & CLI package.
+This file documents the conventions and patterns established for the Ship SDK & CLI package.
+
+## Code Style: Functional over Class-Based
+
+We prefer functional patterns over class-based inheritance:
+
+- **Factory functions** over class constructors where possible (e.g., `createDeploymentResource()`)
+- **Pure functions** for data transformation (e.g., formatters, validators)
+- **Composition** over inheritance
+- Classes are acceptable for stateful objects (e.g., `Ship` client, `ApiHttp`) but keep them minimal
+
+This explains patterns like passing `getApi` and `ensureInit` callbacks to resource factories - it's intentional functional composition, not a workaround.
 
 ## CLI Output Formatting Conventions
 

@@ -1,37 +1,32 @@
 /**
  * @file Main entry point for the Ship CLI.
- * Ultra-simple CLI with explicit commands and deploy shortcut.
  */
 import { Command } from 'commander';
 import { Ship, ShipError } from '../index.js';
 import { validateApiKey, validateDeployToken, validateApiUrl } from '@shipstatic/types';
 import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
-import { formatTable, formatDetails, success, error, info, warn } from './utils.js';
+import { success, error } from './utils.js';
+import { formatOutput } from './formatters.js';
+import { installCompletion, uninstallCompletion } from './completion.js';
 import { getUserMessage, ensureShipError, formatErrorJson, type ErrorContext } from './error-handling.js';
 import { bold, dim } from 'yoctocolors';
-// Removed tabtab dependency - now using custom completion script
-import * as fs from 'fs';
-import * as os from 'os';
 
-// Get package.json data for version information using robust path resolution
-let packageJson: any = { version: '0.0.0' };
-
-try {
-  // For the built CLI, package.json is always one level up from the dist directory
-  // This is more reliable than hardcoded multiple fallback paths
-  const packageJsonPath = path.resolve(__dirname, '../package.json');
-  packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-} catch (error) {
-  // Fallback for development/testing scenarios where the structure might differ
-  const developmentPath = path.resolve(__dirname, '../../package.json');
-  try {
-    packageJson = JSON.parse(readFileSync(developmentPath, 'utf-8'));
-  } catch (fallbackError) {
-    // Final fallback - use default version
-    // This is better than silent failure as it gives visibility into the issue
+// Load package.json for version
+function loadPackageJson(): { version: string } {
+  const paths = [
+    path.resolve(__dirname, '../package.json'),
+    path.resolve(__dirname, '../../package.json')
+  ];
+  for (const p of paths) {
+    try {
+      return JSON.parse(readFileSync(p, 'utf-8'));
+    } catch {}
   }
+  return { version: '0.0.0' };
 }
+
+const packageJson = loadPackageJson();
 
 
 
@@ -139,6 +134,15 @@ ${applyDim('Please report any issues to https://github.com/shipstatic/ship/issue
  */
 function collect(value: string, previous: string[] = []): string[] {
   return previous.concat([value]);
+}
+
+/**
+ * Merge tag options from command and program levels.
+ * Commander.js sometimes routes --tag to program level instead of command level.
+ */
+function mergeTagOption(cmdOptions: any, programOpts: any): string[] | undefined {
+  const tags = cmdOptions?.tag?.length > 0 ? cmdOptions.tag : programOpts?.tag;
+  return tags?.length > 0 ? tags : undefined;
 }
 
 /**
@@ -279,217 +283,69 @@ function createClient(): Ship {
 }
 
 /**
- * Human-readable formatters for different result types
- */
-const formatters = {
-  deployments: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
-    if (!result.deployments || result.deployments.length === 0) {
-      if (isJson) {
-        console.log(JSON.stringify({ deployments: [] }, null, 2));
-      } else {
-        console.log('no deployments found');
-        console.log();
-      }
-      return;
-    }
-    
-    // For deployments list: show url (as "deployment"), tags, created
-    const listColumns = ['url', 'tags', 'created'];
-    console.log(formatTable(result.deployments, listColumns, noColor, { url: 'deployment' }));
-  },
-  domains: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
-    if (!result.domains || result.domains.length === 0) {
-      if (isJson) {
-        console.log(JSON.stringify({ domains: [] }, null, 2));
-      } else {
-        console.log('no domains found');
-        console.log();
-      }
-      return;
-    }
-
-    // For domains list: show url (as "domain"), deployment, tags, created
-    const listColumns = ['url', 'deployment', 'tags', 'created'];
-    console.log(formatTable(result.domains, listColumns, noColor, { url: 'domain' }));
-  },
-  domain: async (result: any, context?: { operation?: string; client?: Ship }, isJson?: boolean, noColor?: boolean) => {
-    // Always show success message for domain operations, particularly 'set'
-    if (result.domain) {
-      const operation = result.isCreate ? 'created' : 'updated';
-      success(`${result.domain} domain ${operation}`, isJson, noColor);
-    }
-
-    // For external domains that were just created and not verified, fetch DNS info
-    if (!isJson && result.isCreate && result.domain?.includes('.') && !result.verified && context?.client) {
-      try {
-        // Fetch records and share info in parallel
-        const [records, share] = await Promise.all([
-          context.client.domains.records(result.domain),
-          context.client.domains.share(result.domain)
-        ]);
-
-        // Display DNS records
-        if (records.records && records.records.length > 0) {
-          console.log();
-          info('DNS Records to configure:', isJson, noColor);
-          records.records.forEach((record: any) => {
-            console.log(`  ${record.type}: ${record.name} → ${record.value}`);
-          });
-        }
-
-        // Display instructions link
-        if (share.hash) {
-          const instructionsUrl = `https://setup.shipstatic.com/${share.hash}/${result.domain}`;
-          console.log();
-          info(`Setup instructions: ${instructionsUrl}`, isJson, noColor);
-        }
-      } catch (err) {
-        // Fallback to generic message if fetching fails
-        console.log();
-        warn(`To complete setup, configure DNS records for ${result.domain}`, isJson, noColor);
-      }
-    }
-
-    console.log();
-    console.log(formatDetails(result, noColor));
-  },
-  deployment: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
-    // Show success message for create operations only
-    if (result.status && context?.operation === 'create') {
-      success(`${result.deployment} deployment created ✨`, isJson, noColor);
-    }
-    console.log(formatDetails(result, noColor));
-  },
-  email: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
-    console.log(formatDetails(result, noColor));
-  },
-  message: (result: any, context?: { operation?: string }, isJson?: boolean, noColor?: boolean) => {
-    // Handle messages from operations like DNS check
-    if (result.message) {
-      success(result.message, isJson, noColor);
-    }
-  }
-};
-
-/**
  * Common deploy logic used by both shortcut and explicit commands
  */
-async function performDeploy(client: Ship, path: string, cmdOptions: any, commandContext?: any): Promise<any> {
-  // Validate path exists before proceeding
-  if (!existsSync(path)) {
-    throw ShipError.file(`${path} path does not exist`, path);
+async function performDeploy(client: Ship, deployPath: string, cmdOptions: any, commandContext?: any): Promise<any> {
+  if (!existsSync(deployPath)) {
+    throw ShipError.file(`${deployPath} path does not exist`, deployPath);
   }
 
-  // Check if path is a file or directory
-  const stats = statSync(path);
+  const stats = statSync(deployPath);
   if (!stats.isDirectory() && !stats.isFile()) {
-    throw ShipError.file(`${path} path must be a file or directory`, path);
+    throw ShipError.file(`${deployPath} path must be a file or directory`, deployPath);
   }
 
-  const deployOptions: any = {
-    // Identify this deployment as coming from the CLI
-    via: 'cli'
-  };
+  const deployOptions: any = { via: 'cli' };
 
-  // Handle tags option - Commander.js collect gives us an array directly
-  if (cmdOptions?.tag && cmdOptions.tag.length > 0) {
-    deployOptions.tags = cmdOptions.tag;
-  }
+  // Handle tags
+  const tags = mergeTagOption(cmdOptions, program.opts());
+  if (tags) deployOptions.tags = tags;
 
-  // Handle path detection flag
+  // Handle detection flags
   if (cmdOptions?.noPathDetect !== undefined) {
     deployOptions.pathDetect = !cmdOptions.noPathDetect;
   }
-
-  // Handle SPA detection flag
   if (cmdOptions?.noSpaDetect !== undefined) {
     deployOptions.spaDetect = !cmdOptions.noSpaDetect;
   }
-  
-  // Set up cancellation support using SDK's built-in AbortController
+
+  // Cancellation support
   const abortController = new AbortController();
   deployOptions.signal = abortController.signal;
-  
-  // Display upload pending message
+
+  // Spinner (TTY only, not JSON, not --no-color)
   let spinner: any = null;
-  
-  // Show spinner only in TTY (not piped), not in JSON mode, and not with --no-color (script parsing)
   const globalOptions = commandContext ? processOptions(commandContext) : {};
   if (process.stdout.isTTY && !globalOptions.json && !globalOptions.noColor) {
     const { default: yoctoSpinner } = await import('yocto-spinner');
     spinner = yoctoSpinner({ text: 'uploading…' }).start();
   }
-  
-  // Handle Ctrl+C by aborting the request
+
   const sigintHandler = () => {
     abortController.abort();
     if (spinner) spinner.stop();
     process.exit(130);
   };
   process.on('SIGINT', sigintHandler);
-  
+
   try {
-    const result = await client.deployments.create(path, deployOptions);
-    
-    // Cleanup
+    const result = await client.deployments.create(deployPath, deployOptions);
     process.removeListener('SIGINT', sigintHandler);
     if (spinner) spinner.stop();
-    
     return result;
-  } catch (error) {
-    // Cleanup on error
+  } catch (err) {
     process.removeListener('SIGINT', sigintHandler);
     if (spinner) spinner.stop();
-    throw error;
+    throw err;
   }
 }
 
 /**
- * Format output based on --json flag
+ * Output result using formatters module
  */
-async function output(result: any, context?: { operation?: string; resourceType?: string; resourceId?: string; client?: Ship }, options?: any) {
+function output(result: any, context: { operation?: string; resourceType?: string; resourceId?: string }, options?: any) {
   const opts = options || program.opts();
-
-  // Handle void/undefined results (removal operations)
-  if (result === undefined) {
-    if (context?.operation === 'remove' && context.resourceType && context.resourceId) {
-      success(`${context.resourceId} ${context.resourceType.toLowerCase()} removed`, opts.json, opts.noColor);
-    } else {
-      success('removed successfully', opts.json, opts.noColor);
-    }
-    return;
-  }
-
-  // Handle ping result (boolean or object with success property)
-  if (result === true || (result && typeof result === 'object' && result.hasOwnProperty('success'))) {
-    const isSuccess = result === true || result.success;
-    if (isSuccess) {
-      success('api reachable', opts.json, opts.noColor);
-    } else {
-      error('api unreachable', opts.json, opts.noColor);
-    }
-    return;
-  }
-
-  // For regular results in JSON mode, output the raw JSON
-  if (opts.json) {
-    console.log(JSON.stringify(result, null, 2));
-    console.log();
-    return;
-  }
-
-  // Find appropriate formatter based on result properties (non-JSON mode)
-  // Explicit lookup order for deterministic behavior
-  const formatterOrder: (keyof typeof formatters)[] = ['deployments', 'domains', 'domain', 'deployment', 'email', 'message'];
-  for (const key of formatterOrder) {
-    if (result[key]) {
-      await formatters[key](result, context, opts.json, opts.noColor);
-      return;
-    }
-  }
-
-  // Default fallback
-  success('success', opts.json, opts.noColor);
+  formatOutput(result, context, { isJson: opts.json, noColor: opts.noColor });
 }
 
 
@@ -578,15 +434,8 @@ deploymentsCmd
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(
-    function(this: any, client: Ship, path: string, cmdOptions: any) {
-      // Merge program options with subcommand options (program options for --tag when defined on both)
-      const programOpts = program.opts();
-      const mergedOptions = {
-        ...cmdOptions,
-        // Use program's tag if subcommand's tag is empty (handles the duplication issue)
-        tag: cmdOptions.tag?.length > 0 ? cmdOptions.tag : programOpts.tag
-      };
-      return performDeploy(client, path, mergedOptions, this);
+    function(this: any, client: Ship, deployPath: string, cmdOptions: any) {
+      return performDeploy(client, deployPath, cmdOptions, this);
     },
     { operation: 'create' }
   ));
@@ -641,12 +490,27 @@ domainsCmd
   .passThroughOptions()
   .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
   .action(withErrorHandling(
-    (client: Ship, name: string, deployment: string, cmdOptions: any) => {
-      // Merge program options with subcommand options (program options for --tag when defined on both)
-      const programOpts = program.opts();
-      const tagArray = cmdOptions?.tag?.length > 0 ? cmdOptions.tag : programOpts.tag;
-      const tags = tagArray && tagArray.length > 0 ? tagArray : undefined;
-      return client.domains.set(name, deployment, tags);
+    async (client: Ship, name: string, deployment: string, cmdOptions: any) => {
+      const tags = mergeTagOption(cmdOptions, program.opts());
+      const result = await client.domains.set(name, deployment, tags);
+
+      // Enrich with DNS info for new external domains (pure formatter will display it)
+      if (result.isCreate && name.includes('.') && !result.verified) {
+        try {
+          const [records, share] = await Promise.all([
+            client.domains.records(name),
+            client.domains.share(name)
+          ]);
+          return {
+            ...result,
+            _dnsRecords: records.records,
+            _shareHash: share.hash
+          };
+        } catch {
+          // Graceful degradation - return without DNS info
+        }
+      }
+      return result;
     },
     { operation: 'set', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
@@ -678,10 +542,7 @@ tokensCmd
   .action(withErrorHandling(
     (client: Ship, cmdOptions: any) => {
       const ttl = cmdOptions?.ttl;
-      // Merge program options with subcommand options (program options for --tag when defined on both)
-      const programOpts = program.opts();
-      const tagArray = cmdOptions?.tag?.length > 0 ? cmdOptions.tag : programOpts.tag;
-      const tags = tagArray && tagArray.length > 0 ? tagArray : undefined;
+      const tags = mergeTagOption(cmdOptions, program.opts());
       return client.tokens.create(ttl, tags);
     },
     { operation: 'create', resourceType: 'Token' }
@@ -718,171 +579,18 @@ const completionCmd = program
 completionCmd
   .command('install')
   .description('Install shell completion script')
-  .action(async () => {
-    const shell = process.env.SHELL || '';
-    const homeDir = os.homedir();
-    let installPath: string;
-    let profileFile: string;
-    let sourceLine: string = '';
-
-    // Resolve the path to the bundled completion scripts
-    const bashScriptPath = path.resolve(__dirname, 'completions/ship.bash');
-    const zshScriptPath = path.resolve(__dirname, 'completions/ship.zsh');
-    const fishScriptPath = path.resolve(__dirname, 'completions/ship.fish');
-
-    try {
-      if (shell.includes('bash')) {
-        installPath = path.join(homeDir, '.ship_completion.bash');
-        profileFile = path.join(homeDir, '.bash_profile');
-        sourceLine = `# ship\nsource '${installPath}'\n# ship end`;
-        fs.copyFileSync(bashScriptPath, installPath);
-      } else if (shell.includes('zsh')) {
-        installPath = path.join(homeDir, '.ship_completion.zsh');
-        profileFile = path.join(homeDir, '.zshrc');
-        sourceLine = `# ship\nsource '${installPath}'\n# ship end`;
-        fs.copyFileSync(zshScriptPath, installPath);
-      } else if (shell.includes('fish')) {
-        const fishCompletionsDir = path.join(homeDir, '.config/fish/completions');
-        if (!fs.existsSync(fishCompletionsDir)) {
-          fs.mkdirSync(fishCompletionsDir, { recursive: true });
-        }
-        installPath = path.join(fishCompletionsDir, 'ship.fish');
-        fs.copyFileSync(fishScriptPath, installPath);
-        const options = program.opts();
-        success('fish completion installed successfully', options.json, options.noColor);
-        info('please restart your shell to apply the changes', options.json, options.noColor);
-        return;
-      } else {
-        const options = program.opts();
-        error(`unsupported shell: ${shell}. could not install completion script`, options.json, options.noColor);
-        return;
-      }
-
-      // For bash and zsh, we need to add sourcing to profile
-      const profileExists = fs.existsSync(profileFile);
-      if (profileExists) {
-        const profileContent = fs.readFileSync(profileFile, 'utf-8');
-        if (!profileContent.includes('# ship') || !profileContent.includes('# ship end')) {
-          // Ensure there's a newline before our block if file doesn't end with one
-          const needsNewline = profileContent.length > 0 && !profileContent.endsWith('\n');
-          const prefix = needsNewline ? '\n' : '';
-          fs.appendFileSync(profileFile, prefix + sourceLine);
-        }
-      } else {
-        fs.writeFileSync(profileFile, sourceLine);
-      }
-
-      const options = program.opts();
-      success(`completion script installed for ${shell.split('/').pop()}`, options.json, options.noColor);
-      warn(`run "source ${profileFile}" or restart your shell`, options.json, options.noColor);
-    } catch (e: any) {
-      const options = program.opts();
-      error(`could not install completion script: ${e.message}`, options.json, options.noColor);
-      if (shell.includes('bash') || shell.includes('zsh')) {
-        warn(`add the following line to your profile file manually\n${sourceLine}`, options.json, options.noColor);
-      }
-    }
+  .action(() => {
+    const options = program.opts();
+    const scriptDir = path.resolve(__dirname, 'completions');
+    installCompletion(scriptDir, { isJson: options.json, noColor: options.noColor });
   });
 
 completionCmd
   .command('uninstall')
   .description('Uninstall shell completion script')
-  .action(async () => {
-    const shell = process.env.SHELL || '';
-    const homeDir = os.homedir();
-    let installPath: string;
-    let profileFile: string;
-
-    try {
-      if (shell.includes('bash')) {
-        installPath = path.join(homeDir, '.ship_completion.bash');
-        profileFile = path.join(homeDir, '.bash_profile');
-      } else if (shell.includes('zsh')) {
-        installPath = path.join(homeDir, '.ship_completion.zsh');
-        profileFile = path.join(homeDir, '.zshrc');
-      } else if (shell.includes('fish')) {
-        const fishCompletionsDir = path.join(homeDir, '.config/fish/completions');
-        installPath = path.join(fishCompletionsDir, 'ship.fish');
-        
-        // Remove fish completion file
-        const options = program.opts();
-        if (fs.existsSync(installPath)) {
-          fs.unlinkSync(installPath);
-          success('fish completion uninstalled successfully', options.json, options.noColor);
-        } else {
-          warn('fish completion was not installed', options.json, options.noColor);
-        }
-        info('please restart your shell to apply the changes', options.json, options.noColor);
-        return;
-      } else {
-        const options = program.opts();
-        error(`unsupported shell: ${shell}. could not uninstall completion script`, options.json, options.noColor);
-        return;
-      }
-
-      // Remove completion script file
-      if (fs.existsSync(installPath)) {
-        fs.unlinkSync(installPath);
-      }
-
-      // Remove sourcing line from profile
-      if (fs.existsSync(profileFile)) {
-        const profileContent = fs.readFileSync(profileFile, 'utf-8');
-        const lines = profileContent.split('\n');
-        
-        // Find and remove the ship block using start/end markers
-        const filteredLines: string[] = [];
-        let i = 0;
-        let removedSomething = false;
-        
-        while (i < lines.length) {
-          const line = lines[i];
-          
-          // Check if this is the start of a ship block
-          if (line.trim() === '# ship') {
-            removedSomething = true;
-            // Skip all lines until we find the end marker
-            i++;
-            while (i < lines.length && lines[i].trim() !== '# ship end') {
-              i++;
-            }
-            // Skip the end marker too
-            if (i < lines.length && lines[i].trim() === '# ship end') {
-              i++;
-            }
-          } else {
-            // Keep this line
-            filteredLines.push(line);
-            i++;
-          }
-        }
-        
-        const options = program.opts();
-        if (removedSomething) {
-          // Preserve the original file's ending format (with or without final newline)
-          const originalEndsWithNewline = profileContent.endsWith('\n');
-          let newContent;
-          if (filteredLines.length === 0) {
-            newContent = '';
-          } else if (originalEndsWithNewline) {
-            newContent = filteredLines.join('\n') + '\n';
-          } else {
-            newContent = filteredLines.join('\n');
-          }
-          fs.writeFileSync(profileFile, newContent);
-          success(`completion script uninstalled for ${shell.split('/').pop()}`, options.json, options.noColor);
-          warn(`run "source ${profileFile}" or restart your shell`, options.json, options.noColor);
-        } else {
-          error('completion was not found in profile', options.json, options.noColor);
-        }
-      } else {
-        const options = program.opts();
-        error('profile file not found', options.json, options.noColor);
-      }
-    } catch (e: any) {
-      const options = program.opts();
-      error(`could not uninstall completion script: ${e.message}`, options.json, options.noColor);
-    }
+  .action(() => {
+    const options = program.opts();
+    uninstallCompletion({ isJson: options.json, noColor: options.noColor });
   });
 
 
