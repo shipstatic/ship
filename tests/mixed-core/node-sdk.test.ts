@@ -260,27 +260,27 @@ describe('NodeShipClient', () => {
       const { ShipError } = await import('@shipstatic/types');
       // Simulate a browser File object (minimal mock)
       const fakeFile = { name: 'f.txt', size: 1, type: 'text/plain' };
-      await expect(client.deployments.create([fakeFile] as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.'));
+      await expect(client.deployments.create([fakeFile] as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
     });
 
     it('should throw ShipError for FileList input', async () => {
       const { ShipError } = await import('@shipstatic/types');
       // Simulate a FileList (array-like)
       const fakeFileList = { 0: { name: 'f.txt', size: 1, type: 'text/plain' }, length: 1, item: () => null };
-      await expect(client.deployments.create(fakeFileList as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.'));
+      await expect(client.deployments.create(fakeFileList as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
     });
 
     it('should throw ShipError for HTMLInputElement input', async () => {
       const { ShipError } = await import('@shipstatic/types');
       // Simulate an input element
       const fakeInput = { tagName: 'INPUT', type: 'file', files: [] };
-      await expect(client.deployments.create(fakeInput as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.'));
+      await expect(client.deployments.create(fakeInput as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
     });
 
     it('should throw ShipError for Buffer input', async () => {
       const { ShipError } = await import('@shipstatic/types');
       const fakeBuffer = Buffer.from('abc');
-      await expect(client.deployments.create(fakeBuffer as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.'));
+      await expect(client.deployments.create(fakeBuffer as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
     });
     
     // New tests for file validation

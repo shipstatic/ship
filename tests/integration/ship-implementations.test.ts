@@ -11,8 +11,8 @@ vi.mock('../../src/node/core/platform-config', () => ({
   getCurrentConfig: vi.fn().mockReturnValue({})
 }));
 
-vi.mock('../../src/node/core/prepare-input', () => ({
-  convertDeployInput: vi.fn().mockResolvedValue([
+vi.mock('../../src/node/core/node-files', () => ({
+  processFilesForNode: vi.fn().mockResolvedValue([
     { path: 'test.html', content: Buffer.from('<html></html>'), size: 13, md5: 'node-hash' }
   ])
 }));

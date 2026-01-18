@@ -1,13 +1,14 @@
 /**
  * @file Ship SDK resource implementations for deployments, domains, and accounts.
  */
-import type {
-  StaticFile,
-  DeployInput,
-  DeploymentResource,
-  DomainResource,
-  AccountResource,
-  TokenResource
+import {
+  ShipError,
+  type StaticFile,
+  type DeployInput,
+  type DeploymentResource,
+  type DomainResource,
+  type AccountResource,
+  type TokenResource
 } from '@shipstatic/types';
 
 export type {
@@ -21,7 +22,7 @@ export type {
 import type { ApiHttp } from './api/http.js';
 import type { ShipClientOptions, DeploymentOptions } from './types.js';
 import { mergeDeployOptions } from './core/config.js';
-import { detectAndConfigureSPA } from './lib/prepare-input.js';
+import { detectAndConfigureSPA } from './lib/spa.js';
 
 
 
@@ -45,7 +46,7 @@ export function createDeploymentResource(
       // Auth check AFTER init so env vars and config files are loaded
       // Check: instance auth OR per-deploy credentials in merged options
       if (hasAuth && !hasAuth() && !mergedOptions.deployToken && !mergedOptions.apiKey) {
-        throw new Error(
+        throw ShipError.authentication(
           'Authentication credentials are required for deployment. ' +
           'Please call setDeployToken() or setApiKey() first, or pass credentials in the deployment options.'
         );
@@ -56,7 +57,7 @@ export function createDeploymentResource(
 
       // Use environment-specific input processing
       if (!processInput) {
-        throw new Error('processInput function is not provided.');
+        throw ShipError.config('processInput function is not provided.');
       }
 
       // 1. Process input from the specific environment

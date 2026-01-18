@@ -81,37 +81,20 @@ export class Ship extends BaseShip {
   }
 
   protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
-    // Validate input type for Node.js environment
-    if (!this.#isValidNodeInput(input)) {
-      throw ShipError.business('Invalid input type for Node.js environment. Expected string[] file paths.');
+    // Normalize string to string[] and validate
+    const paths = typeof input === 'string' ? [input] : input;
+
+    if (!Array.isArray(paths) || !paths.every(p => typeof p === 'string')) {
+      throw ShipError.business('Invalid input type for Node.js environment. Expected string or string[].');
     }
 
-    // Check for empty array specifically
-    if (Array.isArray(input) && input.length === 0) {
+    if (paths.length === 0) {
       throw ShipError.business('No files to deploy.');
     }
 
-    const { convertDeployInput } = await import('./core/prepare-input.js');
-    return convertDeployInput(input, options, this.http);
-  }
-
-  /**
-   * Validates that input is appropriate for Node.js environment
-   * @private
-   */
-  #isValidNodeInput(input: DeployInput): boolean {
-    // Check for string or string array (file paths)
-    if (typeof input === 'string') {
-      return true;
-    }
-
-    if (Array.isArray(input)) {
-      // Allow empty arrays (will be handled as "No files to deploy") 
-      // and arrays of strings only
-      return input.every(item => typeof item === 'string');
-    }
-
-    return false;
+    // Process files directly - no intermediate conversion layer
+    const { processFilesForNode } = await import('./core/node-files.js');
+    return processFilesForNode(paths, options);
   }
 }
 
@@ -121,9 +104,6 @@ export default Ship;
 // Node.js specific exports
 export { loadConfig } from './core/config.js';
 export { setConfig as setPlatformConfig, getCurrentConfig } from '../shared/core/platform-config.js';
-
-// Backward compatibility - setConfig is an alias for setPlatformConfig
-export { setConfig } from '../shared/core/platform-config.js';
 
 // Node.js utilities
 export { processFilesForNode } from './core/node-files.js';

@@ -5,7 +5,6 @@
 import { Ship as BaseShip } from '../shared/base-ship.js';
 import { setConfig as setPlatformConfig } from '../shared/core/platform-config.js';
 import { resolveConfig, type ResolvedConfig } from '../shared/core/config.js';
-import { ApiHttp } from '../shared/api/http.js';
 import { ShipError } from '@shipstatic/types';
 import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile } from '../shared/types.js';
 
@@ -54,26 +53,14 @@ export class Ship extends BaseShip {
   }
 
   protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
-    // Validate input type for browser environment
-    if (!this.#isValidBrowserInput(input)) {
+    // Validate input - must be File[]
+    if (!Array.isArray(input) || (input.length > 0 && !(input[0] instanceof File))) {
       throw ShipError.business('Invalid input type for browser environment. Expected File[].');
     }
 
+    // Process files directly
     const { processFilesForBrowser } = await import('./lib/browser-files.js');
     return processFilesForBrowser(input as File[], options);
-  }
-
-  /**
-   * Validates that input is appropriate for browser environment
-   * @private
-   */
-  #isValidBrowserInput(input: DeployInput): boolean {
-    // Only accept File[] - must be array AND all items must be Files
-    if (Array.isArray(input)) {
-      return input.length === 0 || input.every(item => item instanceof File);
-    }
-
-    return false;
   }
 }
 
@@ -81,7 +68,6 @@ export class Ship extends BaseShip {
 export default Ship;
 
 // Browser specific exports
-export { loadConfig } from './core/config.js';
 export { setConfig as setPlatformConfig, getCurrentConfig } from '../shared/core/platform-config.js';
 
 // Browser utilities
