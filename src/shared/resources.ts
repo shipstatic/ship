@@ -96,6 +96,11 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
       return getApi().setDomain(domainName, deployment, tags);
     },
 
+    update: async (domainName: string, tags: string[]) => {
+      await ensureInit();
+      return getApi().updateDomainTags(domainName, tags);
+    },
+
     get: async (domainName: string) => {
       await ensureInit();
       return getApi().getDomain(domainName);

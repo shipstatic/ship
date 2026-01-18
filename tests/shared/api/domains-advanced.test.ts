@@ -138,4 +138,59 @@ describe('Advanced Domain Operations', () => {
       expect(domain.verified).toBeDefined();
     });
   });
+
+  describe('domains.update()', () => {
+    it('should update tags for an existing internal domain', async () => {
+      // First create a domain
+      await ship.domains.set('update-test', 'test-deployment-1');
+
+      // Update its tags
+      const updated = await ship.domains.update('update-test', ['new-tag', 'another-tag']);
+
+      expect(updated.domain).toBe('update-test');
+      expect(updated.tags).toEqual(['new-tag', 'another-tag']);
+    });
+
+    it('should update tags for an existing external domain', async () => {
+      // First create an external domain
+      await ship.domains.set('update-external.com', 'test-deployment-1');
+
+      // Update its tags
+      const updated = await ship.domains.update('update-external.com', ['production', 'v2']);
+
+      expect(updated.domain).toBe('update-external.com');
+      expect(updated.tags).toEqual(['production', 'v2']);
+    });
+
+    it('should clear tags when passing empty array', async () => {
+      // First create a domain with tags
+      await ship.domains.set('clear-tags-test', 'test-deployment-1', ['initial-tag']);
+
+      // Clear tags by passing empty array
+      const updated = await ship.domains.update('clear-tags-test', []);
+
+      expect(updated.domain).toBe('clear-tags-test');
+      expect(updated.tags).toEqual([]);
+    });
+
+    it('should fail for non-existent domain', async () => {
+      await expect(ship.domains.update('non-existent-domain', ['tag']))
+        .rejects.toThrow(/not found/i);
+    });
+
+    it('should preserve domain properties when updating tags', async () => {
+      // Create domain
+      const created = await ship.domains.set('preserve-test', 'test-deployment-1');
+
+      // Update tags
+      const updated = await ship.domains.update('preserve-test', ['updated-tag']);
+
+      // Verify other properties are preserved
+      expect(updated.domain).toBe(created.domain);
+      expect(updated.deployment).toBe(created.deployment);
+      expect(updated.status).toBe(created.status);
+      expect(updated.url).toBe(created.url);
+      expect(updated.tags).toEqual(['updated-tag']);
+    });
+  });
 });

@@ -32,6 +32,7 @@ COMMANDS
   🌎 Domains
   ship domains list                     List all domains
   ship domains set <name> <deployment>  Create or update domain pointing to deployment
+  ship domains update <name>            Update domain tags
   ship domains get <name>               Show domain information
   ship domains verify <name>            Manually trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
@@ -77,6 +78,7 @@ COMMANDS
   🌎 Domains
   ship domains list                     List all domains
   ship domains set <name> <deployment>  Create or update domain pointing to deployment
+  ship domains update <name>            Update domain tags
   ship domains get <name>               Show domain information
   ship domains verify <name>            Manually trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
@@ -122,6 +124,7 @@ COMMANDS
   🌎 Domains
   ship domains list                     List all domains
   ship domains set <name> <deployment>  Create or update domain pointing to deployment
+  ship domains update <name>            Update domain tags
   ship domains get <name>               Show domain information
   ship domains verify <name>            Manually trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently

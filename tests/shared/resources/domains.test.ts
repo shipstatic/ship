@@ -10,6 +10,7 @@ describe('DomainResource', () => {
     // Mock the ApiHttp client
     mockApi = {
       setDomain: vi.fn(),
+      updateDomainTags: vi.fn(),
       getDomain: vi.fn(),
       listDomains: vi.fn(),
       removeDomain: vi.fn(),
@@ -53,6 +54,40 @@ describe('DomainResource', () => {
 
       expect(mockApi.setDomain).toHaveBeenCalledWith('prod', 'xyz789', tags);
       expect(result).toEqual(mockSetResponse);
+    });
+  });
+
+  describe('update', () => {
+    it('should call api.updateDomainTags with domain name and tags', async () => {
+      const tags = ['production', 'v2.0.0'];
+      const mockUpdateResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev', tags };
+      (mockApi.updateDomainTags as any).mockResolvedValue(mockUpdateResponse);
+
+      const result = await domains.update('staging', tags);
+
+      expect(mockApi.updateDomainTags).toHaveBeenCalledWith('staging', tags);
+      expect(result).toEqual(mockUpdateResponse);
+    });
+
+    it('should handle empty tags array', async () => {
+      const mockUpdateResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev', tags: [] };
+      (mockApi.updateDomainTags as any).mockResolvedValue(mockUpdateResponse);
+
+      const result = await domains.update('staging', []);
+
+      expect(mockApi.updateDomainTags).toHaveBeenCalledWith('staging', []);
+      expect(result).toEqual(mockUpdateResponse);
+    });
+
+    it('should handle external domain tag updates', async () => {
+      const tags = ['live', 'primary'];
+      const mockUpdateResponse = { domain: 'example.com', deployment: 'xyz789', url: 'https://example.com', tags, status: 'pending' };
+      (mockApi.updateDomainTags as any).mockResolvedValue(mockUpdateResponse);
+
+      const result = await domains.update('example.com', tags);
+
+      expect(mockApi.updateDomainTags).toHaveBeenCalledWith('example.com', tags);
+      expect(result).toEqual(mockUpdateResponse);
     });
   });
 
@@ -133,6 +168,7 @@ describe('DomainResource', () => {
     it('should create domain resource with API client', () => {
       expect(domains).toBeDefined();
       expect(typeof domains.set).toBe('function');
+      expect(typeof domains.update).toBe('function');
       expect(typeof domains.get).toBe('function');
       expect(typeof domains.list).toBe('function');
       expect(typeof domains.remove).toBe('function');
@@ -141,6 +177,7 @@ describe('DomainResource', () => {
 
     it('should return promises from all methods', () => {
       (mockApi.setDomain as any).mockResolvedValue({});
+      (mockApi.updateDomainTags as any).mockResolvedValue({});
       (mockApi.getDomain as any).mockResolvedValue({});
       (mockApi.listDomains as any).mockResolvedValue({});
       (mockApi.removeDomain as any).mockResolvedValue({});
@@ -148,6 +185,7 @@ describe('DomainResource', () => {
 
       expect(domains.set('test', 'abc123')).toBeInstanceOf(Promise);
       expect(domains.set('test', 'abc123', ['tag1'])).toBeInstanceOf(Promise);
+      expect(domains.update('test', ['tag1', 'tag2'])).toBeInstanceOf(Promise);
       expect(domains.get('test')).toBeInstanceOf(Promise);
       expect(domains.list()).toBeInstanceOf(Promise);
       expect(domains.remove('test')).toBeInstanceOf(Promise);
