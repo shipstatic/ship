@@ -276,13 +276,18 @@ export class ApiHttp extends SimpleEvents {
   async deploy(files: StaticFile[], options: ApiDeployOptions = {}): Promise<Deployment> {
     this.validateFiles(files);
 
-    const { requestBody, requestHeaders } = await this.prepareRequestPayload(files, options.tags);
+    const { requestBody, requestHeaders } = await this.prepareRequestPayload(files, options.tags, options.via);
 
-    let authHeaders = {};
+    let authHeaders: Record<string, string> = {};
     if (options.deployToken) {
-      authHeaders = { 'Authorization': `Bearer ${options.deployToken}` };
+      authHeaders['Authorization'] = `Bearer ${options.deployToken}`;
     } else if (options.apiKey) {
-      authHeaders = { 'Authorization': `Bearer ${options.apiKey}` };
+      authHeaders['Authorization'] = `Bearer ${options.apiKey}`;
+    }
+
+    // Add X-Caller header if caller is provided
+    if (options.caller) {
+      authHeaders['X-Caller'] = options.caller;
     }
 
     const fetchOptions: RequestInit = {
@@ -342,8 +347,8 @@ export class ApiHttp extends SimpleEvents {
     await this.request<void>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'DELETE' }, 'Remove Domain');
   }
 
-  async confirmDomain(name: string): Promise<{ message: string }> {
-    return await this.request<{ message: string }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/confirm`, { method: 'POST' }, 'Confirm Domain');
+  async verifyDomain(name: string): Promise<{ message: string }> {
+    return await this.request<{ message: string }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/verify`, { method: 'POST' }, 'Verify Domain');
   }
 
   async getDomainDns(name: string): Promise<DomainDnsResponse> {
@@ -447,14 +452,14 @@ export class ApiHttp extends SimpleEvents {
     }
   }
 
-  private async prepareRequestPayload(files: StaticFile[], tags?: string[]): Promise<{
+  private async prepareRequestPayload(files: StaticFile[], tags?: string[], via?: string): Promise<{
     requestBody: FormData | ArrayBuffer;
     requestHeaders: Record<string, string>;
   }> {
     if (getENV() === 'browser') {
-      return { requestBody: this.createBrowserBody(files, tags), requestHeaders: {} };
+      return { requestBody: this.createBrowserBody(files, tags, via), requestHeaders: {} };
     } else if (getENV() === 'node') {
-      const { body, headers } = await this.createNodeBody(files, tags);
+      const { body, headers } = await this.createNodeBody(files, tags, via);
       return {
         requestBody: body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer,
         requestHeaders: headers
@@ -464,7 +469,7 @@ export class ApiHttp extends SimpleEvents {
     }
   }
 
-  private createBrowserBody(files: StaticFile[], tags?: string[]): FormData {
+  private createBrowserBody(files: StaticFile[], tags?: string[], via?: string): FormData {
     const formData = new FormData();
     const checksums: string[] = [];
 
@@ -488,10 +493,14 @@ export class ApiHttp extends SimpleEvents {
       formData.append('tags', JSON.stringify(tags));
     }
 
+    if (via) {
+      formData.append('via', via);
+    }
+
     return formData;
   }
 
-  private async createNodeBody(files: StaticFile[], tags?: string[]): Promise<{ body: Buffer, headers: Record<string, string> }> {
+  private async createNodeBody(files: StaticFile[], tags?: string[], via?: string): Promise<{ body: Buffer, headers: Record<string, string> }> {
     const { FormData: FormDataClass, File: FileClass } = await import('formdata-node');
     const { FormDataEncoder } = await import('form-data-encoder');
     const formData = new FormDataClass();
@@ -522,6 +531,10 @@ export class ApiHttp extends SimpleEvents {
 
     if (tags && tags.length > 0) {
       formData.append('tags', JSON.stringify(tags));
+    }
+
+    if (via) {
+      formData.append('via', via);
     }
 
     const encoder = new FormDataEncoder(formData);

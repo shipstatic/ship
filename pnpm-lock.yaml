@@ -4,13 +4,16 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@shipstatic/types': link:../types
+
 importers:
 
   .:
     dependencies:
       '@shipstatic/types':
-        specifier: ^0.3.18
-        version: 0.3.18
+        specifier: link:../types
+        version: link:../types
       columnify:
         specifier: ^1.6.0
         version: 1.6.0
@@ -693,10 +696,6 @@ packages:
     resolution: {integrity: sha512-SPEpaL6DX4rmcXtnhdrQYgzQ5W2uW3SCJch88lB2zImhJRhIIK44fkUrgIV/Q8yUNfw5oyZ5vkeQsZLhCb06lw==}
     cpu: [x64]
     os: [win32]
-
-  '@shipstatic/types@0.3.18':
-    resolution: {integrity: sha512-H16jsxapL50RQUpKOV3LxSq1sIJvfKGK8ZhWRuEBZCLnqGvHQn2kKBFeiBO9w9L1PqI5TzdAJmHBTiSAftvsUw==}
-    engines: {node: '>=20.0.0'}
 
   '@tsconfig/node10@1.0.12':
     resolution: {integrity: sha512-UCYBaeFvM11aU2y3YPZ//O5Rhj+xKyzy7mvcIoAjASbigy8mHMryP5cK7dgjlz2hWxh1g5pLw084E0a/wlUSFQ==}
@@ -2215,8 +2214,6 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.55.1':
     optional: true
-
-  '@shipstatic/types@0.3.18': {}
 
   '@tsconfig/node10@1.0.12': {}
 

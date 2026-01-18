@@ -50,7 +50,7 @@ Tables follow industry standards (ps, kubectl, docker) for maximum scriptability
 
 **Column Filtering for List Views:**
 - **Deployments list**: Hides `files`, `size`, `status`, `expires` for cleaner output
-- **Domains list**: Hides `status`, `confirmed` for cleaner output
+- **Domains list**: Hides `status`, `verified` for cleaner output
 - **Details views**: Show all fields - no filtering applied
 - Filtering improves readability while maintaining scriptability
 
@@ -172,3 +172,80 @@ All CLI formatting changes must:
 4. Follow established message formatting conventions
 
 The test suite includes 14+ property order tests and 18+ output formatting tests to ensure these standards are maintained.
+
+## Commander.js Option Parsing
+
+### Overview
+
+The Ship CLI uses Commander.js for command-line argument parsing. This section documents key learnings about how Commander.js handles options in nested command structures.
+
+### The Parent/Subcommand Option Conflict
+
+**Problem:** When both a parent program and its subcommands define the same option (e.g., `--tag`), Commander.js may route option values to the program level instead of the subcommand level.
+
+**Example Structure:**
+```
+ship deploy --tag foo        (shortcut command on program)
+ship deployments create --tag foo  (subcommand)
+```
+
+When both `program.option('--tag')` and `subcommand.option('--tag')` exist, the `--tag` value can be captured by the program's option definition instead of the subcommand's.
+
+### Solution: Option Merging Pattern
+
+In each action handler, merge options from both the program and command levels:
+
+```typescript
+.action(async (directory, cmdOptions) => {
+  const programOpts = program.opts();
+
+  // Prefer command-level options, fall back to program-level
+  const tagArray = cmdOptions?.tag?.length > 0
+    ? cmdOptions.tag
+    : programOpts.tag;
+
+  // Use tagArray for the actual operation...
+});
+```
+
+### Required Commander.js Configuration
+
+For proper option handling in parent/child command structures:
+
+1. **Enable positional options on parent commands:**
+   ```typescript
+   const deployments = program
+     .command('deployments')
+     .enablePositionalOptions();
+   ```
+
+2. **Pass through options on subcommands:**
+   ```typescript
+   deployments
+     .command('create')
+     .passThroughOptions()
+     .option('-t, --tag <tags...>', 'Add tags')
+     .action(...);
+   ```
+
+### Affected Commands
+
+The following commands use this pattern:
+- `deployments create` - Merges tags from program/command
+- `domains set` - Merges tags from program/command
+- `tokens create` - Merges options from program/command
+- `deploy` shortcut - Defines its own `--tag` option
+
+### Testing Shortcut Parity
+
+The test suite includes "deploy shortcut parity" tests that verify shortcuts and long commands produce identical results:
+
+```typescript
+describe('deploy shortcut parity', () => {
+  it('should support --tag flag on shortcut');
+  it('should support multiple --tag flags on shortcut');
+  it('should produce same result with shortcut and long command');
+});
+```
+
+This ensures that `ship deploy --tag foo` behaves identically to `ship deployments create --tag foo`.

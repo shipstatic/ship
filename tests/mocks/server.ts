@@ -28,7 +28,7 @@ const mockDomains: Domain[] = [
     status: 'success',
     url: 'https://staging.statichost.dev',
     created: 1640995200,
-    confirmed: 1640995200
+    verified: 1640995200
   }
 ];
 
@@ -252,7 +252,7 @@ function handleRequest(req: any, res: any) {
             status: 'success' as const,
             url: `https://${domainName}.statichost.dev`,
             created: now,
-            confirmed: now
+            verified: now
           };
 
           res.writeHead(201);
@@ -356,6 +356,6 @@ export function resetMockServer() {
     status: 'success',
     url: 'https://staging.statichost.dev',
     created: 1640995200,
-    confirmed: 1640995200
+    verified: 1640995200
   });
 }

@@ -193,6 +193,84 @@ describe('ApiHttp', () => {
     it('should handle empty files array', async () => {
       await expect(apiHttp.deploy([])).rejects.toThrow('No files to deploy');
     });
+
+    it('should deploy without via when not explicitly provided', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13
+      }));
+
+      await apiHttp.deploy(mockFiles);
+
+      const fetchCall = (global.fetch as any).mock.calls[0];
+      expect(fetchCall[0]).toBe('https://api.test.com/deployments');
+      expect(fetchCall[1].method).toBe('POST');
+      // via is not sent when not explicitly provided
+    });
+
+    it('should include custom via field when provided', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13,
+        via: 'cli'
+      }));
+
+      const result = await apiHttp.deploy(mockFiles, { via: 'cli' });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/deployments',
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(result.via).toBe('cli');
+    });
+
+    it('should include X-Caller header when caller option is provided', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13
+      }));
+
+      await apiHttp.deploy(mockFiles, { caller: 'my-ci-system' });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/deployments',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'X-Caller': 'my-ci-system'
+          })
+        })
+      );
+    });
+
+    it('should not include X-Caller header when caller option is not provided', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13
+      }));
+
+      await apiHttp.deploy(mockFiles);
+
+      const fetchCall = (global.fetch as any).mock.calls[0];
+      const headers = fetchCall[1].headers;
+      expect(headers['X-Caller']).toBeUndefined();
+    });
   });
 
   describe('listDeployments', () => {
@@ -814,14 +892,14 @@ describe('ApiHttp', () => {
       expect(result).toEqual(mockResponse);
     });
 
-    it('should confirm domain', async () => {
-      const mockResponse = { domain: 'example.com', confirmed: true };
+    it('should verify domain', async () => {
+      const mockResponse = { domain: 'example.com', verified: true };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
-      const result = await apiHttp.confirmDomain('example.com');
+      const result = await apiHttp.verifyDomain('example.com');
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/domains/example.com/confirm',
+        'https://api.test.com/domains/example.com/verify',
         expect.objectContaining({ method: 'POST' })
       );
       expect(result).toEqual(mockResponse);

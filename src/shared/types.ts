@@ -42,6 +42,10 @@ export interface DeploymentOptions {
   tags?: string[];
   /** Callback for deploy progress with detailed statistics. */
   onProgress?: (info: ProgressInfo) => void;
+  /** Client/tool identifier for this deployment (e.g., 'sdk', 'cli', 'web'). Alphanumeric only. */
+  via?: string;
+  /** Caller identifier for multi-tenant deployments (alphanumeric, dot, underscore, hyphen). */
+  caller?: string;
 }
 
 /**
@@ -89,11 +93,16 @@ export interface ShipClientOptions {
    * When true, indicates the client should use HTTP-only cookies for authentication
    * instead of explicit tokens. This is useful for internal browser applications
    * where authentication is handled via secure cookies set by the API.
-   * 
+   *
    * When set, the pre-request authentication check is skipped, allowing requests
    * to proceed with cookie-based credentials.
    */
   useCredentials?: boolean | undefined;
+  /**
+   * Default caller identifier for multi-tenant deployments.
+   * Alphanumeric characters, dots, underscores, and hyphens allowed (max 128 chars).
+   */
+  caller?: string | undefined;
 }
 
 // =============================================================================
