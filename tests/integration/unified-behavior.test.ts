@@ -119,22 +119,20 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       mockApiClient.checkSPA.mockResolvedValue(true);
 
       // Test Node.js deployment resource
-      const nodeResource = createDeploymentResource(
-        () => mockApiClient,
-        {},
-        vi.fn(),
-        nodeProcessInput
-      );
+      const nodeResource = createDeploymentResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn(),
+        processInput: nodeProcessInput
+      });
 
       const nodeResult = await nodeResource.create(['./dist'] as any, { spaDetect: true });
 
       // Test browser deployment resource
-      const browserResource = createDeploymentResource(
-        () => mockApiClient,
-        {},
-        vi.fn(),
-        browserProcessInput
-      );
+      const browserResource = createDeploymentResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn(),
+        processInput: browserProcessInput
+      });
 
       const mockFileList = {} as FileList;
       const browserResult = await browserResource.create(mockFileList, { spaDetect: true });
@@ -158,12 +156,11 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const nodeProcessInput = vi.fn().mockResolvedValue(mockFiles);
-      const nodeResource = createDeploymentResource(
-        () => mockApiClient,
-        {},
-        vi.fn(),
-        nodeProcessInput
-      );
+      const nodeResource = createDeploymentResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn(),
+        processInput: nodeProcessInput
+      });
 
       await nodeResource.create(['./dist'] as any, { spaDetect: true });
 
@@ -181,12 +178,12 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       const userOptions = { timeout: 10000, spaDetect: false };
 
       const mockProcessInput = vi.fn().mockResolvedValue(mockFiles);
-      const resource = createDeploymentResource(
-        () => mockApiClient,
-        clientDefaults,
-        vi.fn(),
-        mockProcessInput
-      );
+      const resource = createDeploymentResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn(),
+        processInput: mockProcessInput,
+        clientDefaults
+      });
 
       await resource.create(['./test'] as any, userOptions);
 
@@ -200,12 +197,11 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
 
   describe('Error Handling Consistency', () => {
     it('should handle missing processInput function consistently', async () => {
-      const resource = createDeploymentResource(
-        () => mockApiClient,
-        {},
-        vi.fn(),
-        undefined // No processInput function
-      );
+      const resource = createDeploymentResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn(),
+        processInput: undefined as any
+      });
 
       await expect(resource.create(['./test'] as any, {}))
         .rejects.toThrow('processInput function is not provided.');
@@ -217,8 +213,8 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       const nodeProcessInput = vi.fn();
       const browserProcessInput = vi.fn();
 
-      const nodeResource = createDeploymentResource(() => mockApiClient, {}, vi.fn(), nodeProcessInput);
-      const browserResource = createDeploymentResource(() => mockApiClient, {}, vi.fn(), browserProcessInput);
+      const nodeResource = createDeploymentResource({ getApi: () => mockApiClient, ensureInit: vi.fn(), processInput: nodeProcessInput });
+      const browserResource = createDeploymentResource({ getApi: () => mockApiClient, ensureInit: vi.fn(), processInput: browserProcessInput });
 
       // Both should have identical interfaces
       expect(Object.keys(nodeResource)).toEqual(Object.keys(browserResource));

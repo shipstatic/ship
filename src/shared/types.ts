@@ -4,8 +4,7 @@
  * Core types come from @shipstatic/types, while SDK-specific types are defined here.
  */
 
-// Import types used in this file
-import type { ProgressInfo } from '@shipstatic/types';
+import type { ProgressInfo, StaticFile } from '@shipstatic/types';
 
 // Re-export all types from @shipstatic/types for convenience
 export * from '@shipstatic/types';
@@ -49,6 +48,25 @@ export interface DeploymentOptions {
 }
 
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
+
+/**
+ * Prepared request body for deployment.
+ * Created by platform-specific code, consumed by HTTP client.
+ */
+export interface DeployBody {
+  body: FormData | ArrayBuffer;
+  headers: Record<string, string>;
+}
+
+/**
+ * Function that creates a deploy request body from files.
+ * Implemented differently for Node.js and Browser.
+ */
+export type DeployBodyCreator = (
+  files: StaticFile[],
+  tags?: string[],
+  via?: string
+) => Promise<DeployBody>;
 
 // =============================================================================
 // CLIENT CONFIGURATION

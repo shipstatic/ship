@@ -9,7 +9,8 @@ import { loadConfig } from './core/config.js';
 import { resolveConfig, type ResolvedConfig } from '../shared/core/config.js';
 import { setConfig } from '../shared/core/platform-config.js';
 import { ApiHttp } from '../shared/api/http.js';
-import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile } from '../shared/types.js';
+import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../shared/types.js';
+import { createDeployBody } from './core/deploy-body.js';
 
 // Export all shared functionality
 export * from '../shared/index.js';
@@ -67,7 +68,8 @@ export class Ship extends BaseShip {
       const newClient = new ApiHttp({
         ...this.clientOptions,
         ...finalConfig,
-        getAuthHeaders: this.authHeadersCallback
+        getAuthHeaders: this.authHeadersCallback,
+        createDeployBody: this.getDeployBodyCreator()
       });
       this.replaceHttpClient(newClient);
 
@@ -95,6 +97,10 @@ export class Ship extends BaseShip {
     // Process files directly - no intermediate conversion layer
     const { processFilesForNode } = await import('./core/node-files.js');
     return processFilesForNode(paths, options);
+  }
+
+  protected getDeployBodyCreator(): DeployBodyCreator {
+    return createDeployBody;
   }
 }
 

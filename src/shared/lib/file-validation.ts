@@ -13,34 +13,23 @@ import type {
 import {
   FileValidationStatus as FILE_VALIDATION_STATUS
 } from '@shipstatic/types';
-// @ts-ignore: mime-db uses CommonJS export, TypeScript import interop handled at runtime
+// @ts-ignore: mime-db uses CommonJS export
 import mimeDb from 'mime-db';
 
-// ===== PERFORMANCE OPTIMIZATION: Pre-computed MIME type validation =====
+interface MimeEntry { extensions?: string[] }
 
-/**
- * Pre-computed Set of valid MIME types for O(1) lookup performance
- * Performance improvement: ~3x faster than mimeDb[type] lookup
- */
 const VALID_MIME_TYPES = new Set(Object.keys(mimeDb));
 
-/**
- * Pre-computed Map of MIME type extensions for fast validation
- * Performance improvement: ~5x faster than repeated mimeDb[type].extensions lookup
- */
 const MIME_TYPE_EXTENSIONS = new Map(
-  Object.entries(mimeDb)
-    .filter(([_, data]) => (data as any).extensions)
-    .map(([type, data]) => [type, new Set((data as any).extensions)])
+  Object.entries(mimeDb as Record<string, MimeEntry>)
+    .filter(([_, data]) => data.extensions)
+    .map(([type, data]) => [type, new Set(data.extensions)])
 );
 
 export { FILE_VALIDATION_STATUS };
 
-/**
- * Error type patterns - order matters (first match wins)
- */
 const ERROR_TYPE_PATTERNS: [RegExp, string][] = [
-  [/File name cannot be empty|Invalid file name|File name contains|File name uses|File name cannot start|traversal/i, 'Invalid File Name'],
+  [/File name cannot|Invalid file name|File name contains|File name uses|traversal/i, 'Invalid File Name'],
   [/File size must be positive/i, 'Invalid File Size'],
   [/MIME type is required/i, 'Missing MIME Type'],
   [/Invalid MIME type/i, 'Invalid MIME Type'],
@@ -85,25 +74,25 @@ export function formatFileSize(bytes: number, decimals: number = 1): string {
  * - Leading/trailing dots or spaces
  */
 function validateFileName(filename: string): { valid: boolean; reason?: string } {
-  // Check for URL-unsafe and shell-dangerous characters
   const unsafeChars = /[?&#%<>\[\]{}|\\^~`;$()'"*\r\n\t]/;
   if (unsafeChars.test(filename)) {
     return { valid: false, reason: 'File name contains unsafe characters' };
   }
 
-  // Check for leading or trailing dots or spaces (problematic in many filesystems)
-  if (filename.startsWith('.') === false && (filename.startsWith(' ') || filename.endsWith(' ') || filename.endsWith('.'))) {
-    return { valid: false, reason: 'File name cannot start/end with spaces or end with dots' };
+  if (filename.startsWith(' ') || filename.endsWith(' ')) {
+    return { valid: false, reason: 'File name cannot start/end with spaces' };
   }
 
-  // Check for Windows reserved names (case-insensitive)
+  if (filename.endsWith('.')) {
+    return { valid: false, reason: 'File name cannot end with dots' };
+  }
+
   const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i;
   const nameWithoutPath = filename.split('/').pop() || filename;
   if (reservedNames.test(nameWithoutPath)) {
     return { valid: false, reason: 'File name uses a reserved system name' };
   }
 
-  // Check for consecutive dots (often problematic)
   if (filename.includes('..')) {
     return { valid: false, reason: 'File name contains path traversal pattern' };
   }
@@ -121,8 +110,6 @@ function validateFileName(filename: string): { valid: boolean; reason?: string }
  * - Files with multiple dots use the last segment as extension (archive.tar.gz -> gz)
  */
 function validateFileExtension(filename: string, mimeType: string): boolean {
-  // Handle hidden files (starting with dot): .gitignore, .env, .htaccess
-  // These are treated as extensionless for validation purposes
   if (filename.startsWith('.')) {
     return true;
   }
