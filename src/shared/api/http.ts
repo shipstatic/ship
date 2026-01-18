@@ -333,6 +333,18 @@ export class ApiHttp extends SimpleEvents {
     return await this.request<Domain>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'GET' }, 'Get Domain');
   }
 
+  async updateDomainTags(name: string, tags: string[]): Promise<Domain> {
+    return await this.request<Domain>(
+      `${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags })
+      },
+      'Update Domain Tags'
+    );
+  }
+
   async listDomains(): Promise<DomainListResponse> {
     return await this.request<DomainListResponse>(`${this.apiUrl}${DOMAINS_ENDPOINT}`, { method: 'GET' }, 'List Domains');
   }

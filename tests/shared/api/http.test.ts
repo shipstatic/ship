@@ -1043,4 +1043,66 @@ describe('ApiHttp', () => {
       expect(result).toEqual({ ...mockDomain, isCreate: false });
     });
   });
+
+  describe('updateDomainTags', () => {
+    it('should update domain tags using PATCH', async () => {
+      const tags = ['production', 'v2.0.0'];
+      const mockDomain = { domain: 'staging', deployment: 'dep1', tags };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
+
+      const result = await apiHttp.updateDomainTags('staging', tags);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/staging',
+        expect.objectContaining({
+          method: 'PATCH',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test-api-key',
+            'Content-Type': 'application/json'
+          }),
+          body: JSON.stringify({ tags })
+        })
+      );
+      expect(result).toEqual(mockDomain);
+    });
+
+    it('should handle empty tags array', async () => {
+      const mockDomain = { domain: 'staging', deployment: 'dep1', tags: [] };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
+
+      const result = await apiHttp.updateDomainTags('staging', []);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/staging',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ tags: [] })
+        })
+      );
+      expect(result).toEqual(mockDomain);
+    });
+
+    it('should encode special characters in domain name', async () => {
+      const mockDomain = { domain: 'test.example.com', deployment: 'dep1', tags: ['prod'] };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
+
+      await apiHttp.updateDomainTags('test.example.com', ['prod']);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/test.example.com',
+        expect.objectContaining({
+          method: 'PATCH'
+        })
+      );
+    });
+
+    it('should handle 404 for non-existent domain', async () => {
+      (global.fetch as any).mockResolvedValue(createMockResponse(
+        { error: 'not_found', message: 'Domain not-found not found' },
+        404
+      ));
+
+      await expect(apiHttp.updateDomainTags('not-found', ['tag'])).rejects.toThrow();
+    });
+  });
 });

@@ -71,6 +71,53 @@ describe('CLI Commands', () => {
     });
   });
 
+  describe('Domains Commands', () => {
+    it('should handle domains list command', async () => {
+      const result = await runCli(['domains', 'list']);
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should handle domains get command', async () => {
+      // Get the pre-seeded domain from mock server
+      const result = await runCli(['domains', 'get', 'staging']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('staging');
+    });
+
+    it('should handle domains get for non-existent domain', async () => {
+      const result = await runCli(['domains', 'get', 'non-existent-domain'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('not found');
+    });
+
+    it('should handle domains update command', async () => {
+      // Update the pre-seeded domain with new tags
+      const result = await runCli(['domains', 'update', 'staging', '--tag', 'updated-tag']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('staging');
+      expect(result.stdout).toContain('updated');
+    });
+
+    it('should handle domains update with multiple tags', async () => {
+      const result = await runCli(['domains', 'update', 'staging', '--tag', 'tag1', '--tag', 'tag2']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('staging');
+    });
+
+    it('should handle domains update for non-existent domain', async () => {
+      const result = await runCli(['domains', 'update', 'non-existent-domain', '--tag', 'test'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('not found');
+    });
+
+    it('should show domains help', async () => {
+      const result = await runCli(['domains', '--help']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('update');
+      expect(result.stdout).toContain('Update domain tags');
+    });
+  });
+
   describe('Completion Commands', () => {
     it('should install bash completion', async () => {
       // Completion commands work without network

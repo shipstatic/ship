@@ -211,6 +211,8 @@ function routeRequest(
         handleDomainGet(res, domainName);
       } else if (method === 'PUT') {
         handleDomainSet(req, res, domainName);
+      } else if (method === 'PATCH') {
+        handleDomainUpdate(req, res, domainName);
       } else if (method === 'DELETE') {
         handleDomainDelete(res, domainName);
       }
@@ -356,6 +358,38 @@ function handleDomainSet(req: IncomingMessage, res: ServerResponse, domainName: 
       }
 
       res.end(JSON.stringify(domain));
+    } catch {
+      res.writeHead(400);
+      res.end(JSON.stringify(errors.invalidJson));
+    }
+  });
+}
+
+function handleDomainUpdate(req: IncomingMessage, res: ServerResponse, domainName: string): void {
+  let body = '';
+  req.on('data', (chunk) => (body += chunk));
+  req.on('end', () => {
+    try {
+      const data = JSON.parse(body);
+
+      // Find existing domain
+      const existingIndex = mockDomains.findIndex((d) => d.domain === domainName);
+      if (existingIndex < 0) {
+        res.writeHead(404);
+        res.end(JSON.stringify(errors.notFound('Domain', domainName)));
+        return;
+      }
+
+      // Update tags only (PATCH semantics)
+      const existingDomain = mockDomains[existingIndex];
+      const updatedDomain = {
+        ...existingDomain,
+        tags: data.tags || [],
+      };
+      mockDomains[existingIndex] = updatedDomain;
+
+      res.writeHead(200);
+      res.end(JSON.stringify(updatedDomain));
     } catch {
       res.writeHead(400);
       res.end(JSON.stringify(errors.invalidJson));

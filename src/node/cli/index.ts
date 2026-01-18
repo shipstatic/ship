@@ -87,6 +87,7 @@ ${applyBold('COMMANDS')}
   🌎 ${applyBold('Domains')}
   ship domains list                     List all domains
   ship domains set <name> <deployment>  Create or update domain pointing to deployment
+  ship domains update <name>            Update domain tags
   ship domains get <name>               Show domain information
   ship domains verify <name>            Manually trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
@@ -452,7 +453,7 @@ const domainsCmd = program
   .command('domains')
   .description('Manage domains')
   .enablePositionalOptions()
-  .action(handleUnknownSubcommand(['list', 'get', 'set', 'verify', 'remove']));
+  .action(handleUnknownSubcommand(['list', 'get', 'set', 'update', 'verify', 'remove']));
 
 domainsCmd
   .command('list')
@@ -504,6 +505,19 @@ domainsCmd
       return result;
     },
     { operation: 'set', resourceType: 'Domain', getResourceId: (name: string) => name }
+  ));
+
+domainsCmd
+  .command('update <name>')
+  .description('Update domain tags')
+  .passThroughOptions()
+  .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
+  .action(withErrorHandling(
+    async (client: Ship, name: string, cmdOptions: any) => {
+      const tags = mergeTagOption(cmdOptions, program.opts()) || [];
+      return client.domains.update(name, tags);
+    },
+    { operation: 'update', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
 domainsCmd
