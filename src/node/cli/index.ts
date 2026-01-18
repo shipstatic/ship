@@ -102,7 +102,7 @@ ${applyBold('COMMANDS')}
   ship domains list                     List all domains
   ship domains set <name> <deployment>  Create or update domain pointing to deployment
   ship domains get <name>               Show domain information
-  ship domains confirm <name>           Manually trigger DNS confirmation for external domain
+  ship domains verify <name>            Manually trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
 
   🔑 ${applyBold('Tokens')}
@@ -319,8 +319,8 @@ const formatters = {
       success(`${result.domain} domain ${operation}`, isJson, noColor);
     }
 
-    // For external domains that were just created and not confirmed, fetch DNS info
-    if (!isJson && result.isCreate && result.domain?.includes('.') && !result.confirmed && context?.client) {
+    // For external domains that were just created and not verified, fetch DNS info
+    if (!isJson && result.isCreate && result.domain?.includes('.') && !result.verified && context?.client) {
       try {
         // Fetch records and share info in parallel
         const [records, share] = await Promise.all([
@@ -379,14 +379,17 @@ async function performDeploy(client: Ship, path: string, cmdOptions: any, comman
   if (!existsSync(path)) {
     throw ShipError.file(`${path} path does not exist`, path);
   }
-  
+
   // Check if path is a file or directory
   const stats = statSync(path);
   if (!stats.isDirectory() && !stats.isFile()) {
     throw ShipError.file(`${path} path must be a file or directory`, path);
   }
-  
-  const deployOptions: any = {};
+
+  const deployOptions: any = {
+    // Identify this deployment as coming from the CLI
+    via: 'cli'
+  };
 
   // Handle tags option - Commander.js collect gives us an array directly
   if (cmdOptions?.tag && cmdOptions.tag.length > 0) {
@@ -559,6 +562,7 @@ program
 const deploymentsCmd = program
   .command('deployments')
   .description('Manage deployments')
+  .enablePositionalOptions()
   .action(handleUnknownSubcommand(['list', 'create', 'get', 'remove']));
 
 deploymentsCmd
@@ -569,12 +573,20 @@ deploymentsCmd
 deploymentsCmd
   .command('create <path>')
   .description('Create deployment from file or directory')
+  .passThroughOptions()
   .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(
     function(this: any, client: Ship, path: string, cmdOptions: any) {
-      return performDeploy(client, path, cmdOptions, this);
+      // Merge program options with subcommand options (program options for --tag when defined on both)
+      const programOpts = program.opts();
+      const mergedOptions = {
+        ...cmdOptions,
+        // Use program's tag if subcommand's tag is empty (handles the duplication issue)
+        tag: cmdOptions.tag?.length > 0 ? cmdOptions.tag : programOpts.tag
+      };
+      return performDeploy(client, path, mergedOptions, this);
     },
     { operation: 'create' }
   ));
@@ -599,7 +611,8 @@ deploymentsCmd
 const domainsCmd = program
   .command('domains')
   .description('Manage domains')
-  .action(handleUnknownSubcommand(['list', 'get', 'set', 'confirm', 'remove']));
+  .enablePositionalOptions()
+  .action(handleUnknownSubcommand(['list', 'get', 'set', 'verify', 'remove']));
 
 domainsCmd
   .command('list')
@@ -615,21 +628,24 @@ domainsCmd
   ));
 
 domainsCmd
-  .command('confirm <name>')
-  .description('Trigger DNS confirmation for external domain')
+  .command('verify <name>')
+  .description('Trigger DNS verification for external domain')
   .action(withErrorHandling(
-    (client, name: string) => client.domains.confirm(name),
-    { operation: 'confirm', resourceType: 'Domain', getResourceId: (name: string) => name }
+    (client, name: string) => client.domains.verify(name),
+    { operation: 'verify', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
 domainsCmd
   .command('set <name> <deployment>')
   .description('Create or update domain pointing to deployment')
+  .passThroughOptions()
   .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
   .action(withErrorHandling(
     (client: Ship, name: string, deployment: string, cmdOptions: any) => {
-      // Commander.js collect gives us an array directly
-      const tags = cmdOptions?.tag && cmdOptions.tag.length > 0 ? cmdOptions.tag : undefined;
+      // Merge program options with subcommand options (program options for --tag when defined on both)
+      const programOpts = program.opts();
+      const tagArray = cmdOptions?.tag?.length > 0 ? cmdOptions.tag : programOpts.tag;
+      const tags = tagArray && tagArray.length > 0 ? tagArray : undefined;
       return client.domains.set(name, deployment, tags);
     },
     { operation: 'set', resourceType: 'Domain', getResourceId: (name: string) => name }
@@ -662,7 +678,10 @@ tokensCmd
   .action(withErrorHandling(
     (client: Ship, cmdOptions: any) => {
       const ttl = cmdOptions?.ttl;
-      const tags = cmdOptions?.tag && cmdOptions.tag.length > 0 ? cmdOptions.tag : undefined;
+      // Merge program options with subcommand options (program options for --tag when defined on both)
+      const programOpts = program.opts();
+      const tagArray = cmdOptions?.tag?.length > 0 ? cmdOptions.tag : programOpts.tag;
+      const tags = tagArray && tagArray.length > 0 ? tagArray : undefined;
       return client.tokens.create(ttl, tags);
     },
     { operation: 'create', resourceType: 'Token' }
@@ -870,6 +889,7 @@ completionCmd
 // Deploy shortcut as default action
 program
   .argument('[path]', 'Path to deploy')
+  .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(

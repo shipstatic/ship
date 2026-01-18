@@ -77,3 +77,64 @@ describe('mergeDeployOptions - onProgress callback', () => {
         expect(merged.timeout).toBe(30000);
     });
 });
+
+describe('mergeDeployOptions - caller option', () => {
+    it('should merge caller from client defaults when not in options', () => {
+        const clientDefaults: ShipClientOptions = {
+            apiUrl: 'https://api.example.com',
+            caller: 'my-ci-system'
+        };
+
+        const options: DeploymentOptions = {};
+
+        const merged = mergeDeployOptions(options, clientDefaults);
+
+        expect(merged.caller).toBe('my-ci-system');
+    });
+
+    it('should NOT override options caller with client default', () => {
+        const clientDefaults: ShipClientOptions = {
+            caller: 'client-default-caller'
+        };
+
+        const options: DeploymentOptions = {
+            caller: 'per-deploy-caller'
+        };
+
+        const merged = mergeDeployOptions(options, clientDefaults);
+
+        expect(merged.caller).toBe('per-deploy-caller');
+    });
+
+    it('should preserve undefined when neither has caller', () => {
+        const clientDefaults: ShipClientOptions = {
+            apiUrl: 'https://api.example.com'
+        };
+
+        const options: DeploymentOptions = {};
+
+        const merged = mergeDeployOptions(options, clientDefaults);
+
+        expect(merged.caller).toBeUndefined();
+    });
+
+    it('should merge caller alongside other options', () => {
+        const clientDefaults: ShipClientOptions = {
+            apiUrl: 'https://api.example.com',
+            timeout: 30000,
+            caller: 'github-actions'
+        };
+
+        const options: DeploymentOptions = {
+            tags: ['production'],
+            via: 'cli'
+        };
+
+        const merged = mergeDeployOptions(options, clientDefaults);
+
+        expect(merged.caller).toBe('github-actions');
+        expect(merged.tags).toEqual(['production']);
+        expect(merged.via).toBe('cli');
+        expect(merged.timeout).toBe(30000);
+    });
+});

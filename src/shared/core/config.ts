@@ -92,6 +92,9 @@ export function mergeDeployOptions(
   if (result.onProgress === undefined && clientDefaults.onProgress !== undefined) {
     result.onProgress = clientDefaults.onProgress;
   }
+  if (result.caller === undefined && clientDefaults.caller !== undefined) {
+    result.caller = clientDefaults.caller;
+  }
 
   return result;
 }

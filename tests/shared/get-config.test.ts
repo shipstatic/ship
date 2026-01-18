@@ -651,7 +651,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
 
   describe('Integration: Avoid Duplicate API Calls', () => {
     // Note: Node.js integration test removed - too complex to mock ApiHttp constructor properly.
-    // The Browser integration test below confirms the fix works across environments.
+    // The Browser integration test below validates the fix works across environments.
 
     it('should only call /config API once during cold start in Browser', async () => {
       __setTestEnvironment('browser');
@@ -676,7 +676,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
     });
 
     // Note: Node.js integration test removed - too complex to mock ApiHttp constructor properly.
-    // The Browser integration test below confirms config reuse works across environments.
+    // The Browser integration test below validates config reuse works across environments.
 
     it('should reuse platform config across multiple method calls in Browser', async () => {
       __setTestEnvironment('browser');

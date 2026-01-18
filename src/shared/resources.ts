@@ -113,9 +113,9 @@ export function createDomainResource(getApi: () => ApiHttp, ensureInit?: () => P
       await getApi().removeDomain(domainName);
     },
 
-    confirm: async (domainName: string) => {
+    verify: async (domainName: string) => {
       if (ensureInit) await ensureInit();
-      return getApi().confirmDomain(domainName);
+      return getApi().verifyDomain(domainName);
     },
 
     dns: async (domainName: string) => {

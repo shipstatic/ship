@@ -188,7 +188,7 @@ describe('Resource API Cross-Environment Consistency', () => {
         expect(typeof domainResource.set).toBe('function');
         expect(typeof domainResource.get).toBe('function');
         expect(typeof domainResource.remove).toBe('function');
-        expect(typeof domainResource.confirm).toBe('function');
+        expect(typeof domainResource.verify).toBe('function');
 
         // Test method behavior
         const result = await domainResource.list();
