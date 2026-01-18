@@ -70,11 +70,17 @@ function createMockResponse(data: any, status = 200) {
   };
 }
 
+const mockCreateDeployBody = async () => ({
+  body: new ArrayBuffer(0),
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+
 describe('ApiHttp Browser Compatibility', () => {
   let apiHttp: ApiHttp;
   const mockOptions = {
     apiUrl: 'https://api.test.com',
-    getAuthHeaders: () => ({ 'Authorization': 'Bearer test-api-key' })
+    getAuthHeaders: () => ({ 'Authorization': 'Bearer test-api-key' }),
+    createDeployBody: mockCreateDeployBody
   };
 
   beforeEach(() => {

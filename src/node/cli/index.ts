@@ -41,21 +41,16 @@ program
     }
     
     const globalOptions = program.opts();
-    
-    // Extract the actual error message from Commander.js error
+
     let message = err.message || 'unknown command error';
-    
-    // Clean up common Commander.js error messages
     message = message
-      .replace(/^error: /, '') // Remove Commander's error prefix
-      .replace(/\n.*/, '') // Keep only the first line
-      .replace(/\.$/, '') // Remove trailing period
-      .toLowerCase(); // Make lowercase
-    
-    // Route through our error function for consistent formatting
+      .replace(/^error: /, '')
+      .replace(/\n.*/, '')
+      .replace(/\.$/, '')
+      .toLowerCase();
+
     error(message, globalOptions.json, globalOptions.noColor);
-    
-    // Show help after error (unless in JSON mode)
+
     if (!globalOptions.json) {
       displayHelp(globalOptions.noColor);
     }
@@ -63,17 +58,13 @@ program
     process.exit(err.exitCode || 1);
   })
   .configureOutput({
-    // Suppress Commander's default error output - we handle it in exitOverride
     writeErr: (str) => {
-      // Only suppress error output, allow help/version to go through
       if (!str.startsWith('error:')) {
         process.stderr.write(str);
       }
     },
     writeOut: (str) => process.stdout.write(str)
   });
-
-// CLI formatting helpers are imported from utils.js
 
 
 /**

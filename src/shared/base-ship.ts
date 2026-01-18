@@ -25,7 +25,7 @@ import type {
 } from '@shipstatic/types';
 
 import type { StaticFile } from '@shipstatic/types';
-import type { DeploymentOptions } from './types.js';
+import type { DeploymentOptions, DeployBodyCreator } from './types.js';
 
 /**
  * Authentication state for the Ship instance
@@ -79,28 +79,31 @@ export abstract class Ship {
     this.http = new ApiHttp({
       ...options,
       ...config,
-      getAuthHeaders: this.authHeadersCallback
+      getAuthHeaders: this.authHeadersCallback,
+      createDeployBody: this.getDeployBodyCreator()
     });
 
-    const initCallback = () => this.ensureInitialized();
-    const getApi = () => this.http;
+    const ctx = {
+      getApi: () => this.http,
+      ensureInit: () => this.ensureInitialized()
+    };
 
-    this._deployments = createDeploymentResource(
-      getApi,
-      this.clientOptions,
-      initCallback,
-      (input, options) => this.processInput(input, options),
-      () => this.hasAuth()
-    );
-    this._domains = createDomainResource(getApi, initCallback);
-    this._account = createAccountResource(getApi, initCallback);
-    this._tokens = createTokenResource(getApi, initCallback);
+    this._deployments = createDeploymentResource({
+      ...ctx,
+      processInput: (input, options) => this.processInput(input, options),
+      clientDefaults: this.clientOptions,
+      hasAuth: () => this.hasAuth()
+    });
+    this._domains = createDomainResource(ctx);
+    this._account = createAccountResource(ctx);
+    this._tokens = createTokenResource(ctx);
   }
 
   // Abstract methods that environments must implement
   protected abstract resolveInitialConfig(options: ShipClientOptions): ResolvedConfig;
   protected abstract loadFullConfig(): Promise<void>;
   protected abstract processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]>;
+  protected abstract getDeployBodyCreator(): DeployBodyCreator;
 
   /**
    * Ensure full initialization is complete - called lazily by resources

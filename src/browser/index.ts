@@ -6,7 +6,8 @@ import { Ship as BaseShip } from '../shared/base-ship.js';
 import { setConfig as setPlatformConfig } from '../shared/core/platform-config.js';
 import { resolveConfig, type ResolvedConfig } from '../shared/core/config.js';
 import { ShipError } from '@shipstatic/types';
-import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile } from '../shared/types.js';
+import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../shared/types.js';
+import { createDeployBody } from './core/deploy-body.js';
 
 // Export all shared functionality
 export * from '../shared/index.js';
@@ -61,6 +62,10 @@ export class Ship extends BaseShip {
     // Process files directly
     const { processFilesForBrowser } = await import('./lib/browser-files.js');
     return processFilesForBrowser(input as File[], options);
+  }
+
+  protected getDeployBodyCreator(): DeployBodyCreator {
+    return createDeployBody;
   }
 }
 

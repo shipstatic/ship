@@ -22,11 +22,18 @@ function createMockResponse(data: any, status = 200) {
   };
 }
 
+// Mock deploy body creator for tests
+const mockCreateDeployBody = async (files: any[], tags?: string[], via?: string) => ({
+  body: new ArrayBuffer(0),
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+
 describe('ApiHttp', () => {
   let apiHttp: ApiHttp;
   const mockOptions = {
     apiUrl: 'https://api.test.com',
-    getAuthHeaders: () => ({ 'Authorization': 'Bearer test-api-key' })
+    getAuthHeaders: () => ({ 'Authorization': 'Bearer test-api-key' }),
+    createDeployBody: mockCreateDeployBody
   };
 
   beforeEach(() => {
@@ -43,7 +50,8 @@ describe('ApiHttp', () => {
     it('should work with minimal options', () => {
       const api = new ApiHttp({
         apiUrl: 'https://test.com',
-        getAuthHeaders: () => ({})
+        getAuthHeaders: () => ({}),
+        createDeployBody: mockCreateDeployBody
       });
       expect(api).toBeDefined();
     });
@@ -615,7 +623,8 @@ describe('ApiHttp', () => {
       // Create ApiHttp instance with callback that returns no auth headers
       apiHttpNoCredentials = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({}) // No auth headers - should use cookies
+        getAuthHeaders: () => ({}), // No auth headers - should use cookies
+        createDeployBody: mockCreateDeployBody
       });
     });
 
@@ -639,7 +648,8 @@ describe('ApiHttp', () => {
     it('should NOT include credentials when Authorization header is returned', async () => {
       const apiHttpWithKey = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-key' })
+        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-key' }),
+        createDeployBody: mockCreateDeployBody
       });
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
 
@@ -663,7 +673,8 @@ describe('ApiHttp', () => {
     it('should support deploy tokens via callback', async () => {
       const apiHttpWithToken = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-token' })
+        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-token' }),
+        createDeployBody: mockCreateDeployBody
       });
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
 
@@ -986,6 +997,7 @@ describe('ApiHttp', () => {
       const apiWithTimeout = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
+        createDeployBody: mockCreateDeployBody,
         timeout: 5000
       });
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));

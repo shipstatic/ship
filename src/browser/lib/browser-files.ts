@@ -8,11 +8,6 @@ import { ShipError } from '@shipstatic/types';
 import { filterJunk } from '../../shared/lib/junk.js';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
 
-
-/**
- * Internal structure representing a browser file to be processed for deploy.
- * @internal
- */
 interface BrowserFileProcessItem {
   file: File;
   relativePath: string;
@@ -38,9 +33,11 @@ export async function processFilesForBrowser(
   }
 
   const filesArray = browserFiles;
-  
-  // Extract file paths from browser files, preferring webkitRelativePath for directory structure
-  const filePaths = filesArray.map(file => (file as any).webkitRelativePath || file.name);
+
+  // webkitRelativePath is set by browser when selecting directories, but not in File type definition
+  const filePaths = filesArray.map(file =>
+    (file as unknown as { webkitRelativePath?: string }).webkitRelativePath || file.name
+  );
   
   // Optimize paths for clean deployment URLs
   const deployFiles = optimizeDeployPaths(filePaths, { 

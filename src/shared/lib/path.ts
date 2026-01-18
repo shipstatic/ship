@@ -13,15 +13,13 @@
 export function findCommonParent(dirPaths: string[]): string {
   if (!dirPaths || dirPaths.length === 0) return '';
   
-  // Normalize all paths to use forward slashes
   const normalizedPaths = dirPaths
     .filter(p => p && typeof p === 'string')
     .map(p => p.replace(/\\/g, '/'));
   
   if (normalizedPaths.length === 0) return '';
   if (normalizedPaths.length === 1) return normalizedPaths[0];
-  
-  // Split into segments and find common prefix
+
   const pathSegments = normalizedPaths.map(p => p.split('/').filter(Boolean));
   const commonSegments = [];
   const minLength = Math.min(...pathSegments.map(p => p.length));
