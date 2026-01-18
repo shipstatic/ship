@@ -5,7 +5,7 @@ import type { StaticFile, DeploymentOptions } from '../../../src/shared/types';
 import { ShipError, DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
 
 // Mock the shared SPA detection
-vi.mock('../../../src/shared/lib/prepare-input', () => ({
+vi.mock('../../../src/shared/lib/spa', () => ({
   detectAndConfigureSPA: vi.fn((files, apiClient, options) => {
     // Simple mock that adds SPA config if not present and spaDetect is true
     if (options.spaDetect !== false && !files.some((f: any) => f.path === DEPLOYMENT_CONFIG_FILENAME)) {

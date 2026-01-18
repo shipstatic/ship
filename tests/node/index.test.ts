@@ -17,8 +17,8 @@ vi.mock('../../src/shared/api/http', () => ({
 }));
 
 // Mock Node.js file processing
-vi.mock('../../src/node/core/prepare-input', () => ({
-  convertDeployInput: vi.fn().mockResolvedValue([
+vi.mock('../../src/node/core/node-files', () => ({
+  processFilesForNode: vi.fn().mockResolvedValue([
     { path: 'index.html', content: Buffer.from('<html></html>'), size: 13, md5: 'abc123' }
   ])
 }));
@@ -126,9 +126,9 @@ describe('Ship - Node.js Implementation', () => {
   describe('exported utilities', () => {
     it('should export Node.js specific utilities', async () => {
       const nodeModule = await import('../../src/node/index');
-      
+
       expect(nodeModule.loadConfig).toBeDefined();
-      expect(nodeModule.setConfig).toBeDefined();
+      expect(nodeModule.setPlatformConfig).toBeDefined();
       expect(nodeModule.getCurrentConfig).toBeDefined();
       expect(nodeModule.processFilesForNode).toBeDefined();
       expect(nodeModule.getENV).toBeDefined();
@@ -292,7 +292,7 @@ describe('Ship - Node.js Implementation', () => {
       const mockFiles = [new File(['content'], 'test.txt')] as any;
       
       await expect(ship.deploy(mockFiles))
-        .rejects.toThrow('Invalid input type for Node.js environment. Expected string[] file paths.');
+        .rejects.toThrow('Invalid input type for Node.js environment. Expected string or string[].');
     });
 
     it('should reject FileList input with consistent error message', async () => {
@@ -305,7 +305,7 @@ describe('Ship - Node.js Implementation', () => {
       } as any;
       
       await expect(ship.deploy(mockFileList))
-        .rejects.toThrow('Invalid input type for Node.js environment. Expected string[] file paths.');
+        .rejects.toThrow('Invalid input type for Node.js environment. Expected string or string[].');
     });
 
     it('should reject HTMLInputElement input with consistent error message', async () => {
@@ -318,14 +318,14 @@ describe('Ship - Node.js Implementation', () => {
       } as any;
       
       await expect(ship.deploy(mockInput))
-        .rejects.toThrow('Invalid input type for Node.js environment. Expected string[] file paths.');
+        .rejects.toThrow('Invalid input type for Node.js environment. Expected string or string[].');
     });
 
     it('should reject invalid object types with consistent error message', async () => {
       const ship = new Ship({ apiKey: 'test-key' });
 
       await expect(ship.deploy({ invalid: 'object' } as any))
-        .rejects.toThrow('Invalid input type for Node.js environment. Expected string[] file paths.');
+        .rejects.toThrow('Invalid input type for Node.js environment. Expected string or string[].');
     });
 
     it('should handle empty path arrays with consistent error message', async () => {

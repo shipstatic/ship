@@ -1,7 +1,7 @@
 /**
- * @file Shared SPA detection utilities for both environments.
- * 
- * Provides SPA detection and auto-configuration functionality
+ * @file SPA detection and auto-configuration utilities.
+ *
+ * Provides SPA detection and ship.json generation functionality
  * that can be used by both Node.js and browser environments.
  */
 
@@ -21,9 +21,9 @@ export async function createSPAConfig(): Promise<StaticFile> {
       "destination": "/index.html"
     }]
   };
-  
+
   const configString = JSON.stringify(config, null, 2);
-  
+
   // Create content that works in both browser and Node.js environments
   let content: Buffer | Blob;
   if (typeof Buffer !== 'undefined') {
@@ -33,9 +33,9 @@ export async function createSPAConfig(): Promise<StaticFile> {
     // Browser environment
     content = new Blob([configString], { type: 'application/json' });
   }
-  
+
   const { md5 } = await calculateMD5(content);
-  
+
   return {
     path: DEPLOYMENT_CONFIG_FILENAME,
     content,
@@ -47,25 +47,25 @@ export async function createSPAConfig(): Promise<StaticFile> {
 /**
  * Detects SPA projects and auto-generates configuration.
  * This function can be used by both Node.js and browser environments.
- * 
+ *
  * @param files - Array of StaticFiles to analyze
  * @param apiClient - HTTP client for API communication
  * @param options - Deployment options containing SPA detection settings
  * @returns Promise resolving to files array with optional SPA config added
  */
 export async function detectAndConfigureSPA(
-  files: StaticFile[], 
-  apiClient: ApiHttp, 
+  files: StaticFile[],
+  apiClient: ApiHttp,
   options: DeploymentOptions
 ): Promise<StaticFile[]> {
   // Skip if disabled or config already exists
   if (options.spaDetect === false || files.some(f => f.path === DEPLOYMENT_CONFIG_FILENAME)) {
     return files;
   }
-  
+
   try {
     const isSPA = await apiClient.checkSPA(files);
-    
+
     if (isSPA) {
       const spaConfig = await createSPAConfig();
       return [...files, spaConfig];
@@ -73,6 +73,6 @@ export async function detectAndConfigureSPA(
   } catch (error) {
     // SPA detection failed, continue silently without auto-config
   }
-  
+
   return files;
 }

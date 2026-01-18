@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
-import { detectAndConfigureSPA, createSPAConfig } from '../../src/shared/lib/prepare-input';
+import { detectAndConfigureSPA, createSPAConfig } from '../../src/shared/lib/spa';
 import { createDeploymentResource } from '../../src/shared/resources';
 import { DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
 import type { StaticFile, DeploymentOptions } from '../../src/shared/types';

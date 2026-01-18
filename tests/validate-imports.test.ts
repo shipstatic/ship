@@ -34,7 +34,7 @@ describe('Import Validation for New Structure', () => {
   });
 
   it('should import shared SPA detection', async () => {
-    const { createSPAConfig, detectAndConfigureSPA } = await import('../src/shared/lib/prepare-input');
+    const { createSPAConfig, detectAndConfigureSPA } = await import('../src/shared/lib/spa');
     expect(typeof createSPAConfig).toBe('function');
     expect(typeof detectAndConfigureSPA).toBe('function');
   });
