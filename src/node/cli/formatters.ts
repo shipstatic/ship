@@ -51,7 +51,7 @@ export function formatDomainsList(result: any, context: OutputContext, options: 
     return;
   }
 
-  const columns = ['url', 'deployment', 'tags', 'created'];
+  const columns = ['url', 'deployment', 'tags', 'bound', 'created'];
   console.log(formatTable(result.domains, columns, noColor, { url: 'domain' }));
 }
 
@@ -62,9 +62,10 @@ export function formatDomainsList(result: any, context: OutputContext, options: 
 export function formatDomain(result: any, context: OutputContext, options: FormatOptions): void {
   const { isJson, noColor } = options;
 
-  // Show success message for set operations
-  if (result.domain && context.operation === 'set') {
-    const verb = result.isCreate ? 'created' : 'updated';
+  // Show success message for set/update operations
+  if (result.domain && (context.operation === 'set' || context.operation === 'update')) {
+    const verb = context.operation === 'update' ? 'updated'
+      : result.isCreate ? 'created' : 'updated';
     success(`${result.domain} domain ${verb}`, isJson, noColor);
   }
 
