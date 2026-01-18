@@ -14,16 +14,12 @@ import { DEFAULT_API, type PlatformConfig, type ResolvedConfig } from '@shipstat
 import type { ShipClientOptions, DeploymentOptions } from '../types.js';
 import { getENV } from '../lib/env.js';
 
-// Re-export for backward compatibility
-export type Config = PlatformConfig;
-
-// Re-export ResolvedConfig from types package
 export type { ResolvedConfig } from '@shipstatic/types';
 
 /**
  * Cross-environment config loader that dispatches to appropriate implementation.
  */
-export async function loadConfig(configFile?: string): Promise<Config> {
+export async function loadConfig(configFile?: string): Promise<PlatformConfig> {
   const env = getENV();
 
   if (env === 'browser') {

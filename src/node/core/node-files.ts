@@ -128,8 +128,7 @@ export async function processFilesForNode(
     try {
       const stats = fs.statSync(filePath);
       if (stats.size === 0) {
-        console.warn(`Skipping empty file: ${filePath}`);
-        continue; // Skip empty files
+        continue;
       }
 
       // Validate file sizes

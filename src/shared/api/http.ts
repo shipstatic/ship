@@ -97,14 +97,10 @@ export class ApiHttp extends SimpleEvents {
         await this.handleResponseError(response, operationName);
       }
 
-      // Clone response BEFORE any consumption for reliable event handling
       const responseForEvent = this.safeClone(response);
       const responseForParsing = this.safeClone(response);
 
-      // Emit event with dedicated clone
       this.emit('response', responseForEvent, url);
-
-      // Parse response with dedicated clone
       return await this.parseResponse<T>(responseForParsing);
     } catch (error: any) {
       clearTimeout(timeoutId);
@@ -166,14 +162,10 @@ export class ApiHttp extends SimpleEvents {
         await this.handleResponseError(response, operationName);
       }
 
-      // Clone response BEFORE any consumption for reliable event handling
       const responseForEvent = this.safeClone(response);
       const responseForParsing = this.safeClone(response);
 
-      // Emit event with dedicated clone
       this.emit('response', responseForEvent, url);
-
-      // Parse response with dedicated clone
       const data = await this.parseResponse<T>(responseForParsing);
       return { data, status: response.status };
     } catch (error: any) {

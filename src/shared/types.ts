@@ -48,13 +48,7 @@ export interface DeploymentOptions {
   caller?: string;
 }
 
-/**
- * Options for configuring an deploy operation via `apiClient.deployFiles`.
- * Derived from DeploymentOptions but excludes client-side only options.
- */
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
-
-// ProgressInfo is now exported from @shipstatic/types (via export * above)
 
 // =============================================================================
 // CLIENT CONFIGURATION
@@ -121,11 +115,3 @@ export interface ShipEvents extends Record<string, any[]> {
   /** Emitted when API request fails */
   error: [error: Error, url: string];
 }
-
-// StaticFile is now imported from @shipstatic/types
-
-// =============================================================================
-// API RESPONSES
-// =============================================================================
-
-// PingResponse is imported from @shipstatic/types (single source of truth)
