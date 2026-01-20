@@ -18,19 +18,30 @@ npm install @shipstatic/ship
 # Deploy a directory
 ship ./dist
 
-# Deploy current directory
-ship
+# Deploy with tags
+ship ./dist --tag production --tag v1.0.0
 
-# With tags
-ship deployments create ./dist --tag production --tag v1.0.0
+# Deployments
+ship deployments list
+ship deployments get <id>
+ship deployments set <id> --tag production      # Update tags
+ship deployments remove <id>
 
-# Manage domains
+# Domains
 ship domains list
-ship domains set staging abc123
+ship domains set staging <deployment-id>        # Point domain to deployment
+ship domains set staging --tag production       # Update domain tags
+ship domains get staging
 ship domains verify www.example.com
+ship domains remove staging
 
-# Account info
-ship account
+# Tokens
+ship tokens list
+ship tokens create --ttl 3600 --tag ci
+ship tokens remove <token>
+
+# Account
+ship whoami
 ```
 
 ## SDK Usage
@@ -50,8 +61,12 @@ const result = await ship.deployments.create('./dist', {
 console.log(`Deployed: ${result.url}`);
 
 // Manage domains
-await ship.domains.set('staging', result.deployment);
+await ship.domains.set('staging', { deployment: result.deployment });
 await ship.domains.list();
+
+// Update tags
+await ship.deployments.set(result.deployment, { tags: ['production', 'v1.0'] });
+await ship.domains.set('staging', { tags: ['live'] });
 ```
 
 ## Browser Usage
@@ -105,23 +120,45 @@ SHIP_API_KEY=ship-your-api-key
 
 ```typescript
 // Deployments
-ship.deployments.create(input, options?)
-ship.deployments.list()
-ship.deployments.get(id)
-ship.deployments.remove(id)
+ship.deployments.create(input, options?)    // Create new deployment
+ship.deployments.list()                      // List all deployments
+ship.deployments.get(id)                     // Get deployment details
+ship.deployments.set(id, { tags })           // Update deployment tags
+ship.deployments.remove(id)                  // Delete deployment
 
 // Domains
-ship.domains.set(name, deploymentId, tags?)
-ship.domains.get(name)
-ship.domains.list()
-ship.domains.remove(name)
-ship.domains.verify(name)
+ship.domains.set(name, { deployment?, tags? })  // Create/update domain (see below)
+ship.domains.get(name)                          // Get domain details
+ship.domains.list()                             // List all domains
+ship.domains.remove(name)                       // Delete domain
+ship.domains.verify(name)                       // Trigger DNS verification
+
+// Tokens
+ship.tokens.create({ ttl?, tags? })          // Create deploy token
+ship.tokens.list()                           // List all tokens
+ship.tokens.remove(token)                    // Revoke token
 
 // Account
-ship.account.get()
+ship.whoami()                                // Get current account
 
 // Connectivity
-ship.ping()
+ship.ping()                                  // Check API connectivity
+```
+
+### domains.set() Behavior
+
+```typescript
+// Point domain to deployment
+ship.domains.set('staging', { deployment: 'abc123' });
+
+// Point domain to deployment with tags
+ship.domains.set('staging', { deployment: 'abc123', tags: ['prod'] });
+
+// Update tags only (domain must exist)
+ship.domains.set('staging', { tags: ['prod', 'v2'] });
+
+// Error: must provide deployment or tags
+ship.domains.set('staging', {});  // throws validation error
 ```
 
 ### Events
