@@ -61,9 +61,9 @@ describe('Concurrent Operations', () => {
     it('should handle concurrent domain operations', async () => {
       // Create multiple domains concurrently
       const results = await Promise.all([
-        ship.domains.set('concurrent-1', 'test-deployment-1'),
-        ship.domains.set('concurrent-2', 'test-deployment-1'),
-        ship.domains.set('concurrent-3', 'test-deployment-1'),
+        ship.domains.set('concurrent-1', { deployment: 'test-deployment-1' }),
+        ship.domains.set('concurrent-2', { deployment: 'test-deployment-1' }),
+        ship.domains.set('concurrent-3', { deployment: 'test-deployment-1' }),
       ]);
 
       expect(results).toHaveLength(3);

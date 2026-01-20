@@ -217,7 +217,7 @@ describe('Resource API Cross-Environment Consistency', () => {
         const { createDomainResource } = await import('../../src/shared/resources');
         const domainResource = createDomainResource({ getApi: () => mockApiClient, ensureInit: async () => {} });
 
-        const result = await domainResource.set(domainName, deployment);
+        const result = await domainResource.set(domainName, { deployment });
         results.push(result);
       }
 

@@ -80,16 +80,16 @@ function displayHelp(noColor?: boolean) {
 ${applyBold('COMMANDS')}
   📦 ${applyBold('Deployments')}
   ship deployments list                 List all deployments
-  ship deployments create <path>        Create deployment from file or directory
-  ship deployments get <deployment>     Show deployment information
-  ship deployments remove <deployment>  Delete deployment permanently
+  ship deployments create <path>        Create deployment from directory
+  ship deployments get <id>             Show deployment information
+  ship deployments set <id>             Set deployment tags
+  ship deployments remove <id>          Delete deployment permanently
 
   🌎 ${applyBold('Domains')}
   ship domains list                     List all domains
-  ship domains set <name> <deployment>  Create or update domain pointing to deployment
-  ship domains update <name>            Update domain tags
+  ship domains set <name> [deployment]  Point domain to deployment, or update tags
   ship domains get <name>               Show domain information
-  ship domains verify <name>            Manually trigger DNS verification for external domain
+  ship domains verify <name>            Trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
 
   🔑 ${applyBold('Tokens')}
@@ -250,28 +250,11 @@ function withErrorHandling<T extends any[], R>(
 }
 
 /**
- * Create Ship client with synchronous constructor
+ * Create Ship client from CLI options
  */
 function createClient(): Ship {
-  const options = program.opts();
-  const shipOptions: any = {};
-  
-  // Only include options that are actually set (not undefined)
-  if (options.config !== undefined) {
-    shipOptions.configFile = options.config;
-  }
-  if (options.apiUrl !== undefined) {
-    shipOptions.apiUrl = options.apiUrl;
-  }
-  if (options.apiKey !== undefined) {
-    shipOptions.apiKey = options.apiKey;
-  }
-  if (options.deployToken !== undefined) {
-    shipOptions.deployToken = options.deployToken;
-  }
-  
-  // Use synchronous constructor - initialization happens lazily
-  return new Ship(shipOptions);
+  const { config, apiUrl, apiKey, deployToken } = program.opts();
+  return new Ship({ configFile: config, apiUrl, apiKey, deployToken });
 }
 
 /**
@@ -395,14 +378,14 @@ program.hook('preAction', (thisCommand, actionCommand) => {
 program
   .command('ping')
   .description('Check API connectivity')
-  .action(withErrorHandling((client) => client.ping()));
+  .action(withErrorHandling((client: Ship) => client.ping()));
 
 // Whoami shortcut - alias for account get
 program
   .command('whoami')
   .description('Get current account information')
   .action(withErrorHandling(
-    (client) => client.whoami(),
+    (client: Ship) => client.whoami(),
     { operation: 'get', resourceType: 'Account' }
   ));
 
@@ -411,12 +394,12 @@ const deploymentsCmd = program
   .command('deployments')
   .description('Manage deployments')
   .enablePositionalOptions()
-  .action(handleUnknownSubcommand(['list', 'create', 'get', 'remove']));
+  .action(handleUnknownSubcommand(['list', 'create', 'get', 'set', 'remove']));
 
 deploymentsCmd
   .command('list')
   .description('List all deployments')
-  .action(withErrorHandling((client) => client.deployments.list()));
+  .action(withErrorHandling((client: Ship) => client.deployments.list()));
 
 deploymentsCmd
   .command('create <path>')
@@ -436,15 +419,28 @@ deploymentsCmd
   .command('get <deployment>')
   .description('Show deployment information')
   .action(withErrorHandling(
-    (client, deployment: string) => client.deployments.get(deployment),
-    { operation: 'get', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
+    (client: Ship, deployment: string) => client.deployments.get(deployment),
+    { operation: 'get', resourceType: 'Deployment', getResourceId: (id: string) => id }
+  ));
+
+deploymentsCmd
+  .command('set <deployment>')
+  .description('Set deployment tags')
+  .passThroughOptions()
+  .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
+  .action(withErrorHandling(
+    async (client: Ship, deployment: string, cmdOptions: any) => {
+      const tags = mergeTagOption(cmdOptions, program.opts()) || [];
+      return client.deployments.set(deployment, { tags });
+    },
+    { operation: 'set', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
   ));
 
 deploymentsCmd
   .command('remove <deployment>')
   .description('Delete deployment permanently')
   .action(withErrorHandling(
-    (client, deployment: string) => client.deployments.remove(deployment),
+    (client: Ship, deployment: string) => client.deployments.remove(deployment),
     { operation: 'remove', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
   ));
 
@@ -453,18 +449,18 @@ const domainsCmd = program
   .command('domains')
   .description('Manage domains')
   .enablePositionalOptions()
-  .action(handleUnknownSubcommand(['list', 'get', 'set', 'update', 'verify', 'remove']));
+  .action(handleUnknownSubcommand(['list', 'get', 'set', 'verify', 'remove']));
 
 domainsCmd
   .command('list')
   .description('List all domains')
-  .action(withErrorHandling((client) => client.domains.list()));
+  .action(withErrorHandling((client: Ship) => client.domains.list()));
 
 domainsCmd
   .command('get <name>')
   .description('Show domain information')
   .action(withErrorHandling(
-    (client, name: string) => client.domains.get(name),
+    (client: Ship, name: string) => client.domains.get(name),
     { operation: 'get', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
@@ -472,19 +468,29 @@ domainsCmd
   .command('verify <name>')
   .description('Trigger DNS verification for external domain')
   .action(withErrorHandling(
-    (client, name: string) => client.domains.verify(name),
+    (client: Ship, name: string) => client.domains.verify(name),
     { operation: 'verify', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
 domainsCmd
-  .command('set <name> <deployment>')
-  .description('Create or update domain pointing to deployment')
+  .command('set <name> [deployment]')
+  .description('Point domain to deployment, or update tags')
   .passThroughOptions()
-  .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
+  .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
   .action(withErrorHandling(
-    async (client: Ship, name: string, deployment: string, cmdOptions: any) => {
+    async (client: Ship, name: string, deployment: string | undefined, cmdOptions: any) => {
       const tags = mergeTagOption(cmdOptions, program.opts());
-      const result = await client.domains.set(name, deployment, tags);
+
+      // Validate: must provide either deployment or tags
+      if (!deployment && (!tags || tags.length === 0)) {
+        throw ShipError.validation('Must provide deployment or --tag');
+      }
+
+      const options: { deployment?: string; tags?: string[] } = {};
+      if (deployment) options.deployment = deployment;
+      if (tags && tags.length > 0) options.tags = tags;
+
+      const result = await client.domains.set(name, options);
 
       // Enrich with DNS info for new external domains (pure formatter will display it)
       if (result.isCreate && name.includes('.') && !result.verified) {
@@ -508,23 +514,10 @@ domainsCmd
   ));
 
 domainsCmd
-  .command('update <name>')
-  .description('Update domain tags')
-  .passThroughOptions()
-  .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
-  .action(withErrorHandling(
-    async (client: Ship, name: string, cmdOptions: any) => {
-      const tags = mergeTagOption(cmdOptions, program.opts()) || [];
-      return client.domains.update(name, tags);
-    },
-    { operation: 'update', resourceType: 'Domain', getResourceId: (name: string) => name }
-  ));
-
-domainsCmd
   .command('remove <name>')
   .description('Delete domain permanently')
   .action(withErrorHandling(
-    (client, name: string) => client.domains.remove(name),
+    (client: Ship, name: string) => client.domains.remove(name),
     { operation: 'remove', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
@@ -532,23 +525,26 @@ domainsCmd
 const tokensCmd = program
   .command('tokens')
   .description('Manage deploy tokens')
+  .enablePositionalOptions()
   .action(handleUnknownSubcommand(['list', 'create', 'remove']));
 
 tokensCmd
   .command('list')
   .description('List all tokens')
-  .action(withErrorHandling((client) => client.tokens.list()));
+  .action(withErrorHandling((client: Ship) => client.tokens.list()));
 
 tokensCmd
   .command('create')
   .description('Create a new deploy token')
   .option('--ttl <seconds>', 'Time to live in seconds (default: never expires)', parseInt)
-  .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
+  .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
   .action(withErrorHandling(
     (client: Ship, cmdOptions: any) => {
-      const ttl = cmdOptions?.ttl;
+      const options: { ttl?: number; tags?: string[] } = {};
+      if (cmdOptions?.ttl !== undefined) options.ttl = cmdOptions.ttl;
       const tags = mergeTagOption(cmdOptions, program.opts());
-      return client.tokens.create(ttl, tags);
+      if (tags && tags.length > 0) options.tags = tags;
+      return client.tokens.create(options);
     },
     { operation: 'create', resourceType: 'Token' }
   ));
@@ -557,7 +553,7 @@ tokensCmd
   .command('remove <token>')
   .description('Delete token permanently')
   .action(withErrorHandling(
-    (client, token: string) => client.tokens.remove(token),
+    (client: Ship, token: string) => client.tokens.remove(token),
     { operation: 'remove', resourceType: 'Token', getResourceId: (token: string) => token }
   ));
 
@@ -571,7 +567,7 @@ accountCmd
   .command('get')
   .description('Show account information')
   .action(withErrorHandling(
-    (client) => client.whoami(),
+    (client: Ship) => client.whoami(),
     { operation: 'get', resourceType: 'Account' }
   ));
 

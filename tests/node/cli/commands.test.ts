@@ -90,22 +90,21 @@ describe('CLI Commands', () => {
       expect(result.stderr).toContain('not found');
     });
 
-    it('should handle domains update command', async () => {
-      // Update the pre-seeded domain with new tags
-      const result = await runCli(['domains', 'update', 'staging', '--tag', 'updated-tag']);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('staging');
-      expect(result.stdout).toContain('updated');
-    });
-
-    it('should handle domains update with multiple tags', async () => {
-      const result = await runCli(['domains', 'update', 'staging', '--tag', 'tag1', '--tag', 'tag2']);
+    it('should handle domains set with tags only', async () => {
+      // Update the pre-seeded domain with new tags using set
+      const result = await runCli(['domains', 'set', 'staging', '--tag', 'updated-tag']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('staging');
     });
 
-    it('should handle domains update for non-existent domain', async () => {
-      const result = await runCli(['domains', 'update', 'non-existent-domain', '--tag', 'test'], { expectFailure: true });
+    it('should handle domains set with multiple tags', async () => {
+      const result = await runCli(['domains', 'set', 'staging', '--tag', 'tag1', '--tag', 'tag2']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('staging');
+    });
+
+    it('should handle domains set with tags for non-existent domain', async () => {
+      const result = await runCli(['domains', 'set', 'non-existent-domain', '--tag', 'test'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('not found');
     });
@@ -113,8 +112,8 @@ describe('CLI Commands', () => {
     it('should show domains help', async () => {
       const result = await runCli(['domains', '--help']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('update');
-      expect(result.stdout).toContain('Update domain tags');
+      expect(result.stdout).toContain('set');
+      expect(result.stdout).toContain('Point domain to deployment');
     });
   });
 

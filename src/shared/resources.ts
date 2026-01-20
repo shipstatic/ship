@@ -75,14 +75,19 @@ export function createDeploymentResource(ctx: DeploymentResourceContext): Deploy
       return getApi().listDeployments();
     },
 
-    remove: async (id: string) => {
-      await ensureInit();
-      await getApi().removeDeployment(id);
-    },
-
     get: async (id: string) => {
       await ensureInit();
       return getApi().getDeployment(id);
+    },
+
+    set: async (id: string, options: { tags: string[] }) => {
+      await ensureInit();
+      return getApi().updateDeploymentTags(id, options.tags);
+    },
+
+    remove: async (id: string) => {
+      await ensureInit();
+      await getApi().removeDeployment(id);
     }
   };
 }
@@ -91,19 +96,20 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
   const { getApi, ensureInit } = ctx;
 
   return {
-    set: async (domainName: string, deployment?: string, tags?: string[]) => {
+    set: async (name: string, options: { deployment?: string; tags?: string[] } = {}) => {
       await ensureInit();
-      return getApi().setDomain(domainName, deployment, tags);
-    },
+      const { deployment, tags } = options;
 
-    update: async (domainName: string, tags: string[]) => {
-      await ensureInit();
-      return getApi().updateDomainTags(domainName, tags);
-    },
+      // Validate: must provide deployment or non-empty tags (matches CLI behavior)
+      if (deployment === undefined && (!tags || tags.length === 0)) {
+        throw ShipError.validation('Must provide deployment or tags');
+      }
 
-    get: async (domainName: string) => {
-      await ensureInit();
-      return getApi().getDomain(domainName);
+      // Smart routing: if only tags provided, use PATCH; otherwise PUT
+      if (deployment === undefined && tags !== undefined) {
+        return getApi().updateDomainTags(name, tags);
+      }
+      return getApi().setDomain(name, deployment, tags);
     },
 
     list: async () => {
@@ -111,29 +117,34 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
       return getApi().listDomains();
     },
 
-    remove: async (domainName: string) => {
+    get: async (name: string) => {
       await ensureInit();
-      await getApi().removeDomain(domainName);
+      return getApi().getDomain(name);
     },
 
-    verify: async (domainName: string) => {
+    remove: async (name: string) => {
       await ensureInit();
-      return getApi().verifyDomain(domainName);
+      await getApi().removeDomain(name);
     },
 
-    dns: async (domainName: string) => {
+    verify: async (name: string) => {
       await ensureInit();
-      return getApi().getDomainDns(domainName);
+      return getApi().verifyDomain(name);
     },
 
-    records: async (domainName: string) => {
+    dns: async (name: string) => {
       await ensureInit();
-      return getApi().getDomainRecords(domainName);
+      return getApi().getDomainDns(name);
     },
 
-    share: async (domainName: string) => {
+    records: async (name: string) => {
       await ensureInit();
-      return getApi().getDomainShare(domainName);
+      return getApi().getDomainRecords(name);
+    },
+
+    share: async (name: string) => {
+      await ensureInit();
+      return getApi().getDomainShare(name);
     }
   };
 }
@@ -153,9 +164,9 @@ export function createTokenResource(ctx: ResourceContext): TokenResource {
   const { getApi, ensureInit } = ctx;
 
   return {
-    create: async (ttl?: number, tags?: string[]) => {
+    create: async (options: { ttl?: number; tags?: string[] } = {}) => {
       await ensureInit();
-      return getApi().createToken(ttl, tags);
+      return getApi().createToken(options.ttl, options.tags);
     },
 
     list: async () => {

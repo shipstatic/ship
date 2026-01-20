@@ -312,8 +312,8 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect.fail('Should have thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(ShipError);
-        // Generic errors become business errors
-        expect((error as ShipError).message).toContain('unexpected error');
+        // Generic errors become business errors with operation name prefix
+        expect((error as ShipError).message).toContain('Ping failed');
       }
     });
   });

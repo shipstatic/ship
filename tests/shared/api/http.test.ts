@@ -988,7 +988,7 @@ describe('ApiHttp', () => {
       const typeError = new TypeError('fetch failed');
       (global.fetch as any).mockRejectedValue(typeError);
 
-      await expect(apiHttp.ping()).rejects.toThrow('network error');
+      await expect(apiHttp.ping()).rejects.toThrow('fetch failed');
     });
   });
 
@@ -1027,8 +1027,8 @@ describe('ApiHttp', () => {
       expect(result).toEqual({ ...mockDomain, isCreate: false });
     });
 
-    it('should set domain with empty tags array (not included in body)', async () => {
-      const mockDomain = { domain: 'staging', deployment: 'dep1' };
+    it('should set domain with empty tags array (included in body to clear tags)', async () => {
+      const mockDomain = { domain: 'staging', deployment: 'dep1', tags: [] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
 
       const result = await apiHttp.setDomain('staging', 'dep1', []);
@@ -1037,7 +1037,7 @@ describe('ApiHttp', () => {
         'https://api.test.com/domains/staging',
         expect.objectContaining({
           method: 'PUT',
-          body: JSON.stringify({ deployment: 'dep1' })
+          body: JSON.stringify({ deployment: 'dep1', tags: [] })
         })
       );
       expect(result).toEqual({ ...mockDomain, isCreate: false });

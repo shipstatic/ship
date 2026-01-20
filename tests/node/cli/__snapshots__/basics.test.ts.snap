@@ -25,16 +25,16 @@ exports[`CLI Basics > Output Snapshots > help output should match snapshot 1`] =
 COMMANDS
   📦 Deployments
   ship deployments list                 List all deployments
-  ship deployments create <path>        Create deployment from file or directory
-  ship deployments get <deployment>     Show deployment information
-  ship deployments remove <deployment>  Delete deployment permanently
+  ship deployments create <path>        Create deployment from directory
+  ship deployments get <id>             Show deployment information
+  ship deployments set <id>             Set deployment tags
+  ship deployments remove <id>          Delete deployment permanently
 
   🌎 Domains
   ship domains list                     List all domains
-  ship domains set <name> <deployment>  Create or update domain pointing to deployment
-  ship domains update <name>            Update domain tags
+  ship domains set <name> [deployment]  Point domain to deployment, or update tags
   ship domains get <name>               Show domain information
-  ship domains verify <name>            Manually trigger DNS verification for external domain
+  ship domains verify <name>            Trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
 
   🔑 Tokens
@@ -71,16 +71,16 @@ exports[`CLI Basics > Output Snapshots > no args help output should match snapsh
 COMMANDS
   📦 Deployments
   ship deployments list                 List all deployments
-  ship deployments create <path>        Create deployment from file or directory
-  ship deployments get <deployment>     Show deployment information
-  ship deployments remove <deployment>  Delete deployment permanently
+  ship deployments create <path>        Create deployment from directory
+  ship deployments get <id>             Show deployment information
+  ship deployments set <id>             Set deployment tags
+  ship deployments remove <id>          Delete deployment permanently
 
   🌎 Domains
   ship domains list                     List all domains
-  ship domains set <name> <deployment>  Create or update domain pointing to deployment
-  ship domains update <name>            Update domain tags
+  ship domains set <name> [deployment]  Point domain to deployment, or update tags
   ship domains get <name>               Show domain information
-  ship domains verify <name>            Manually trigger DNS verification for external domain
+  ship domains verify <name>            Trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
 
   🔑 Tokens
@@ -117,16 +117,16 @@ exports[`CLI Basics > Tokens Command Snapshots > tokens help should match expect
 COMMANDS
   📦 Deployments
   ship deployments list                 List all deployments
-  ship deployments create <path>        Create deployment from file or directory
-  ship deployments get <deployment>     Show deployment information
-  ship deployments remove <deployment>  Delete deployment permanently
+  ship deployments create <path>        Create deployment from directory
+  ship deployments get <id>             Show deployment information
+  ship deployments set <id>             Set deployment tags
+  ship deployments remove <id>          Delete deployment permanently
 
   🌎 Domains
   ship domains list                     List all domains
-  ship domains set <name> <deployment>  Create or update domain pointing to deployment
-  ship domains update <name>            Update domain tags
+  ship domains set <name> [deployment]  Point domain to deployment, or update tags
   ship domains get <name>               Show domain information
-  ship domains verify <name>            Manually trigger DNS verification for external domain
+  ship domains verify <name>            Trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
 
   🔑 Tokens

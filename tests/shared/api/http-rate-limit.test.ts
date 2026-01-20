@@ -31,7 +31,7 @@ describe('Rate Limiting (429 responses)', () => {
     it('should rate limit repeated DNS verification requests', async () => {
       // Use unique domain to avoid cross-test pollution
       const domain = `rate-limit-${Date.now()}.com`;
-      await ship.domains.set(domain, 'test-deployment-1');
+      await ship.domains.set(domain, { deployment: 'test-deployment-1' });
 
       // First verification should succeed
       await ship.domains.verify(domain);
@@ -47,8 +47,8 @@ describe('Rate Limiting (429 responses)', () => {
       const domain1 = `domain1-${Date.now()}.com`;
       const domain2 = `domain2-${Date.now()}.com`;
 
-      await ship.domains.set(domain1, 'test-deployment-1');
-      await ship.domains.set(domain2, 'test-deployment-1');
+      await ship.domains.set(domain1, { deployment: 'test-deployment-1' });
+      await ship.domains.set(domain2, { deployment: 'test-deployment-1' });
 
       // Both should succeed (different domains, different rate limits)
       await ship.domains.verify(domain1);
@@ -58,7 +58,7 @@ describe('Rate Limiting (429 responses)', () => {
     it('should not rate limit first verification request', async () => {
       // Use unique domain
       const domain = `first-verify-${Date.now()}.com`;
-      await ship.domains.set(domain, 'test-deployment-1');
+      await ship.domains.set(domain, { deployment: 'test-deployment-1' });
 
       // First request should always succeed
       const result = await ship.domains.verify(domain);
@@ -96,9 +96,9 @@ describe('Rate Limiting (429 responses)', () => {
 
     it('should allow multiple domain operations', async () => {
       // Create multiple domains
-      await ship.domains.set('test1', 'test-deployment-1');
-      await ship.domains.set('test2', 'test-deployment-1');
-      await ship.domains.set('test3', 'test-deployment-1');
+      await ship.domains.set('test1', { deployment: 'test-deployment-1' });
+      await ship.domains.set('test2', { deployment: 'test-deployment-1' });
+      await ship.domains.set('test3', { deployment: 'test-deployment-1' });
 
       // All should succeed
       const list = await ship.domains.list();
@@ -110,7 +110,7 @@ describe('Rate Limiting (429 responses)', () => {
     it('should return 429 status for rate-limited domain verification', async () => {
       // Use unique domain
       const domain = `error-format-${Date.now()}.com`;
-      await ship.domains.set(domain, 'test-deployment-1');
+      await ship.domains.set(domain, { deployment: 'test-deployment-1' });
       await ship.domains.verify(domain);
 
       // Verify error format

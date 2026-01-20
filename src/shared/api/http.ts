@@ -22,22 +22,39 @@ import type { ApiDeployOptions, ShipClientOptions, ShipEvents, DeployBodyCreator
 import { ShipError, DEFAULT_API } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 
-// Internal endpoints
-const DEPLOY_ENDPOINT = '/deployments';
-const PING_ENDPOINT = '/ping';
-const DOMAINS_ENDPOINT = '/domains';
-const CONFIG_ENDPOINT = '/config';
-const ACCOUNT_ENDPOINT = '/account';
-const TOKENS_ENDPOINT = '/tokens';
-const SPA_CHECK_ENDPOINT = '/spa-check';
+// =============================================================================
+// CONSTANTS
+// =============================================================================
 
-// Default timeout for HTTP requests (30 seconds)
+const ENDPOINTS = {
+  DEPLOYMENTS: '/deployments',
+  DOMAINS: '/domains',
+  TOKENS: '/tokens',
+  ACCOUNT: '/account',
+  CONFIG: '/config',
+  PING: '/ping',
+  SPA_CHECK: '/spa-check'
+} as const;
+
 const DEFAULT_REQUEST_TIMEOUT = 30000;
+
+// =============================================================================
+// TYPES
+// =============================================================================
 
 export interface ApiHttpOptions extends ShipClientOptions {
   getAuthHeaders: () => Record<string, string>;
   createDeployBody: DeployBodyCreator;
 }
+
+interface RequestResult<T> {
+  data: T;
+  status: number;
+}
+
+// =============================================================================
+// HTTP CLIENT
+// =============================================================================
 
 export class ApiHttp extends SimpleEvents {
   private readonly apiUrl: string;
@@ -54,27 +71,26 @@ export class ApiHttp extends SimpleEvents {
   }
 
   /**
-   * Transfer events to another client (clean intentional API)
+   * Transfer events to another client
    */
   transferEventsTo(target: ApiHttp): void {
     this.transfer(target);
   }
 
+  // ===========================================================================
+  // CORE REQUEST INFRASTRUCTURE
+  // ===========================================================================
 
   /**
-   * Make authenticated HTTP request with events and timeout
+   * Execute HTTP request with timeout, events, and error handling
    */
-  private async request<T>(url: string, options: RequestInit = {}, operationName: string): Promise<T> {
-    const headers = this.getAuthHeaders(options.headers as Record<string, string>);
-
-    // Set up timeout with AbortController
-    const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), this.timeout);
-
-    // Combine with any existing signal from options
-    const signal = options.signal
-      ? this.combineSignals(options.signal, timeoutController.signal)
-      : timeoutController.signal;
+  private async executeRequest<T>(
+    url: string,
+    options: RequestInit,
+    operationName: string
+  ): Promise<RequestResult<T>> {
+    const headers = this.mergeHeaders(options.headers as Record<string, string>);
+    const { signal, cleanup } = this.createTimeoutSignal(options.signal);
 
     const fetchOptions: RequestInit = {
       ...options,
@@ -83,90 +99,21 @@ export class ApiHttp extends SimpleEvents {
       signal,
     };
 
-    // Emit request event
     this.emit('request', url, fetchOptions);
 
     try {
       const response = await fetch(url, fetchOptions);
-      clearTimeout(timeoutId);
+      cleanup();
 
       if (!response.ok) {
         await this.handleResponseError(response, operationName);
       }
 
-      const responseForEvent = this.safeClone(response);
-      const responseForParsing = this.safeClone(response);
-
-      this.emit('response', responseForEvent, url);
-      return await this.parseResponse<T>(responseForParsing);
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      this.emit('error', error, url);
-      this.handleFetchError(error, operationName);
-      throw error;
-    }
-  }
-
-  /**
-   * Combine multiple AbortSignals into one
-   */
-  private combineSignals(userSignal: AbortSignal, timeoutSignal: AbortSignal): AbortSignal {
-    const controller = new AbortController();
-
-    const abort = () => controller.abort();
-    userSignal.addEventListener('abort', abort);
-    timeoutSignal.addEventListener('abort', abort);
-
-    // If either is already aborted, abort immediately
-    if (userSignal.aborted || timeoutSignal.aborted) {
-      controller.abort();
-    }
-
-    return controller.signal;
-  }
-
-  /**
-   * Make request and return both data and HTTP status code
-   * Used when the caller needs to inspect the status (e.g., 201 vs 200)
-   */
-  private async requestWithStatus<T>(url: string, options: RequestInit = {}, operationName: string): Promise<{ data: T; status: number }> {
-    const headers = this.getAuthHeaders(options.headers as Record<string, string>);
-
-    // Set up timeout with AbortController
-    const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), this.timeout);
-
-    // Combine with any existing signal from options
-    const signal = options.signal
-      ? this.combineSignals(options.signal, timeoutController.signal)
-      : timeoutController.signal;
-
-    const fetchOptions: RequestInit = {
-      ...options,
-      headers,
-      credentials: !headers.Authorization ? 'include' : undefined,
-      signal,
-    };
-
-    // Emit request event
-    this.emit('request', url, fetchOptions);
-
-    try {
-      const response = await fetch(url, fetchOptions);
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        await this.handleResponseError(response, operationName);
-      }
-
-      const responseForEvent = this.safeClone(response);
-      const responseForParsing = this.safeClone(response);
-
-      this.emit('response', responseForEvent, url);
-      const data = await this.parseResponse<T>(responseForParsing);
+      this.emit('response', this.safeClone(response), url);
+      const data = await this.parseResponse<T>(this.safeClone(response));
       return { data, status: response.status };
     } catch (error: any) {
-      clearTimeout(timeoutId);
+      cleanup();
       this.emit('error', error, url);
       this.handleFetchError(error, operationName);
       throw error;
@@ -174,97 +121,102 @@ export class ApiHttp extends SimpleEvents {
   }
 
   /**
-   * Generate auth headers from Ship instance callback
+   * Simple request - returns data only
    */
-  private getAuthHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
-    const authHeaders = this.getAuthHeadersCallback();
-    return { ...customHeaders, ...authHeaders };
+  private async request<T>(url: string, options: RequestInit, operationName: string): Promise<T> {
+    const { data } = await this.executeRequest<T>(url, options, operationName);
+    return data;
   }
 
   /**
-   * Safely clone response for events
+   * Request with status - returns data and HTTP status code
    */
+  private async requestWithStatus<T>(url: string, options: RequestInit, operationName: string): Promise<RequestResult<T>> {
+    return this.executeRequest<T>(url, options, operationName);
+  }
+
+  // ===========================================================================
+  // REQUEST HELPERS
+  // ===========================================================================
+
+  private mergeHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
+    return { ...customHeaders, ...this.getAuthHeadersCallback() };
+  }
+
+  private createTimeoutSignal(existingSignal?: AbortSignal | null): { signal: AbortSignal; cleanup: () => void } {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    if (existingSignal) {
+      const abort = () => controller.abort();
+      existingSignal.addEventListener('abort', abort);
+      if (existingSignal.aborted) controller.abort();
+    }
+
+    return {
+      signal: controller.signal,
+      cleanup: () => clearTimeout(timeoutId)
+    };
+  }
+
   private safeClone(response: Response): Response {
     try {
       return response.clone();
     } catch {
-      // Return original if cloning fails (test mocks)
       return response;
     }
   }
 
-  /**
-   * Parse JSON response
-   */
   private async parseResponse<T>(response: Response): Promise<T> {
-    const contentLength = response.headers.get('Content-Length');
-
-    if (contentLength === '0' || response.status === 204) {
+    if (response.headers.get('Content-Length') === '0' || response.status === 204) {
       return undefined as T;
     }
-
-    return await response.json() as T;
+    return response.json() as Promise<T>;
   }
 
-  /**
-   * Handle response errors
-   */
+  // ===========================================================================
+  // ERROR HANDLING
+  // ===========================================================================
+
   private async handleResponseError(response: Response, operationName: string): Promise<never> {
     let errorData: any = {};
     try {
       const contentType = response.headers.get('content-type');
-      if (contentType?.includes('application/json')) {
-        errorData = await response.json();
-      } else {
-        errorData = { message: await response.text() };
-      }
+      errorData = contentType?.includes('application/json')
+        ? await response.json()
+        : { message: await response.text() };
     } catch {
       errorData = { message: 'Failed to parse error response' };
     }
 
-    const message = errorData.message || errorData.error || `${operationName} failed due to API error`;
+    const message = errorData.message || errorData.error || `${operationName} failed`;
 
     if (response.status === 401) {
       throw ShipError.authentication(message);
     }
-
     throw ShipError.api(message, response.status, errorData.code, errorData);
   }
 
-  /**
-   * Handle fetch errors
-   */
   private handleFetchError(error: any, operationName: string): never {
     if (error.name === 'AbortError') {
-      throw ShipError.cancelled(`${operationName} operation was cancelled.`);
+      throw ShipError.cancelled(`${operationName} was cancelled`);
     }
     if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw ShipError.network(`${operationName} failed due to network error: ${error.message}`, error);
+      throw ShipError.network(`${operationName} failed: ${error.message}`, error);
     }
     if (error instanceof ShipError) {
       throw error;
     }
-    throw ShipError.business(`An unexpected error occurred during ${operationName}: ${error.message || 'Unknown error'}`);
+    throw ShipError.business(`${operationName} failed: ${error.message || 'Unknown error'}`);
   }
 
-  // Public API methods (all delegate to request())
-
-  async ping(): Promise<boolean> {
-    const data = await this.request<PingResponse>(`${this.apiUrl}${PING_ENDPOINT}`, { method: 'GET' }, 'Ping');
-    return data?.success || false;
-  }
-
-  async getPingResponse(): Promise<PingResponse> {
-    return await this.request<PingResponse>(`${this.apiUrl}${PING_ENDPOINT}`, { method: 'GET' }, 'Ping');
-  }
-
-  async getConfig(): Promise<ConfigResponse> {
-    return await this.request<ConfigResponse>(`${this.apiUrl}${CONFIG_ENDPOINT}`, { method: 'GET' }, 'Config');
-  }
+  // ===========================================================================
+  // PUBLIC API - DEPLOYMENTS
+  // ===========================================================================
 
   async deploy(files: StaticFile[], options: ApiDeployOptions = {}): Promise<Deployment> {
     if (!files.length) {
-      throw ShipError.business('No files to deploy.');
+      throw ShipError.business('No files to deploy');
     }
     for (const file of files) {
       if (!file.md5) {
@@ -284,130 +236,139 @@ export class ApiHttp extends SimpleEvents {
       authHeaders['X-Caller'] = options.caller;
     }
 
-    const fetchOptions: RequestInit = {
-      method: 'POST',
-      body,
-      headers: { ...bodyHeaders, ...authHeaders },
-      signal: options.signal || null
-    };
-
-    return await this.request<Deployment>(`${options.apiUrl || this.apiUrl}${DEPLOY_ENDPOINT}`, fetchOptions, 'Deploy');
-  }
-
-  async listDeployments(): Promise<DeploymentListResponse> {
-    return await this.request<DeploymentListResponse>(`${this.apiUrl}${DEPLOY_ENDPOINT}`, { method: 'GET' }, 'List Deployments');
-  }
-
-  async getDeployment(id: string): Promise<Deployment> {
-    return await this.request<Deployment>(`${this.apiUrl}${DEPLOY_ENDPOINT}/${id}`, { method: 'GET' }, 'Get Deployment');
-  }
-
-  async removeDeployment(id: string): Promise<void> {
-    await this.request<DeploymentRemoveResponse>(`${this.apiUrl}${DEPLOY_ENDPOINT}/${id}`, { method: 'DELETE' }, 'Remove Deployment');
-  }
-
-  async setDomain(name: string, deployment?: string, tags?: string[]): Promise<Domain> {
-    const requestBody: { deployment?: string; tags?: string[] } = {};
-    if (deployment) {
-      requestBody.deployment = deployment;
-    }
-    if (tags && tags.length > 0) {
-      requestBody.tags = tags;
-    }
-
-    const url = `${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`;
-    const { data, status } = await this.requestWithStatus<Domain>(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
-    }, 'Set Domain');
-
-    // Add isCreate flag based on status code (201 = created, 200 = updated)
-    return {
-      ...data,
-      isCreate: status === 201
-    };
-  }
-
-  async getDomain(name: string): Promise<Domain> {
-    return await this.request<Domain>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'GET' }, 'Get Domain');
-  }
-
-  async updateDomainTags(name: string, tags: string[]): Promise<Domain> {
-    return await this.request<Domain>(
-      `${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tags })
-      },
-      'Update Domain Tags'
+    return this.request<Deployment>(
+      `${options.apiUrl || this.apiUrl}${ENDPOINTS.DEPLOYMENTS}`,
+      { method: 'POST', body, headers: { ...bodyHeaders, ...authHeaders }, signal: options.signal || null },
+      'Deploy'
     );
   }
 
+  async listDeployments(): Promise<DeploymentListResponse> {
+    return this.request(`${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}`, { method: 'GET' }, 'List deployments');
+  }
+
+  async getDeployment(id: string): Promise<Deployment> {
+    return this.request(`${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`, { method: 'GET' }, 'Get deployment');
+  }
+
+  async updateDeploymentTags(id: string, tags: string[]): Promise<Deployment> {
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tags }) },
+      'Update deployment tags'
+    );
+  }
+
+  async removeDeployment(id: string): Promise<void> {
+    await this.request<DeploymentRemoveResponse>(
+      `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+      'Remove deployment'
+    );
+  }
+
+  // ===========================================================================
+  // PUBLIC API - DOMAINS
+  // ===========================================================================
+
+  async setDomain(name: string, deployment?: string, tags?: string[]): Promise<Domain> {
+    const body: { deployment?: string; tags?: string[] } = {};
+    if (deployment) body.deployment = deployment;
+    if (tags !== undefined) body.tags = tags;
+
+    const { data, status } = await this.requestWithStatus<Domain>(
+      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      'Set domain'
+    );
+
+    return { ...data, isCreate: status === 201 };
+  }
+
   async listDomains(): Promise<DomainListResponse> {
-    return await this.request<DomainListResponse>(`${this.apiUrl}${DOMAINS_ENDPOINT}`, { method: 'GET' }, 'List Domains');
+    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}`, { method: 'GET' }, 'List domains');
+  }
+
+  async getDomain(name: string): Promise<Domain> {
+    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`, { method: 'GET' }, 'Get domain');
+  }
+
+  async updateDomainTags(name: string, tags: string[]): Promise<Domain> {
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tags }) },
+      'Update domain tags'
+    );
   }
 
   async removeDomain(name: string): Promise<void> {
-    await this.request<void>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}`, { method: 'DELETE' }, 'Remove Domain');
+    await this.request<void>(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`, { method: 'DELETE' }, 'Remove domain');
   }
 
   async verifyDomain(name: string): Promise<{ message: string }> {
-    return await this.request<{ message: string }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/verify`, { method: 'POST' }, 'Verify Domain');
+    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/verify`, { method: 'POST' }, 'Verify domain');
   }
 
   async getDomainDns(name: string): Promise<DomainDnsResponse> {
-    return await this.request<DomainDnsResponse>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/dns`, { method: 'GET' }, 'Get Domain DNS');
+    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/dns`, { method: 'GET' }, 'Get domain DNS');
   }
 
   async getDomainRecords(name: string): Promise<DomainRecordsResponse> {
-    return await this.request<DomainRecordsResponse>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/records`, { method: 'GET' }, 'Get Domain Records');
+    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/records`, { method: 'GET' }, 'Get domain records');
   }
 
   async getDomainShare(name: string): Promise<{ domain: string; hash: string }> {
-    return await this.request<{ domain: string; hash: string }>(`${this.apiUrl}${DOMAINS_ENDPOINT}/${encodeURIComponent(name)}/share`, { method: 'GET' }, 'Get Domain Share');
+    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/share`, { method: 'GET' }, 'Get domain share');
   }
 
-  async getAccount(): Promise<Account> {
-    return await this.request<Account>(`${this.apiUrl}${ACCOUNT_ENDPOINT}`, { method: 'GET' }, 'Get Account');
-  }
+  // ===========================================================================
+  // PUBLIC API - TOKENS
+  // ===========================================================================
 
   async createToken(ttl?: number, tags?: string[]): Promise<TokenCreateResponse> {
-    const requestBody: { ttl?: number; tags?: string[] } = {};
-    if (ttl !== undefined) {
-      requestBody.ttl = ttl;
-    }
-    if (tags && tags.length > 0) {
-      requestBody.tags = tags;
-    }
+    const body: { ttl?: number; tags?: string[] } = {};
+    if (ttl !== undefined) body.ttl = ttl;
+    if (tags !== undefined) body.tags = tags;
 
-    return await this.request<TokenCreateResponse>(
-      `${this.apiUrl}${TOKENS_ENDPOINT}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      },
-      'Create Token'
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.TOKENS}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      'Create token'
     );
   }
 
   async listTokens(): Promise<TokenListResponse> {
-    return await this.request<TokenListResponse>(
-      `${this.apiUrl}${TOKENS_ENDPOINT}`,
-      { method: 'GET' },
-      'List Tokens'
-    );
+    return this.request(`${this.apiUrl}${ENDPOINTS.TOKENS}`, { method: 'GET' }, 'List tokens');
   }
 
   async removeToken(token: string): Promise<void> {
-    await this.request<void>(
-      `${this.apiUrl}${TOKENS_ENDPOINT}/${encodeURIComponent(token)}`,
-      { method: 'DELETE' },
-      'Remove Token'
-    );
+    await this.request<void>(`${this.apiUrl}${ENDPOINTS.TOKENS}/${encodeURIComponent(token)}`, { method: 'DELETE' }, 'Remove token');
   }
+
+  // ===========================================================================
+  // PUBLIC API - ACCOUNT & CONFIG
+  // ===========================================================================
+
+  async getAccount(): Promise<Account> {
+    return this.request(`${this.apiUrl}${ENDPOINTS.ACCOUNT}`, { method: 'GET' }, 'Get account');
+  }
+
+  async getConfig(): Promise<ConfigResponse> {
+    return this.request(`${this.apiUrl}${ENDPOINTS.CONFIG}`, { method: 'GET' }, 'Get config');
+  }
+
+  async ping(): Promise<boolean> {
+    const data = await this.request<PingResponse>(`${this.apiUrl}${ENDPOINTS.PING}`, { method: 'GET' }, 'Ping');
+    return data?.success || false;
+  }
+
+  async getPingResponse(): Promise<PingResponse> {
+    return this.request(`${this.apiUrl}${ENDPOINTS.PING}`, { method: 'GET' }, 'Ping');
+  }
+
+  // ===========================================================================
+  // PUBLIC API - SPA CHECK
+  // ===========================================================================
 
   async checkSPA(files: StaticFile[]): Promise<boolean> {
     const indexFile = files.find(f => f.path === 'index.html' || f.path === '/index.html');
@@ -426,19 +387,11 @@ export class ApiHttp extends SimpleEvents {
       return false;
     }
 
-    const requestData: SPACheckRequest = {
-      files: files.map(f => f.path),
-      index: indexContent
-    };
-
+    const body: SPACheckRequest = { files: files.map(f => f.path), index: indexContent };
     const response = await this.request<SPACheckResponse>(
-      `${this.apiUrl}${SPA_CHECK_ENDPOINT}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData)
-      },
-      'SPA Check'
+      `${this.apiUrl}${ENDPOINTS.SPA_CHECK}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      'SPA check'
     );
 
     return response.isSPA;

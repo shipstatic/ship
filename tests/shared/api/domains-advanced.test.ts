@@ -23,7 +23,7 @@ describe('Advanced Domain Operations', () => {
   describe('domains.getDns()', () => {
     it('should get DNS info for unverified external domain', async () => {
       // First create an external domain
-      const domain = await ship.domains.set('example.com', 'test-deployment-1');
+      const domain = await ship.domains.set('example.com', { deployment: 'test-deployment-1' });
       expect(domain.status).toBe('pending'); // External domains start as pending
 
       // Get DNS info
@@ -44,7 +44,7 @@ describe('Advanced Domain Operations', () => {
   describe('domains.getRecords()', () => {
     it('should get required DNS records for external domain', async () => {
       // First create an external domain
-      await ship.domains.set('example.com', 'test-deployment-1');
+      await ship.domains.set('example.com', { deployment: 'test-deployment-1' });
 
       // Get records
       const records = await ship.domains.records('example.com');
@@ -72,7 +72,7 @@ describe('Advanced Domain Operations', () => {
   describe('domains.getShare()', () => {
     it('should get share hash for unverified external domain', async () => {
       // First create an external domain
-      await ship.domains.set('example.com', 'test-deployment-1');
+      await ship.domains.set('example.com', { deployment: 'test-deployment-1' });
 
       // Get share info
       const shareInfo = await ship.domains.share('example.com');
@@ -93,7 +93,7 @@ describe('Advanced Domain Operations', () => {
   describe('domains.verify()', () => {
     it('should queue DNS verification for unverified external domain', async () => {
       // First create an external domain
-      await ship.domains.set('example.com', 'test-deployment-1');
+      await ship.domains.set('example.com', { deployment: 'test-deployment-1' });
 
       // Request verification
       const result = await ship.domains.verify('example.com');
@@ -111,7 +111,7 @@ describe('Advanced Domain Operations', () => {
     it('should rate limit repeated verification requests', async () => {
       // Use unique domain to avoid cross-test pollution
       const domain = `verify-rate-limit-${Date.now()}.com`;
-      await ship.domains.set(domain, 'test-deployment-1');
+      await ship.domains.set(domain, { deployment: 'test-deployment-1' });
 
       // First verification should succeed
       await ship.domains.verify(domain);
@@ -125,27 +125,27 @@ describe('Advanced Domain Operations', () => {
 
   describe('Domain status handling', () => {
     it('external domains should start as pending', async () => {
-      const domain = await ship.domains.set('custom.example.com', 'test-deployment-1');
+      const domain = await ship.domains.set('custom.example.com', { deployment: 'test-deployment-1' });
 
       expect(domain.status).toBe('pending');
       expect(domain.verified).toBeUndefined();
     });
 
     it('internal domains should be immediately success', async () => {
-      const domain = await ship.domains.set('my-subdomain', 'test-deployment-1');
+      const domain = await ship.domains.set('my-subdomain', { deployment: 'test-deployment-1' });
 
       expect(domain.status).toBe('success');
       expect(domain.verified).toBeDefined();
     });
   });
 
-  describe('domains.update()', () => {
+  describe('domains.set() with tags only', () => {
     it('should update tags for an existing internal domain', async () => {
       // First create a domain
-      await ship.domains.set('update-test', 'test-deployment-1');
+      await ship.domains.set('update-test', { deployment: 'test-deployment-1' });
 
-      // Update its tags
-      const updated = await ship.domains.update('update-test', ['new-tag', 'another-tag']);
+      // Update its tags using set with tags only
+      const updated = await ship.domains.set('update-test', { tags: ['new-tag', 'another-tag'] });
 
       expect(updated.domain).toBe('update-test');
       expect(updated.tags).toEqual(['new-tag', 'another-tag']);
@@ -153,37 +153,43 @@ describe('Advanced Domain Operations', () => {
 
     it('should update tags for an existing external domain', async () => {
       // First create an external domain
-      await ship.domains.set('update-external.com', 'test-deployment-1');
+      await ship.domains.set('update-external.com', { deployment: 'test-deployment-1' });
 
       // Update its tags
-      const updated = await ship.domains.update('update-external.com', ['production', 'v2']);
+      const updated = await ship.domains.set('update-external.com', { tags: ['production', 'v2'] });
 
       expect(updated.domain).toBe('update-external.com');
       expect(updated.tags).toEqual(['production', 'v2']);
     });
 
-    it('should clear tags when passing empty array', async () => {
+    it('should clear tags when deployment is provided with empty array', async () => {
       // First create a domain with tags
-      await ship.domains.set('clear-tags-test', 'test-deployment-1', ['initial-tag']);
+      await ship.domains.set('clear-tags-test', { deployment: 'test-deployment-1', tags: ['initial-tag'] });
 
-      // Clear tags by passing empty array
-      const updated = await ship.domains.update('clear-tags-test', []);
+      // Clear tags by passing deployment with empty array (uses PUT, not PATCH)
+      const updated = await ship.domains.set('clear-tags-test', { deployment: 'test-deployment-1', tags: [] });
 
       expect(updated.domain).toBe('clear-tags-test');
       expect(updated.tags).toEqual([]);
     });
 
+    it('should reject empty tags array without deployment', async () => {
+      // Empty tags without deployment is a validation error (matches CLI behavior)
+      await expect(ship.domains.set('some-domain', { tags: [] }))
+        .rejects.toThrow(/Must provide deployment or tags/);
+    });
+
     it('should fail for non-existent domain', async () => {
-      await expect(ship.domains.update('non-existent-domain', ['tag']))
+      await expect(ship.domains.set('non-existent-domain', { tags: ['tag'] }))
         .rejects.toThrow(/not found/i);
     });
 
     it('should preserve domain properties when updating tags', async () => {
       // Create domain
-      const created = await ship.domains.set('preserve-test', 'test-deployment-1');
+      const created = await ship.domains.set('preserve-test', { deployment: 'test-deployment-1' });
 
       // Update tags
-      const updated = await ship.domains.update('preserve-test', ['updated-tag']);
+      const updated = await ship.domains.set('preserve-test', { tags: ['updated-tag'] });
 
       // Verify other properties are preserved
       expect(updated.domain).toBe(created.domain);
