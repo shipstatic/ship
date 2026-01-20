@@ -53,7 +53,7 @@ const rateLimitedDomains = new Set<string>();
 
 function resetState(): void {
   mockDeployments = [{ ...deploymentFixtures.success }];
-  mockDomains = [{ ...domainFixtures.verified }];
+  mockDomains = [{ ...domainFixtures.internal }];
   mockTokens = [];
   rateLimitedDomains.clear();
 }
@@ -427,8 +427,8 @@ function handleDomainDns(res: ServerResponse, domainName: string): void {
     return;
   }
 
-  // Only available for unverified domains
-  if (domain.verified) {
+  // Only available for unverified domains (status='pending' means not yet verified)
+  if (domain.status !== 'pending') {
     res.writeHead(400);
     res.end(JSON.stringify(errors.validationError('DNS information is only available for unverified domains')));
     return;
@@ -478,8 +478,8 @@ function handleDomainShare(res: ServerResponse, domainName: string): void {
     return;
   }
 
-  // Only available for unverified domains
-  if (domain.verified) {
+  // Only available for unverified domains (status='pending' means not yet verified)
+  if (domain.status !== 'pending') {
     res.writeHead(400);
     res.end(JSON.stringify(errors.validationError('Setup sharing is only available for unverified domains')));
     return;
@@ -507,8 +507,8 @@ function handleDomainVerify(res: ServerResponse, domainName: string): void {
     return;
   }
 
-  // Only available for unverified domains
-  if (domain.verified) {
+  // Only available for unverified domains (status='pending' means not yet verified)
+  if (domain.status !== 'pending') {
     res.writeHead(400);
     res.end(JSON.stringify(errors.validationError('DNS verification is only available for unverified domains')));
     return;
