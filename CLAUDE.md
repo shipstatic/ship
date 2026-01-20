@@ -80,17 +80,44 @@ this.deployments = createDeploymentResource({
 `ApiHttp` in `src/shared/api/http.ts`:
 
 ```typescript
-// All requests go through this.request()
-private async request<T>(url, options, operationName): Promise<T> {
-  // 1. Inject auth headers
-  // 2. Set up timeout with AbortController
+// Centralized endpoint definitions
+const ENDPOINTS = {
+  DEPLOYMENTS: '/deployments',
+  DOMAINS: '/domains',
+  TOKENS: '/tokens',
+  ACCOUNT: '/account',
+  CONFIG: '/config',
+  PING: '/ping',
+  SPA_CHECK: '/spa-check'
+} as const;
+
+// Core request method - all API calls flow through here
+private async executeRequest<T>(url, options, operationName): Promise<RequestResult<T>> {
+  // 1. Merge headers (auth injection)
+  // 2. Create timeout signal with cleanup
   // 3. Emit 'request' event
   // 4. Make fetch call
-  // 5. Handle errors (401 → ShipError.authentication, etc.)
+  // 5. Handle response errors (401 → ShipError.authentication, etc.)
   // 6. Emit 'response' or 'error' event
-  // 7. Parse and return JSON
+  // 7. Parse and return { data, status }
+}
+
+// Simple request - returns data only
+private async request<T>(...): Promise<T> {
+  const { data } = await this.executeRequest<T>(...);
+  return data;
+}
+
+// Request with status - for operations that need HTTP status (e.g., 201 vs 200)
+private async requestWithStatus<T>(...): Promise<RequestResult<T>> {
+  return this.executeRequest<T>(...);
 }
 ```
+
+**Key patterns:**
+- All path parameters use `encodeURIComponent()` for safety
+- Optional arrays use `tags !== undefined` (not `tags?.length`) to distinguish "not provided" from "empty"
+- `requestWithStatus()` used when HTTP status matters (e.g., domain creation returns 201)
 
 **Events for debugging:**
 ```typescript
@@ -165,6 +192,25 @@ ship deployments list | awk '{print $1}'      # Extract first column
 ship domains list | grep -E '^prod-'          # Filter by pattern
 ```
 
+### Command Handler Pattern
+
+All CLI commands use `withErrorHandling()` wrapper with consistent typing:
+
+```typescript
+// Handler signature: (client: Ship, ...args) => Promise<Result>
+deploymentsCmd
+  .command('get <deployment>')
+  .action(withErrorHandling(
+    (client: Ship, deployment: string) => client.deployments.get(deployment),
+    { operation: 'get', resourceType: 'Deployment', getResourceId: (id: string) => id }
+  ));
+```
+
+**Key conventions:**
+- All handlers have explicit `client: Ship` type annotation
+- Context object provides error message enrichment
+- `getResourceId` extracts ID from args for error messages
+
 ### Commander.js Option Merging
 
 When both parent and subcommand define `--tag`:
@@ -179,11 +225,11 @@ When both parent and subcommand define `--tag`:
 
 Required configuration for option inheritance:
 ```typescript
-// Parent command
+// Parent command - enablePositionalOptions() required for all parent commands
 const deployments = program.command('deployments').enablePositionalOptions();
 
-// Subcommand
-deployments.command('create').passThroughOptions().option('-t, --tag <tags...>');
+// Subcommand - passThroughOptions() for commands with --tag
+deployments.command('create').passThroughOptions().option('--tag <tag>', 'Tag', collect, []);
 ```
 
 ## Testing
@@ -332,9 +378,42 @@ The SDK maps directly to API endpoints:
 |------------|--------------|-------|
 | `deployments.create()` | `POST /deployments` | Multipart upload |
 | `deployments.list()` | `GET /deployments` | Paginated |
-| `domains.set()` | `PUT /domains/:name` | Creates or updates |
+| `deployments.get()` | `GET /deployments/:id` | Single deployment |
+| `deployments.set()` | `PATCH /deployments/:id` | Update tags only |
+| `deployments.remove()` | `DELETE /deployments/:id` | Permanent deletion |
+| `domains.set()` | Smart routing (see below) | Creates, updates, or tags-only |
+| `domains.list()` | `GET /domains` | All domains |
+| `domains.get()` | `GET /domains/:name` | Single domain |
 | `domains.verify()` | `POST /domains/:name/verify` | Triggers async DNS check |
-| `account.get()` | `GET /account` | Current user |
+| `domains.remove()` | `DELETE /domains/:name` | Permanent deletion |
+| `tokens.create()` | `POST /tokens` | New deploy token |
+| `tokens.list()` | `GET /tokens` | All tokens |
+| `tokens.remove()` | `DELETE /tokens/:token` | Revoke token |
+| `whoami()` | `GET /account` | Current user |
+
+### domains.set() Smart Routing
+
+The `domains.set()` method routes to different API endpoints based on arguments:
+
+```typescript
+// With deployment → PUT (creates or updates domain)
+ship.domains.set('staging', { deployment: 'abc123' });
+// → PUT /domains/staging { deployment: 'abc123' }
+
+// With deployment and tags → PUT
+ship.domains.set('staging', { deployment: 'abc123', tags: ['prod'] });
+// → PUT /domains/staging { deployment: 'abc123', tags: ['prod'] }
+
+// Tags only → PATCH (update existing domain's tags)
+ship.domains.set('staging', { tags: ['prod', 'v2'] });
+// → PATCH /domains/staging { tags: ['prod', 'v2'] }
+
+// Empty call → validation error
+ship.domains.set('staging', {});
+// → throws ShipError.validation('Must provide deployment or tags')
+```
+
+**Rationale:** Deployments are immutable (can only update tags), but domains can be re-pointed to different deployments. The validation prevents accidental no-op calls.
 
 All responses use shared types from `@shipstatic/types`.
 
