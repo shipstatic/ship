@@ -211,7 +211,7 @@ describe('BrowserShipClient', () => {
         message: 'Token created successfully'
       });
 
-      const result = await client.tokens.create(3600);
+      const result = await client.tokens.create({ ttl: 3600 });
 
       expect(apiClientMock.createToken).toHaveBeenCalledWith(3600, undefined);
       expect(result.expires).toBe(1234567890);
@@ -225,7 +225,7 @@ describe('BrowserShipClient', () => {
         message: 'Token created successfully'
       });
 
-      const result = await client.tokens.create(undefined, tags);
+      const result = await client.tokens.create({ tags });
 
       expect(apiClientMock.createToken).toHaveBeenCalledWith(undefined, ['production', 'api', 'automated']);
       expect(result.token).toBe('token-ghi789');
