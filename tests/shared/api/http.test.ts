@@ -904,7 +904,7 @@ describe('ApiHttp', () => {
     });
 
     it('should verify domain', async () => {
-      const mockResponse = { domain: 'example.com', verified: true };
+      const mockResponse = { message: 'DNS verification queued successfully' };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.verifyDomain('example.com');

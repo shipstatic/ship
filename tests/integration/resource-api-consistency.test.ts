@@ -31,15 +31,15 @@ const createMockApiClient = () => ({
   removeDeployment: vi.fn().mockResolvedValue(undefined),
   listDomains: vi.fn().mockResolvedValue({
     domains: [
-      { domain: 'example.com', deployment: 'dep_123', verified: true },
-      { domain: 'test.com', deployment: 'dep_456', verified: false }
+      { domain: 'example.com', deployment: 'dep_123', status: 'success' },
+      { domain: 'test.com', deployment: 'dep_456', status: 'pending' }
     ],
     count: 2
   }),
   createDomain: vi.fn().mockResolvedValue({
     domain: 'new.example.com',
     deployment: 'dep_123',
-    verified: false
+    status: 'pending'
   }),
   getAccount: vi.fn().mockResolvedValue({
     email: 'test@example.com',
@@ -193,8 +193,8 @@ describe('Resource API Cross-Environment Consistency', () => {
       expect(results[0]).toEqual(results[1]);
       expect(results[0]).toEqual({
         domains: [
-          { domain: 'example.com', deployment: 'dep_123', verified: true },
-          { domain: 'test.com', deployment: 'dep_456', verified: false }
+          { domain: 'example.com', deployment: 'dep_123', status: 'success' },
+          { domain: 'test.com', deployment: 'dep_456', status: 'pending' }
         ],
         count: 2
       });
@@ -209,7 +209,7 @@ describe('Resource API Cross-Environment Consistency', () => {
       mockApiClient.setDomain = vi.fn().mockResolvedValue({
         domain: domainName,
         deployment: deployment,
-        verified: false
+        status: 'pending'
       });
 
       for (const env of ['node', 'browser'] as const) {

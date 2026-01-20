@@ -36,16 +36,14 @@ const mockDomains: Domain[] = [
     deployment: 'test-deployment-1',
     status: 'success',
     url: 'https://staging.shipstatic.com',
-    created: 1640995200,
-    verified: 1640995200
+    created: 1640995200
   },
   {
     domain: 'production',
     deployment: 'test-deployment-2',
     status: 'success',
     url: 'https://production.shipstatic.com',
-    created: 1640995100,
-    verified: 1640995100
+    created: 1640995100
   }
 ];
 
@@ -258,7 +256,6 @@ export const apiHandlers = [
       tags: body.tags,
       url: `https://${params.name}.shipstatic.com`,
       created: Math.floor(Date.now() / 1000),
-      verified: Math.floor(Date.now() / 1000),
       isCreate: true
     };
 
