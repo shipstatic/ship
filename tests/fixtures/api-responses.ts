@@ -150,19 +150,18 @@ export const deploymentRemoveResponses = {
 
 export const domains = {
   /**
-   * Standard verified domain (internal subdomain)
+   * Standard internal subdomain (auto-verified)
    */
-  verified: {
+  internal: {
     domain: 'staging',
     deployment: 'test-deployment-1',
     status: 'success',
     url: 'https://staging.statichost.dev',
     created: timestamps.jan2022,
-    verified: timestamps.jan2022,
   } satisfies Domain,
 
   /**
-   * Pending domain (not yet verified)
+   * Pending domain
    */
   pending: {
     domain: 'preview',
@@ -182,11 +181,10 @@ export const domains = {
     tags: ['primary', 'live'],
     url: 'https://production.statichost.dev',
     created: timestamps.jan2022,
-    verified: timestamps.jan2022,
   } satisfies Domain,
 
   /**
-   * External custom domain (newly created, pending DNS verification)
+   * External custom domain (pending DNS verification)
    */
   externalPending: {
     domain: 'example.com',
@@ -194,11 +192,10 @@ export const domains = {
     status: 'pending',
     url: 'https://example.com',
     created: timestamps.jan2022,
-    // No verified timestamp - pending DNS verification
   } satisfies Domain,
 
   /**
-   * External custom domain (verified)
+   * External custom domain (verified, status=success)
    */
   externalVerified: {
     domain: 'verified-example.com',
@@ -206,7 +203,6 @@ export const domains = {
     status: 'success',
     url: 'https://verified-example.com',
     created: timestamps.jan2022,
-    verified: timestamps.jan2022,
   } satisfies Domain,
 
   /**
@@ -235,7 +231,7 @@ export const domainListResponses = {
    * Single domain
    */
   single: {
-    domains: [domains.verified],
+    domains: [domains.internal],
     cursor: undefined,
     total: 1,
   } satisfies DomainListResponse,
@@ -244,7 +240,7 @@ export const domainListResponses = {
    * Multiple domains
    */
   multiple: {
-    domains: [domains.verified, domains.pending],
+    domains: [domains.internal, domains.pending],
     cursor: undefined,
     total: 2,
   } satisfies DomainListResponse,
@@ -632,8 +628,8 @@ export function createDynamicToken(overrides: Partial<Token> = {}): Token {
  * Create a dynamic domain
  *
  * Matches real API behavior:
- * - External domains (custom): status='pending', no verified timestamp
- * - Internal domains (subdomains): status='success', verified timestamp set
+ * - External domains (custom): status='pending' until DNS verified
+ * - Internal domains (subdomains): status='success' immediately
  */
 export function createDynamicDomain(
   domainName: string,
@@ -653,8 +649,6 @@ export function createDynamicDomain(
       ? `https://${domainName}`
       : `https://${domainName}.statichost.dev`,
     created: now,
-    // External domains have no verified timestamp until DNS is verified
-    verified: isExternal ? undefined : now,
     ...overrides,
   };
 }

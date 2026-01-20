@@ -493,7 +493,7 @@ domainsCmd
       const result = await client.domains.set(name, options);
 
       // Enrich with DNS info for new external domains (pure formatter will display it)
-      if (result.isCreate && name.includes('.') && !result.verified) {
+      if (result.isCreate && name.includes('.')) {
         try {
           const [records, share] = await Promise.all([
             client.domains.records(name),

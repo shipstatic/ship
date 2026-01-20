@@ -128,14 +128,12 @@ describe('Advanced Domain Operations', () => {
       const domain = await ship.domains.set('custom.example.com', { deployment: 'test-deployment-1' });
 
       expect(domain.status).toBe('pending');
-      expect(domain.verified).toBeUndefined();
     });
 
     it('internal domains should be immediately success', async () => {
       const domain = await ship.domains.set('my-subdomain', { deployment: 'test-deployment-1' });
 
       expect(domain.status).toBe('success');
-      expect(domain.verified).toBeDefined();
     });
   });
 

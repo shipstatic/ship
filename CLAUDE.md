@@ -183,7 +183,7 @@ When `--json` flag is used:
 - **3 spaces** between columns (matches ps, kubectl, docker)
 - Headers are dimmed
 - Property order matches API response exactly
-- Internal fields filtered: `verified`, `isCreate`
+- Internal fields filtered: `isCreate`
 
 ### Scriptability
 

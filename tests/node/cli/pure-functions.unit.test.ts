@@ -190,19 +190,17 @@ describe('CLI Pure Functions', () => {
 
     it('should filter out internal properties by default', async () => {
       const data = [
-        { 
-          name: 'test', 
-          verified: true,    // Should be filtered
-          isCreate: false,   // Should be filtered
+        {
+          name: 'test',
+          isCreate: false,   // Should be filtered (internal field)
           url: 'example.com'
         }
       ];
-      
+
       const result = formatTable(data);
-      
+
       expect(result).toContain('name');
       expect(result).toContain('url');
-      expect(result).not.toContain('verified');
       expect(result).not.toContain('isCreate');
     });
 
