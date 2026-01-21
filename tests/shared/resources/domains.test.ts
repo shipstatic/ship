@@ -24,7 +24,7 @@ describe('DomainResource', () => {
 
   describe('set', () => {
     it('should call api.setDomain and return the domain directly (no double API call)', async () => {
-      const mockSetResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev', isCreate: true };
+      const mockSetResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.dev', isCreate: true };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('staging', { deployment: 'abc123' });
@@ -35,7 +35,7 @@ describe('DomainResource', () => {
     });
 
     it('should handle different deployment and domain combinations', async () => {
-      const mockSetResponse = { domain: 'production', deployment: 'def456', url: 'https://production.statichost.dev', isCreate: false };
+      const mockSetResponse = { domain: 'production', deployment: 'def456', url: 'https://production.shipstatic.dev', isCreate: false };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('production', { deployment: 'def456' });
@@ -47,7 +47,7 @@ describe('DomainResource', () => {
 
     it('should pass tags to api.setDomain when provided', async () => {
       const tags = ['production', 'v1.0.0'];
-      const mockSetResponse = { domain: 'prod', deployment: 'xyz789', url: 'https://prod.statichost.dev', tags, isCreate: true };
+      const mockSetResponse = { domain: 'prod', deployment: 'xyz789', url: 'https://prod.shipstatic.dev', tags, isCreate: true };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('prod', { deployment: 'xyz789', tags });
@@ -60,7 +60,7 @@ describe('DomainResource', () => {
   describe('set with tags only (smart routing)', () => {
     it('should call api.updateDomainTags when only tags provided', async () => {
       const tags = ['production', 'v2.0.0'];
-      const mockUpdateResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev', tags };
+      const mockUpdateResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.dev', tags };
       (mockApi.updateDomainTags as any).mockResolvedValue(mockUpdateResponse);
 
       const result = await domains.set('staging', { tags });
@@ -77,7 +77,7 @@ describe('DomainResource', () => {
     });
 
     it('should allow clearing tags when deployment is provided', async () => {
-      const mockSetResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev', tags: [] };
+      const mockSetResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.dev', tags: [] };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('staging', { deployment: 'abc123', tags: [] });
@@ -102,8 +102,8 @@ describe('DomainResource', () => {
     it('should call api.listDomains and return result', async () => {
       const mockResponse = {
         domains: [
-          { domain: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev' },
-          { domain: 'production', deployment: 'def456', url: 'https://production.statichost.dev' }
+          { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.dev' },
+          { domain: 'production', deployment: 'def456', url: 'https://production.shipstatic.dev' }
         ]
       };
       (mockApi.listDomains as any).mockResolvedValue(mockResponse);
@@ -139,7 +139,7 @@ describe('DomainResource', () => {
 
   describe('get', () => {
     it('should call api.getDomain with correct parameter', async () => {
-      const mockResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.statichost.dev' };
+      const mockResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.dev' };
       (mockApi.getDomain as any).mockResolvedValue(mockResponse);
 
       const result = await domains.get('staging');
