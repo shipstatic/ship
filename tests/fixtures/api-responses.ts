@@ -55,7 +55,7 @@ export const deployments = {
     size: 1024000,
     status: 'success',
     config: false,
-    url: 'https://test-deployment-1.statichost.dev',
+    url: 'https://test-deployment-1.shipstatic.dev',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
   } satisfies Deployment,
@@ -70,7 +70,7 @@ export const deployments = {
     status: 'success',
     config: false,
     tags: ['production', 'v1.0.0'],
-    url: 'https://tagged-deployment-1.statichost.dev',
+    url: 'https://tagged-deployment-1.shipstatic.dev',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
   } satisfies Deployment,
@@ -84,7 +84,7 @@ export const deployments = {
     size: 512000,
     status: 'pending',
     config: false,
-    url: 'https://pending-deployment-1.statichost.dev',
+    url: 'https://pending-deployment-1.shipstatic.dev',
     created: timestamps.jan2022,
   } satisfies Deployment,
 
@@ -98,7 +98,7 @@ export const deployments = {
     status: 'success',
     config: false,
     via: 'cli',
-    url: 'https://cli-deployment-1.statichost.dev',
+    url: 'https://cli-deployment-1.shipstatic.dev',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
   } satisfies Deployment,
@@ -156,7 +156,7 @@ export const domains = {
     domain: 'staging',
     deployment: 'test-deployment-1',
     status: 'success',
-    url: 'https://staging.statichost.dev',
+    url: 'https://staging.shipstatic.dev',
     created: timestamps.jan2022,
   } satisfies Domain,
 
@@ -167,7 +167,7 @@ export const domains = {
     domain: 'preview',
     deployment: 'test-deployment-1',
     status: 'pending',
-    url: 'https://preview.statichost.dev',
+    url: 'https://preview.shipstatic.dev',
     created: timestamps.jan2022,
   } satisfies Domain,
 
@@ -179,7 +179,7 @@ export const domains = {
     deployment: 'test-deployment-1',
     status: 'success',
     tags: ['primary', 'live'],
-    url: 'https://production.statichost.dev',
+    url: 'https://production.shipstatic.dev',
     created: timestamps.jan2022,
   } satisfies Domain,
 
@@ -212,7 +212,7 @@ export const domains = {
     domain: 'reserved',
     deployment: null,
     status: 'pending',
-    url: 'https://reserved.statichost.dev',
+    url: 'https://reserved.shipstatic.dev',
     created: timestamps.jan2022,
   } satisfies Domain,
 } as const;
@@ -595,7 +595,7 @@ export function createDynamicDeployment(overrides: Partial<Deployment> = {}): De
     size: 1024000,
     status: 'success',
     config: false,
-    url: `https://${deploymentId}.statichost.dev`,
+    url: `https://${deploymentId}.shipstatic.dev`,
     created: now,
     expires: now + (7 * 24 * 60 * 60), // 7 days
     ...overrides,
@@ -647,7 +647,7 @@ export function createDynamicDomain(
     status: isExternal ? 'pending' : 'success',
     url: isExternal
       ? `https://${domainName}`
-      : `https://${domainName}.statichost.dev`,
+      : `https://${domainName}.shipstatic.dev`,
     created: now,
     ...overrides,
   };
