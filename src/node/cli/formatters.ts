@@ -51,7 +51,7 @@ export function formatDomainsList(result: any, context: OutputContext, options: 
     return;
   }
 
-  const columns = ['url', 'deployment', 'tags', 'bound', 'created'];
+  const columns = ['url', 'deployment', 'tags', 'linked', 'created'];
   console.log(formatTable(result.domains, columns, noColor, { url: 'domain' }));
 }
 
