@@ -417,6 +417,35 @@ ship.domains.set('staging', {});
 
 **Rationale:** Deployments are immutable (can only update tags), but domains can be re-pointed to different deployments. The validation prevents accidental no-op calls.
 
+### Domain Format and Normalization
+
+**Domain names are FQDNs** (Fully Qualified Domain Names). The SDK passes domain names directly to the API without transformation:
+
+```typescript
+// SDK accepts any format - API normalizes
+ship.domains.set('Example.COM', { deployment: 'abc123' });
+// → API normalizes to 'example.com' (lowercase)
+// → Returns { domain: 'example.com', ... }
+
+// Unicode domains supported (API handles normalization)
+ship.domains.set('münchen.de', { deployment: 'abc123' });
+// → API normalizes as needed
+// → Returns { domain: 'münchen.de', ... }
+```
+
+**SDK responsibilities:**
+- ✅ URL-encode domain names in API paths (`encodeURIComponent`)
+- ✅ Pass domain names as-is to the API
+- ✅ Return API responses without modification
+
+**API responsibilities (Postel's Law):**
+- ✅ Accept liberal input (various cases, Unicode, etc.)
+- ✅ Normalize to canonical form (lowercase, etc.)
+- ✅ Validate format and reject invalid domains
+- ✅ Return normalized domain in responses
+
+**Key principle:** The SDK has **zero** domain validation or normalization logic. It's a transparent pipe between user input and the API. The API owns all domain semantics.
+
 All responses use shared types from `@shipstatic/types`.
 
 ## Related Documentation
