@@ -79,6 +79,7 @@ export class SimpleEvents {
   transfer(target: SimpleEvents): void {
     this.handlers.forEach((handlers, event) => {
       handlers.forEach(handler => {
+        // any[] required: handler type info is erased when stored in Map<string, Set<Function>>
         target.on(event as keyof ShipEvents, handler as (...args: any[]) => void);
       });
     });

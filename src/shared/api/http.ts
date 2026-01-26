@@ -52,6 +52,13 @@ interface RequestResult<T> {
   status: number;
 }
 
+/** Shape of error response from API */
+interface ApiErrorData {
+  message?: string;
+  error?: string;
+  code?: string;
+}
+
 // =============================================================================
 // HTTP CLIENT
 // =============================================================================
@@ -112,11 +119,11 @@ export class ApiHttp extends SimpleEvents {
       this.emit('response', this.safeClone(response), url);
       const data = await this.parseResponse<T>(this.safeClone(response));
       return { data, status: response.status };
-    } catch (error: any) {
+    } catch (error) {
       cleanup();
-      this.emit('error', error, url);
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.emit('error', err, url);
       this.handleFetchError(error, operationName);
-      throw error;
     }
   }
 
@@ -179,12 +186,21 @@ export class ApiHttp extends SimpleEvents {
   // ===========================================================================
 
   private async handleResponseError(response: Response, operationName: string): Promise<never> {
-    let errorData: any = {};
+    let errorData: ApiErrorData = {};
     try {
       const contentType = response.headers.get('content-type');
-      errorData = contentType?.includes('application/json')
-        ? await response.json()
-        : { message: await response.text() };
+      if (contentType?.includes('application/json')) {
+        const json: unknown = await response.json();
+        // Safely extract known fields from response
+        if (json && typeof json === 'object') {
+          const obj = json as Record<string, unknown>;
+          if (typeof obj.message === 'string') errorData.message = obj.message;
+          if (typeof obj.error === 'string') errorData.error = obj.error;
+          if (typeof obj.code === 'string') errorData.code = obj.code;
+        }
+      } else {
+        errorData = { message: await response.text() };
+      }
     } catch {
       errorData = { message: 'Failed to parse error response' };
     }
@@ -197,17 +213,25 @@ export class ApiHttp extends SimpleEvents {
     throw ShipError.api(message, response.status, errorData.code, errorData);
   }
 
-  private handleFetchError(error: any, operationName: string): never {
-    if (error.name === 'AbortError') {
-      throw ShipError.cancelled(`${operationName} was cancelled`);
-    }
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw ShipError.network(`${operationName} failed: ${error.message}`, error);
-    }
+  private handleFetchError(error: unknown, operationName: string): never {
+    // Re-throw ShipErrors as-is
     if (error instanceof ShipError) {
       throw error;
     }
-    throw ShipError.business(`${operationName} failed: ${error.message || 'Unknown error'}`);
+    // Handle abort errors
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw ShipError.cancelled(`${operationName} was cancelled`);
+    }
+    // Handle network errors (fetch failures)
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw ShipError.network(`${operationName} failed: ${error.message}`, error);
+    }
+    // Handle other Error instances
+    if (error instanceof Error) {
+      throw ShipError.business(`${operationName} failed: ${error.message}`);
+    }
+    // Handle non-Error throws
+    throw ShipError.business(`${operationName} failed: Unknown error`);
   }
 
   // ===========================================================================

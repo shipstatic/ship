@@ -55,13 +55,18 @@ export class Ship extends BaseShip {
 
   protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
     // Validate input - must be File[]
-    if (!Array.isArray(input) || (input.length > 0 && !(input[0] instanceof File))) {
+    if (!this.isFileArray(input)) {
       throw ShipError.business('Invalid input type for browser environment. Expected File[].');
     }
 
     // Process files directly
     const { processFilesForBrowser } = await import('./lib/browser-files.js');
-    return processFilesForBrowser(input as File[], options);
+    return processFilesForBrowser(input, options);
+  }
+
+  /** Type guard that validates all elements are File objects */
+  private isFileArray(input: DeployInput): input is File[] {
+    return Array.isArray(input) && input.every(item => item instanceof File);
   }
 
   protected getDeployBodyCreator(): DeployBodyCreator {
