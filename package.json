@@ -60,7 +60,7 @@
   "license": "MIT",
   "sideEffects": false,
   "dependencies": {
-    "@shipstatic/types": "^0.4.10",
+    "@shipstatic/types": "^0.4.12",
     "columnify": "^1.6.0",
     "commander": "^12.1.0",
     "cosmiconfig": "^9.0.0",

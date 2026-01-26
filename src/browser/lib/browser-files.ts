@@ -34,10 +34,8 @@ export async function processFilesForBrowser(
 
   const filesArray = browserFiles;
 
-  // webkitRelativePath is set by browser when selecting directories, but not in File type definition
-  const filePaths = filesArray.map(file =>
-    (file as unknown as { webkitRelativePath?: string }).webkitRelativePath || file.name
-  );
+  // webkitRelativePath is set by browser when selecting directories
+  const filePaths = filesArray.map(file => file.webkitRelativePath || file.name);
   
   // Optimize paths for clean deployment URLs
   const deployFiles = optimizeDeployPaths(filePaths, { 

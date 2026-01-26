@@ -71,9 +71,10 @@ export const formatTimestamp = (timestamp?: number, context: 'table' | 'details'
 };
 
 /**
- * Format value for display
+ * Format value for display.
+ * Handles timestamps, file sizes, and boolean configs with special formatting.
  */
-const formatValue = (key: string, value: any, context: 'table' | 'details' = 'details', noColor?: boolean): string => {
+const formatValue = (key: string, value: unknown, context: 'table' | 'details' = 'details', noColor?: boolean): string => {
   if (typeof value === 'number' && (key === 'created' || key === 'expires' || key === 'linked')) {
     return formatTimestamp(value, context, noColor);
   }
@@ -94,24 +95,28 @@ const formatValue = (key: string, value: any, context: 'table' | 'details' = 'de
 };
 
 /**
- * Format data as table with specified columns for easy parsing
+ * Format data as table with specified columns for easy parsing.
+ * @param data - Array of objects to display as table rows
+ * @param columns - Optional column order (defaults to first item's keys)
+ * @param noColor - Disable colors
  * @param headerMap - Optional mapping of property names to display headers (e.g., { url: 'deployment' })
  */
-export const formatTable = (data: any[], columns?: string[], noColor?: boolean, headerMap?: Record<string, string>): string => {
+export const formatTable = (data: object[], columns?: string[], noColor?: boolean, headerMap?: Record<string, string>): string => {
   if (!data || data.length === 0) return '';
 
   // Get column order from first item (preserves API order) or use provided columns
-  const firstItem = data[0] || {};
+  const firstItem = data[0] as Record<string, unknown>;
   const columnOrder = columns || Object.keys(firstItem).filter(key =>
     firstItem[key] !== undefined && !INTERNAL_FIELDS.includes(key)
   );
 
   // Transform data preserving column order
   const transformedData = data.map(item => {
-    const transformed: any = {};
+    const record = item as Record<string, unknown>;
+    const transformed: Record<string, string> = {};
     columnOrder.forEach(col => {
-      if (col in item && item[col] !== undefined) {
-        transformed[col] = formatValue(col, item[col], 'table', noColor);
+      if (col in record && record[col] !== undefined) {
+        transformed[col] = formatValue(col, record[col], 'table', noColor);
       }
     });
     return transformed;
@@ -139,10 +144,12 @@ export const formatTable = (data: any[], columns?: string[], noColor?: boolean, 
 };
 
 /**
- * Format object properties as key-value pairs with space separation for readability
+ * Format object properties as key-value pairs with space separation for readability.
+ * @param obj - Object to display as key-value pairs
+ * @param noColor - Disable colors
  */
-export const formatDetails = (obj: any, noColor?: boolean): string => {
-  const entries = Object.entries(obj).filter(([key, value]) => {
+export const formatDetails = (obj: object, noColor?: boolean): string => {
+  const entries = (Object.entries(obj) as [string, unknown][]).filter(([key, value]) => {
     if (INTERNAL_FIELDS.includes(key)) return false;
     return value !== undefined;
   });

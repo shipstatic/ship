@@ -3,7 +3,7 @@
  */
 import { Command } from 'commander';
 import { Ship, ShipError } from '../index.js';
-import { validateApiKey, validateDeployToken, validateApiUrl } from '@shipstatic/types';
+import { validateApiKey, validateDeployToken, validateApiUrl, type Deployment } from '@shipstatic/types';
 import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
 import { success, error } from './utils.js';
@@ -11,6 +11,7 @@ import { formatOutput } from './formatters.js';
 import { installCompletion, uninstallCompletion } from './completion.js';
 import { getUserMessage, ensureShipError, formatErrorJson, type ErrorContext } from './error-handling.js';
 import { bold, dim } from 'yoctocolors';
+import type { GlobalOptions, DeployCommandOptions, TagOptions, TokenCreateCommandOptions, ProcessedOptions, CLIResult } from './types.js';
 
 // Load package.json for version
 function loadPackageJson(): { version: string } {
@@ -132,25 +133,25 @@ function collect(value: string, previous: string[] = []): string[] {
  * Merge tag options from command and program levels.
  * Commander.js sometimes routes --tag to program level instead of command level.
  */
-function mergeTagOption(cmdOptions: any, programOpts: any): string[] | undefined {
-  const tags = cmdOptions?.tag?.length > 0 ? cmdOptions.tag : programOpts?.tag;
-  return tags?.length > 0 ? tags : undefined;
+function mergeTagOption(cmdOptions: TagOptions | undefined, programOpts: TagOptions | undefined): string[] | undefined {
+  const tags = cmdOptions?.tag?.length ? cmdOptions.tag : programOpts?.tag;
+  return tags?.length ? tags : undefined;
 }
 
 /**
  * Handle unknown subcommand for parent commands.
  * Shows error for unknown subcommand, then displays help.
  */
-function handleUnknownSubcommand(validSubcommands: string[]): (...args: any[]) => void {
-  return (...args: any[]) => {
+function handleUnknownSubcommand(validSubcommands: string[]): (...args: unknown[]) => void {
+  return (...args: unknown[]) => {
     const globalOptions = processOptions(program);
 
-    // Get the command object (last argument)
-    const commandObj = args[args.length - 1];
+    // Get the command object (last argument) - Commander passes it as the final arg
+    const commandObj = args[args.length - 1] as { args?: string[] } | undefined;
 
     // Check if an unknown subcommand was provided
-    if (commandObj?.args?.length > 0) {
-      const unknownArg = commandObj.args.find((arg: string) => !validSubcommands.includes(arg));
+    if (commandObj?.args?.length) {
+      const unknownArg = commandObj.args.find((arg) => !validSubcommands.includes(arg));
       if (unknownArg) {
         error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
       }
@@ -165,9 +166,9 @@ function handleUnknownSubcommand(validSubcommands: string[]): (...args: any[]) =
  * Process CLI options using Commander's built-in option merging.
  * Applies CLI-specific transformations (validation is done in preAction hook).
  */
-function processOptions(command: any): any {
-  // Use Commander's built-in option merging - much simpler!
-  // Use optsWithGlobals() to get both command-level and global options
+function processOptions(command: Command): ProcessedOptions {
+  // Use Commander's built-in option merging
+  // optsWithGlobals() gets both command-level and global options
   const options = command.optsWithGlobals ? command.optsWithGlobals() : command.opts();
 
   // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
@@ -176,7 +177,7 @@ function processOptions(command: any): any {
   }
 
   // Note: Validation is handled by the preAction hook to avoid duplication
-  return options;
+  return options as ProcessedOptions;
 }
 
 /**
@@ -184,10 +185,10 @@ function processOptions(command: any): any {
  * Message formatting is delegated to the error-handling module.
  */
 function handleError(
-  err: any,
+  err: unknown,
   context?: ErrorContext
 ) {
-  const opts = program.opts();
+  const opts = program.opts() as GlobalOptions;
 
   // Wrap non-ShipError instances using the extracted helper
   const shipError = ensureShipError(err);
@@ -213,14 +214,14 @@ function handleError(
 }
 
 /**
- * Wrapper for CLI actions that handles errors and client creation consistently
- * Reduces boilerplate while preserving context for error handling
+ * Wrapper for CLI actions that handles errors and client creation consistently.
+ * Reduces boilerplate while preserving context for error handling.
  */
-function withErrorHandling<T extends any[], R>(
+function withErrorHandling<T extends unknown[], R extends CLIResult>(
   handler: (client: Ship, ...args: T) => Promise<R>,
   context?: { operation?: string; resourceType?: string; getResourceId?: (...args: T) => string }
 ) {
-  return async function(this: any, ...args: T) {
+  return async function(this: Command, ...args: T) {
     // Process options once at the start (used by both success and error paths)
     const globalOptions = processOptions(this);
 
@@ -232,12 +233,11 @@ function withErrorHandling<T extends any[], R>(
       const outputContext = context ? {
         operation: context.operation,
         resourceType: context.resourceType,
-        resourceId: context.getResourceId ? context.getResourceId(...args) : undefined,
-        client // Pass client for async operations in formatters
-      } : { client };
+        resourceId: context.getResourceId ? context.getResourceId(...args) : undefined
+      } : {};
 
-      await output(result, outputContext, globalOptions);
-    } catch (err: any) {
+      output(result, outputContext, globalOptions);
+    } catch (err) {
       const errorContext = context ? {
         operation: context.operation,
         resourceType: context.resourceType,
@@ -257,10 +257,21 @@ function createClient(): Ship {
   return new Ship({ configFile: config, apiUrl, apiKey, deployToken });
 }
 
+/** Spinner instance type from yocto-spinner */
+interface Spinner {
+  start(): Spinner;
+  stop(): void;
+}
+
 /**
- * Common deploy logic used by both shortcut and explicit commands
+ * Common deploy logic used by both shortcut and explicit commands.
  */
-async function performDeploy(client: Ship, deployPath: string, cmdOptions: any, commandContext?: any): Promise<any> {
+async function performDeploy(
+  client: Ship,
+  deployPath: string,
+  cmdOptions: DeployCommandOptions | undefined,
+  commandContext?: Command
+): Promise<Deployment> {
   if (!existsSync(deployPath)) {
     throw ShipError.file(`${deployPath} path does not exist`, deployPath);
   }
@@ -270,10 +281,16 @@ async function performDeploy(client: Ship, deployPath: string, cmdOptions: any, 
     throw ShipError.file(`${deployPath} path must be a file or directory`, deployPath);
   }
 
-  const deployOptions: any = { via: 'cli' };
+  const deployOptions: {
+    via: string;
+    tags?: string[];
+    pathDetect?: boolean;
+    spaDetect?: boolean;
+    signal?: AbortSignal;
+  } = { via: 'cli' };
 
   // Handle tags
-  const tags = mergeTagOption(cmdOptions, program.opts());
+  const tags = mergeTagOption(cmdOptions, program.opts() as TagOptions);
   if (tags) deployOptions.tags = tags;
 
   // Handle detection flags
@@ -289,8 +306,8 @@ async function performDeploy(client: Ship, deployPath: string, cmdOptions: any, 
   deployOptions.signal = abortController.signal;
 
   // Spinner (TTY only, not JSON, not --no-color)
-  let spinner: any = null;
-  const globalOptions = commandContext ? processOptions(commandContext) : {};
+  let spinner: Spinner | null = null;
+  const globalOptions = commandContext ? processOptions(commandContext) : {} as ProcessedOptions;
   if (process.stdout.isTTY && !globalOptions.json && !globalOptions.noColor) {
     const { default: yoctoSpinner } = await import('yocto-spinner');
     spinner = yoctoSpinner({ text: 'uploading…' }).start();
@@ -316,10 +333,10 @@ async function performDeploy(client: Ship, deployPath: string, cmdOptions: any, 
 }
 
 /**
- * Output result using formatters module
+ * Output result using formatters module.
  */
-function output(result: any, context: { operation?: string; resourceType?: string; resourceId?: string }, options?: any) {
-  const opts = options || program.opts();
+function output(result: CLIResult, context: { operation?: string; resourceType?: string; resourceId?: string }, options?: ProcessedOptions) {
+  const opts = options || (program.opts() as ProcessedOptions);
   formatOutput(result, context, { isJson: opts.json, noColor: opts.noColor });
 }
 
@@ -409,7 +426,7 @@ deploymentsCmd
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(
-    function(this: any, client: Ship, deployPath: string, cmdOptions: any) {
+    function(this: Command, client: Ship, deployPath: string, cmdOptions: DeployCommandOptions) {
       return performDeploy(client, deployPath, cmdOptions, this);
     },
     { operation: 'create' }
@@ -429,8 +446,8 @@ deploymentsCmd
   .passThroughOptions()
   .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
   .action(withErrorHandling(
-    async (client: Ship, deployment: string, cmdOptions: any) => {
-      const tags = mergeTagOption(cmdOptions, program.opts()) || [];
+    async (client: Ship, deployment: string, cmdOptions: TagOptions) => {
+      const tags = mergeTagOption(cmdOptions, program.opts() as TagOptions) || [];
       return client.deployments.set(deployment, { tags });
     },
     { operation: 'set', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
@@ -478,8 +495,8 @@ domainsCmd
   .passThroughOptions()
   .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
   .action(withErrorHandling(
-    async (client: Ship, name: string, deployment: string | undefined, cmdOptions: any) => {
-      const tags = mergeTagOption(cmdOptions, program.opts());
+    async (client: Ship, name: string, deployment: string | undefined, cmdOptions: TagOptions) => {
+      const tags = mergeTagOption(cmdOptions, program.opts() as TagOptions);
 
       // Validate: must provide either deployment or tags
       if (!deployment && (!tags || tags.length === 0)) {
@@ -539,10 +556,10 @@ tokensCmd
   .option('--ttl <seconds>', 'Time to live in seconds (default: never expires)', parseInt)
   .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
   .action(withErrorHandling(
-    (client: Ship, cmdOptions: any) => {
+    (client: Ship, cmdOptions: TokenCreateCommandOptions) => {
       const options: { ttl?: number; tags?: string[] } = {};
       if (cmdOptions?.ttl !== undefined) options.ttl = cmdOptions.ttl;
-      const tags = mergeTagOption(cmdOptions, program.opts());
+      const tags = mergeTagOption(cmdOptions, program.opts() as TagOptions);
       if (tags && tags.length > 0) options.tags = tags;
       return client.tokens.create(options);
     },
@@ -602,9 +619,9 @@ program
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(
-    async function(this: any, client: Ship, path?: string, cmdOptions?: any) {
-      if (!path) {
-        const globalOptions = program.opts();
+    async function(this: Command, client: Ship, deployPath?: string, cmdOptions?: DeployCommandOptions) {
+      if (!deployPath) {
+        const globalOptions = program.opts() as GlobalOptions;
         // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
         const noColor = globalOptions.color === false || globalOptions.noColor;
         displayHelp(noColor);
@@ -613,18 +630,18 @@ program
 
       // Check if the argument is a valid path by checking filesystem
       // This correctly handles paths like "dist", "build", "public" without slashes
-      if (!existsSync(path)) {
+      if (!existsSync(deployPath)) {
         // Path doesn't exist - could be unknown command or typo
         // Check if it looks like a command (no path separators, no extension)
-        const looksLikeCommand = !path.includes('/') && !path.includes('\\') &&
-                                  !path.includes('.') && !path.startsWith('~');
+        const looksLikeCommand = !deployPath.includes('/') && !deployPath.includes('\\') &&
+                                  !deployPath.includes('.') && !deployPath.startsWith('~');
         if (looksLikeCommand) {
-          throw ShipError.validation(`unknown command '${path}'`);
+          throw ShipError.validation(`unknown command '${deployPath}'`);
         }
         // Otherwise let performDeploy handle the "path does not exist" error
       }
 
-      return performDeploy(client, path, cmdOptions, this);
+      return performDeploy(client, deployPath, cmdOptions, this);
     },
     { operation: 'create' }
   ));
@@ -656,11 +673,15 @@ if (process.env.NODE_ENV !== 'test' && (process.argv.includes('--compbash') || p
 if (process.env.NODE_ENV !== 'test') {
   try {
     program.parse(process.argv);
-  } catch (err: any) {
+  } catch (err) {
     // Commander.js errors are already handled by exitOverride above
-    // This catch is just for safety - exitOverride should handle all Commander errors
-    if (err.code && err.code.startsWith('commander.')) {
-      process.exit(err.exitCode || 1);
+    // This catch is for safety - check if it's a Commander error
+    if (err instanceof Error && 'code' in err) {
+      const code = (err as Error & { code?: string }).code;
+      const exitCode = (err as Error & { exitCode?: number }).exitCode;
+      if (code?.startsWith('commander.')) {
+        process.exit(exitCode || 1);
+      }
     }
     throw err;
   }

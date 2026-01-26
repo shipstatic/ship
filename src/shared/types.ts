@@ -125,7 +125,7 @@ export interface ShipClientOptions {
  * Event map for Ship SDK events
  * Core events for observability: request, response, error
  */
-export interface ShipEvents extends Record<string, any[]> {
+export interface ShipEvents {
   /** Emitted before each API request */
   request: [url: string, init: RequestInit];
   /** Emitted after successful API response */
