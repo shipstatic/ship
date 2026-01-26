@@ -41,6 +41,9 @@ export interface DeploymentResourceContext extends ResourceContext {
   hasAuth?: () => boolean;
 }
 
+/**
+ * Create deployment resource with all CRUD operations.
+ */
 export function createDeploymentResource(ctx: DeploymentResourceContext): DeploymentResource {
   const { getApi, ensureInit, processInput, clientDefaults, hasAuth } = ctx;
 
@@ -92,6 +95,13 @@ export function createDeploymentResource(ctx: DeploymentResourceContext): Deploy
   };
 }
 
+/**
+ * Create domain resource with all CRUD operations.
+ *
+ * @remarks
+ * The `name` parameter in all methods is an FQDN (Fully Qualified Domain Name).
+ * The SDK does not validate or normalize domain names - the API handles all domain semantics.
+ */
 export function createDomainResource(ctx: ResourceContext): DomainResource {
   const { getApi, ensureInit } = ctx;
 
@@ -149,6 +159,9 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
   };
 }
 
+/**
+ * Create account resource (whoami functionality).
+ */
 export function createAccountResource(ctx: ResourceContext): AccountResource {
   const { getApi, ensureInit } = ctx;
 
@@ -160,6 +173,9 @@ export function createAccountResource(ctx: ResourceContext): AccountResource {
   };
 }
 
+/**
+ * Create token resource for managing deploy tokens.
+ */
 export function createTokenResource(ctx: ResourceContext): TokenResource {
   const { getApi, ensureInit } = ctx;
 
