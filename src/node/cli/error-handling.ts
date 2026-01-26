@@ -83,7 +83,7 @@ export function getUserMessage(
  * Format error for JSON output.
  * Returns the JSON string to be output (without newline).
  */
-export function formatErrorJson(message: string, details?: any): string {
+export function formatErrorJson(message: string, details?: unknown): string {
   return JSON.stringify({
     error: message,
     ...(details ? { details } : {})

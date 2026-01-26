@@ -32,7 +32,7 @@ const ConfigSchema = z.object({
  * @returns Validated configuration or throws error
  * @internal
  */
-function validateConfig(config: any): Partial<ShipClientOptions> {
+function validateConfig(config: unknown): Partial<ShipClientOptions> {
   try {
     return ConfigSchema.parse(config);
   } catch (error) {

@@ -96,8 +96,9 @@ export function installCompletion(scriptDir: string, options: CompletionOptions 
       success(`completion script installed for ${shell}`, isJson, noColor);
       warn(`run "source ${paths.profileFile}" or restart your shell`, isJson, noColor);
     }
-  } catch (e: any) {
-    error(`could not install completion script: ${e.message}`, isJson, noColor);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    error(`could not install completion script: ${message}`, isJson, noColor);
   }
 }
 
@@ -172,7 +173,8 @@ export function uninstallCompletion(options: CompletionOptions = {}): void {
     } else {
       error('completion was not found in profile', isJson, noColor);
     }
-  } catch (e: any) {
-    error(`could not uninstall completion script: ${e.message}`, isJson, noColor);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    error(`could not uninstall completion script: ${message}`, isJson, noColor);
   }
 }

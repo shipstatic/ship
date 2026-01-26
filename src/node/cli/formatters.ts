@@ -2,7 +2,16 @@
  * Pure formatting functions for CLI output.
  * All formatters are synchronous and have no side effects beyond console output.
  */
-import { formatTable, formatDetails, success, error, info, warn } from './utils.js';
+import type {
+  Deployment,
+  DeploymentListResponse,
+  DomainListResponse,
+  Account,
+  TokenCreateResponse,
+  TokenListResponse
+} from '@shipstatic/types';
+import type { EnrichedDomain, MessageResult, CLIResult } from './types.js';
+import { formatTable, formatDetails, success, error, info } from './utils.js';
 
 export interface OutputContext {
   operation?: string;
@@ -18,7 +27,7 @@ export interface FormatOptions {
 /**
  * Format deployments list
  */
-export function formatDeploymentsList(result: any, context: OutputContext, options: FormatOptions): void {
+export function formatDeploymentsList(result: DeploymentListResponse, context: OutputContext, options: FormatOptions): void {
   const { isJson, noColor } = options;
 
   if (!result.deployments || result.deployments.length === 0) {
@@ -38,7 +47,7 @@ export function formatDeploymentsList(result: any, context: OutputContext, optio
 /**
  * Format domains list
  */
-export function formatDomainsList(result: any, context: OutputContext, options: FormatOptions): void {
+export function formatDomainsList(result: DomainListResponse, context: OutputContext, options: FormatOptions): void {
   const { isJson, noColor } = options;
 
   if (!result.domains || result.domains.length === 0) {
@@ -59,7 +68,7 @@ export function formatDomainsList(result: any, context: OutputContext, options: 
  * Format single domain result.
  * Expects _dnsRecords and _shareHash to be pre-populated for new external domains.
  */
-export function formatDomain(result: any, context: OutputContext, options: FormatOptions): void {
+export function formatDomain(result: EnrichedDomain, context: OutputContext, options: FormatOptions): void {
   const { isJson, noColor } = options;
 
   // Show success message for set/update operations
@@ -70,10 +79,10 @@ export function formatDomain(result: any, context: OutputContext, options: Forma
   }
 
   // Display pre-fetched DNS records (for new external domains)
-  if (!isJson && result._dnsRecords?.length > 0) {
+  if (!isJson && result._dnsRecords && result._dnsRecords.length > 0) {
     console.log();
     info('DNS Records to configure:', isJson, noColor);
-    result._dnsRecords.forEach((record: any) => {
+    result._dnsRecords.forEach((record) => {
       console.log(`  ${record.type}: ${record.name} → ${record.value}`);
     });
   }
@@ -85,9 +94,7 @@ export function formatDomain(result: any, context: OutputContext, options: Forma
   }
 
   // Filter out internal fields before displaying details
-  const displayResult = { ...result };
-  delete displayResult._dnsRecords;
-  delete displayResult._shareHash;
+  const { _dnsRecords, _shareHash, ...displayResult } = result;
 
   console.log();
   console.log(formatDetails(displayResult, noColor));
@@ -96,12 +103,12 @@ export function formatDomain(result: any, context: OutputContext, options: Forma
 /**
  * Format single deployment result
  */
-export function formatDeployment(result: any, context: OutputContext, options: FormatOptions): void {
+export function formatDeployment(result: Deployment, context: OutputContext, options: FormatOptions): void {
   const { isJson, noColor } = options;
 
   // Show success message for create operations
   if (result.status && context.operation === 'create') {
-    success(`${result.deployment} deployment created ✨`, isJson, noColor);
+    success(`${result.deployment} deployment created`, isJson, noColor);
   }
 
   console.log(formatDetails(result, noColor));
@@ -110,7 +117,7 @@ export function formatDeployment(result: any, context: OutputContext, options: F
 /**
  * Format account/email result
  */
-export function formatAccount(result: any, context: OutputContext, options: FormatOptions): void {
+export function formatAccount(result: Account, context: OutputContext, options: FormatOptions): void {
   const { noColor } = options;
   console.log(formatDetails(result, noColor));
 }
@@ -118,7 +125,7 @@ export function formatAccount(result: any, context: OutputContext, options: Form
 /**
  * Format message result (e.g., from DNS verification)
  */
-export function formatMessage(result: any, context: OutputContext, options: FormatOptions): void {
+export function formatMessage(result: MessageResult, context: OutputContext, options: FormatOptions): void {
   const { isJson, noColor } = options;
   if (result.message) {
     success(result.message, isJson, noColor);
@@ -128,7 +135,7 @@ export function formatMessage(result: any, context: OutputContext, options: Form
 /**
  * Format tokens list
  */
-export function formatTokensList(result: any, context: OutputContext, options: FormatOptions): void {
+export function formatTokensList(result: TokenListResponse, context: OutputContext, options: FormatOptions): void {
   const { isJson, noColor } = options;
 
   if (!result.tokens || result.tokens.length === 0) {
@@ -148,7 +155,7 @@ export function formatTokensList(result: any, context: OutputContext, options: F
 /**
  * Format single token result
  */
-export function formatToken(result: any, context: OutputContext, options: FormatOptions): void {
+export function formatToken(result: TokenCreateResponse, context: OutputContext, options: FormatOptions): void {
   const { isJson, noColor } = options;
 
   if (context.operation === 'create' && result.token) {
@@ -163,7 +170,7 @@ export function formatToken(result: any, context: OutputContext, options: Format
  * Handles JSON mode, removal operations, and ping results.
  */
 export function formatOutput(
-  result: any,
+  result: CLIResult,
   context: OutputContext,
   options: FormatOptions
 ): void {
@@ -179,9 +186,9 @@ export function formatOutput(
     return;
   }
 
-  // Handle ping result
-  if (result === true || (result && typeof result === 'object' && 'success' in result)) {
-    const isSuccess = result === true || result.success;
+  // Handle ping result (boolean or PingResponse)
+  if (result === true || (result !== null && typeof result === 'object' && 'success' in result)) {
+    const isSuccess = result === true || (result as { success: boolean }).success;
     if (isSuccess) {
       success('api reachable', isJson, noColor);
     } else {
@@ -191,9 +198,9 @@ export function formatOutput(
   }
 
   // JSON mode: output raw JSON for all results
-  if (isJson) {
+  if (isJson && result !== null && typeof result === 'object') {
     // Filter internal fields from JSON output
-    const output = { ...result };
+    const output = { ...result } as Record<string, unknown>;
     delete output._dnsRecords;
     delete output._shareHash;
     console.log(JSON.stringify(output, null, 2));
@@ -203,24 +210,29 @@ export function formatOutput(
 
   // Route to specific formatter based on result shape
   // Order matters: check list types before singular types
-  if (result.deployments) {
-    formatDeploymentsList(result, context, options);
-  } else if (result.domains) {
-    formatDomainsList(result, context, options);
-  } else if (result.tokens) {
-    formatTokensList(result, context, options);
-  } else if (result.domain) {
-    formatDomain(result, context, options);
-  } else if (result.deployment) {
-    formatDeployment(result, context, options);
-  } else if (result.token) {
-    formatToken(result, context, options);
-  } else if (result.email) {
-    formatAccount(result, context, options);
-  } else if (result.message) {
-    formatMessage(result, context, options);
+  if (result !== null && typeof result === 'object') {
+    if ('deployments' in result) {
+      formatDeploymentsList(result as DeploymentListResponse, context, options);
+    } else if ('domains' in result) {
+      formatDomainsList(result as DomainListResponse, context, options);
+    } else if ('tokens' in result) {
+      formatTokensList(result as TokenListResponse, context, options);
+    } else if ('domain' in result) {
+      formatDomain(result as EnrichedDomain, context, options);
+    } else if ('deployment' in result) {
+      formatDeployment(result as Deployment, context, options);
+    } else if ('token' in result) {
+      formatToken(result as TokenCreateResponse, context, options);
+    } else if ('email' in result) {
+      formatAccount(result as Account, context, options);
+    } else if ('message' in result) {
+      formatMessage(result as MessageResult, context, options);
+    } else {
+      // Fallback
+      success('success', isJson, noColor);
+    }
   } else {
-    // Fallback
+    // Fallback for non-object results
     success('success', isJson, noColor);
   }
 }

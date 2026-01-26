@@ -13,15 +13,15 @@ import type {
 import {
   FileValidationStatus as FILE_VALIDATION_STATUS
 } from '@shipstatic/types';
-// @ts-ignore: mime-db uses CommonJS export
+import type { MimeDatabase } from 'mime-db';
 import mimeDb from 'mime-db';
 
-interface MimeEntry { extensions?: string[] }
+const typedMimeDb: MimeDatabase = mimeDb;
 
-const VALID_MIME_TYPES = new Set(Object.keys(mimeDb));
+const VALID_MIME_TYPES = new Set(Object.keys(typedMimeDb));
 
 const MIME_TYPE_EXTENSIONS = new Map(
-  Object.entries(mimeDb as Record<string, MimeEntry>)
+  Object.entries(typedMimeDb)
     .filter(([_, data]) => data.extensions)
     .map(([type, data]) => [type, new Set(data.extensions)])
 );
