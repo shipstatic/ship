@@ -270,6 +270,8 @@ export class ApiHttp extends SimpleEvents {
   // ===========================================================================
   // PUBLIC API - DOMAINS
   // ===========================================================================
+  // All domain methods accept FQDN (Fully Qualified Domain Name) as the `name` parameter.
+  // The SDK does not validate or normalize - the API handles all domain semantics.
 
   async setDomain(name: string, deployment?: string, tags?: string[]): Promise<Domain> {
     const body: { deployment?: string; tags?: string[] } = {};

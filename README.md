@@ -161,6 +161,13 @@ ship.domains.set('staging', { tags: ['prod', 'v2'] });
 ship.domains.set('staging', {});  // throws validation error
 ```
 
+**Domain format:** Domain names are FQDNs (Fully Qualified Domain Names). The SDK accepts any format (case-insensitive, Unicode) - the API handles normalization.
+
+```typescript
+ship.domains.set('Example.COM', { deployment: 'abc' });  // → normalized to 'example.com'
+ship.domains.set('münchen.de', { deployment: 'abc' });   // → Unicode supported
+```
+
 ### Events
 
 ```javascript
