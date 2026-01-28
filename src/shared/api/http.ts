@@ -19,7 +19,7 @@ import type {
   TokenListResponse
 } from '@shipstatic/types';
 import type { ApiDeployOptions, ShipClientOptions, ShipEvents, DeployBodyCreator } from '../types.js';
-import { ShipError, DEFAULT_API } from '@shipstatic/types';
+import { ShipError, isShipError, DEFAULT_API } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 
 // =============================================================================
@@ -56,7 +56,6 @@ interface RequestResult<T> {
 interface ApiErrorData {
   message?: string;
   error?: string;
-  code?: string;
 }
 
 // =============================================================================
@@ -196,7 +195,6 @@ export class ApiHttp extends SimpleEvents {
           const obj = json as Record<string, unknown>;
           if (typeof obj.message === 'string') errorData.message = obj.message;
           if (typeof obj.error === 'string') errorData.error = obj.error;
-          if (typeof obj.code === 'string') errorData.code = obj.code;
         }
       } else {
         errorData = { message: await response.text() };
@@ -210,12 +208,12 @@ export class ApiHttp extends SimpleEvents {
     if (response.status === 401) {
       throw ShipError.authentication(message);
     }
-    throw ShipError.api(message, response.status, errorData.code, errorData);
+    throw ShipError.api(message, response.status);
   }
 
   private handleFetchError(error: unknown, operationName: string): never {
     // Re-throw ShipErrors as-is
-    if (error instanceof ShipError) {
+    if (isShipError(error)) {
       throw error;
     }
     // Handle abort errors

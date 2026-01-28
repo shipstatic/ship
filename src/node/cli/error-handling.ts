@@ -3,11 +3,21 @@
  * Pure functions for error message formatting - fully unit testable.
  */
 
-import { ShipError } from '@shipstatic/types';
-import { ensureShipError } from '../index.js';
+import { ShipError, isShipError } from '@shipstatic/types';
 
-// Re-export for CLI consumers
-export { ensureShipError };
+/**
+ * Convert any error to a ShipError.
+ * Used by the CLI's global error handler to normalize unknown errors.
+ */
+export function toShipError(err: unknown): ShipError {
+  if (isShipError(err)) {
+    return err;
+  }
+  if (err instanceof Error) {
+    return ShipError.business(err.message);
+  }
+  return ShipError.business(String(err ?? 'Unknown error'));
+}
 
 /**
  * Context for error message generation
@@ -38,18 +48,6 @@ export function getUserMessage(
   context?: ErrorContext,
   options?: ErrorOptions
 ): string {
-  // Not found errors - format consistently with resource context
-  if (err.details?.data?.error === 'not_found') {
-    const resourceType = context?.resourceType?.toLowerCase() || 'resource';
-    const resourceId = context?.resourceId || '';
-    return resourceId ? `${resourceId} ${resourceType} not found` : `${resourceType} not found`;
-  }
-
-  // Business logic errors - use API message directly (it's user-facing)
-  if (err.details?.data?.error === 'business_logic_error') {
-    return err.details.data.message || err.message;
-  }
-
   // Auth errors - tell user what credentials to provide
   if (err.isAuthError()) {
     if (options?.apiKey) {
@@ -70,12 +68,18 @@ export function getUserMessage(
     return 'network error: could not reach the API. check your internet connection';
   }
 
-  // File, validation, client errors - trust the original message (we wrote it)
+  // File, validation, config errors - trust the original message (we wrote it)
   if (err.isFileError() || err.isValidationError() || err.isClientError()) {
     return err.message;
   }
 
-  // Server errors - generic but actionable
+  // API errors with 4xx status - these have user-facing messages from the API
+  // Includes: 400 (validation), 404 (not found), 409 (conflict), etc.
+  if (err.status && err.status >= 400 && err.status < 500) {
+    return err.message;
+  }
+
+  // Server errors (5xx) - generic but actionable
   return 'server error: please try again or check https://status.shipstatic.com';
 }
 

@@ -316,33 +316,9 @@ async checkSPA(files: StaticFile[]): Promise<boolean> {
 
 When SPA detected, deployment automatically includes rewrite rules for client-side routing.
 
-## Error Types
+## Error Handling
 
-All errors use `ShipError` from `@shipstatic/types`:
-
-```typescript
-ShipError.validation('message')    // Invalid input
-ShipError.authentication('message') // 401 errors
-ShipError.network('message', cause) // Fetch failures
-ShipError.file('message', path)    // File operations
-ShipError.api('message', status)   // API errors
-ShipError.cancelled('message')     // AbortController
-ShipError.config('message')        // Configuration errors
-ShipError.business('message')      // General business logic
-```
-
-Check error types:
-```typescript
-if (error.isAuthError()) { /* re-authenticate */ }
-if (error.isNetworkError()) { /* retry */ }
-if (error.isValidationError()) { /* show to user */ }
-```
-
-## Bundle Sizes
-
-- **Node.js**: 21KB (ESM), 21KB (CJS)
-- **Browser**: 185KB (ESM with dependencies)
-- **CLI**: 38KB (CJS)
+All errors use `ShipError` from `@shipstatic/types`. See `../types/CLAUDE.md` for the full API including factory methods and type checking.
 
 ## Design Principles
 
@@ -452,7 +428,7 @@ All responses use shared types from `@shipstatic/types`.
 
 | Resource | Location |
 |----------|----------|
-| Shared types | `../types/README.md` |
+| Shared types | `../types/CLAUDE.md` |
 | API Worker | `../../cloudflare/api/CLAUDE.md` |
 | Backend overview | `../../cloudflare/CLAUDE.md` |
 | Root guidelines | `../../CLAUDE.md` |
