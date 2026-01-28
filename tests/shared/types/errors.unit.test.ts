@@ -25,14 +25,12 @@ describe('Ship Error System', () => {
   });
 
   describe('API Errors', () => {
-    it('should create API error and store details', () => {
-      const err = ShipError.api('API issue', 500, 'CODE123', { detail: 'some detail' });
+    it('should create API error', () => {
+      const err = ShipError.api('API issue', 500);
       expect(err).toBeInstanceOf(ShipError);
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('API issue');
       expect(err.status).toBe(500);
-      expect(err.code).toBe('CODE123');
-      expect(err.details).toEqual({ code: 'CODE123', data: { detail: 'some detail' } });
       expect(err.type).toBe(ErrorType.Api);
     });
   });
@@ -125,9 +123,6 @@ describe('Ship Error System', () => {
     it('should provide helper getters for common properties', () => {
       const fileError = ShipError.file('File error', '/test/path');
       expect(fileError.filePath).toBe('/test/path');
-      
-      const apiError = ShipError.api('API error', 500, 'ERR_CODE');
-      expect(apiError.code).toBe('ERR_CODE');
     });
   });
 });

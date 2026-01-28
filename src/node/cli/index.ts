@@ -2,14 +2,14 @@
  * @file Main entry point for the Ship CLI.
  */
 import { Command } from 'commander';
-import { Ship, ShipError } from '../index.js';
-import { validateApiKey, validateDeployToken, validateApiUrl, type Deployment } from '@shipstatic/types';
+import { Ship } from '../index.js';
+import { ShipError, validateApiKey, validateDeployToken, validateApiUrl, isShipError, type Deployment } from '@shipstatic/types';
 import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
 import { success, error } from './utils.js';
 import { formatOutput } from './formatters.js';
 import { installCompletion, uninstallCompletion } from './completion.js';
-import { getUserMessage, ensureShipError, formatErrorJson, type ErrorContext } from './error-handling.js';
+import { getUserMessage, toShipError, formatErrorJson, type ErrorContext } from './error-handling.js';
 import { bold, dim } from 'yoctocolors';
 import type { GlobalOptions, DeployCommandOptions, TagOptions, TokenCreateCommandOptions, ProcessedOptions, CLIResult } from './types.js';
 
@@ -189,9 +189,7 @@ function handleError(
   context?: ErrorContext
 ) {
   const opts = program.opts() as GlobalOptions;
-
-  // Wrap non-ShipError instances using the extracted helper
-  const shipError = ensureShipError(err);
+  const shipError = toShipError(err);
 
   // Get user-facing message using the extracted pure function
   const message = getUserMessage(shipError, context, {
@@ -382,7 +380,7 @@ program.hook('preAction', (thisCommand, actionCommand) => {
       validateApiUrl(options.apiUrl);
     }
   } catch (validationError) {
-    if (validationError instanceof ShipError) {
+    if (isShipError(validationError)) {
       const noColor = options.color === false || options.noColor;
       error(validationError.message, options.json, noColor);
       process.exit(1);
