@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { ShipError, ErrorType } from '@shipstatic/types';
 import {
   getUserMessage,
-  ensureShipError,
+  toShipError,
   formatErrorJson,
   type ErrorContext,
   type ErrorOptions
@@ -16,81 +16,23 @@ import {
 
 describe('CLI Error Handling', () => {
   describe('getUserMessage', () => {
-    describe('not found errors', () => {
-      it('should format not_found error with resource context', () => {
-        const err = new ShipError(ErrorType.Api, 'Not found', 404, {
-          data: { error: 'not_found' }
-        });
-        const context: ErrorContext = {
-          resourceType: 'Deployment',
-          resourceId: 'abc123'
-        };
-
-        const message = getUserMessage(err, context);
-
-        expect(message).toBe('abc123 deployment not found');
-      });
-
-      it('should handle not_found without resourceId', () => {
-        const err = new ShipError(ErrorType.Api, 'Not found', 404, {
-          data: { error: 'not_found' }
-        });
-        const context: ErrorContext = {
-          resourceType: 'Domain'
-        };
-
-        const message = getUserMessage(err, context);
-
-        expect(message).toBe('domain not found');
-      });
-
-      it('should handle not_found without any context', () => {
-        const err = new ShipError(ErrorType.Api, 'Not found', 404, {
-          data: { error: 'not_found' }
-        });
-
+    describe('4xx API errors', () => {
+      it('should pass through 404 not found message', () => {
+        const err = new ShipError(ErrorType.Api, 'Domain example.com not found', 404);
         const message = getUserMessage(err);
-
-        expect(message).toBe('resource not found');
+        expect(message).toBe('Domain example.com not found');
       });
 
-      it('should lowercase resourceType in message', () => {
-        const err = new ShipError(ErrorType.Api, 'Not found', 404, {
-          data: { error: 'not_found' }
-        });
-        const context: ErrorContext = {
-          resourceType: 'TOKEN',
-          resourceId: 'xyz'
-        };
-
-        const message = getUserMessage(err, context);
-
-        expect(message).toBe('xyz token not found');
-      });
-    });
-
-    describe('business logic errors', () => {
-      it('should use API message for business logic errors', () => {
-        const err = new ShipError(ErrorType.Api, 'Generic error', 400, {
-          data: {
-            error: 'business_logic_error',
-            message: 'Domain limit exceeded for this account'
-          }
-        });
-
+      it('should pass through 400 validation message', () => {
+        const err = new ShipError(ErrorType.Api, 'Tag must be at least 3 characters', 400);
         const message = getUserMessage(err);
-
-        expect(message).toBe('Domain limit exceeded for this account');
+        expect(message).toBe('Tag must be at least 3 characters');
       });
 
-      it('should fallback to err.message if API message is missing', () => {
-        const err = new ShipError(ErrorType.Api, 'Fallback message', 400, {
-          data: { error: 'business_logic_error' }
-        });
-
+      it('should pass through 409 conflict message', () => {
+        const err = new ShipError(ErrorType.Api, 'Domain already exists', 409);
         const message = getUserMessage(err);
-
-        expect(message).toBe('Fallback message');
+        expect(message).toBe('Domain already exists');
       });
     });
 
@@ -230,50 +172,29 @@ describe('CLI Error Handling', () => {
     });
   });
 
-  describe('ensureShipError', () => {
+  describe('toShipError', () => {
     it('should return ShipError unchanged', () => {
       const original = ShipError.validation('test error');
-
-      const result = ensureShipError(original);
-
+      const result = toShipError(original);
       expect(result).toBe(original);
     });
 
     it('should wrap Error as ShipError', () => {
       const original = new Error('something went wrong');
-
-      const result = ensureShipError(original);
-
+      const result = toShipError(original);
       expect(result).toBeInstanceOf(ShipError);
       expect(result.message).toBe('something went wrong');
-      // Wrapped errors become business errors (which are client errors)
-      expect(result.isClientError()).toBe(true);
     });
 
     it('should wrap string as ShipError', () => {
-      const result = ensureShipError('plain string error');
-
+      const result = toShipError('plain string error');
       expect(result).toBeInstanceOf(ShipError);
       expect(result.message).toBe('plain string error');
     });
 
     it('should handle null/undefined gracefully', () => {
-      const resultNull = ensureShipError(null);
-      const resultUndefined = ensureShipError(undefined);
-
-      expect(resultNull).toBeInstanceOf(ShipError);
-      expect(resultUndefined).toBeInstanceOf(ShipError);
-      // null/undefined get converted to 'Unknown error'
-      expect(resultNull.message).toBe('Unknown error');
-      expect(resultUndefined.message).toBe('Unknown error');
-    });
-
-    it('should handle objects without message', () => {
-      const result = ensureShipError({ code: 'ERR_UNKNOWN' });
-
-      expect(result).toBeInstanceOf(ShipError);
-      // Objects without message get stringified
-      expect(result.message).toBe('[object Object]');
+      expect(toShipError(null).message).toBe('Unknown error');
+      expect(toShipError(undefined).message).toBe('Unknown error');
     });
   });
 

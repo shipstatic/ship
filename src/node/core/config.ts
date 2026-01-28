@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import type { ShipClientOptions, DeploymentOptions } from '../../shared/types.js';
-import { ShipError } from '@shipstatic/types';
+import { ShipError, isShipError } from '@shipstatic/types';
 import { getENV } from '../../shared/lib/env.js';
 import { DEFAULT_API } from '../../shared/core/constants.js';
 
@@ -88,7 +88,7 @@ async function loadConfigFromFile(configFile?: string): Promise<Partial<ShipClie
       return validateConfig(result.config);
     }
   } catch (error) {
-    if (error instanceof ShipError) throw error; // Re-throw all ShipError instances
+    if (isShipError(error)) throw error; // Re-throw all ShipError instances
     // Silently fail for file loading issues - this is optional config
   }
   return {};

@@ -179,12 +179,12 @@ ship.on('error', (error, url) => console.error(error));
 ### Error Handling
 
 ```javascript
-import { ShipError } from '@shipstatic/ship';
+import { isShipError } from '@shipstatic/types';
 
 try {
   await ship.deployments.create('./dist');
 } catch (error) {
-  if (error instanceof ShipError) {
+  if (isShipError(error)) {
     if (error.isAuthError()) { /* ... */ }
     if (error.isValidationError()) { /* ... */ }
     if (error.isNetworkError()) { /* ... */ }

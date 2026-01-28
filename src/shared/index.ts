@@ -17,7 +17,6 @@ export * from './lib/junk.js';
 export * from './lib/deploy-paths.js';
 export * from './lib/env.js';
 export * from './lib/file-validation.js';
-export * from './lib/errors.js';
 
 // Re-export types from @shipstatic/types
 export { ShipError, ErrorType } from '@shipstatic/types';
