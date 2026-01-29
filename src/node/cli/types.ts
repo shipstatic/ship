@@ -8,6 +8,7 @@ import type {
   DeploymentListResponse,
   Domain,
   DomainListResponse,
+  DomainValidateResponse,
   DnsRecord,
   Account,
   TokenCreateResponse,
@@ -94,6 +95,7 @@ export type CLIResult =
   | TokenListResponse
   | Deployment
   | EnrichedDomain
+  | DomainValidateResponse
   | Account
   | TokenCreateResponse
   | MessageResult
@@ -139,4 +141,8 @@ export function isMessageResult(result: unknown): result is MessageResult {
 
 export function isPingResponse(result: unknown): result is PingResponse {
   return result !== null && typeof result === 'object' && 'success' in result;
+}
+
+export function isDomainValidateResponse(result: unknown): result is DomainValidateResponse {
+  return result !== null && typeof result === 'object' && 'valid' in result;
 }

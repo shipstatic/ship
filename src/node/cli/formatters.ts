@@ -6,6 +6,7 @@ import type {
   Deployment,
   DeploymentListResponse,
   DomainListResponse,
+  DomainValidateResponse,
   Account,
   TokenCreateResponse,
   TokenListResponse
@@ -133,6 +134,34 @@ export function formatMessage(result: MessageResult, context: OutputContext, opt
 }
 
 /**
+ * Format domain validation result
+ */
+export function formatDomainValidate(result: DomainValidateResponse, context: OutputContext, options: FormatOptions): void {
+  const { isJson, noColor } = options;
+
+  if (isJson) {
+    console.log(JSON.stringify(result, null, 2));
+    console.log();
+    return;
+  }
+
+  if (result.valid) {
+    success(`domain is valid`, isJson, noColor);
+    console.log();
+    if (result.normalized) {
+      console.log(`  normalized: ${result.normalized}`);
+    }
+    if (result.available !== undefined) {
+      const availabilityText = result.available ? 'available ✓' : 'already taken';
+      console.log(`  availability: ${availabilityText}`);
+    }
+    console.log();
+  } else {
+    error(result.error || 'domain is invalid', isJson, noColor);
+  }
+}
+
+/**
  * Format tokens list
  */
 export function formatTokensList(result: TokenListResponse, context: OutputContext, options: FormatOptions): void {
@@ -225,6 +254,8 @@ export function formatOutput(
       formatToken(result as TokenCreateResponse, context, options);
     } else if ('email' in result) {
       formatAccount(result as Account, context, options);
+    } else if ('valid' in result) {
+      formatDomainValidate(result as DomainValidateResponse, context, options);
     } else if ('message' in result) {
       formatMessage(result as MessageResult, context, options);
     } else {
