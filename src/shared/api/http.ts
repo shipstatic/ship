@@ -11,6 +11,7 @@ import type {
   DomainListResponse,
   DomainDnsResponse,
   DomainRecordsResponse,
+  DomainValidateResponse,
   Account,
   SPACheckRequest,
   SPACheckResponse,
@@ -345,7 +346,7 @@ export class ApiHttp extends SimpleEvents {
     return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/share`, { method: 'GET' }, 'Get domain share');
   }
 
-  async validateDomain(name: string): Promise<{ valid: boolean; normalized?: string; error?: string }> {
+  async validateDomain(name: string): Promise<DomainValidateResponse> {
     return this.request(
       `${this.apiUrl}${ENDPOINTS.DOMAINS}/validate`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: name }) },
