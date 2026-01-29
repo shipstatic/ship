@@ -327,23 +327,20 @@ function handleDomainSet(req: IncomingMessage, res: ServerResponse, domainName: 
   req.on('end', () => {
     try {
       const data = JSON.parse(body);
-      if (!data.deployment) {
-        res.writeHead(400);
-        res.end(JSON.stringify(errors.validationError('deployment is required')));
-        return;
-      }
 
-      // Check if deployment exists
-      const deploymentExists = mockDeployments.some((d) => d.deployment === data.deployment);
-      if (!deploymentExists) {
-        res.writeHead(404);
-        res.end(JSON.stringify(errors.notFound('Deployment', data.deployment)));
-        return;
+      // Validate deployment exists if provided
+      if (data.deployment) {
+        const deploymentExists = mockDeployments.some((d) => d.deployment === data.deployment);
+        if (!deploymentExists) {
+          res.writeHead(404);
+          res.end(JSON.stringify(errors.notFound('Deployment', data.deployment)));
+          return;
+        }
       }
 
       // Check if domain already exists (update) or is new (create)
       const existingIndex = mockDomains.findIndex((d) => d.domain === domainName);
-      const domain = createDynamicDomain(domainName, data.deployment, {
+      const domain = createDynamicDomain(domainName, data.deployment || null, {
         tags: data.tags,
       });
 
