@@ -34,6 +34,7 @@ COMMANDS
   ship domains list                     List all domains
   ship domains set <name> [deployment]  Point domain to deployment, or update tags
   ship domains get <name>               Show domain information
+  ship domains validate <name>          Check if domain name is valid and available
   ship domains verify <name>            Trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
 
@@ -80,6 +81,7 @@ COMMANDS
   ship domains list                     List all domains
   ship domains set <name> [deployment]  Point domain to deployment, or update tags
   ship domains get <name>               Show domain information
+  ship domains validate <name>          Check if domain name is valid and available
   ship domains verify <name>            Trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
 
@@ -126,6 +128,7 @@ COMMANDS
   ship domains list                     List all domains
   ship domains set <name> [deployment]  Point domain to deployment, or update tags
   ship domains get <name>               Show domain information
+  ship domains validate <name>          Check if domain name is valid and available
   ship domains verify <name>            Trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
 

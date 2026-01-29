@@ -90,6 +90,7 @@ ${applyBold('COMMANDS')}
   ship domains list                     List all domains
   ship domains set <name> [deployment]  Point domain to deployment, or update tags
   ship domains get <name>               Show domain information
+  ship domains validate <name>          Check if domain name is valid and available
   ship domains verify <name>            Trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
 
@@ -464,7 +465,7 @@ const domainsCmd = program
   .command('domains')
   .description('Manage domains')
   .enablePositionalOptions()
-  .action(handleUnknownSubcommand(['list', 'get', 'set', 'verify', 'remove']));
+  .action(handleUnknownSubcommand(['list', 'get', 'set', 'validate', 'verify', 'remove']));
 
 domainsCmd
   .command('list')
@@ -477,6 +478,14 @@ domainsCmd
   .action(withErrorHandling(
     (client: Ship, name: string) => client.domains.get(name),
     { operation: 'get', resourceType: 'Domain', getResourceId: (name: string) => name }
+  ));
+
+domainsCmd
+  .command('validate <name>')
+  .description('Check if domain name is valid and available')
+  .action(withErrorHandling(
+    (client: Ship, name: string) => client.domains.validate(name),
+    { operation: 'validate', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
 domainsCmd
