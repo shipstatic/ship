@@ -142,6 +142,11 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
       return getApi().verifyDomain(name);
     },
 
+    validate: async (name: string) => {
+      await ensureInit();
+      return getApi().validateDomain(name);
+    },
+
     dns: async (name: string) => {
       await ensureInit();
       return getApi().getDomainDns(name);

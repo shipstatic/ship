@@ -345,6 +345,14 @@ export class ApiHttp extends SimpleEvents {
     return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/share`, { method: 'GET' }, 'Get domain share');
   }
 
+  async validateDomain(name: string): Promise<{ valid: boolean; normalized?: string; error?: string }> {
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DOMAINS}/validate`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: name }) },
+      'Validate domain'
+    );
+  }
+
   // ===========================================================================
   // PUBLIC API - TOKENS
   // ===========================================================================
