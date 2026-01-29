@@ -171,6 +171,48 @@ describe('DomainResource', () => {
     });
   });
 
+  describe('validate', () => {
+    it('should call api.validateDomain and return validation result', async () => {
+      const mockValidateResponse = { valid: true, normalized: 'my-site.shipstatic.dev' };
+      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
+
+      const result = await domains.validate('my-site.shipstatic.dev');
+
+      expect((mockApi as any).validateDomain).toHaveBeenCalledWith('my-site.shipstatic.dev');
+      expect(result).toEqual(mockValidateResponse);
+    });
+
+    it('should return normalized domain for valid input', async () => {
+      const mockValidateResponse = { valid: true, normalized: 'www.example.com' };
+      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
+
+      const result = await domains.validate('example.com');
+
+      expect(result.valid).toBe(true);
+      expect(result.normalized).toBe('www.example.com');
+    });
+
+    it('should return error for invalid domain', async () => {
+      const mockValidateResponse = { valid: false, error: 'Domain must be a fully qualified domain name' };
+      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
+
+      const result = await domains.validate('invalid');
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBeDefined();
+    });
+
+    it('should handle uppercase normalization', async () => {
+      const mockValidateResponse = { valid: true, normalized: 'mysite.shipstatic.dev' };
+      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
+
+      const result = await domains.validate('MySite.SHIPSTATIC.DEV');
+
+      expect(result.valid).toBe(true);
+      expect(result.normalized).toBe('mysite.shipstatic.dev');
+    });
+  });
+
   describe('integration', () => {
     it('should create domain resource with API client', () => {
       expect(domains).toBeDefined();
@@ -179,6 +221,7 @@ describe('DomainResource', () => {
       expect(typeof domains.list).toBe('function');
       expect(typeof domains.remove).toBe('function');
       expect(typeof domains.verify).toBe('function');
+      expect(typeof domains.validate).toBe('function');
     });
 
     it('should return promises from all methods', () => {
@@ -188,6 +231,7 @@ describe('DomainResource', () => {
       (mockApi.listDomains as any).mockResolvedValue({});
       (mockApi.removeDomain as any).mockResolvedValue({});
       (mockApi.verifyDomain as any).mockResolvedValue({});
+      (mockApi as any).validateDomain = vi.fn().mockResolvedValue({});
 
       expect(domains.set('test', { deployment: 'abc123' })).toBeInstanceOf(Promise);
       expect(domains.set('test', { deployment: 'abc123', tags: ['tag1'] })).toBeInstanceOf(Promise);
@@ -196,6 +240,7 @@ describe('DomainResource', () => {
       expect(domains.list()).toBeInstanceOf(Promise);
       expect(domains.remove('test')).toBeInstanceOf(Promise);
       expect(domains.verify('test')).toBeInstanceOf(Promise);
+      expect(domains.validate('test.example.com')).toBeInstanceOf(Promise);
     });
   });
 });
