@@ -55,6 +55,28 @@ describe('DomainResource', () => {
       expect(mockApi.setDomain).toHaveBeenCalledWith('prod', 'xyz789', tags);
       expect(result).toEqual(mockSetResponse);
     });
+
+    it('should PUT (reserve) when called with no options', async () => {
+      const mockSetResponse = { domain: 'reserved', deployment: null, url: 'https://reserved.shipstatic.dev', isCreate: true };
+      (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
+
+      const result = await domains.set('reserved');
+
+      expect(mockApi.setDomain).toHaveBeenCalledWith('reserved', undefined, undefined);
+      expect(mockApi.updateDomainTags).not.toHaveBeenCalled();
+      expect(result).toEqual(mockSetResponse);
+    });
+
+    it('should PUT (reserve) when called with empty options', async () => {
+      const mockSetResponse = { domain: 'reserved', deployment: null, url: 'https://reserved.shipstatic.dev', isCreate: true };
+      (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
+
+      const result = await domains.set('reserved', {});
+
+      expect(mockApi.setDomain).toHaveBeenCalledWith('reserved', undefined, undefined);
+      expect(mockApi.updateDomainTags).not.toHaveBeenCalled();
+      expect(result).toEqual(mockSetResponse);
+    });
   });
 
   describe('set with tags only (smart routing)', () => {
@@ -70,10 +92,15 @@ describe('DomainResource', () => {
       expect(result).toEqual(mockUpdateResponse);
     });
 
-    it('should reject empty tags array without deployment', async () => {
-      // Empty tags without deployment is now a validation error (matches CLI behavior)
-      await expect(domains.set('staging', { tags: [] }))
-        .rejects.toThrow(/Must provide deployment or tags/);
+    it('should PUT (reserve) when empty tags array and no deployment', async () => {
+      const mockSetResponse = { domain: 'staging', deployment: null, url: 'https://staging.shipstatic.dev', tags: [] };
+      (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
+
+      const result = await domains.set('staging', { tags: [] });
+
+      expect(mockApi.setDomain).toHaveBeenCalledWith('staging', undefined, []);
+      expect(mockApi.updateDomainTags).not.toHaveBeenCalled();
+      expect(result).toEqual(mockSetResponse);
     });
 
     it('should allow clearing tags when deployment is provided', async () => {

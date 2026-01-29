@@ -171,10 +171,9 @@ describe('Advanced Domain Operations', () => {
       expect(updated.tags).toEqual([]);
     });
 
-    it('should reject empty tags array without deployment', async () => {
-      // Empty tags without deployment is a validation error (matches CLI behavior)
-      await expect(ship.domains.set('some-domain', { tags: [] }))
-        .rejects.toThrow(/Must provide deployment or tags/);
+    it('should PUT (reserve) when empty tags array without deployment', async () => {
+      const result = await ship.domains.set('some-domain', { tags: [] });
+      expect(result.domain).toBe('some-domain');
     });
 
     it('should fail for non-existent domain', async () => {

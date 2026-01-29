@@ -110,13 +110,8 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
       await ensureInit();
       const { deployment, tags } = options;
 
-      // Validate: must provide deployment or non-empty tags (matches CLI behavior)
-      if (deployment === undefined && (!tags || tags.length === 0)) {
-        throw ShipError.validation('Must provide deployment or tags');
-      }
-
-      // Smart routing: if only tags provided, use PATCH; otherwise PUT
-      if (deployment === undefined && tags !== undefined) {
+      // Smart routing: tags-only → PATCH; otherwise → PUT (create/link/reserve)
+      if (deployment === undefined && tags && tags.length > 0) {
         return getApi().updateDomainTags(name, tags);
       }
       return getApi().setDomain(name, deployment, tags);
