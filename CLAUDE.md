@@ -386,12 +386,12 @@ ship.domains.set('staging', { deployment: 'abc123', tags: ['prod'] });
 ship.domains.set('staging', { tags: ['prod', 'v2'] });
 // → PATCH /domains/staging { tags: ['prod', 'v2'] }
 
-// Empty call → validation error
-ship.domains.set('staging', {});
-// → throws ShipError.validation('Must provide deployment or tags')
+// No options → PUT (create/reserve domain without linking)
+ship.domains.set('staging');
+// → PUT /domains/staging {}
 ```
 
-**Rationale:** Deployments are immutable (can only update tags), but domains can be re-pointed to different deployments. The validation prevents accidental no-op calls.
+**Rationale:** Deployments are immutable (can only update tags), but domains can be created without a deployment (reservation) and re-pointed later.
 
 ### Domain Format and Normalization
 
