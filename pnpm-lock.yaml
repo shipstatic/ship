@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@shipstatic/types':
-        specifier: ^0.4.14
-        version: 0.4.14
+        specifier: ^0.4.16
+        version: 0.4.16
       columnify:
         specifier: ^1.6.0
         version: 1.6.0
@@ -694,8 +694,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shipstatic/types@0.4.14':
-    resolution: {integrity: sha512-ayRVUtAYoXaUeDwtpthYdnXAar8gJ7XDoB36ynHWSEUKv7JbEgv9MPHr6e48PdhTwUG+b0w/iYW+UksEAgfufw==}
+  '@shipstatic/types@0.4.16':
+    resolution: {integrity: sha512-TwKLiMz4oqpj2ntH2i9t99obcTtzX6OwGgKfD4Vl4RNGMe4zbNvgma5DzMhFk/ov3KdYtBdykI2gFD+HSheQvg==}
     engines: {node: '>=20.0.0'}
 
   '@tsconfig/node10@1.0.12':
@@ -2216,7 +2216,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.57.0':
     optional: true
 
-  '@shipstatic/types@0.4.14': {}
+  '@shipstatic/types@0.4.16': {}
 
   '@tsconfig/node10@1.0.12': {}
 
