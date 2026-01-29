@@ -173,7 +173,7 @@ describe('DomainResource', () => {
 
   describe('validate', () => {
     it('should call api.validateDomain and return validation result', async () => {
-      const mockValidateResponse = { valid: true, normalized: 'my-site.shipstatic.dev' };
+      const mockValidateResponse = { valid: true, normalized: 'my-site.shipstatic.dev', available: true };
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
 
       const result = await domains.validate('my-site.shipstatic.dev');
@@ -182,14 +182,37 @@ describe('DomainResource', () => {
       expect(result).toEqual(mockValidateResponse);
     });
 
-    it('should return normalized domain for valid input', async () => {
-      const mockValidateResponse = { valid: true, normalized: 'www.example.com' };
+    it('should return normalized domain and availability for valid platform domain', async () => {
+      const mockValidateResponse = { valid: true, normalized: 'my-site.shipstatic.dev', available: true };
+      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
+
+      const result = await domains.validate('my-site.shipstatic.dev');
+
+      expect(result.valid).toBe(true);
+      expect(result.normalized).toBe('my-site.shipstatic.dev');
+      expect(result.available).toBe(true);
+    });
+
+    it('should return normalized domain for valid custom domain', async () => {
+      const mockValidateResponse = { valid: true, normalized: 'www.example.com', available: true };
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
 
       const result = await domains.validate('example.com');
 
       expect(result.valid).toBe(true);
       expect(result.normalized).toBe('www.example.com');
+      expect(result.available).toBe(true);
+    });
+
+    it('should indicate when platform domain is taken', async () => {
+      const mockValidateResponse = { valid: true, normalized: 'taken-site.shipstatic.dev', available: false };
+      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
+
+      const result = await domains.validate('taken-site.shipstatic.dev');
+
+      expect(result.valid).toBe(true);
+      expect(result.normalized).toBe('taken-site.shipstatic.dev');
+      expect(result.available).toBe(false);
     });
 
     it('should return error for invalid domain', async () => {
@@ -200,16 +223,18 @@ describe('DomainResource', () => {
 
       expect(result.valid).toBe(false);
       expect(result.error).toBeDefined();
+      expect(result.available).toBeUndefined();
     });
 
     it('should handle uppercase normalization', async () => {
-      const mockValidateResponse = { valid: true, normalized: 'mysite.shipstatic.dev' };
+      const mockValidateResponse = { valid: true, normalized: 'mysite.shipstatic.dev', available: true };
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
 
       const result = await domains.validate('MySite.SHIPSTATIC.DEV');
 
       expect(result.valid).toBe(true);
       expect(result.normalized).toBe('mysite.shipstatic.dev');
+      expect(result.available).toBe(true);
     });
   });
 

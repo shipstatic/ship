@@ -215,6 +215,17 @@ export const domains = {
     url: 'https://reserved.shipstatic.dev',
     created: timestamps.jan2022,
   } satisfies Domain,
+
+  /**
+   * Paused custom domain (plan enforcement - downgrade to free)
+   */
+  paused: {
+    domain: 'paused-custom.com',
+    deployment: 'test-deployment-1',
+    status: 'paused',
+    url: 'https://paused-custom.com',
+    created: timestamps.jan2022,
+  } satisfies Domain,
 } as const;
 
 export const domainListResponses = {
