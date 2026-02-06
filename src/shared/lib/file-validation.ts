@@ -257,6 +257,16 @@ export function validateFiles<T extends ValidatableFile>(
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = 'File extension does not match MIME type';
       errors.push(`${file.name}: ${statusMessage}`);
+
+      // DEBUG: Log validation failure details
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      const allowedExtensions = MIME_TYPE_EXTENSIONS.get(file.type);
+      console.error(`[Ship Validation Failed] ${file.name}:`, {
+        extension: ext,
+        mimeType: file.type,
+        allowedExtensionsForMimeType: allowedExtensions ? Array.from(allowedExtensions) : 'none',
+        isMimeTypeInDb: VALID_MIME_TYPES.has(file.type)
+      });
     }
     // Check individual file size
     else if (file.size > config.maxFileSize) {
