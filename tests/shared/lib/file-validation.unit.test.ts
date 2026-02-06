@@ -456,8 +456,8 @@ describe('File Validation', () => {
 
     it('should accept files with multiple dots (handles last extension)', () => {
       const files = [
-        createMockFile('archive.tar.gz', 100, 'application/gzip'),
-        createMockFile('backup.2024.tar.gz', 100, 'application/gzip'),
+        createMockFile('bundle.min.js', 100, 'application/javascript'),
+        createMockFile('style.2024.css', 100, 'text/css'),
         createMockFile('data.min.js', 100, 'application/javascript'),
       ];
 
@@ -498,7 +498,7 @@ describe('File Validation', () => {
         createMockFile('photo.JPG', 100, 'image/jpeg'),
         createMockFile('image.PNG', 100, 'image/png'),
         createMockFile('document.TXT', 100, 'text/plain'),
-        createMockFile('archive.ZIP', 100, 'application/zip'),
+        createMockFile('script.JS', 100, 'application/javascript'),
       ];
 
       const result = validateFiles(files, config);
@@ -547,19 +547,6 @@ describe('File Validation', () => {
         createMockFile('audio.mp3', 100, 'audio/mpeg'),
         createMockFile('audio.wav', 100, 'audio/wav'),
         createMockFile('audio.ogg', 100, 'audio/ogg'),
-      ];
-
-      const result = validateFiles(files, config);
-
-      expect(result.validFiles).toHaveLength(3);
-      expect(result.error).toBeNull();
-    });
-
-    it('should accept archive files', () => {
-      const files = [
-        createMockFile('archive.zip', 100, 'application/zip'),
-        createMockFile('archive.tar', 100, 'application/x-tar'),
-        createMockFile('archive.gz', 100, 'application/gzip'),
       ];
 
       const result = validateFiles(files, config);
@@ -751,7 +738,7 @@ describe('File Validation', () => {
         { name: 'my_file.txt', type: 'text/plain' },
         { name: 'file123.txt', type: 'text/plain' },
         { name: 'FILE.TXT', type: 'text/plain' },
-        { name: 'file.tar.gz', type: 'application/gzip' },
+        { name: 'bundle.min.js', type: 'application/javascript' },
         { name: 'index.html', type: 'text/html' },
         { name: 'README.md', type: 'text/markdown' },
         { name: 'package.json', type: 'application/json' },

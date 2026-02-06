@@ -11,7 +11,9 @@ import type {
   FileValidationStatusType
 } from '@shipstatic/types';
 import {
-  FileValidationStatus as FILE_VALIDATION_STATUS
+  FileValidationStatus as FILE_VALIDATION_STATUS,
+  isAllowedMimeType,
+  ALLOWED_MIME_TYPES
 } from '@shipstatic/types';
 import type { MimeDatabase } from 'mime-db';
 import mimeDb from 'mime-db';
@@ -237,14 +239,15 @@ export function validateFiles<T extends ValidatableFile>(
       statusMessage = 'File MIME type is required';
       errors.push(`${file.name}: ${statusMessage}`);
     }
-    // Check MIME type in allowed categories
-    else if (!config.allowedMimeTypes.some((category: string) => file.type.startsWith(category))) {
+    // Check MIME type against platform allowlist (imported from @shipstatic/types)
+    else if (!isAllowedMimeType(file.type)) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = `File type "${file.type}" is not allowed`;
       errors.push(`${file.name}: ${statusMessage}`);
     }
-    // Check MIME type valid (exists in mime-db)
-    else if (!VALID_MIME_TYPES.has(file.type)) {
+    // Check MIME type is valid: Must be explicitly in our allowlist OR exist in mime-db
+    // This allows legacy font types (e.g. application/x-font-woff) that aren't in mime-db
+    else if (!ALLOWED_MIME_TYPES.some(allowed => file.type === allowed) && !VALID_MIME_TYPES.has(file.type)) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = `Invalid MIME type "${file.type}"`;
       errors.push(`${file.name}: ${statusMessage}`);
