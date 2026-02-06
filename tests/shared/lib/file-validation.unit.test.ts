@@ -199,7 +199,7 @@ describe('File Validation', () => {
 
       it('should reject files with disallowed MIME types (atomic)', () => {
         const files = [
-          createMockFile('app.wasm', 100, 'application/wasm'),
+          createMockFile('archive.zip', 100, 'application/zip'),
           createMockFile('valid.txt', 100, 'text/plain'),
         ];
 
@@ -208,7 +208,7 @@ describe('File Validation', () => {
         // ATOMIC: All files rejected if any has invalid MIME type
         expect(result.validFiles).toHaveLength(0);
         expect(result.error?.error).toBe('Invalid File Type');
-        expect(result.error?.details).toContain('application/wasm');
+        expect(result.error?.details).toContain('application/zip');
         // All files marked as failed
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
         expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
@@ -267,15 +267,16 @@ describe('File Validation', () => {
         expect(result.files[2].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
 
-      it('should not allow wasm files', () => {
+      it('should allow WASM files (web standard)', () => {
         const files = [
           createMockFile('app.wasm', 100, 'application/wasm'),
         ];
 
         const result = validateFiles(files, config);
 
-        expect(result.validFiles).toHaveLength(0);
-        expect(result.error?.error).toBe('Invalid File Type');
+        expect(result.validFiles).toHaveLength(1);
+        expect(result.error).toBeNull();
+        expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.READY);
       });
     });
 
@@ -394,7 +395,7 @@ describe('File Validation', () => {
 
     it('should reject files with invalid MIME type (not in mime-db) (atomic)', () => {
       const files = [
-        createMockFile('file.xyz', 100, 'text/invalid-made-up-type'), // In allowed category but not in mime-db
+        createMockFile('file.xyz', 100, 'image/invalid-made-up-type'), // In allowed category (image/*) but not in mime-db
         createMockFile('valid.txt', 100, 'text/plain'),
       ];
 
