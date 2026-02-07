@@ -25,11 +25,16 @@ export const JUNK_DIRECTORIES = [
 /**
  * Filters an array of file paths, removing those considered junk
  *
- * A path is filtered out if either:
+ * A path is filtered out if any of these conditions are met:
  * 1. The basename is identified as junk by the 'junk' package (e.g., .DS_Store, Thumbs.db)
- * 2. Any directory segment in the path matches an entry in JUNK_DIRECTORIES (case-insensitive)
+ * 2. Any path segment (file or directory) starts with a dot (e.g., .env, .git, .gitattributes)
+ * 3. Any path segment exceeds 255 characters (filesystem limit)
+ * 4. Any directory segment in the path matches an entry in JUNK_DIRECTORIES (case-insensitive)
  *
  * All path separators are normalized to forward slashes for consistent cross-platform behavior.
+ *
+ * Note: Dot files are filtered for security - they typically contain sensitive configuration
+ * (.env, .git) or are not meant to be served publicly. This matches server-side filtering.
  *
  * @param filePaths - An array of file path strings to filter
  * @returns A new array containing only non-junk file paths
@@ -39,7 +44,7 @@ export const JUNK_DIRECTORIES = [
  * import { filterJunk } from '@shipstatic/ship';
  *
  * // Filter an array of file paths
- * const paths = ['index.html', '.DS_Store', '__MACOSX/file.txt', 'app.js'];
+ * const paths = ['index.html', '.DS_Store', '.gitattributes', '__MACOSX/file.txt', 'app.js'];
  * const clean = filterJunk(paths);
  * // Result: ['index.html', 'app.js']
  * ```
@@ -76,17 +81,26 @@ export function filterJunk(filePaths: string[]): string[] {
     // Normalize path separators to forward slashes and split into segments
     const parts = filePath.replace(/\\/g, '/').split('/').filter(Boolean);
     if (parts.length === 0) return true;
-    
+
     // Check if the basename is a junk file (using junk package)
     const basename = parts[parts.length - 1];
     if (isJunk(basename)) {
       return false;
     }
 
+    // Filter out all dot files and directories (security: prevents .env, .git, etc.)
+    // Also enforce path segment length limit to match server validation
+    // This matches server-side filtering in storage.ts buildFileKey()
+    for (const part of parts) {
+      if (part.startsWith('.') || part.length > 255) {
+        return false;
+      }
+    }
+
     // Check if any directory segment is in our junk directories list
     const directorySegments = parts.slice(0, -1);
     for (const segment of directorySegments) {
-      if (JUNK_DIRECTORIES.some(junkDir => 
+      if (JUNK_DIRECTORIES.some(junkDir =>
           segment.toLowerCase() === junkDir.toLowerCase())) {
         return false;
       }

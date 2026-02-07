@@ -101,7 +101,6 @@ describe('filterJunk', () => {
     const files = [
       'project__MACOSX_backup/file.txt',
       'My.DS_Store_archive/data.zip',
-      'ok/.TrashesExtra/log.txt',
     ];
     expect(filterJunk(files)).toEqual(files);
   });
@@ -127,6 +126,40 @@ describe('filterJunk', () => {
       'another.jpg',
     ];
     const expected = ['file1.txt', 'folder/file2.png', 'another.jpg'];
+    expect(filterJunk(files)).toEqual(expected);
+  });
+
+  it('should filter all dot files and directories for security', () => {
+    const files = [
+      'index.html',
+      '.env',
+      '.gitignore',
+      '.gitattributes',
+      'src/.htaccess',
+      '.config/settings.json',
+      'app.js',
+    ];
+    const expected = ['index.html', 'app.js'];
+    expect(filterJunk(files)).toEqual(expected);
+  });
+
+  it('should filter path segments exceeding 255 characters', () => {
+    // Path segments (directory or filename) are checked individually
+    // Each segment must be <= 255 characters
+    const okSegment = 'a'.repeat(255);     // 255 chars - OK
+    const tooLongSegment = 'b'.repeat(256); // 256 chars - filtered
+
+    const files = [
+      'index.html',
+      `${okSegment}.txt`,              // Filename "aaa...aaa.txt" = 259 chars - filtered (> 255)
+      `dir/${okSegment}/file.txt`,     // Directory "aaa...aaa" = 255 chars - OK
+      `dir/${tooLongSegment}/file.txt`, // Directory "bbb...bbb" = 256 chars - filtered
+    ];
+
+    const expected = [
+      'index.html',
+      `dir/${okSegment}/file.txt`,  // Only this passes (all segments <= 255)
+    ];
     expect(filterJunk(files)).toEqual(expected);
   });
 });
