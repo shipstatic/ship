@@ -1023,7 +1023,7 @@ describe('Node File Utilities', () => {
       expect(result.length).toBe(1);
     });
 
-    it('should handle hidden files starting with dot', async () => {
+    it('should filter hidden files starting with dot', async () => {
       setupMockFsNode({
         '/mock/cwd/.env': { type: 'file', content: 'SECRET=value' },
         '/mock/cwd/.gitignore': { type: 'file', content: 'node_modules' },
@@ -1032,8 +1032,9 @@ describe('Node File Utilities', () => {
 
       const result = await processFilesForNode(['.env', '.gitignore', 'normal.txt']);
 
-      // Hidden files should be processed (not junk)
-      expect(result.length).toBe(3);
+      // Hidden files should be filtered for security (dot files not allowed)
+      expect(result.length).toBe(1);
+      expect(result[0].path).toBe('normal.txt');
     });
   });
 
