@@ -36,8 +36,9 @@ describe('File Validation', () => {
       const result = validateFiles([], config);
 
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('No Files Provided');
-      expect(result.error?.details).toBe('At least one file must be provided');
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toContain('At least one file');
     });
   });
 
@@ -79,7 +80,9 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(2);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(0);
       result.files.forEach(f => {
         expect(f.status).toBe(FILE_VALIDATION_STATUS.READY);
         expect(f.statusMessage).toBe('Ready for upload');
@@ -94,13 +97,15 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('File Count Exceeded');
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toContain('exceeds limit');
       result.files.forEach(f => {
         expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
     });
 
-    it('should reject empty files (atomic - rejects all)', () => {
+    it('should exclude empty files with warning (allow deployment)', () => {
       const files = [
         createMockFile('empty.txt', 0),
         createMockFile('valid.txt', 100),
@@ -108,15 +113,25 @@ describe('File Validation', () => {
 
       const result = validateFiles(files, config);
 
-      // ATOMIC: If any file fails, all are rejected
-      expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('Empty File');
-      expect(result.error?.errors).toHaveLength(1);
-      expect(result.error?.errors[0]).toContain('empty.txt');
-      expect(result.error?.details).toBe('empty.txt: File is empty (0 bytes)');
-      // All files marked as failed
-      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
-      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      // Deployment ALLOWED (warnings don't block)
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(1);
+
+      // Warning for empty file
+      expect(result.warnings[0]).toMatchObject({
+        file: 'empty.txt',
+      });
+      expect(result.warnings[0].message).toContain('empty');
+      expect(result.warnings[0].message).toContain('0 bytes');
+
+      // Only valid file in validFiles
+      expect(result.validFiles).toHaveLength(1);
+      expect(result.validFiles[0].name).toBe('valid.txt');
+
+      // Status check: empty excluded, valid ready
+      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.EXCLUDED);
+      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.READY);
     });
 
     it('should reject files exceeding individual size limit (atomic)', () => {
@@ -127,15 +142,21 @@ describe('File Validation', () => {
 
       const result = validateFiles(files, config);
 
-      // ATOMIC: All files rejected if any fails
+      // Deployment blocked due to error
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toContain('exceeds limit');
+      expect(result.errors[0].file).toBe('huge.txt');
+
+      // ATOMIC: All files rejected when any file exceeds size limit
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('File Too Large');
-      // All files marked as failed
+
+      // All files marked as VALIDATION_FAILED (atomic)
       expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
 
-    it('should reject when total size exceeds limit (atomic)', () => {
+    it('should reject when total size exceeds limit (per-file validation)', () => {
       const largeConfig: ConfigResponse = {
         maxFileSize: 15 * 1024 * 1024, // 15MB per file
         maxTotalSize: 25 * 1024 * 1024, // 25MB total
@@ -151,10 +172,16 @@ describe('File Validation', () => {
 
       const result = validateFiles(files, largeConfig);
 
-      // ATOMIC: All files rejected if total size exceeded
+      // Deployment blocked due to total size error
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toContain('Total size');
+      expect(result.errors[0].file).toBe('file3.txt');
+
+      // ATOMIC: All files rejected when total size exceeded
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('Total Size Exceeded');
-      // All files marked as failed
+
+      // All files marked as VALIDATION_FAILED (atomic)
       expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       expect(result.files[2].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
@@ -173,9 +200,9 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       // ATOMIC: All files rejected if any has processing error
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toContain('Failed to process');
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('Processing Error');
-      // All files marked as failed
       expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
@@ -191,7 +218,7 @@ describe('File Validation', () => {
         const result = validateFiles(files, config);
 
         expect(result.validFiles).toHaveLength(3);
-        expect(result.error).toBeNull();
+        expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
         result.files.forEach(f => {
           expect(f.status).toBe(FILE_VALIDATION_STATUS.READY);
         });
@@ -206,10 +233,10 @@ describe('File Validation', () => {
         const result = validateFiles(files, config);
 
         // ATOMIC: All files rejected if any has invalid MIME type
+        expect(result.canDeploy).toBe(false);
+        expect(result.errors[0].message).toContain('not allowed');
+        expect(result.errors[0].message).toContain('application/zip');
         expect(result.validFiles).toHaveLength(0);
-        expect(result.error?.error).toBe('Invalid File Type');
-        expect(result.error?.details).toContain('application/zip');
-        // All files marked as failed
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
         expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
@@ -225,7 +252,7 @@ describe('File Validation', () => {
         const result = validateFiles(files, config);
 
         expect(result.validFiles).toHaveLength(4);
-        expect(result.error).toBeNull();
+        expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
         result.files.forEach(f => {
           expect(f.status).toBe(FILE_VALIDATION_STATUS.READY);
         });
@@ -239,7 +266,8 @@ describe('File Validation', () => {
         const result = validateFiles(files, config);
 
         expect(result.validFiles).toHaveLength(0);
-        expect(result.error?.error).toBe('Missing MIME Type');
+        expect(result.canDeploy).toBe(false);
+        expect(result.errors[0].message).toContain('required');
       });
 
       it('should reject multiple files with invalid types (atomic)', () => {
@@ -252,16 +280,18 @@ describe('File Validation', () => {
         const result = validateFiles(files, config);
 
         // ATOMIC: All files rejected
+        expect(result.canDeploy).toBe(false);
         expect(result.validFiles).toHaveLength(0);
-        expect(result.error?.error).toBe('Invalid File Type');
-        expect(result.error?.details).toBe('2 file(s) failed validation');
-        // Verify all errors are in the errors array
-        expect(result.error?.errors).toHaveLength(2);
-        expect(result.error?.errors[0]).toContain('bad1.exe');
-        expect(result.error?.errors[0]).toContain('application/x-msdownload');
-        expect(result.error?.errors[1]).toContain('bad2.bin');
-        expect(result.error?.errors[1]).toContain('application/octet-stream');
-        // All files marked as failed
+
+        // Verify both errors are in the errors array
+        expect(result.errors).toHaveLength(2);
+        expect(result.errors[0].message).toContain('not allowed');
+        expect(result.errors[0].file).toBe('bad1.exe');
+        expect(result.errors[0].message).toContain('application/x-msdownload');
+        expect(result.errors[1].file).toBe('bad2.bin');
+        expect(result.errors[1].message).toContain('application/octet-stream');
+
+        // All files marked as VALIDATION_FAILED (atomic)
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
         expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
         expect(result.files[2].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
@@ -275,7 +305,7 @@ describe('File Validation', () => {
         const result = validateFiles(files, config);
 
         expect(result.validFiles).toHaveLength(1);
-        expect(result.error).toBeNull();
+        expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.READY);
       });
     });
@@ -318,9 +348,12 @@ describe('File Validation', () => {
 
       const result = validateFiles(files, config);
 
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toBeDefined();
+      expect(result.errors[0].message).toContain('File name cannot be empty');
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('Invalid File Name');
-      expect(result.error?.errors[0]).toContain('File name cannot be empty');
+      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
 
     it('should reject file names with path traversal (atomic)', () => {
@@ -331,9 +364,12 @@ describe('File Validation', () => {
 
       const result = validateFiles(files, config);
 
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toBeDefined();
+      expect(result.errors[0].message).toContain('traversal');
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('Invalid File Name');
-      expect(result.error?.errors[0]).toContain('traversal');
+      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
 
     it('should reject file names with null bytes (atomic)', () => {
@@ -344,9 +380,12 @@ describe('File Validation', () => {
 
       const result = validateFiles(files, config);
 
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toBeDefined();
+      expect(result.errors[0].message).toContain('null byte');
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('Invalid File Name');
-      expect(result.error?.errors[0]).toContain('null byte');
+      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
   });
 
@@ -366,9 +405,11 @@ describe('File Validation', () => {
 
       const result = validateFiles(files, config);
 
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toContain('File size must be positive');
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('Empty File');
-      expect(result.error?.errors[0]).toContain('File size must be positive');
+      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
   });
 
@@ -388,9 +429,11 @@ describe('File Validation', () => {
 
       const result = validateFiles(files, config);
 
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toContain('File MIME type is required');
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('Missing MIME Type');
-      expect(result.error?.errors[0]).toContain('File MIME type is required');
+      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
 
     it('should reject files with invalid MIME type (not in mime-db) (atomic)', () => {
@@ -401,9 +444,11 @@ describe('File Validation', () => {
 
       const result = validateFiles(files, config);
 
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toContain('Invalid MIME type');
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('Invalid MIME Type');
-      expect(result.error?.errors[0]).toContain('Invalid MIME type');
+      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
 
     it('should reject files where extension does not match MIME type (atomic)', () => {
@@ -414,9 +459,12 @@ describe('File Validation', () => {
 
       const result = validateFiles(files, config);
 
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toContain('does not match');
+      expect(result.errors[0].message).toContain('File extension does not match MIME type');
       expect(result.validFiles).toHaveLength(0);
-      expect(result.error?.error).toBe('Extension Mismatch');
-      expect(result.error?.errors[0]).toContain('File extension does not match MIME type');
+      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
 
     it('should accept files where extension matches MIME type', () => {
@@ -429,7 +477,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
   });
 
@@ -452,7 +500,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(4);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
 
     it('should accept files with multiple dots (handles last extension)', () => {
@@ -465,7 +513,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
 
     it('should accept hidden files (files starting with dot)', () => {
@@ -478,7 +526,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
 
     it('should accept hidden files with extensions', () => {
@@ -491,7 +539,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
 
     it('should handle case-insensitive extensions', () => {
@@ -505,7 +553,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(4);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
   });
 
@@ -527,7 +575,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
 
     it('should accept video files', () => {
@@ -540,7 +588,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
 
     it('should accept audio files', () => {
@@ -553,7 +601,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
 
     it('should accept modern image formats', () => {
@@ -566,7 +614,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
   });
 
@@ -625,7 +673,7 @@ describe('File Validation', () => {
     it('should export all status constants', () => {
       expect(FILE_VALIDATION_STATUS.PENDING).toBe('pending');
       expect(FILE_VALIDATION_STATUS.PROCESSING_ERROR).toBe('processing_error');
-      expect(FILE_VALIDATION_STATUS.EMPTY_FILE).toBe('empty_file');
+      expect(FILE_VALIDATION_STATUS.EXCLUDED).toBe('excluded');
       expect(FILE_VALIDATION_STATUS.VALIDATION_FAILED).toBe('validation_failed');
       expect(FILE_VALIDATION_STATUS.READY).toBe('ready');
     });
@@ -658,7 +706,8 @@ describe('File Validation', () => {
 
       unsafeNames.forEach(name => {
         const result = validateFiles([createMockFile(name, 100)], config);
-        expect(result.error?.error).toBe('Invalid File Name');
+        expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toBeDefined();
         expect(result.validFiles).toHaveLength(0);
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
@@ -677,20 +726,24 @@ describe('File Validation', () => {
 
       dangerousNames.forEach(name => {
         const result = validateFiles([createMockFile(name, 100)], config);
-        expect(result.error?.error).toBe('Invalid File Name');
+        expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toBeDefined();
         expect(result.validFiles).toHaveLength(0);
       });
     });
 
     it('should reject files with control characters', () => {
       const result1 = validateFiles([createMockFile('file\rcarriage.txt', 100)], config);
-      expect(result1.error?.error).toBe('Invalid File Name');
+      expect(result1.canDeploy).toBe(false);
+      expect(result1.errors[0].message).toBeDefined();
 
       const result2 = validateFiles([createMockFile('file\nline.txt', 100)], config);
-      expect(result2.error?.error).toBe('Invalid File Name');
+      expect(result2.canDeploy).toBe(false);
+      expect(result2.errors[0].message).toBeDefined();
 
       const result3 = validateFiles([createMockFile('file\ttab.txt', 100)], config);
-      expect(result3.error?.error).toBe('Invalid File Name');
+      expect(result3.canDeploy).toBe(false);
+      expect(result3.errors[0].message).toBeDefined();
     });
 
     it('should reject files with Windows reserved names', () => {
@@ -708,28 +761,33 @@ describe('File Validation', () => {
 
       reservedNames.forEach(name => {
         const result = validateFiles([createMockFile(name, 100)], config);
-        expect(result.error?.error).toBe('Invalid File Name');
+        expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toBeDefined();
         expect(result.validFiles).toHaveLength(0);
       });
     });
 
     it('should reject files with leading/trailing spaces', () => {
       const result1 = validateFiles([createMockFile(' leading.txt', 100)], config);
-      expect(result1.error?.error).toBe('Invalid File Name');
+      expect(result1.canDeploy).toBe(false);
+      expect(result1.errors[0].message).toBeDefined();
 
       const result2 = validateFiles([createMockFile('trailing.txt ', 100)], config);
-      expect(result2.error?.error).toBe('Invalid File Name');
+      expect(result2.canDeploy).toBe(false);
+      expect(result2.errors[0].message).toBeDefined();
     });
 
     it('should reject files ending with dots', () => {
       const result = validateFiles([createMockFile('file.txt.', 100)], config);
-      expect(result.error?.error).toBe('Invalid File Name');
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toBeDefined();
     });
 
     it('should reject files with path traversal (..)', () => {
       const result = validateFiles([createMockFile('../../../etc/passwd', 100, 'text/plain')], config);
-      expect(result.error?.error).toBe('Invalid File Name');
-      expect(result.error?.details).toContain('traversal');
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toBeDefined();
+      expect(result.errors[0].message).toContain('traversal');
     });
 
     it('should accept valid filenames', () => {
@@ -750,7 +808,7 @@ describe('File Validation', () => {
 
       validFiles.forEach(({ name, type }) => {
         const result = validateFiles([createMockFile(name, 100, type)], config);
-        expect(result.error).toBeNull();
+        expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
         expect(result.validFiles).toHaveLength(1);
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.READY);
       });
@@ -763,7 +821,7 @@ describe('File Validation', () => {
         createMockFile('assets/images/logo.png', 100, 'image/png'),
       ], config);
 
-      expect(result.error).toBeNull();
+      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
       expect(result.validFiles).toHaveLength(3);
     });
 
@@ -777,12 +835,13 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       // ATOMIC: All files marked as VALIDATION_FAILED
-      expect(result.error?.error).toBe('Invalid File Name');
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toBeDefined();
       expect(result.validFiles).toHaveLength(0);
       expect(result.files).toHaveLength(3);
-      result.files.forEach(f => {
-        expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
-      });
+      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+      expect(result.files[2].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
   });
 });
