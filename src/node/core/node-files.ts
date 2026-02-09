@@ -127,6 +127,8 @@ export async function processFilesForNode(
     
     try {
       const stats = fs.statSync(filePath);
+
+      // Skip empty files - they cannot be stored in R2
       if (stats.size === 0) {
         continue;
       }
