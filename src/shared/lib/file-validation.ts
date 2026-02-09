@@ -7,7 +7,7 @@ import type {
   ConfigResponse,
   FileValidationResult,
   ValidatableFile,
-  ValidationError,
+  ValidationIssue,
   FileValidationStatusType
 } from '@shipstatic/types';
 import {
@@ -29,28 +29,6 @@ const MIME_TYPE_EXTENSIONS = new Map(
 );
 
 export { FILE_VALIDATION_STATUS };
-
-const ERROR_TYPE_PATTERNS: [RegExp, string][] = [
-  [/File name cannot|Invalid file name|File name contains|File name uses|traversal/i, 'Invalid File Name'],
-  [/File size must be positive/i, 'Invalid File Size'],
-  [/MIME type is required/i, 'Missing MIME Type'],
-  [/Invalid MIME type/i, 'Invalid MIME Type'],
-  [/not allowed/i, 'Invalid File Type'],
-  [/extension does not match/i, 'Extension Mismatch'],
-  [/Total size/i, 'Total Size Exceeded'],
-  [/exceeds limit/i, 'File Too Large'],
-];
-
-function getErrorType(status?: string, message?: string): string {
-  if (status === FILE_VALIDATION_STATUS.PROCESSING_ERROR) return 'Processing Error';
-  if (status === FILE_VALIDATION_STATUS.EMPTY_FILE) return 'Empty File';
-  if (!message) return 'Validation Failed';
-
-  for (const [pattern, errorType] of ERROR_TYPE_PATTERNS) {
-    if (pattern.test(message)) return errorType;
-  }
-  return 'Validation Failed';
-}
 
 /**
  * Format file size to human-readable string
@@ -128,27 +106,30 @@ function validateFileExtension(filename: string, mimeType: string): boolean {
 }
 
 /**
- * Validate files against configuration limits
+ * Validate files against configuration limits with severity-based reporting
  *
- * ATOMIC VALIDATION: If ANY file fails validation, ALL files are rejected.
- * This ensures deployments are all-or-nothing for data integrity.
+ * Validation categorizes issues by severity:
+ * - **Errors**: Block deployment (file too large, invalid type, etc.)
+ * - **Warnings**: Exclude files but allow deployment (empty files, etc.)
  *
  * @param files - Array of files to validate
  * @param config - Validation configuration from ship.getConfig()
- * @returns Validation result with updated file status
+ * @returns Validation result with errors and warnings
  *
  * @example
  * ```typescript
  * const config = await ship.getConfig();
  * const result = validateFiles(files, config);
  *
- * if (result.error) {
- *   // Validation failed - result.validFiles will be empty
- *   console.error(result.error.details);
- *   // Show individual file errors:
- *   result.files.forEach(f => console.log(`${f.name}: ${f.statusMessage}`));
+ * if (!result.canDeploy) {
+ *   // Has errors - deployment blocked
+ *   console.error('Deployment blocked:', result.errors);
+ * } else if (result.warnings.length > 0) {
+ *   // Has warnings - deployment proceeds, some files excluded
+ *   console.warn('Files excluded:', result.warnings);
+ *   await ship.deploy(result.validFiles);
  * } else {
- *   // All files valid - safe to upload
+ *   // All files valid
  *   await ship.deploy(result.validFiles);
  * }
  * ```
@@ -157,120 +138,175 @@ export function validateFiles<T extends ValidatableFile>(
   files: T[],
   config: ConfigResponse
 ): FileValidationResult<T> {
-  const errors: string[] = [];
-  const fileStatuses: T[] = [];
+  const errors: ValidationIssue[] = [];
+  const warnings: ValidationIssue[] = [];
+  let fileStatuses: T[] = [];  // Use 'let' for atomic enforcement later
 
   // Check at least 1 file required
   if (files.length === 0) {
-    const errorMsg = 'At least one file must be provided';
+    const issue: ValidationIssue = {
+      file: '(no files)',
+      message: 'At least one file must be provided'
+    };
+    errors.push(issue);
+
     return {
       files: [],
       validFiles: [],
-      error: {
-        error: 'No Files Provided',
-        details: errorMsg,
-        errors: [errorMsg],
-        isClientError: true,
-      },
+      errors,
+      warnings: [],
+      canDeploy: false,
     };
   }
 
   // Check file count limit
   if (files.length > config.maxFilesCount) {
-    const errorMsg = `Number of files (${files.length}) exceeds the limit of ${config.maxFilesCount}.`;
+    const issue: ValidationIssue = {
+      file: `(${files.length} files)`,
+      message: `File count (${files.length}) exceeds limit of ${config.maxFilesCount}`
+    };
+    errors.push(issue);
+
     return {
       files: files.map(f => ({
         ...f,
         status: FILE_VALIDATION_STATUS.VALIDATION_FAILED,
-        statusMessage: errorMsg,
+        statusMessage: issue.message,
       })),
       validFiles: [],
-      error: {
-        error: 'File Count Exceeded',
-        details: errorMsg,
-        errors: [errorMsg],
-        isClientError: true,
-      },
+      errors,
+      warnings: [],
+      canDeploy: false,
     };
   }
 
-  // First pass: Check all files and collect errors
+  // Validate each file
   let totalSize = 0;
-  for (const file of files) {
-    let fileStatus: string = FILE_VALIDATION_STATUS.READY;
-    let statusMessage: string = 'Ready for upload';
 
-    // Pre-compute filename validation result (used in multiple checks)
+  for (const file of files) {
+    let fileStatus: FileValidationStatusType = FILE_VALIDATION_STATUS.READY;
+    let statusMessage = 'Ready for upload';
+
+    // Pre-compute filename validation
     const nameValidation = file.name ? validateFileName(file.name) : { valid: false, reason: 'File name cannot be empty' };
 
-    // Check for processing errors (e.g., MD5 calculation failure)
+    // Check for processing errors
     if (file.status === FILE_VALIDATION_STATUS.PROCESSING_ERROR) {
-      fileStatus = FILE_VALIDATION_STATUS.PROCESSING_ERROR;
-      statusMessage = file.statusMessage || 'A file failed during processing.';
-      errors.push(`${file.name}: ${statusMessage}`);
+      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
+      statusMessage = file.statusMessage || 'File failed during processing';
+      errors.push({
+        file: file.name,
+        message: statusMessage
+      });
     }
-    // Check file name not empty
+
+    // EMPTY FILE - Warning (not error)
+    else if (file.size === 0) {
+      fileStatus = FILE_VALIDATION_STATUS.EXCLUDED;
+      statusMessage = 'File is empty (0 bytes) and cannot be deployed due to storage limitations';
+      warnings.push({
+        file: file.name,
+        message: statusMessage
+      });
+      // Skip other validations for excluded files
+      fileStatuses.push({
+        ...file,
+        status: fileStatus,
+        statusMessage,
+      });
+      continue;
+    }
+
+    // Negative file size - Error
+    else if (file.size < 0) {
+      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
+      statusMessage = 'File size must be positive';
+      errors.push({
+        file: file.name,
+        message: statusMessage
+      });
+    }
+
+    // File name validation
     else if (!file.name || file.name.trim().length === 0) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = 'File name cannot be empty';
-      errors.push(`${file.name || '(empty)'}: ${statusMessage}`);
+      errors.push({
+        file: file.name || '(empty)',
+        message: statusMessage
+      });
     }
-    // Check file name for null bytes
     else if (file.name.includes('\0')) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = 'File name contains invalid characters (null byte)';
-      errors.push(`${file.name}: ${statusMessage}`);
+      errors.push({
+        file: file.name,
+        message: statusMessage
+      });
     }
-    // Comprehensive filename validation (URL-safe, shell-safe, filesystem-safe)
     else if (!nameValidation.valid) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = nameValidation.reason || 'Invalid file name';
-      errors.push(`${file.name}: ${statusMessage}`);
+      errors.push({
+        file: file.name,
+        message: statusMessage
+      });
     }
-    // Check file size positive (not zero or negative)
-    else if (file.size <= 0) {
-      fileStatus = FILE_VALIDATION_STATUS.EMPTY_FILE;
-      statusMessage = file.size === 0 ? 'File is empty (0 bytes)' : 'File size must be positive';
-      errors.push(`${file.name}: ${statusMessage}`);
-    }
-    // Check MIME type required
+
+    // MIME type validation
     else if (!file.type || file.type.trim().length === 0) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = 'File MIME type is required';
-      errors.push(`${file.name}: ${statusMessage}`);
+      errors.push({
+        file: file.name,
+        message: statusMessage
+      });
     }
-    // Check MIME type against platform allowlist (imported from @shipstatic/types)
     else if (!isAllowedMimeType(file.type)) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = `File type "${file.type}" is not allowed`;
-      errors.push(`${file.name}: ${statusMessage}`);
+      errors.push({
+        file: file.name,
+        message: statusMessage
+      });
     }
-    // Check MIME type is valid: Must be explicitly in our allowlist OR exist in mime-db
-    // This allows legacy font types (e.g. application/x-font-woff) that aren't in mime-db
     else if (!ALLOWED_MIME_TYPES.some(allowed => file.type === allowed) && !VALID_MIME_TYPES.has(file.type)) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = `Invalid MIME type "${file.type}"`;
-      errors.push(`${file.name}: ${statusMessage}`);
+      errors.push({
+        file: file.name,
+        message: statusMessage
+      });
     }
-    // Check file extension matches MIME type
     else if (!validateFileExtension(file.name, file.type)) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = 'File extension does not match MIME type';
-      errors.push(`${file.name}: ${statusMessage}`);
+      errors.push({
+        file: file.name,
+        message: statusMessage
+      });
     }
-    // Check individual file size
+
+    // File size validation
     else if (file.size > config.maxFileSize) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = `File size (${formatFileSize(file.size)}) exceeds limit of ${formatFileSize(config.maxFileSize)}`;
-      errors.push(`${file.name}: ${statusMessage}`);
+      errors.push({
+        file: file.name,
+        message: statusMessage
+      });
     }
-    // Check total size (cumulative)
+
+    // Total size validation
     else {
       totalSize += file.size;
       if (totalSize > config.maxTotalSize) {
         fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
         statusMessage = `Total size would exceed limit of ${formatFileSize(config.maxTotalSize)}`;
-        errors.push(`${file.name}: ${statusMessage}`);
+        errors.push({
+          file: file.name,
+          message: statusMessage
+        });
       }
     }
 
@@ -281,37 +317,44 @@ export function validateFiles<T extends ValidatableFile>(
     });
   }
 
-  // ATOMIC CHECK: If ANY file failed, reject ALL files
+  // ATOMIC ENFORCEMENT: Two-phase validation for optimal UX + atomic semantics
+  // Phase 1 (above): Validate files individually to collect ALL errors
+  // Phase 2 (below): Mark all files as failed if any errors exist
+  //
+  // Why two phases? We validate individually for better UX (users see all problems
+  // at once and can fix everything in one pass), then enforce atomicity to maintain
+  // deployment transaction semantics (all-or-nothing).
   if (errors.length > 0) {
-    const firstError = fileStatuses.find(f =>
-      f.status !== FILE_VALIDATION_STATUS.READY &&
-      f.status !== FILE_VALIDATION_STATUS.PENDING
-    );
+    fileStatuses = fileStatuses.map(file => {
+      // Keep EXCLUDED files as-is (they're warnings, not errors)
+      if (file.status === FILE_VALIDATION_STATUS.EXCLUDED) {
+        return file;
+      }
 
-    const errorType = getErrorType(firstError?.status, firstError?.statusMessage);
-
-    return {
-      files: fileStatuses.map(f => ({
-        ...f,
+      // Mark ALL other files as VALIDATION_FAILED (atomic deployment)
+      return {
+        ...file,
         status: FILE_VALIDATION_STATUS.VALIDATION_FAILED,
-      })),
-      validFiles: [], // ATOMIC: No valid files if any file failed
-      error: {
-        error: errorType,
-        details: errors.length === 1
-          ? errors[0]
-          : `${errors.length} file(s) failed validation`,
-        errors,
-        isClientError: true,
-      },
-    };
+        statusMessage: file.status === FILE_VALIDATION_STATUS.VALIDATION_FAILED
+          ? file.statusMessage  // Keep original error message for the file that actually failed
+          : 'Deployment failed due to validation errors in bundle'
+      };
+    });
   }
 
-  // All files valid - return them all
+  // Build atomic result
+  // validFiles is empty if ANY errors exist (all-or-nothing)
+  const validFiles = errors.length === 0
+    ? fileStatuses.filter(f => f.status === FILE_VALIDATION_STATUS.READY)
+    : [];
+  const canDeploy = errors.length === 0;
+
   return {
     files: fileStatuses,
-    validFiles: fileStatuses,
-    error: null,
+    validFiles,
+    errors,
+    warnings,
+    canDeploy,
   };
 }
 
