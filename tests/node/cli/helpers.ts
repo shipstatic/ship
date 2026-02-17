@@ -22,6 +22,8 @@ export interface CliOptions {
   expectFailure?: boolean;
   timeout?: number;
   env?: Record<string, string>;
+  /** Lines to write to stdin (joined with \n, stdin closed after) */
+  stdin?: string[];
 }
 
 /**
@@ -93,6 +95,12 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
         exitCode: 1
       });
     });
+
+    // Write stdin lines if provided
+    if (options.stdin) {
+      child.stdin.write(options.stdin.join('\n') + '\n');
+      child.stdin.end();
+    }
 
     // Handle timeout
     const timeout = options.timeout || 10000;
