@@ -9,6 +9,7 @@ import * as path from 'path';
 import { success, error } from './utils.js';
 import { formatOutput } from './formatters.js';
 import { installCompletion, uninstallCompletion } from './completion.js';
+import { runConfig } from './config.js';
 import { getUserMessage, toShipError, formatErrorJson, type ErrorContext } from './error-handling.js';
 import { bold, dim } from 'yoctocolors';
 import type { GlobalOptions, DeployCommandOptions, TagOptions, TokenCreateCommandOptions, ProcessedOptions, CLIResult } from './types.js';
@@ -99,7 +100,8 @@ ${applyBold('COMMANDS')}
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 
-  🦸 ${applyBold('Account')}
+  ⚙️  ${applyBold('Setup')}
+  ship config                           Create or update ~/.shiprc configuration
   ship whoami                           Get current account information
 
   🛠️  ${applyBold('Completion')}
@@ -618,6 +620,19 @@ completionCmd
     uninstallCompletion({ isJson: options.json, noColor: options.noColor });
   });
 
+// Config command
+program
+  .command('config')
+  .description('Create or update ~/.shiprc configuration')
+  .action(async () => {
+    const options = processOptions(program);
+    try {
+      await runConfig({ noColor: options.noColor, json: options.json });
+    } catch (err) {
+      handleError(err);
+    }
+  });
+
 
 // Deploy shortcut as default action
 program
@@ -666,7 +681,7 @@ function handleCompletion() {
 
   if (!isBash && !isZsh && !isFish) return;
 
-  const completions = ['ping', 'whoami', 'deployments', 'domains', 'account', 'completion'];
+  const completions = ['ping', 'whoami', 'deployments', 'domains', 'account', 'config', 'completion'];
   console.log(completions.join(isFish ? '\n' : ' '));
   process.exit(0);
 }

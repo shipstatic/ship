@@ -43,7 +43,8 @@ COMMANDS
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 
-  🦸 Account
+  ⚙️  Setup
+  ship config                           Create or update ~/.shiprc configuration
   ship whoami                           Get current account information
 
   🛠️  Completion
@@ -90,7 +91,8 @@ COMMANDS
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 
-  🦸 Account
+  ⚙️  Setup
+  ship config                           Create or update ~/.shiprc configuration
   ship whoami                           Get current account information
 
   🛠️  Completion
@@ -137,7 +139,8 @@ COMMANDS
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 
-  🦸 Account
+  ⚙️  Setup
+  ship config                           Create or update ~/.shiprc configuration
   ship whoami                           Get current account information
 
   🛠️  Completion
