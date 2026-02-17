@@ -12,7 +12,7 @@ describe('Unknown Commands - Comprehensive Protection', () => {
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unknown command 'badcommand'");
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('🦸'); // Ensure superhero emoji is shown
+      expect(result.stdout).toContain('⚙️'); // Ensure setup emoji is shown
     });
 
     it('should show error message and help for unknown command with multiple args', async () => {
@@ -39,7 +39,7 @@ describe('Unknown Commands - Comprehensive Protection', () => {
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unknown command 'badsubcmd'");
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('🦸');
+      expect(result.stdout).toContain('⚙️');
     });
 
     it('should show error + help for unknown domains subcommand', async () => {
@@ -47,7 +47,7 @@ describe('Unknown Commands - Comprehensive Protection', () => {
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unknown command 'invalid'");
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('🦸');
+      expect(result.stdout).toContain('⚙️');
     });
 
     it('should show error + help for unknown account subcommand', async () => {
@@ -55,7 +55,7 @@ describe('Unknown Commands - Comprehensive Protection', () => {
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unknown command 'wrong'");
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('🦸');
+      expect(result.stdout).toContain('⚙️');
     });
 
     it('should show error + help for unknown completion subcommand', async () => {
@@ -63,7 +63,7 @@ describe('Unknown Commands - Comprehensive Protection', () => {
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("unknown command 'missing'");
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('🦸');
+      expect(result.stdout).toContain('⚙️');
     });
   });
 
@@ -117,11 +117,8 @@ describe('Unknown Commands - Comprehensive Protection', () => {
       expect(result.stdout).toContain('FLAGS');
       expect(result.stdout).toContain('Deployments');
       expect(result.stdout).toContain('Domains');
-      expect(result.stdout).toContain('Account');
+      expect(result.stdout).toContain('Setup');
       expect(result.stdout).toContain('Completion');
-      
-      // Must contain superhero emoji for account section
-      expect(result.stdout).toContain('🦸');
     });
 
     it('should maintain consistent format across all subcommand types', async () => {
@@ -137,7 +134,7 @@ describe('Unknown Commands - Comprehensive Protection', () => {
         expect(result.exitCode).toBe(1);
         expect(result.stderr).toContain(`unknown command '${sub}'`);
         expect(result.stdout).toContain('USAGE');
-        expect(result.stdout).toContain('🦸');
+        expect(result.stdout).toContain('⚙️');
       }
     });
   });
