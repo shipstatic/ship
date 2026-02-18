@@ -676,7 +676,7 @@ function handleCompletion() {
 
   if (!isBash && !isZsh && !isFish) return;
 
-  const completions = ['ping', 'whoami', 'deployments', 'domains', 'account', 'config', 'completion'];
+  const completions = ['ping', 'whoami', 'deployments', 'domains', 'tokens', 'account', 'config', 'completion'];
   console.log(completions.join(isFish ? '\n' : ' '));
   process.exit(0);
 }

@@ -5,15 +5,15 @@ if [[ -n ${ZSH_VERSION-} ]]; then
   _ship() {
     local -a completions
     local state line
-    
+
     # Only proceed if we're actually in a completion context
     if [[ -z ${words-} ]]; then
       return 1
     fi
-    
+
     # The word being completed
     local current_word="${words[CURRENT]}"
-    # The previous word  
+    # The previous word
     local prev_word="${words[CURRENT-1]}"
 
     # --- File Path Logic ---
@@ -32,15 +32,13 @@ if [[ -n ${ZSH_VERSION-} ]]; then
             _files
             return
             ;;
-          "get"|"remove")
-            if [[ $CURRENT -eq 4 ]]; then
-              # Would ideally complete deployment IDs from API, but keep simple for now
-              return
-            fi
+          "get"|"set"|"remove")
+            # Deployment ID position
+            return
             ;;
           *)
             if [[ $CURRENT -eq 3 ]]; then
-              completions=("list:List all deployments" "create:Create deployment from file or directory" "get:Show deployment information" "remove:Delete deployment permanently")
+              completions=("list:List all deployments" "create:Create deployment from directory" "get:Show deployment information" "set:Set deployment labels" "remove:Delete deployment permanently")
               _describe 'deployments commands' completions
               return
             fi
@@ -50,21 +48,32 @@ if [[ -n ${ZSH_VERSION-} ]]; then
       "domains")
         case "${words[3]}" in
           "set")
-            if [[ $CURRENT -eq 5 ]]; then
-              # Would ideally complete deployment IDs, but keep simple
-              return
-            fi
+            # Domain name or deployment ID positions
+            return
             ;;
-          "get"|"remove")
-            if [[ $CURRENT -eq 4 ]]; then
-              # Would ideally complete domain names, but keep simple
-              return
-            fi
+          "get"|"validate"|"verify"|"remove")
+            # Domain name position
+            return
             ;;
           *)
             if [[ $CURRENT -eq 3 ]]; then
-              completions=("list:List all domains" "get:Show domain information" "set:Create or update domain pointing to deployment" "remove:Delete domain permanently")
+              completions=("list:List all domains" "get:Show domain information" "set:Create domain, link to deployment, or update labels" "validate:Check if domain name is valid and available" "verify:Trigger DNS verification for external domain" "remove:Delete domain permanently")
               _describe 'domains commands' completions
+              return
+            fi
+            ;;
+        esac
+        ;;
+      "tokens")
+        case "${words[3]}" in
+          "remove")
+            # Token ID position
+            return
+            ;;
+          *)
+            if [[ $CURRENT -eq 3 ]]; then
+              completions=("list:List all deploy tokens" "create:Create a new deploy token" "remove:Delete token permanently")
+              _describe 'tokens commands' completions
               return
             fi
             ;;
@@ -94,14 +103,14 @@ if [[ -n ${ZSH_VERSION-} ]]; then
 
     # Flag completion
     if [[ "$current_word" == --* ]]; then
-      completions=("--api-key:API key for authentication" "--config:Custom config file path" "--api-url:API URL (for development)" "--no-path-detect:Disable automatic path optimization and flattening" "--no-spa-detect:Disable automatic SPA detection and configuration" "--json:Output results in JSON format" "--no-color:Disable colored output" "--version:Show version information" "--help:Display help for command")
+      completions=("--api-key:API key for authentication" "--deploy-token:Deploy token for single-use deployments" "--config:Custom config file path" "--api-url:API URL (for development)" "--label:Label (can be repeated)" "--no-path-detect:Disable automatic path optimization and flattening" "--no-spa-detect:Disable automatic SPA detection and configuration" "--json:Output results in JSON format" "--no-color:Disable colored output" "--version:Show version information" "--help:Display help for command")
       _describe 'options' completions
       return
     fi
 
     # Top-level commands
     if [[ $CURRENT -eq 2 ]]; then
-      completions=("ping:Check API connectivity" "whoami:Get current account information" "deployments:Manage deployments" "domains:Manage domains" "account:Manage account" "completion:Setup shell completion")
+      completions=("ping:Check API connectivity" "whoami:Get current account information" "deployments:Manage deployments" "domains:Manage domains" "tokens:Manage deploy tokens" "account:Manage account" "config:Create or update configuration" "completion:Setup shell completion")
       _describe 'commands' completions
       return
     fi
