@@ -89,7 +89,7 @@ ${applyBold('COMMANDS')}
 
   🌎 ${applyBold('Domains')}
   ship domains list                     List all domains
-  ship domains set <name> [deployment]  Create domain, point to deployment, or update labels
+  ship domains set <name> [deployment]  Create domain, link to deployment, or update labels
   ship domains get <name>               Show domain information
   ship domains validate <name>          Check if domain name is valid and available
   ship domains verify <name>            Trigger DNS verification for external domain
@@ -500,7 +500,7 @@ domainsCmd
 
 domainsCmd
   .command('set <name> [deployment]')
-  .description('Create domain, point to deployment, or update labels')
+  .description('Create domain, link to deployment, or update labels')
   .passThroughOptions()
   .option('--label <label>', 'Label to set (can be repeated)', collect, [])
   .action(withErrorHandling(
