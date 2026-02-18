@@ -65,14 +65,14 @@ describe('mergeDeployOptions - onProgress callback', () => {
         };
 
         const options: DeploymentOptions = {
-            tags: ['production'],
+            labels: ['production'],
             subdomain: 'my-app'
         };
 
         const merged = mergeDeployOptions(options, clientDefaults);
 
         expect(merged.onProgress).toBe(progressCallback);
-        expect(merged.tags).toEqual(['production']);
+        expect(merged.labels).toEqual(['production']);
         expect(merged.subdomain).toBe('my-app');
         expect(merged.timeout).toBe(30000);
     });
@@ -126,14 +126,14 @@ describe('mergeDeployOptions - caller option', () => {
         };
 
         const options: DeploymentOptions = {
-            tags: ['production'],
+            labels: ['production'],
             via: 'cli'
         };
 
         const merged = mergeDeployOptions(options, clientDefaults);
 
         expect(merged.caller).toBe('github-actions');
-        expect(merged.tags).toEqual(['production']);
+        expect(merged.labels).toEqual(['production']);
         expect(merged.via).toBe('cli');
         expect(merged.timeout).toBe(30000);
     });

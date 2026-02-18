@@ -27,12 +27,12 @@ COMMANDS
   ship deployments list                 List all deployments
   ship deployments create <path>        Create deployment from directory
   ship deployments get <id>             Show deployment information
-  ship deployments set <id>             Set deployment tags
+  ship deployments set <id>             Set deployment labels
   ship deployments remove <id>          Delete deployment permanently
 
   🌎 Domains
   ship domains list                     List all domains
-  ship domains set <name> [deployment]  Point domain to deployment, or update tags
+  ship domains set <name> [deployment]  Create domain, point to deployment, or update labels
   ship domains get <name>               Show domain information
   ship domains validate <name>          Check if domain name is valid and available
   ship domains verify <name>            Trigger DNS verification for external domain
@@ -75,12 +75,12 @@ COMMANDS
   ship deployments list                 List all deployments
   ship deployments create <path>        Create deployment from directory
   ship deployments get <id>             Show deployment information
-  ship deployments set <id>             Set deployment tags
+  ship deployments set <id>             Set deployment labels
   ship deployments remove <id>          Delete deployment permanently
 
   🌎 Domains
   ship domains list                     List all domains
-  ship domains set <name> [deployment]  Point domain to deployment, or update tags
+  ship domains set <name> [deployment]  Create domain, point to deployment, or update labels
   ship domains get <name>               Show domain information
   ship domains validate <name>          Check if domain name is valid and available
   ship domains verify <name>            Trigger DNS verification for external domain
@@ -123,12 +123,12 @@ COMMANDS
   ship deployments list                 List all deployments
   ship deployments create <path>        Create deployment from directory
   ship deployments get <id>             Show deployment information
-  ship deployments set <id>             Set deployment tags
+  ship deployments set <id>             Set deployment labels
   ship deployments remove <id>          Delete deployment permanently
 
   🌎 Domains
   ship domains list                     List all domains
-  ship domains set <name> [deployment]  Point domain to deployment, or update tags
+  ship domains set <name> [deployment]  Create domain, point to deployment, or update labels
   ship domains get <name>               Show domain information
   ship domains validate <name>          Check if domain name is valid and available
   ship domains verify <name>            Trigger DNS verification for external domain

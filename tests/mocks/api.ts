@@ -14,7 +14,7 @@ const mockDeployments: Deployment[] = [
     size: 1024000,
     status: 'success',
     config: false,
-    tags: ['production', 'v1.0.0'],
+    labels: ['production', 'v1.0.0'],
     url: 'https://test-deployment-1.shipstatic.com',
     created: 1640995200, // 2022-01-01
     expires: 1672531200  // 2023-01-01
@@ -140,9 +140,9 @@ export const apiHandlers = [
     // Extract files from multipart form data to test directory structure
     const formData = await request.formData();
     const files: any[] = [];
-    let tags: string[] | undefined = undefined;
+    let labels: string[] | undefined = undefined;
 
-    // Process uploaded files and tags
+    // Process uploaded files and labels
     for (const [key, value] of formData.entries()) {
       if (key === 'files[]' && value instanceof File) {
         files.push({
@@ -151,11 +151,11 @@ export const apiHandlers = [
           type: value.type
         });
       }
-      if (key === 'tags' && typeof value === 'string') {
+      if (key === 'labels' && typeof value === 'string') {
         try {
-          tags = JSON.parse(value);
+          labels = JSON.parse(value);
         } catch (e) {
-          // Invalid tags format
+          // Invalid labels format
         }
       }
     }
@@ -165,7 +165,7 @@ export const apiHandlers = [
       files: files,
       size: files.reduce((total, f) => total + (f.size || 0), 0),
       status: 'success',
-      tags: tags,
+      labels: labels,
       url: 'https://newly-created-deployment.shipstatic.com',
       created: Math.floor(Date.now() / 1000),
       expires: Math.floor(Date.now() / 1000) + 86400
@@ -176,7 +176,7 @@ export const apiHandlers = [
       method: 'POST',
       formData,
       files,
-      tags
+      labels
     };
 
     return HttpResponse.json(newDeployment, { status: 201 });
@@ -232,28 +232,30 @@ export const apiHandlers = [
     return HttpResponse.json(domain);
   }),
 
-  // PUT /domains/:name - Create/update domain
+  // PUT /domains/:name - Create/update domain (deployment is optional — supports reservation)
   http.put('*/domains/:name', async ({ params, request }) => {
-    const body = await request.json() as { deployment: string; tags?: string[] };
+    const body = await request.json() as { deployment?: string; labels?: string[] };
 
-    // Check if deployment exists
-    const deploymentExists = mockDeployments.some(d => d.deployment === body.deployment);
-    if (!deploymentExists) {
-      return HttpResponse.json(
-        {
-          error: 'not_found',
-          message: `Deployment ${body.deployment} not found`,
-          status: 404
-        },
-        { status: 404 }
-      );
+    // Check if deployment exists (only when linking)
+    if (body.deployment) {
+      const deploymentExists = mockDeployments.some(d => d.deployment === body.deployment);
+      if (!deploymentExists) {
+        return HttpResponse.json(
+          {
+            error: 'not_found',
+            message: `Deployment ${body.deployment} not found`,
+            status: 404
+          },
+          { status: 404 }
+        );
+      }
     }
 
     const domainResult: Domain = {
       domain: params.name as string,
-      deployment: body.deployment,
+      deployment: body.deployment ?? null,
       status: 'success',
-      tags: body.tags,
+      labels: body.labels,
       url: `https://${params.name}.shipstatic.com`,
       created: Math.floor(Date.now() / 1000),
       isCreate: true

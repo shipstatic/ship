@@ -37,8 +37,8 @@ export interface DeploymentOptions {
   pathDetect?: boolean;
   /** Whether to auto-detect SPAs and generate ship.json configuration. Defaults to true. */
   spaDetect?: boolean;
-  /** Optional array of tags for categorization and filtering (lowercase, alphanumeric with separators). */
-  tags?: string[];
+  /** Optional array of labels for categorization and filtering (lowercase, alphanumeric with separators). */
+  labels?: string[];
   /** Callback for deploy progress with detailed statistics. */
   onProgress?: (info: ProgressInfo) => void;
   /** Client/tool identifier for this deployment (e.g., 'sdk', 'cli', 'web'). Alphanumeric only. */
@@ -64,7 +64,7 @@ export interface DeployBody {
  */
 export type DeployBodyCreator = (
   files: StaticFile[],
-  tags?: string[],
+  labels?: string[],
   via?: string
 ) => Promise<DeployBody>;
 

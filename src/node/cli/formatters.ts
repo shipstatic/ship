@@ -41,7 +41,7 @@ export function formatDeploymentsList(result: DeploymentListResponse, context: O
     return;
   }
 
-  const columns = ['url', 'tags', 'created'];
+  const columns = ['url', 'labels', 'created'];
   console.log(formatTable(result.deployments, columns, noColor, { url: 'deployment' }));
 }
 
@@ -61,7 +61,7 @@ export function formatDomainsList(result: DomainListResponse, context: OutputCon
     return;
   }
 
-  const columns = ['url', 'deployment', 'tags', 'linked', 'created'];
+  const columns = ['url', 'deployment', 'labels', 'linked', 'created'];
   console.log(formatTable(result.domains, columns, noColor, { url: 'domain' }));
 }
 
@@ -177,7 +177,7 @@ export function formatTokensList(result: TokenListResponse, context: OutputConte
     return;
   }
 
-  const columns = ['token', 'tags', 'created', 'expires'];
+  const columns = ['token', 'labels', 'created', 'expires'];
   console.log(formatTable(result.tokens, columns, noColor));
 }
 

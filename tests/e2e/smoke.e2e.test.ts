@@ -28,7 +28,7 @@ import { E2E_API_KEY, E2E_API_URL, E2E_ENABLED, E2E_TEST_RUN_ID } from '../setup
 // =============================================================================
 
 const TEST_SITE_PATH = path.resolve(__dirname, '../fixtures/demo-site');
-const TEST_TAG = `e2e-smoke-${Date.now()}`;
+const TEST_LABEL = `e2e-smoke-${Date.now()}`;
 
 // Track deployments for cleanup
 const deploymentsToCleanup: string[] = [];
@@ -114,7 +114,7 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
 
     it('should deploy a test site', async () => {
       const deployment = await ship.deploy(TEST_SITE_PATH, {
-        tags: [TEST_TAG, E2E_TEST_RUN_ID],
+        labels: [TEST_LABEL, E2E_TEST_RUN_ID],
       });
 
       expect(deployment).toBeDefined();
@@ -186,15 +186,15 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
   // ---------------------------------------------------------------------------
 
   describe('Deployment Options', () => {
-    it('should deploy with tags', async () => {
-      const uniqueTag = `e2e-tagged-${Date.now()}`;
+    it('should deploy with labels', async () => {
+      const uniqueLabel = `e2e-labeled-${Date.now()}`;
       const deployment = await ship.deploy(TEST_SITE_PATH, {
-        tags: [uniqueTag, 'e2e-test'],
+        labels: [uniqueLabel, 'e2e-test'],
       });
 
-      expect(deployment.tags).toBeDefined();
-      expect(deployment.tags).toContain(uniqueTag);
-      expect(deployment.tags).toContain('e2e-test');
+      expect(deployment.labels).toBeDefined();
+      expect(deployment.labels).toContain(uniqueLabel);
+      expect(deployment.labels).toContain('e2e-test');
 
       deploymentsToCleanup.push(deployment.deployment);
     });

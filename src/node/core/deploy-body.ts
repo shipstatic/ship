@@ -7,7 +7,7 @@ import { getMimeType } from '../../shared/utils/mimeType.js';
 
 export async function createDeployBody(
   files: StaticFile[],
-  tags?: string[],
+  labels?: string[],
   via?: string
 ): Promise<DeployBody> {
   const { FormData, File } = await import('formdata-node');
@@ -39,8 +39,8 @@ export async function createDeployBody(
 
   formData.append('checksums', JSON.stringify(checksums));
 
-  if (tags && tags.length > 0) {
-    formData.append('tags', JSON.stringify(tags));
+  if (labels && labels.length > 0) {
+    formData.append('labels', JSON.stringify(labels));
   }
 
   if (via) {

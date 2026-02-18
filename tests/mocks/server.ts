@@ -341,7 +341,7 @@ function handleDomainSet(req: IncomingMessage, res: ServerResponse, domainName: 
       // Check if domain already exists (update) or is new (create)
       const existingIndex = mockDomains.findIndex((d) => d.domain === domainName);
       const domain = createDynamicDomain(domainName, data.deployment || null, {
-        tags: data.tags,
+        labels: data.labels,
       });
 
       if (existingIndex >= 0) {
@@ -377,11 +377,11 @@ function handleDomainUpdate(req: IncomingMessage, res: ServerResponse, domainNam
         return;
       }
 
-      // Update tags only (PATCH semantics)
+      // Update labels only (PATCH semantics)
       const existingDomain = mockDomains[existingIndex];
       const updatedDomain = {
         ...existingDomain,
-        tags: data.tags || [],
+        labels: data.labels || [],
       };
       mockDomains[existingIndex] = updatedDomain;
 
@@ -545,16 +545,16 @@ function handleTokenCreate(req: IncomingMessage, res: ServerResponse): void {
     try {
       const data = body ? JSON.parse(body) : {};
       const token = createDynamicToken({
-        tags: data.tags,
+        labels: data.labels,
         expires: data.ttl ? Math.floor(Date.now() / 1000) + data.ttl : undefined,
       });
 
       mockTokens.push(token);
 
-      // Return only the token value (and tags if provided)
-      const response: { token: string; tags?: string[] } = { token: token.token };
-      if (data.tags) {
-        response.tags = data.tags;
+      // Return only the token value (and labels if provided)
+      const response: { token: string; labels?: string[] } = { token: token.token };
+      if (data.labels) {
+        response.labels = data.labels;
       }
 
       res.writeHead(201);

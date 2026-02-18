@@ -18,26 +18,26 @@ npm install @shipstatic/ship
 # Deploy a directory
 ship ./dist
 
-# Deploy with tags
-ship ./dist --tag production --tag v1.0.0
+# Deploy with labels
+ship ./dist --label production --label v1.0.0
 
 # Deployments
 ship deployments list
 ship deployments get <id>
-ship deployments set <id> --tag production      # Update tags
+ship deployments set <id> --label production      # Update labels
 ship deployments remove <id>
 
 # Domains
 ship domains list
-ship domains set staging <deployment-id>        # Point domain to deployment
-ship domains set staging --tag production       # Update domain tags
+ship domains set staging <deployment-id>          # Point domain to deployment
+ship domains set staging --label production       # Update domain labels
 ship domains get staging
 ship domains verify www.example.com
 ship domains remove staging
 
 # Tokens
 ship tokens list
-ship tokens create --ttl 3600 --tag ci
+ship tokens create --ttl 3600 --label ci
 ship tokens remove <token>
 
 # Account
@@ -64,9 +64,9 @@ console.log(`Deployed: ${result.url}`);
 await ship.domains.set('staging', { deployment: result.deployment });
 await ship.domains.list();
 
-// Update tags
-await ship.deployments.set(result.deployment, { tags: ['production', 'v1.0'] });
-await ship.domains.set('staging', { tags: ['live'] });
+// Update labels
+await ship.deployments.set(result.deployment, { labels: ['production', 'v1.0'] });
+await ship.domains.set('staging', { labels: ['live'] });
 ```
 
 ## Browser Usage
@@ -123,18 +123,18 @@ SHIP_API_KEY=ship-your-api-key
 ship.deployments.create(input, options?)    // Create new deployment
 ship.deployments.list()                      // List all deployments
 ship.deployments.get(id)                     // Get deployment details
-ship.deployments.set(id, { tags })           // Update deployment tags
+ship.deployments.set(id, { labels })         // Update deployment labels
 ship.deployments.remove(id)                  // Delete deployment
 
 // Domains
-ship.domains.set(name, { deployment?, tags? })  // Create/update domain (see below)
+ship.domains.set(name, { deployment?, labels? })  // Create/update domain (see below)
 ship.domains.get(name)                          // Get domain details
 ship.domains.list()                             // List all domains
 ship.domains.remove(name)                       // Delete domain
 ship.domains.verify(name)                       // Trigger DNS verification
 
 // Tokens
-ship.tokens.create({ ttl?, tags? })          // Create deploy token
+ship.tokens.create({ ttl?, labels? })        // Create deploy token
 ship.tokens.list()                           // List all tokens
 ship.tokens.remove(token)                    // Revoke token
 
@@ -151,14 +151,11 @@ ship.ping()                                  // Check API connectivity
 // Point domain to deployment
 ship.domains.set('staging', { deployment: 'abc123' });
 
-// Point domain to deployment with tags
-ship.domains.set('staging', { deployment: 'abc123', tags: ['prod'] });
+// Point domain to deployment with labels
+ship.domains.set('staging', { deployment: 'abc123', labels: ['prod'] });
 
-// Update tags only (domain must exist)
-ship.domains.set('staging', { tags: ['prod', 'v2'] });
-
-// Error: must provide deployment or tags
-ship.domains.set('staging', {});  // throws validation error
+// Update labels only (domain must exist)
+ship.domains.set('staging', { labels: ['prod', 'v2'] });
 ```
 
 **Domain format:** Domain names are FQDNs (Fully Qualified Domain Names). The SDK accepts any format (case-insensitive, Unicode) - the API handles normalization.

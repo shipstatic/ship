@@ -50,9 +50,9 @@ describe('CLI Commands', () => {
       expect(result.stdout).toContain('token');
     });
 
-    it('should handle tokens create with --tag flag', async () => {
-      // Tokens create with tags - should succeed with mock server
-      const result = await runCli(['tokens', 'create', '--tag', 'production']);
+    it('should handle tokens create with --label flag', async () => {
+      // Tokens create with labels - should succeed with mock server
+      const result = await runCli(['tokens', 'create', '--label', 'production']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('token');
     });
@@ -90,30 +90,36 @@ describe('CLI Commands', () => {
       expect(result.stderr).toContain('not found');
     });
 
-    it('should handle domains set with tags only', async () => {
-      // Update the pre-seeded domain with new tags using set
-      const result = await runCli(['domains', 'set', 'staging', '--tag', 'updated-tag']);
+    it('should handle domains set with labels only', async () => {
+      // Update the pre-seeded domain with new labels using set
+      const result = await runCli(['domains', 'set', 'staging', '--label', 'updated-label']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('staging');
     });
 
-    it('should handle domains set with multiple tags', async () => {
-      const result = await runCli(['domains', 'set', 'staging', '--tag', 'tag1', '--tag', 'tag2']);
+    it('should handle domains set with multiple labels', async () => {
+      const result = await runCli(['domains', 'set', 'staging', '--label', 'label1', '--label', 'label2']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('staging');
     });
 
-    it('should handle domains set with tags for non-existent domain', async () => {
-      const result = await runCli(['domains', 'set', 'non-existent-domain', '--tag', 'test'], { expectFailure: true });
+    it('should handle domains set with labels for non-existent domain', async () => {
+      const result = await runCli(['domains', 'set', 'non-existent-domain', '--label', 'test'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('not found');
+    });
+
+    it('should handle domains set without deployment (domain reservation)', async () => {
+      const result = await runCli(['domains', 'set', 'reserved-domain']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('reserved-domain');
     });
 
     it('should show domains help', async () => {
       const result = await runCli(['domains', '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('set');
-      expect(result.stdout).toContain('Point domain to deployment');
+      expect(result.stdout).toContain('Create domain');
     });
   });
 
