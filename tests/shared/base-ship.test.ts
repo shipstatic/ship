@@ -3,7 +3,7 @@ import { Ship } from '../../src/shared/base-ship';
 import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
 
 // Mock deploy body creator for tests
-const mockDeployBodyCreator: DeployBodyCreator = async (files, tags, via) => ({
+const mockDeployBodyCreator: DeployBodyCreator = async (files, labels, via) => ({
   body: new ArrayBuffer(0),
   headers: { 'Content-Type': 'multipart/form-data' }
 });

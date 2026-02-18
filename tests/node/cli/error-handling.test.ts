@@ -24,9 +24,9 @@ describe('CLI Error Handling', () => {
       });
 
       it('should pass through 400 validation message', () => {
-        const err = new ShipError(ErrorType.Api, 'Tag must be at least 3 characters', 400);
+        const err = new ShipError(ErrorType.Api, 'Label must be at least 3 characters', 400);
         const message = getUserMessage(err);
-        expect(message).toBe('Tag must be at least 3 characters');
+        expect(message).toBe('Label must be at least 3 characters');
       });
 
       it('should pass through 409 conflict message', () => {

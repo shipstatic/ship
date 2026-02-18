@@ -151,22 +151,22 @@ describe('Node.js Deploy Body Creation', () => {
     });
   });
 
-  describe('tags handling', () => {
-    it('should append tags as JSON when provided', async () => {
+  describe('labels handling', () => {
+    it('should append labels as JSON when provided', async () => {
       const files: StaticFile[] = [
         { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
       ];
-      const tags = ['production', 'v1.0.0', 'release'];
+      const labels = ['production', 'v1.0.0', 'release'];
 
-      await createDeployBody(files, tags);
+      await createDeployBody(files, labels);
 
       expect(mockFormDataAppend).toHaveBeenCalledWith(
-        'tags',
+        'labels',
         JSON.stringify(['production', 'v1.0.0', 'release'])
       );
     });
 
-    it('should not append tags when array is empty', async () => {
+    it('should not append labels when array is empty', async () => {
       const files: StaticFile[] = [
         { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
       ];
@@ -174,12 +174,12 @@ describe('Node.js Deploy Body Creation', () => {
       await createDeployBody(files, []);
 
       const tagsCall = mockFormDataAppend.mock.calls.find(
-        (call: any[]) => call[0] === 'tags'
+        (call: any[]) => call[0] === 'labels'
       );
       expect(tagsCall).toBeUndefined();
     });
 
-    it('should not append tags when undefined', async () => {
+    it('should not append labels when undefined', async () => {
       const files: StaticFile[] = [
         { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
       ];
@@ -187,7 +187,7 @@ describe('Node.js Deploy Body Creation', () => {
       await createDeployBody(files);
 
       const tagsCall = mockFormDataAppend.mock.calls.find(
-        (call: any[]) => call[0] === 'tags'
+        (call: any[]) => call[0] === 'labels'
       );
       expect(tagsCall).toBeUndefined();
     });
@@ -204,7 +204,7 @@ describe('Node.js Deploy Body Creation', () => {
       expect(mockFormDataAppend).toHaveBeenCalledWith('via', 'cli');
     });
 
-    it('should append via field with tags', async () => {
+    it('should append via field with labels', async () => {
       const files: StaticFile[] = [
         { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
       ];
@@ -213,7 +213,7 @@ describe('Node.js Deploy Body Creation', () => {
 
       expect(mockFormDataAppend).toHaveBeenCalledWith('via', 'sdk');
       expect(mockFormDataAppend).toHaveBeenCalledWith(
-        'tags',
+        'labels',
         JSON.stringify(['tag1'])
       );
     });
@@ -334,7 +334,7 @@ describe('Node.js Deploy Body Creation', () => {
 
       await createDeployBody(files, ['tag1', 'tag2'], 'cli');
 
-      // Should have 3 files[] appends, 1 checksums, 1 tags, 1 via
+      // Should have 3 files[] appends, 1 checksums, 1 labels, 1 via
       const filesAppends = mockFormDataAppend.mock.calls.filter(
         (call: any[]) => call[0] === 'files[]'
       );

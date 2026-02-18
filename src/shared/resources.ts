@@ -83,9 +83,9 @@ export function createDeploymentResource(ctx: DeploymentResourceContext): Deploy
       return getApi().getDeployment(id);
     },
 
-    set: async (id: string, options: { tags: string[] }) => {
+    set: async (id: string, options: { labels: string[] }) => {
       await ensureInit();
-      return getApi().updateDeploymentTags(id, options.tags);
+      return getApi().updateDeploymentLabels(id, options.labels);
     },
 
     remove: async (id: string) => {
@@ -106,15 +106,15 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
   const { getApi, ensureInit } = ctx;
 
   return {
-    set: async (name: string, options: { deployment?: string; tags?: string[] } = {}) => {
+    set: async (name: string, options: { deployment?: string; labels?: string[] } = {}) => {
       await ensureInit();
-      const { deployment, tags } = options;
+      const { deployment, labels } = options;
 
-      // Smart routing: tags-only → PATCH; otherwise → PUT (create/link/reserve)
-      if (deployment === undefined && tags && tags.length > 0) {
-        return getApi().updateDomainTags(name, tags);
+      // Smart routing: labels-only → PATCH; otherwise → PUT (create/link/reserve)
+      if (deployment === undefined && labels && labels.length > 0) {
+        return getApi().updateDomainLabels(name, labels);
       }
-      return getApi().setDomain(name, deployment, tags);
+      return getApi().setDomain(name, deployment, labels);
     },
 
     list: async () => {
@@ -180,9 +180,9 @@ export function createTokenResource(ctx: ResourceContext): TokenResource {
   const { getApi, ensureInit } = ctx;
 
   return {
-    create: async (options: { ttl?: number; tags?: string[] } = {}) => {
+    create: async (options: { ttl?: number; labels?: string[] } = {}) => {
       await ensureInit();
-      return getApi().createToken(options.ttl, options.tags);
+      return getApi().createToken(options.ttl, options.labels);
     },
 
     list: async () => {

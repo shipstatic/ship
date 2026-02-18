@@ -37,17 +37,17 @@ describe('Tokens API', () => {
       expect(result.token).toBeDefined();
     });
 
-    it('should create a token with tags', async () => {
+    it('should create a token with labels', async () => {
       const result = await ship.tokens.create(undefined, ['ci', 'github-actions']);
 
       expect(result).toBeDefined();
       expect(result.token).toBeDefined();
     });
 
-    it('should create a token with both TTL and tags', async () => {
+    it('should create a token with both TTL and labels', async () => {
       const ttl = 7200; // 2 hours
-      const tags = ['production', 'deploy'];
-      const result = await ship.tokens.create(ttl, tags);
+      const labels = ['production', 'deploy'];
+      const result = await ship.tokens.create(ttl, labels);
 
       expect(result).toBeDefined();
       expect(result.token).toBeDefined();

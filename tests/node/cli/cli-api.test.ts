@@ -1,6 +1,6 @@
 /**
  * @file CLI tests requiring mock API server
- * Consolidated tests for via field, tags, and spinner behavior
+ * Consolidated tests for via field, labels, and spinner behavior
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -60,24 +60,24 @@ describe('CLI with Mock API', () => {
           const viaMatch = body.match(/name="via"[\s\S]*?\r?\n\r?\n([^\r\n]*)/);
           const via = viaMatch ? viaMatch[1].trim() : undefined;
 
-          // Extract tags from multipart form data
-          const tagsMatch = body.match(/name="tags"[\s\S]*?\r?\n\r?\n([^\r\n]*)/);
-          let tags: string[] | undefined;
-          if (tagsMatch) {
-            try { tags = JSON.parse(tagsMatch[1]); } catch (e) { /* ignore */ }
+          // Extract labels from multipart form data
+          const labelsMatch = body.match(/name="labels"[\s\S]*?\r?\n\r?\n([^\r\n]*)/);
+          let labels: string[] | undefined;
+          if (labelsMatch) {
+            try { labels = JSON.parse(labelsMatch[1]); } catch (e) { /* ignore */ }
           }
 
-          // Validate tags
-          if (tags && tags.length > 0) {
-            if (tags.length > 10) {
+          // Validate labels
+          if (labels && labels.length > 0) {
+            if (labels.length > 10) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'business_logic_error', message: 'Maximum 10 tags allowed' }));
+              res.end(JSON.stringify({ error: 'business_logic_error', message: 'Maximum 10 labels allowed' }));
               return;
             }
-            for (const tag of tags) {
-              if (tag.length < 3) {
+            for (const label of labels) {
+              if (label.length < 3) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'business_logic_error', message: 'Tags must be at least 3 characters long' }));
+                res.end(JSON.stringify({ error: 'business_logic_error', message: 'Labels must be at least 3 characters long' }));
                 return;
               }
             }
@@ -90,7 +90,7 @@ describe('CLI with Mock API', () => {
             files: 2,
             size: 1024,
             ...(via ? { via } : {}),
-            ...(tags && tags.length > 0 ? { tags } : {})
+            ...(labels && labels.length > 0 ? { labels } : {})
           }));
           return;
         }
@@ -106,7 +106,7 @@ describe('CLI with Mock API', () => {
             domain: domainName,
             deployment: requestData.deployment || 'test-deployment-123',
             url: `https://${domainName}.shipstatic.dev`,
-            ...(requestData.tags && requestData.tags.length > 0 ? { tags: requestData.tags } : {})
+            ...(requestData.labels && requestData.labels.length > 0 ? { labels: requestData.labels } : {})
           }));
           return;
         }
@@ -116,17 +116,17 @@ describe('CLI with Mock API', () => {
           let requestData: any = {};
           try { requestData = JSON.parse(body); } catch (e) { /* ignore */ }
 
-          // Validate tags
-          if (requestData.tags && requestData.tags.length > 0) {
-            if (requestData.tags.length > 10) {
+          // Validate labels
+          if (requestData.labels && requestData.labels.length > 0) {
+            if (requestData.labels.length > 10) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'business_logic_error', message: 'Maximum 10 tags allowed' }));
+              res.end(JSON.stringify({ error: 'business_logic_error', message: 'Maximum 10 labels allowed' }));
               return;
             }
-            for (const tag of requestData.tags) {
-              if (tag.length < 3) {
+            for (const label of requestData.labels) {
+              if (label.length < 3) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'business_logic_error', message: 'Tags must be at least 3 characters long' }));
+                res.end(JSON.stringify({ error: 'business_logic_error', message: 'Labels must be at least 3 characters long' }));
                 return;
               }
             }
@@ -137,7 +137,7 @@ describe('CLI with Mock API', () => {
             token: 'token-abc123def456',
             expires: requestData.ttl ? Date.now() + (requestData.ttl * 1000) : null,
             message: 'Token created successfully',
-            ...(requestData.tags && requestData.tags.length > 0 ? { tags: requestData.tags } : {})
+            ...(requestData.labels && requestData.labels.length > 0 ? { labels: requestData.labels } : {})
           }));
           return;
         }
@@ -175,8 +175,8 @@ describe('CLI with Mock API', () => {
       expect(JSON.parse(result.stdout.trim()).via).toBe('cli');
     });
 
-    it('should set via: cli when using deployments create with tags', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--tag', 'production'], testEnv());
+    it('should set via: cli when using deployments create with labels', async () => {
+      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'production'], testEnv());
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout.trim()).via).toBe('cli');
     });
@@ -194,23 +194,23 @@ describe('CLI with Mock API', () => {
   // ─────────────────────────────────────────────────────────────────────────────
 
   describe('deploy shortcut parity', () => {
-    it('should support --tag flag on shortcut', async () => {
-      const result = await runCli(['--json', DEMO_SITE_PATH, '--tag', 'production'], testEnv());
+    it('should support --label flag on shortcut', async () => {
+      const result = await runCli(['--json', DEMO_SITE_PATH, '--label', 'production'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.tags).toEqual(['production']);
+      expect(output.labels).toEqual(['production']);
     });
 
-    it('should support multiple --tag flags on shortcut', async () => {
-      const result = await runCli(['--json', DEMO_SITE_PATH, '--tag', 'prod', '--tag', 'v1.0.0'], testEnv());
+    it('should support multiple --label flags on shortcut', async () => {
+      const result = await runCli(['--json', DEMO_SITE_PATH, '--label', 'prod', '--label', 'v1.0.0'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.tags).toEqual(['prod', 'v1.0.0']);
+      expect(output.labels).toEqual(['prod', 'v1.0.0']);
     });
 
     it('should produce same result with shortcut and long command', async () => {
-      const shortcutResult = await runCli(['--json', DEMO_SITE_PATH, '--tag', 'test-tag'], testEnv());
-      const longResult = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--tag', 'test-tag'], testEnv());
+      const shortcutResult = await runCli(['--json', DEMO_SITE_PATH, '--label', 'test-label'], testEnv());
+      const longResult = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'test-label'], testEnv());
 
       expect(shortcutResult.exitCode).toBe(0);
       expect(longResult.exitCode).toBe(0);
@@ -218,7 +218,7 @@ describe('CLI with Mock API', () => {
       const shortcutOutput = JSON.parse(shortcutResult.stdout.trim());
       const longOutput = JSON.parse(longResult.stdout.trim());
 
-      expect(shortcutOutput.tags).toEqual(longOutput.tags);
+      expect(shortcutOutput.labels).toEqual(longOutput.labels);
       expect(shortcutOutput.via).toEqual(longOutput.via);
     });
   });
@@ -277,148 +277,148 @@ describe('CLI with Mock API', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Tag Tests - Deployments
+  // Label Tests - Deployments
   // ─────────────────────────────────────────────────────────────────────────────
 
-  describe('deployments create --tag', () => {
-    it('should accept single --tag flag', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--tag', 'production'], testEnv());
+  describe('deployments create --label', () => {
+    it('should accept single --label flag', async () => {
+      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'production'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
       expect(output.deployment).toBe('test-deployment-123');
-      expect(output.tags).toEqual(['production']);
+      expect(output.labels).toEqual(['production']);
     });
 
-    it('should accept multiple --tag flags', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--tag', 'production', '--tag', 'v1.0.0'], testEnv());
+    it('should accept multiple --label flags', async () => {
+      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'production', '--label', 'v1.0.0'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.tags).toEqual(['production', 'v1.0.0']);
+      expect(output.labels).toEqual(['production', 'v1.0.0']);
     });
 
-    it('should handle tags with special characters', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--tag', 'release-2024', '--tag', 'version_1.0.0', '--tag', 'env:prod'], testEnv());
+    it('should handle labels with special characters', async () => {
+      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'release-2024', '--label', 'version_1.0.0', '--label', 'env:prod'], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).tags).toEqual(['release-2024', 'version_1.0.0', 'env:prod']);
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual(['release-2024', 'version_1.0.0', 'env:prod']);
     });
 
-    it('should work without --tag flag', async () => {
+    it('should work without --label flag', async () => {
       const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).tags).toBeUndefined();
+      expect(JSON.parse(result.stdout.trim()).labels).toBeUndefined();
     });
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Tag Tests - Domains
+  // Label Tests - Domains
   // ─────────────────────────────────────────────────────────────────────────────
 
-  describe('domains set --tag', () => {
-    it('should accept single --tag flag', async () => {
-      const result = await runCli(['--json', 'domains', 'set', 'staging', 'test-deployment-123', '--tag', 'production'], testEnv());
+  describe('domains set --label', () => {
+    it('should accept single --label flag', async () => {
+      const result = await runCli(['--json', 'domains', 'set', 'staging', 'test-deployment-123', '--label', 'production'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
       expect(output.domain).toBe('staging');
-      expect(output.tags).toEqual(['production']);
+      expect(output.labels).toEqual(['production']);
     });
 
-    it('should accept multiple --tag flags', async () => {
-      const result = await runCli(['--json', 'domains', 'set', 'production', 'test-deployment-456', '--tag', 'prod', '--tag', 'v1.0.0', '--tag', 'stable'], testEnv());
+    it('should accept multiple --label flags', async () => {
+      const result = await runCli(['--json', 'domains', 'set', 'production', 'test-deployment-456', '--label', 'prod', '--label', 'v1.0.0', '--label', 'stable'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.tags).toEqual(['prod', 'v1.0.0', 'stable']);
+      expect(output.labels).toEqual(['prod', 'v1.0.0', 'stable']);
     });
 
-    it('should work without --tag flag', async () => {
+    it('should work without --label flag', async () => {
       const result = await runCli(['--json', 'domains', 'set', 'test-domain', 'test-deployment-xyz'], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).tags).toBeUndefined();
+      expect(JSON.parse(result.stdout.trim()).labels).toBeUndefined();
     });
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Tag Tests - Tokens
+  // Label Tests - Tokens
   // ─────────────────────────────────────────────────────────────────────────────
 
-  describe('tokens create --tag', () => {
-    it('should accept single --tag flag', async () => {
-      const result = await runCli(['--json', 'tokens', 'create', '--tag', 'production'], testEnv());
+  describe('tokens create --label', () => {
+    it('should accept single --label flag', async () => {
+      const result = await runCli(['--json', 'tokens', 'create', '--label', 'production'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
       expect(output.token).toBe('token-abc123def456');
-      expect(output.tags).toEqual(['production']);
+      expect(output.labels).toEqual(['production']);
     });
 
-    it('should accept multiple --tag flags', async () => {
-      const result = await runCli(['--json', 'tokens', 'create', '--tag', 'production', '--tag', 'api', '--tag', 'automated'], testEnv());
+    it('should accept multiple --label flags', async () => {
+      const result = await runCli(['--json', 'tokens', 'create', '--label', 'production', '--label', 'api', '--label', 'automated'], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).tags).toEqual(['production', 'api', 'automated']);
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual(['production', 'api', 'automated']);
     });
 
-    it('should accept --tag with --ttl flag', async () => {
-      const result = await runCli(['--json', 'tokens', 'create', '--ttl', '3600', '--tag', 'temporary', '--tag', 'test'], testEnv());
+    it('should accept --label with --ttl flag', async () => {
+      const result = await runCli(['--json', 'tokens', 'create', '--ttl', '3600', '--label', 'temporary', '--label', 'test'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
       expect(output.expires).toBeTruthy();
-      expect(output.tags).toEqual(['temporary', 'test']);
+      expect(output.labels).toEqual(['temporary', 'test']);
     });
 
-    it('should work without --tag flag', async () => {
+    it('should work without --label flag', async () => {
       const result = await runCli(['--json', 'tokens', 'create'], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).tags).toBeUndefined();
+      expect(JSON.parse(result.stdout.trim()).labels).toBeUndefined();
     });
 
-    it('should handle tags with special characters', async () => {
-      const result = await runCli(['--json', 'tokens', 'create', '--tag', 'ci-cd', '--tag', 'version_2.0', '--tag', 'env:staging'], testEnv());
+    it('should handle labels with special characters', async () => {
+      const result = await runCli(['--json', 'tokens', 'create', '--label', 'ci-cd', '--label', 'version_2.0', '--label', 'env:staging'], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).tags).toEqual(['ci-cd', 'version_2.0', 'env:staging']);
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual(['ci-cd', 'version_2.0', 'env:staging']);
     });
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Tag Validation Tests
+  // Label Validation Tests
   // ─────────────────────────────────────────────────────────────────────────────
 
-  describe('tag validation', () => {
-    it('should preserve tag order', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--tag', 'first', '--tag', 'second', '--tag', 'third'], testEnv());
+  describe('label validation', () => {
+    it('should preserve label order', async () => {
+      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'first', '--label', 'second', '--label', 'third'], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).tags).toEqual(['first', 'second', 'third']);
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual(['first', 'second', 'third']);
     });
 
-    it('should use same --tag pattern for both commands', async () => {
-      const deployResult = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--tag', 'v1.0.0', '--tag', 'production'], testEnv());
-      const domainResult = await runCli(['--json', 'domains', 'set', 'prod', 'test-deployment-123', '--tag', 'v1.0.0', '--tag', 'production'], testEnv());
+    it('should use same --label pattern for both commands', async () => {
+      const deployResult = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'v1.0.0', '--label', 'production'], testEnv());
+      const domainResult = await runCli(['--json', 'domains', 'set', 'prod', 'test-deployment-123', '--label', 'v1.0.0', '--label', 'production'], testEnv());
 
-      expect(JSON.parse(deployResult.stdout.trim()).tags).toEqual(['v1.0.0', 'production']);
-      expect(JSON.parse(domainResult.stdout.trim()).tags).toEqual(['v1.0.0', 'production']);
+      expect(JSON.parse(deployResult.stdout.trim()).labels).toEqual(['v1.0.0', 'production']);
+      expect(JSON.parse(domainResult.stdout.trim()).labels).toEqual(['v1.0.0', 'production']);
     });
 
-    it('should reject tags shorter than 3 characters (deployments)', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--tag', 'ab'], testEnv());
+    it('should reject labels shorter than 3 characters (deployments)', async () => {
+      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'ab'], testEnv());
       expect(result.exitCode).toBe(1);
       expect(JSON.parse(result.stderr.trim()).error).toContain('at least 3 characters');
     });
 
-    it('should reject tags shorter than 3 characters (tokens)', async () => {
-      const result = await runCli(['--json', 'tokens', 'create', '--tag', 'ab'], testEnv());
+    it('should reject labels shorter than 3 characters (tokens)', async () => {
+      const result = await runCli(['--json', 'tokens', 'create', '--label', 'ab'], testEnv());
       expect(result.exitCode).toBe(1);
       expect(JSON.parse(result.stderr.trim()).error).toContain('at least 3 characters');
     });
 
-    it('should reject more than 10 tags (deployments)', async () => {
-      const tags = Array.from({ length: 11 }, (_, i) => ['--tag', `tag${String(i + 1).padStart(2, '0')}`]).flat();
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, ...tags], testEnv());
+    it('should reject more than 10 labels (deployments)', async () => {
+      const labels = Array.from({ length: 11 }, (_, i) => ['--label', `label${String(i + 1).padStart(2, '0')}`]).flat();
+      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, ...labels], testEnv());
       expect(result.exitCode).toBe(1);
-      expect(JSON.parse(result.stderr.trim()).error).toContain('Maximum 10 tags');
+      expect(JSON.parse(result.stderr.trim()).error).toContain('Maximum 10 labels');
     });
 
-    it('should reject more than 10 tags (tokens)', async () => {
-      const tags = Array.from({ length: 11 }, (_, i) => ['--tag', `tag${String(i + 1).padStart(2, '0')}`]).flat();
-      const result = await runCli(['--json', 'tokens', 'create', ...tags], testEnv());
+    it('should reject more than 10 labels (tokens)', async () => {
+      const labels = Array.from({ length: 11 }, (_, i) => ['--label', `label${String(i + 1).padStart(2, '0')}`]).flat();
+      const result = await runCli(['--json', 'tokens', 'create', ...labels], testEnv());
       expect(result.exitCode).toBe(1);
-      expect(JSON.parse(result.stderr.trim()).error).toContain('Maximum 10 tags');
+      expect(JSON.parse(result.stderr.trim()).error).toContain('Maximum 10 labels');
     });
   });
 });

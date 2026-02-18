@@ -10,7 +10,7 @@ describe('DomainResource', () => {
     // Mock the ApiHttp client
     mockApi = {
       setDomain: vi.fn(),
-      updateDomainTags: vi.fn(),
+      updateDomainLabels: vi.fn(),
       getDomain: vi.fn(),
       listDomains: vi.fn(),
       removeDomain: vi.fn(),
@@ -45,14 +45,14 @@ describe('DomainResource', () => {
       expect(result).toEqual(mockSetResponse);
     });
 
-    it('should pass tags to api.setDomain when provided', async () => {
-      const tags = ['production', 'v1.0.0'];
-      const mockSetResponse = { domain: 'prod', deployment: 'xyz789', url: 'https://prod.shipstatic.dev', tags, isCreate: true };
+    it('should pass labels to api.setDomain when provided', async () => {
+      const labels = ['production', 'v1.0.0'];
+      const mockSetResponse = { domain: 'prod', deployment: 'xyz789', url: 'https://prod.shipstatic.dev', labels, isCreate: true };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
-      const result = await domains.set('prod', { deployment: 'xyz789', tags });
+      const result = await domains.set('prod', { deployment: 'xyz789', labels });
 
-      expect(mockApi.setDomain).toHaveBeenCalledWith('prod', 'xyz789', tags);
+      expect(mockApi.setDomain).toHaveBeenCalledWith('prod', 'xyz789', labels);
       expect(result).toEqual(mockSetResponse);
     });
 
@@ -63,7 +63,7 @@ describe('DomainResource', () => {
       const result = await domains.set('reserved');
 
       expect(mockApi.setDomain).toHaveBeenCalledWith('reserved', undefined, undefined);
-      expect(mockApi.updateDomainTags).not.toHaveBeenCalled();
+      expect(mockApi.updateDomainLabels).not.toHaveBeenCalled();
       expect(result).toEqual(mockSetResponse);
     });
 
@@ -74,53 +74,53 @@ describe('DomainResource', () => {
       const result = await domains.set('reserved', {});
 
       expect(mockApi.setDomain).toHaveBeenCalledWith('reserved', undefined, undefined);
-      expect(mockApi.updateDomainTags).not.toHaveBeenCalled();
+      expect(mockApi.updateDomainLabels).not.toHaveBeenCalled();
       expect(result).toEqual(mockSetResponse);
     });
   });
 
-  describe('set with tags only (smart routing)', () => {
-    it('should call api.updateDomainTags when only tags provided', async () => {
-      const tags = ['production', 'v2.0.0'];
-      const mockUpdateResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.dev', tags };
-      (mockApi.updateDomainTags as any).mockResolvedValue(mockUpdateResponse);
+  describe('set with labels only (smart routing)', () => {
+    it('should call api.updateDomainLabels when only labels provided', async () => {
+      const labels = ['production', 'v2.0.0'];
+      const mockUpdateResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.dev', labels };
+      (mockApi.updateDomainLabels as any).mockResolvedValue(mockUpdateResponse);
 
-      const result = await domains.set('staging', { tags });
+      const result = await domains.set('staging', { labels });
 
-      expect(mockApi.updateDomainTags).toHaveBeenCalledWith('staging', tags);
+      expect(mockApi.updateDomainLabels).toHaveBeenCalledWith('staging', labels);
       expect(mockApi.setDomain).not.toHaveBeenCalled();
       expect(result).toEqual(mockUpdateResponse);
     });
 
-    it('should PUT (reserve) when empty tags array and no deployment', async () => {
-      const mockSetResponse = { domain: 'staging', deployment: null, url: 'https://staging.shipstatic.dev', tags: [] };
+    it('should PUT (reserve) when empty labels array and no deployment', async () => {
+      const mockSetResponse = { domain: 'staging', deployment: null, url: 'https://staging.shipstatic.dev', labels: [] };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
-      const result = await domains.set('staging', { tags: [] });
+      const result = await domains.set('staging', { labels: [] });
 
       expect(mockApi.setDomain).toHaveBeenCalledWith('staging', undefined, []);
-      expect(mockApi.updateDomainTags).not.toHaveBeenCalled();
+      expect(mockApi.updateDomainLabels).not.toHaveBeenCalled();
       expect(result).toEqual(mockSetResponse);
     });
 
-    it('should allow clearing tags when deployment is provided', async () => {
-      const mockSetResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.dev', tags: [] };
+    it('should allow clearing labels when deployment is provided', async () => {
+      const mockSetResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.dev', labels: [] };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
-      const result = await domains.set('staging', { deployment: 'abc123', tags: [] });
+      const result = await domains.set('staging', { deployment: 'abc123', labels: [] });
 
       expect(mockApi.setDomain).toHaveBeenCalledWith('staging', 'abc123', []);
       expect(result).toEqual(mockSetResponse);
     });
 
-    it('should handle external domain tag updates', async () => {
-      const tags = ['live', 'primary'];
-      const mockUpdateResponse = { domain: 'example.com', deployment: 'xyz789', url: 'https://example.com', tags, status: 'pending' };
-      (mockApi.updateDomainTags as any).mockResolvedValue(mockUpdateResponse);
+    it('should handle external domain label updates', async () => {
+      const labels = ['live', 'primary'];
+      const mockUpdateResponse = { domain: 'example.com', deployment: 'xyz789', url: 'https://example.com', labels, status: 'pending' };
+      (mockApi.updateDomainLabels as any).mockResolvedValue(mockUpdateResponse);
 
-      const result = await domains.set('example.com', { tags });
+      const result = await domains.set('example.com', { labels });
 
-      expect(mockApi.updateDomainTags).toHaveBeenCalledWith('example.com', tags);
+      expect(mockApi.updateDomainLabels).toHaveBeenCalledWith('example.com', labels);
       expect(result).toEqual(mockUpdateResponse);
     });
   });
@@ -278,7 +278,7 @@ describe('DomainResource', () => {
 
     it('should return promises from all methods', () => {
       (mockApi.setDomain as any).mockResolvedValue({});
-      (mockApi.updateDomainTags as any).mockResolvedValue({});
+      (mockApi.updateDomainLabels as any).mockResolvedValue({});
       (mockApi.getDomain as any).mockResolvedValue({});
       (mockApi.listDomains as any).mockResolvedValue({});
       (mockApi.removeDomain as any).mockResolvedValue({});
@@ -286,8 +286,8 @@ describe('DomainResource', () => {
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue({});
 
       expect(domains.set('test', { deployment: 'abc123' })).toBeInstanceOf(Promise);
-      expect(domains.set('test', { deployment: 'abc123', tags: ['tag1'] })).toBeInstanceOf(Promise);
-      expect(domains.set('test', { tags: ['tag1', 'tag2'] })).toBeInstanceOf(Promise);
+      expect(domains.set('test', { deployment: 'abc123', labels: ['tag1'] })).toBeInstanceOf(Promise);
+      expect(domains.set('test', { labels: ['tag1', 'tag2'] })).toBeInstanceOf(Promise);
       expect(domains.get('test')).toBeInstanceOf(Promise);
       expect(domains.list()).toBeInstanceOf(Promise);
       expect(domains.remove('test')).toBeInstanceOf(Promise);

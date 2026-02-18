@@ -32,14 +32,14 @@ ship .
 # Deploy with API key
 ship ./dist --api-key ship-your-key
 
-# Deploy with tags
-ship ./dist --tag production --tag v1.0.0
+# Deploy with labels
+ship ./dist --label production --label v1.0.0
 
 # List deployments
 ship deployments list
 
-# Set domain with tags
-ship domains set staging abc123 --tag prod
+# Set domain with labels
+ship domains set staging abc123 --label prod
 
 # Check account
 ship whoami

@@ -118,7 +118,7 @@ private async requestWithStatus<T>(...): Promise<RequestResult<T>> {
 
 **Key patterns:**
 - All path parameters use `encodeURIComponent()` for safety
-- Optional arrays use `tags !== undefined` (not `tags?.length`) to distinguish "not provided" from "empty"
+- Optional arrays use `labels !== undefined` (not `labels?.length`) to distinguish "not provided" from "empty"
 - `requestWithStatus()` used when HTTP status matters (e.g., domain creation returns 201)
 
 **Events for debugging:**
@@ -215,13 +215,13 @@ deploymentsCmd
 
 ### Commander.js Option Merging
 
-When both parent and subcommand define `--tag`:
+When both parent and subcommand define `--label`:
 
 ```typescript
 .action(async (directory, cmdOptions) => {
   const programOpts = program.opts();
   // Subcommand options take precedence
-  const tagArray = cmdOptions?.tag?.length > 0 ? cmdOptions.tag : programOpts.tag;
+  const labelArray = cmdOptions?.label?.length > 0 ? cmdOptions.label : programOpts.label;
 });
 ```
 
@@ -230,8 +230,8 @@ Required configuration for option inheritance:
 // Parent command - enablePositionalOptions() required for all parent commands
 const deployments = program.command('deployments').enablePositionalOptions();
 
-// Subcommand - passThroughOptions() for commands with --tag
-deployments.command('create').passThroughOptions().option('--tag <tag>', 'Tag', collect, []);
+// Subcommand - passThroughOptions() for commands with --label
+deployments.command('create').passThroughOptions().option('--label <label>', 'Label', collect, []);
 ```
 
 ## Testing
@@ -357,9 +357,9 @@ The SDK maps directly to API endpoints:
 | `deployments.create()` | `POST /deployments` | Multipart upload |
 | `deployments.list()` | `GET /deployments` | Paginated |
 | `deployments.get()` | `GET /deployments/:id` | Single deployment |
-| `deployments.set()` | `PATCH /deployments/:id` | Update tags only |
+| `deployments.set()` | `PATCH /deployments/:id` | Update labels only |
 | `deployments.remove()` | `DELETE /deployments/:id` | Permanent deletion |
-| `domains.set()` | Smart routing (see below) | Creates, updates, or tags-only |
+| `domains.set()` | Smart routing (see below) | Creates, updates, or labels-only |
 | `domains.list()` | `GET /domains` | All domains |
 | `domains.get()` | `GET /domains/:name` | Single domain |
 | `domains.verify()` | `POST /domains/:name/verify` | Triggers async DNS check |
@@ -378,20 +378,20 @@ The `domains.set()` method routes to different API endpoints based on arguments:
 ship.domains.set('staging', { deployment: 'abc123' });
 // → PUT /domains/staging { deployment: 'abc123' }
 
-// With deployment and tags → PUT
-ship.domains.set('staging', { deployment: 'abc123', tags: ['prod'] });
-// → PUT /domains/staging { deployment: 'abc123', tags: ['prod'] }
+// With deployment and labels → PUT
+ship.domains.set('staging', { deployment: 'abc123', labels: ['prod'] });
+// → PUT /domains/staging { deployment: 'abc123', labels: ['prod'] }
 
-// Tags only → PATCH (update existing domain's tags)
-ship.domains.set('staging', { tags: ['prod', 'v2'] });
-// → PATCH /domains/staging { tags: ['prod', 'v2'] }
+// Labels only → PATCH (update existing domain's labels)
+ship.domains.set('staging', { labels: ['prod', 'v2'] });
+// → PATCH /domains/staging { labels: ['prod', 'v2'] }
 
 // No options → PUT (create/reserve domain without linking)
 ship.domains.set('staging');
 // → PUT /domains/staging {}
 ```
 
-**Rationale:** Deployments are immutable (can only update tags), but domains can be created without a deployment (reservation) and re-pointed later.
+**Rationale:** Deployments are immutable (can only update labels), but domains can be created without a deployment (reservation) and re-pointed later.
 
 ### Domain Format and Normalization
 

@@ -23,7 +23,7 @@ function createMockResponse(data: any, status = 200) {
 }
 
 // Mock deploy body creator for tests
-const mockCreateDeployBody = async (files: any[], tags?: string[], via?: string) => ({
+const mockCreateDeployBody = async (files: any[], labels?: string[], via?: string) => ({
   body: new ArrayBuffer(0),
   headers: { 'Content-Type': 'multipart/form-data' }
 });
@@ -167,19 +167,19 @@ describe('ApiHttp', () => {
       });
     });
 
-    it('should deploy files array with tags', async () => {
+    it('should deploy files array with labels', async () => {
       const mockFiles = [
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
       ];
-      const tags = ['production', 'v1.0.0'];
+      const labels = ['production', 'v1.0.0'];
       (global.fetch as any).mockResolvedValue(createMockResponse({
         deployment: 'test-deployment',
         files: 1,
         size: 13,
-        tags: tags
+        labels: labels
       }));
 
-      const result = await apiHttp.deploy(mockFiles, { tags });
+      const result = await apiHttp.deploy(mockFiles, { labels });
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/deployments',
@@ -194,7 +194,7 @@ describe('ApiHttp', () => {
         deployment: 'test-deployment',
         files: 1,
         size: 13,
-        tags: tags
+        labels: labels
       });
     });
 
@@ -535,12 +535,12 @@ describe('ApiHttp', () => {
       expect(result).toEqual({ ...mockDomain, isCreate: true });
     });
 
-    it('should set domain with tags', async () => {
-      const tags = ['production', 'v2.0.0'];
-      const mockDomain = { domain: 'prod', deployment: 'test-deployment', tags };
+    it('should set domain with labels', async () => {
+      const labels = ['production', 'v2.0.0'];
+      const mockDomain = { domain: 'prod', deployment: 'test-deployment', labels };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 201));
 
-      const result = await apiHttp.setDomain('prod', 'test-deployment', tags);
+      const result = await apiHttp.setDomain('prod', 'test-deployment', labels);
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/domains/prod',
@@ -550,7 +550,7 @@ describe('ApiHttp', () => {
             'Authorization': 'Bearer test-api-key',
             'Content-Type': 'application/json'
           }),
-          body: JSON.stringify({ deployment: 'test-deployment', tags })
+          body: JSON.stringify({ deployment: 'test-deployment', labels })
         })
       );
       expect(result).toEqual({ ...mockDomain, isCreate: true });
@@ -790,7 +790,7 @@ describe('ApiHttp', () => {
       expect(result).toEqual(mockResponse);
     });
 
-    it('should create token with tags', async () => {
+    it('should create token with labels', async () => {
       const mockResponse = { token: 'token-abc123', expires: 1234567890 };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
@@ -800,13 +800,13 @@ describe('ApiHttp', () => {
         'https://api.test.com/tokens',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ tags: ['ci', 'deploy'] })
+          body: JSON.stringify({ labels: ['ci', 'deploy'] })
         })
       );
       expect(result).toEqual(mockResponse);
     });
 
-    it('should create token with both ttl and tags', async () => {
+    it('should create token with both ttl and labels', async () => {
       const mockResponse = { token: 'token-abc123', expires: 1234567890 };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
@@ -816,7 +816,7 @@ describe('ApiHttp', () => {
         'https://api.test.com/tokens',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ ttl: 7200, tags: ['production'] })
+          body: JSON.stringify({ ttl: 7200, labels: ['production'] })
         })
       );
       expect(result).toEqual(mockResponse);
@@ -1027,8 +1027,8 @@ describe('ApiHttp', () => {
       expect(result).toEqual({ ...mockDomain, isCreate: false });
     });
 
-    it('should set domain with empty tags array (included in body to clear tags)', async () => {
-      const mockDomain = { domain: 'staging', deployment: 'dep1', tags: [] };
+    it('should set domain with empty labels array (included in body to clear labels)', async () => {
+      const mockDomain = { domain: 'staging', deployment: 'dep1', labels: [] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
 
       const result = await apiHttp.setDomain('staging', 'dep1', []);
@@ -1037,20 +1037,20 @@ describe('ApiHttp', () => {
         'https://api.test.com/domains/staging',
         expect.objectContaining({
           method: 'PUT',
-          body: JSON.stringify({ deployment: 'dep1', tags: [] })
+          body: JSON.stringify({ deployment: 'dep1', labels: [] })
         })
       );
       expect(result).toEqual({ ...mockDomain, isCreate: false });
     });
   });
 
-  describe('updateDomainTags', () => {
-    it('should update domain tags using PATCH', async () => {
-      const tags = ['production', 'v2.0.0'];
-      const mockDomain = { domain: 'staging', deployment: 'dep1', tags };
+  describe('updateDomainLabels', () => {
+    it('should update domain labels using PATCH', async () => {
+      const labels = ['production', 'v2.0.0'];
+      const mockDomain = { domain: 'staging', deployment: 'dep1', labels };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
 
-      const result = await apiHttp.updateDomainTags('staging', tags);
+      const result = await apiHttp.updateDomainLabels('staging', labels);
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/domains/staging',
@@ -1060,33 +1060,33 @@ describe('ApiHttp', () => {
             'Authorization': 'Bearer test-api-key',
             'Content-Type': 'application/json'
           }),
-          body: JSON.stringify({ tags })
+          body: JSON.stringify({ labels })
         })
       );
       expect(result).toEqual(mockDomain);
     });
 
-    it('should handle empty tags array', async () => {
-      const mockDomain = { domain: 'staging', deployment: 'dep1', tags: [] };
+    it('should handle empty labels array', async () => {
+      const mockDomain = { domain: 'staging', deployment: 'dep1', labels: [] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
 
-      const result = await apiHttp.updateDomainTags('staging', []);
+      const result = await apiHttp.updateDomainLabels('staging', []);
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/domains/staging',
         expect.objectContaining({
           method: 'PATCH',
-          body: JSON.stringify({ tags: [] })
+          body: JSON.stringify({ labels: [] })
         })
       );
       expect(result).toEqual(mockDomain);
     });
 
     it('should encode special characters in domain name', async () => {
-      const mockDomain = { domain: 'test.example.com', deployment: 'dep1', tags: ['prod'] };
+      const mockDomain = { domain: 'test.example.com', deployment: 'dep1', labels: ['prod'] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
 
-      await apiHttp.updateDomainTags('test.example.com', ['prod']);
+      await apiHttp.updateDomainLabels('test.example.com', ['prod']);
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/domains/test.example.com',
@@ -1102,7 +1102,7 @@ describe('ApiHttp', () => {
         404
       ));
 
-      await expect(apiHttp.updateDomainTags('not-found', ['tag'])).rejects.toThrow();
+      await expect(apiHttp.updateDomainLabels('not-found', ['env'])).rejects.toThrow();
     });
   });
 });

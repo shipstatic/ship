@@ -51,33 +51,33 @@ describe('createDeployBody (browser)', () => {
     });
   });
 
-  describe('tags handling', () => {
-    it('should add tags when provided', async () => {
+  describe('labels handling', () => {
+    it('should add labels when provided', async () => {
       const files: StaticFile[] = [createMockFile('index.html', '<html></html>', 'abc123')];
 
       const result = await createDeployBody(files, ['production', 'v1.0.0']);
 
       const formData = result.body as FormData;
-      const tags = formData.get('tags');
-      expect(tags).toBe(JSON.stringify(['production', 'v1.0.0']));
+      const labels = formData.get('labels');
+      expect(labels).toBe(JSON.stringify(['production', 'v1.0.0']));
     });
 
-    it('should not add tags field when tags array is empty', async () => {
+    it('should not add labels field when labels array is empty', async () => {
       const files: StaticFile[] = [createMockFile('index.html', '<html></html>', 'abc123')];
 
       const result = await createDeployBody(files, []);
 
       const formData = result.body as FormData;
-      expect(formData.get('tags')).toBeNull();
+      expect(formData.get('labels')).toBeNull();
     });
 
-    it('should not add tags field when tags is undefined', async () => {
+    it('should not add labels field when labels is undefined', async () => {
       const files: StaticFile[] = [createMockFile('index.html', '<html></html>', 'abc123')];
 
       const result = await createDeployBody(files);
 
       const formData = result.body as FormData;
-      expect(formData.get('tags')).toBeNull();
+      expect(formData.get('labels')).toBeNull();
     });
   });
 
