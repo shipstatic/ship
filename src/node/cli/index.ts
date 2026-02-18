@@ -12,7 +12,7 @@ import { installCompletion, uninstallCompletion } from './completion.js';
 import { runConfig } from './config.js';
 import { getUserMessage, toShipError, formatErrorJson, type ErrorContext } from './error-handling.js';
 import { bold, dim } from 'yoctocolors';
-import type { GlobalOptions, DeployCommandOptions, TagOptions, TokenCreateCommandOptions, ProcessedOptions, CLIResult } from './types.js';
+import type { GlobalOptions, DeployCommandOptions, LabelOptions, TokenCreateCommandOptions, ProcessedOptions, CLIResult } from './types.js';
 
 // Load package.json for version
 function loadPackageJson(): { version: string } {
@@ -84,12 +84,12 @@ ${applyBold('COMMANDS')}
   ship deployments list                 List all deployments
   ship deployments create <path>        Create deployment from directory
   ship deployments get <id>             Show deployment information
-  ship deployments set <id>             Set deployment tags
+  ship deployments set <id>             Set deployment labels
   ship deployments remove <id>          Delete deployment permanently
 
   🌎 ${applyBold('Domains')}
   ship domains list                     List all domains
-  ship domains set <name> [deployment]  Point domain to deployment, or update tags
+  ship domains set <name> [deployment]  Create domain, point to deployment, or update labels
   ship domains get <name>               Show domain information
   ship domains validate <name>          Check if domain name is valid and available
   ship domains verify <name>            Trigger DNS verification for external domain
@@ -126,19 +126,19 @@ ${applyDim('Please report any issues to https://github.com/shipstatic/ship/issue
 
 /**
  * Collector function for Commander.js to accumulate repeated option values.
- * Used for --tag flag that can be specified multiple times.
+ * Used for --label flag that can be specified multiple times.
  */
 function collect(value: string, previous: string[] = []): string[] {
   return previous.concat([value]);
 }
 
 /**
- * Merge tag options from command and program levels.
- * Commander.js sometimes routes --tag to program level instead of command level.
+ * Merge label options from command and program levels.
+ * Commander.js sometimes routes --label to program level instead of command level.
  */
-function mergeTagOption(cmdOptions: TagOptions | undefined, programOpts: TagOptions | undefined): string[] | undefined {
-  const tags = cmdOptions?.tag?.length ? cmdOptions.tag : programOpts?.tag;
-  return tags?.length ? tags : undefined;
+function mergeLabelOption(cmdOptions: LabelOptions | undefined, programOpts: LabelOptions | undefined): string[] | undefined {
+  const labels = cmdOptions?.label?.length ? cmdOptions.label : programOpts?.label;
+  return labels?.length ? labels : undefined;
 }
 
 /**
@@ -284,15 +284,15 @@ async function performDeploy(
 
   const deployOptions: {
     via: string;
-    tags?: string[];
+    labels?: string[];
     pathDetect?: boolean;
     spaDetect?: boolean;
     signal?: AbortSignal;
   } = { via: 'cli' };
 
-  // Handle tags
-  const tags = mergeTagOption(cmdOptions, program.opts() as TagOptions);
-  if (tags) deployOptions.tags = tags;
+  // Handle labels
+  const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
+  if (labels) deployOptions.labels = labels;
 
   // Handle detection flags
   if (cmdOptions?.noPathDetect !== undefined) {
@@ -423,7 +423,7 @@ deploymentsCmd
   .command('create <path>')
   .description('Create deployment from file or directory')
   .passThroughOptions()
-  .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
+  .option('--label <label>', 'Label to add (can be repeated)', collect, [])
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(
@@ -443,13 +443,13 @@ deploymentsCmd
 
 deploymentsCmd
   .command('set <deployment>')
-  .description('Set deployment tags')
+  .description('Set deployment labels')
   .passThroughOptions()
-  .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
+  .option('--label <label>', 'Label to set (can be repeated)', collect, [])
   .action(withErrorHandling(
-    async (client: Ship, deployment: string, cmdOptions: TagOptions) => {
-      const tags = mergeTagOption(cmdOptions, program.opts() as TagOptions) || [];
-      return client.deployments.set(deployment, { tags });
+    async (client: Ship, deployment: string, cmdOptions: LabelOptions) => {
+      const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions) || [];
+      return client.deployments.set(deployment, { labels });
     },
     { operation: 'set', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
   ));
@@ -500,21 +500,16 @@ domainsCmd
 
 domainsCmd
   .command('set <name> [deployment]')
-  .description('Point domain to deployment, or update tags')
+  .description('Create domain, point to deployment, or update labels')
   .passThroughOptions()
-  .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
+  .option('--label <label>', 'Label to set (can be repeated)', collect, [])
   .action(withErrorHandling(
-    async (client: Ship, name: string, deployment: string | undefined, cmdOptions: TagOptions) => {
-      const tags = mergeTagOption(cmdOptions, program.opts() as TagOptions);
+    async (client: Ship, name: string, deployment: string | undefined, cmdOptions: LabelOptions) => {
+      const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
 
-      // Validate: must provide either deployment or tags
-      if (!deployment && (!tags || tags.length === 0)) {
-        throw ShipError.validation('Must provide deployment or --tag');
-      }
-
-      const options: { deployment?: string; tags?: string[] } = {};
+      const options: { deployment?: string; labels?: string[] } = {};
       if (deployment) options.deployment = deployment;
-      if (tags && tags.length > 0) options.tags = tags;
+      if (labels && labels.length > 0) options.labels = labels;
 
       const result = await client.domains.set(name, options);
 
@@ -563,13 +558,13 @@ tokensCmd
   .command('create')
   .description('Create a new deploy token')
   .option('--ttl <seconds>', 'Time to live in seconds (default: never expires)', parseInt)
-  .option('--tag <tag>', 'Tag to set (can be repeated)', collect, [])
+  .option('--label <label>', 'Label to set (can be repeated)', collect, [])
   .action(withErrorHandling(
     (client: Ship, cmdOptions: TokenCreateCommandOptions) => {
-      const options: { ttl?: number; tags?: string[] } = {};
+      const options: { ttl?: number; labels?: string[] } = {};
       if (cmdOptions?.ttl !== undefined) options.ttl = cmdOptions.ttl;
-      const tags = mergeTagOption(cmdOptions, program.opts() as TagOptions);
-      if (tags && tags.length > 0) options.tags = tags;
+      const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
+      if (labels && labels.length > 0) options.labels = labels;
       return client.tokens.create(options);
     },
     { operation: 'create', resourceType: 'Token' }
@@ -637,7 +632,7 @@ program
 // Deploy shortcut as default action
 program
   .argument('[path]', 'Path to deploy')
-  .option('--tag <tag>', 'Tag to add (can be repeated)', collect, [])
+  .option('--label <label>', 'Label to add (can be repeated)', collect, [])
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(

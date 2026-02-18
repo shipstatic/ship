@@ -137,63 +137,63 @@ describe('Advanced Domain Operations', () => {
     });
   });
 
-  describe('domains.set() with tags only', () => {
-    it('should update tags for an existing internal domain', async () => {
+  describe('domains.set() with labels only', () => {
+    it('should update labels for an existing internal domain', async () => {
       // First create a domain
       await ship.domains.set('update-test', { deployment: 'test-deployment-1' });
 
-      // Update its tags using set with tags only
-      const updated = await ship.domains.set('update-test', { tags: ['new-tag', 'another-tag'] });
+      // Update its labels using set with labels only
+      const updated = await ship.domains.set('update-test', { labels: ['new-label', 'another-label'] });
 
       expect(updated.domain).toBe('update-test');
-      expect(updated.tags).toEqual(['new-tag', 'another-tag']);
+      expect(updated.labels).toEqual(['new-label', 'another-label']);
     });
 
-    it('should update tags for an existing external domain', async () => {
+    it('should update labels for an existing external domain', async () => {
       // First create an external domain
       await ship.domains.set('update-external.com', { deployment: 'test-deployment-1' });
 
-      // Update its tags
-      const updated = await ship.domains.set('update-external.com', { tags: ['production', 'v2'] });
+      // Update its labels
+      const updated = await ship.domains.set('update-external.com', { labels: ['production', 'v2'] });
 
       expect(updated.domain).toBe('update-external.com');
-      expect(updated.tags).toEqual(['production', 'v2']);
+      expect(updated.labels).toEqual(['production', 'v2']);
     });
 
-    it('should clear tags when deployment is provided with empty array', async () => {
-      // First create a domain with tags
-      await ship.domains.set('clear-tags-test', { deployment: 'test-deployment-1', tags: ['initial-tag'] });
+    it('should clear labels when deployment is provided with empty array', async () => {
+      // First create a domain with labels
+      await ship.domains.set('clear-labels-test', { deployment: 'test-deployment-1', labels: ['initial-label'] });
 
-      // Clear tags by passing deployment with empty array (uses PUT, not PATCH)
-      const updated = await ship.domains.set('clear-tags-test', { deployment: 'test-deployment-1', tags: [] });
+      // Clear labels by passing deployment with empty array (uses PUT, not PATCH)
+      const updated = await ship.domains.set('clear-labels-test', { deployment: 'test-deployment-1', labels: [] });
 
-      expect(updated.domain).toBe('clear-tags-test');
-      expect(updated.tags).toEqual([]);
+      expect(updated.domain).toBe('clear-labels-test');
+      expect(updated.labels).toEqual([]);
     });
 
-    it('should PUT (reserve) when empty tags array without deployment', async () => {
-      const result = await ship.domains.set('some-domain', { tags: [] });
+    it('should PUT (reserve) when empty labels array without deployment', async () => {
+      const result = await ship.domains.set('some-domain', { labels: [] });
       expect(result.domain).toBe('some-domain');
     });
 
     it('should fail for non-existent domain', async () => {
-      await expect(ship.domains.set('non-existent-domain', { tags: ['tag'] }))
+      await expect(ship.domains.set('non-existent-domain', { labels: ['env'] }))
         .rejects.toThrow(/not found/i);
     });
 
-    it('should preserve domain properties when updating tags', async () => {
+    it('should preserve domain properties when updating labels', async () => {
       // Create domain
       const created = await ship.domains.set('preserve-test', { deployment: 'test-deployment-1' });
 
-      // Update tags
-      const updated = await ship.domains.set('preserve-test', { tags: ['updated-tag'] });
+      // Update labels
+      const updated = await ship.domains.set('preserve-test', { labels: ['updated-label'] });
 
       // Verify other properties are preserved
       expect(updated.domain).toBe(created.domain);
       expect(updated.deployment).toBe(created.deployment);
       expect(updated.status).toBe(created.status);
       expect(updated.url).toBe(created.url);
-      expect(updated.tags).toEqual(['updated-tag']);
+      expect(updated.labels).toEqual(['updated-label']);
     });
   });
 });

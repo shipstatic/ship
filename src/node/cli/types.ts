@@ -36,16 +36,16 @@ export interface GlobalOptions {
 }
 
 /**
- * Options for commands that support tagging.
+ * Options for commands that support labeling.
  */
-export interface TagOptions {
-  tag?: string[];
+export interface LabelOptions {
+  label?: string[];
 }
 
 /**
  * Options for deploy commands (create deployment, deploy shortcut).
  */
-export interface DeployCommandOptions extends TagOptions {
+export interface DeployCommandOptions extends LabelOptions {
   noPathDetect?: boolean;
   noSpaDetect?: boolean;
 }
@@ -53,7 +53,7 @@ export interface DeployCommandOptions extends TagOptions {
 /**
  * Options for token create command.
  */
-export interface TokenCreateCommandOptions extends TagOptions {
+export interface TokenCreateCommandOptions extends LabelOptions {
   ttl?: number;
 }
 

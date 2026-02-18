@@ -348,8 +348,8 @@ describe('NodeShipClient', () => {
       );
     });
 
-    it('should pass tags option to deploy in Node.js environment', async () => {
-      const tags = ['production', 'v2.1.0', 'staging'];
+    it('should pass labels option to deploy in Node.js environment', async () => {
+      const labels = ['production', 'v2.1.0', 'staging'];
       const filePaths = ['/path/to/app.js', '/path/to/index.html'];
 
       fileUtilsMock.processFilesForNode.mockResolvedValueOnce([
@@ -357,13 +357,13 @@ describe('NodeShipClient', () => {
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'def456', size: 13 }
       ]);
 
-      await client.deployments.create(filePaths, { tags });
+      await client.deployments.create(filePaths, { labels });
 
-      // Verify tags are passed through to the HTTP layer
+      // Verify labels are passed through to the HTTP layer
       expect(apiClientMock.deploy).toHaveBeenCalledWith(
         expect.any(Array),
         expect.objectContaining({
-          tags: ['production', 'v2.1.0', 'staging']
+          labels: ['production', 'v2.1.0', 'staging']
         })
       );
     });
@@ -397,15 +397,15 @@ describe('NodeShipClient', () => {
       expect(result.expires).toBe(1234567890);
     });
 
-    it('should create token with tags', async () => {
-      const tags = ['production', 'api', 'automated'];
+    it('should create token with labels', async () => {
+      const labels = ['production', 'api', 'automated'];
       apiClientMock.createToken = vi.fn().mockResolvedValue({
         token: 'token-ghi789',
         expires: null,
         message: 'Token created successfully'
       });
 
-      const result = await client.tokens.create({ tags });
+      const result = await client.tokens.create({ labels });
 
       expect(apiClientMock.createToken).toHaveBeenCalledWith(undefined, ['production', 'api', 'automated']);
       expect(result.token).toBe('token-ghi789');
@@ -414,8 +414,8 @@ describe('NodeShipClient', () => {
     it('should list tokens', async () => {
       apiClientMock.listTokens = vi.fn().mockResolvedValue({
         tokens: [
-          { token: 'hash1', account: 'acc1', created: 1234567890, tags: ['production'] },
-          { token: 'hash2', account: 'acc1', created: 1234567891, tags: ['staging'] }
+          { token: 'hash1', account: 'acc1', created: 1234567890, labels: ['production'] },
+          { token: 'hash2', account: 'acc1', created: 1234567891, labels: ['staging'] }
         ],
         count: 2
       });

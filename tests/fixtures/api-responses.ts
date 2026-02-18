@@ -61,16 +61,16 @@ export const deployments = {
   } satisfies Deployment,
 
   /**
-   * Deployment with tags
+   * Deployment with labels
    */
-  withTags: {
-    deployment: 'tagged-deployment-1',
+  withLabels: {
+    deployment: 'labeled-deployment-1',
     files: 10,
     size: 2048000,
     status: 'success',
     config: false,
-    tags: ['production', 'v1.0.0'],
-    url: 'https://tagged-deployment-1.shipstatic.dev',
+    labels: ['production', 'v1.0.0'],
+    url: 'https://labeled-deployment-1.shipstatic.dev',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
   } satisfies Deployment,
@@ -127,7 +127,7 @@ export const deploymentListResponses = {
    * Multiple deployments
    */
   multiple: {
-    deployments: [deployments.success, deployments.withTags],
+    deployments: [deployments.success, deployments.withLabels],
     cursor: undefined,
     total: 2,
   } satisfies DeploymentListResponse,
@@ -172,13 +172,13 @@ export const domains = {
   } satisfies Domain,
 
   /**
-   * Domain with tags
+   * Domain with labels
    */
-  withTags: {
+  withLabels: {
     domain: 'production',
     deployment: 'test-deployment-1',
     status: 'success',
-    tags: ['primary', 'live'],
+    labels: ['primary', 'live'],
     url: 'https://production.shipstatic.dev',
     created: timestamps.jan2022,
   } satisfies Domain,
@@ -321,12 +321,12 @@ export const tokens = {
   } satisfies Token,
 
   /**
-   * Token with tags
+   * Token with labels
    */
-  withTags: {
-    token: 'token-tag123abc456tag123abc456tag123abc456tag123abc456tag123abc456tags',
+  withLabels: {
+    token: 'token-lbl123abc456lbl123abc456lbl123abc456lbl123abc456lbl123abc456lbls',
     account: 'test@example.com',
-    tags: ['ci', 'github-actions'],
+    labels: ['ci', 'github-actions'],
     created: timestamps.jan2022,
   } satisfies Token,
 } as const;
@@ -366,10 +366,10 @@ export const tokenCreateResponses = {
   } satisfies TokenCreateResponse,
 
   /**
-   * Token with tags
+   * Token with labels
    */
-  withTags: {
-    token: 'token-tagged123tagged123tagged123tagged123tagged123tagged123tagged12',
+  withLabels: {
+    token: 'token-labeled123labeled123labeled123labeled123labeled123labeled12345',
   } satisfies TokenCreateResponse,
 } as const;
 

@@ -41,7 +41,7 @@ export const E2E_API_KEY = process.env.SHIP_E2E_API_KEY;
 export const E2E_ENABLED = Boolean(E2E_API_KEY);
 
 /**
- * Test run identifier - used to tag test resources for easy identification
+ * Test run identifier - used to label test resources for easy identification
  */
 export const E2E_TEST_RUN_ID = `e2e-${Date.now()}`;
 
@@ -91,7 +91,7 @@ afterAll(() => {
 
 /**
  * Generate a unique test identifier
- * Used for deployment tags, domain names, etc.
+ * Used for deployment labels, domain names, etc.
  */
 export function generateTestId(prefix: string = 'test'): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;

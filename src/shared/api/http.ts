@@ -247,7 +247,7 @@ export class ApiHttp extends SimpleEvents {
       }
     }
 
-    const { body, headers: bodyHeaders } = await this.createDeployBody(files, options.tags, options.via);
+    const { body, headers: bodyHeaders } = await this.createDeployBody(files, options.labels, options.via);
 
     const authHeaders: Record<string, string> = {};
     if (options.deployToken) {
@@ -274,11 +274,11 @@ export class ApiHttp extends SimpleEvents {
     return this.request(`${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`, { method: 'GET' }, 'Get deployment');
   }
 
-  async updateDeploymentTags(id: string, tags: string[]): Promise<Deployment> {
+  async updateDeploymentLabels(id: string, labels: string[]): Promise<Deployment> {
     return this.request(
       `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tags }) },
-      'Update deployment tags'
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels }) },
+      'Update deployment labels'
     );
   }
 
@@ -296,10 +296,10 @@ export class ApiHttp extends SimpleEvents {
   // All domain methods accept FQDN (Fully Qualified Domain Name) as the `name` parameter.
   // The SDK does not validate or normalize - the API handles all domain semantics.
 
-  async setDomain(name: string, deployment?: string, tags?: string[]): Promise<Domain> {
-    const body: { deployment?: string; tags?: string[] } = {};
+  async setDomain(name: string, deployment?: string, labels?: string[]): Promise<Domain> {
+    const body: { deployment?: string; labels?: string[] } = {};
     if (deployment) body.deployment = deployment;
-    if (tags !== undefined) body.tags = tags;
+    if (labels !== undefined) body.labels = labels;
 
     const { data, status } = await this.requestWithStatus<Domain>(
       `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
@@ -318,11 +318,11 @@ export class ApiHttp extends SimpleEvents {
     return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`, { method: 'GET' }, 'Get domain');
   }
 
-  async updateDomainTags(name: string, tags: string[]): Promise<Domain> {
+  async updateDomainLabels(name: string, labels: string[]): Promise<Domain> {
     return this.request(
       `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tags }) },
-      'Update domain tags'
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels }) },
+      'Update domain labels'
     );
   }
 
@@ -358,10 +358,10 @@ export class ApiHttp extends SimpleEvents {
   // PUBLIC API - TOKENS
   // ===========================================================================
 
-  async createToken(ttl?: number, tags?: string[]): Promise<TokenCreateResponse> {
-    const body: { ttl?: number; tags?: string[] } = {};
+  async createToken(ttl?: number, labels?: string[]): Promise<TokenCreateResponse> {
+    const body: { ttl?: number; labels?: string[] } = {};
     if (ttl !== undefined) body.ttl = ttl;
-    if (tags !== undefined) body.tags = tags;
+    if (labels !== undefined) body.labels = labels;
 
     return this.request(
       `${this.apiUrl}${ENDPOINTS.TOKENS}`,
