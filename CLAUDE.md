@@ -359,7 +359,7 @@ The SDK maps directly to API endpoints:
 | `deployments.get()` | `GET /deployments/:id` | Single deployment |
 | `deployments.set()` | `PATCH /deployments/:id` | Update labels only |
 | `deployments.remove()` | `DELETE /deployments/:id` | Permanent deletion |
-| `domains.set()` | Smart routing (see below) | Creates, updates, or labels-only |
+| `domains.set()` | `PUT /domains/:name` | Upsert (create, update, or labels) |
 | `domains.list()` | `GET /domains` | All domains |
 | `domains.get()` | `GET /domains/:name` | Single domain |
 | `domains.verify()` | `POST /domains/:name/verify` | Triggers async DNS check |
@@ -369,29 +369,25 @@ The SDK maps directly to API endpoints:
 | `tokens.remove()` | `DELETE /tokens/:token` | Revoke token |
 | `whoami()` | `GET /account` | Current user |
 
-### domains.set() Smart Routing
+### Domain Write Semantics
 
-The `domains.set()` method routes to different API endpoints based on arguments:
+`PUT /domains/:name` is the single write endpoint. Merge semantics — omitted fields are preserved on update, defaulted on create:
 
 ```typescript
-// With deployment → PUT (creates or updates domain)
+// Create or re-point domain
 ship.domains.set('staging', { deployment: 'abc123' });
-// → PUT /domains/staging { deployment: 'abc123' }
 
-// With deployment and labels → PUT
-ship.domains.set('staging', { deployment: 'abc123', labels: ['prod'] });
-// → PUT /domains/staging { deployment: 'abc123', labels: ['prod'] }
-
-// Labels only → PATCH (update existing domain's labels)
+// Update labels (deployment preserved)
 ship.domains.set('staging', { labels: ['prod', 'v2'] });
-// → PATCH /domains/staging { labels: ['prod', 'v2'] }
 
-// No options → PUT (create/reserve domain without linking)
+// Update both
+ship.domains.set('staging', { deployment: 'abc123', labels: ['prod'] });
+
+// Reserve domain (no deployment linked)
 ship.domains.set('staging');
-// → PUT /domains/staging {}
 ```
 
-**Rationale:** Deployments are immutable (can only update labels), but domains can be created without a deployment (reservation) and re-pointed later.
+**Why PUT, not PATCH?** Domains are mutable routing records identified by natural key. PUT upsert is the right verb — one endpoint for create, re-point, and label. Deployments use PATCH because they're immutable artifacts with one mutable annotation (labels).
 
 ### Domain Format and Normalization
 

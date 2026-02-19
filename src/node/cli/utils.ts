@@ -13,16 +13,16 @@ const applyColor = (colorFn: (text: string) => string, text: string, noColor?: b
 /**
  * Message helper functions for consistent CLI output
  */
-export const success = (msg: string, isJson?: boolean, noColor?: boolean) => {
-  if (isJson) {
+export const success = (msg: string, json?: boolean, noColor?: boolean) => {
+  if (json) {
     console.log(JSON.stringify({ success: msg }, null, 2) + '\n');
   } else {
     console.log(`${applyColor(green, msg.toLowerCase().replace(/\.$/, ''), noColor)}\n`);
   }
 };
 
-export const error = (msg: string, isJson?: boolean, noColor?: boolean) => {
-  if (isJson) {
+export const error = (msg: string, json?: boolean, noColor?: boolean) => {
+  if (json) {
     console.error(JSON.stringify({ error: msg }, null, 2) + '\n');
   } else {
     const errorPrefix = applyColor((text) => inverse(red(text)), `${applyColor(hidden, '[', noColor)}error${applyColor(hidden, ']', noColor)}`, noColor);
@@ -31,8 +31,8 @@ export const error = (msg: string, isJson?: boolean, noColor?: boolean) => {
   }
 };
 
-export const warn = (msg: string, isJson?: boolean, noColor?: boolean) => {
-  if (isJson) {
+export const warn = (msg: string, json?: boolean, noColor?: boolean) => {
+  if (json) {
     console.log(JSON.stringify({ warning: msg }, null, 2) + '\n');
   } else {
     const warnPrefix = applyColor((text) => inverse(yellow(text)), `${applyColor(hidden, '[', noColor)}warning${applyColor(hidden, ']', noColor)}`, noColor);
@@ -41,8 +41,8 @@ export const warn = (msg: string, isJson?: boolean, noColor?: boolean) => {
   }
 };
 
-export const info = (msg: string, isJson?: boolean, noColor?: boolean) => {
-  if (isJson) {
+export const info = (msg: string, json?: boolean, noColor?: boolean) => {
+  if (json) {
     console.log(JSON.stringify({ info: msg }, null, 2) + '\n');
   } else {
     const infoPrefix = applyColor((text) => inverse(blue(text)), `${applyColor(hidden, '[', noColor)}info${applyColor(hidden, ']', noColor)}`, noColor);
@@ -75,6 +75,7 @@ export const formatTimestamp = (timestamp?: number, context: 'table' | 'details'
  * Handles timestamps, file sizes, and boolean configs with special formatting.
  */
 const formatValue = (key: string, value: unknown, context: 'table' | 'details' = 'details', noColor?: boolean): string => {
+  if (value === null) return '-';
   if (typeof value === 'number' && (key === 'created' || key === 'expires' || key === 'linked')) {
     return formatTimestamp(value, context, noColor);
   }

@@ -4,10 +4,21 @@
  * Core types come from @shipstatic/types, while SDK-specific types are defined here.
  */
 
-import type { ProgressInfo, StaticFile } from '@shipstatic/types';
+import type { ProgressInfo, StaticFile, Domain } from '@shipstatic/types';
 
 // Re-export all types from @shipstatic/types for convenience
 export * from '@shipstatic/types';
+
+// =============================================================================
+// SDK-LOCAL TYPES
+// =============================================================================
+
+/**
+ * Domain set result with SDK-injected isCreate flag.
+ * isCreate is derived from HTTP status code (201 = create, 200 = update)
+ * and is not part of the Domain entity contract.
+ */
+export type DomainSetResult = Domain & { isCreate: boolean };
 
 // =============================================================================
 // DEPLOYMENT OPTIONS

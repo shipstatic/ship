@@ -103,10 +103,10 @@ describe('CLI Commands', () => {
       expect(result.stdout).toContain('staging');
     });
 
-    it('should handle domains set with labels for non-existent domain', async () => {
-      const result = await runCli(['domains', 'set', 'non-existent-domain', '--label', 'test'], { expectFailure: true });
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('not found');
+    it('should create domain with labels-only via PUT upsert', async () => {
+      const result = await runCli(['domains', 'set', 'non-existent-domain', '--label', 'test']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('non-existent-domain');
     });
 
     it('should handle domains set without deployment (domain reservation)', async () => {

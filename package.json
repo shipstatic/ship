@@ -1,6 +1,6 @@
 {
   "name": "@shipstatic/ship",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "SDK & CLI for Shipstatic platform",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -73,7 +73,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@shipstatic/types": "^0.5.1",
+    "@shipstatic/types": "^0.5.3",
     "@types/columnify": "^1.5.4",
     "@types/mime-db": "^1.43.6",
     "@types/node": "^20.19.33",

@@ -12,9 +12,9 @@ import type {
   DnsRecord,
   Account,
   TokenCreateResponse,
-  TokenListResponse,
-  PingResponse
+  TokenListResponse
 } from '@shipstatic/types';
+import type { DomainSetResult } from '../../shared/types.js';
 
 // =============================================================================
 // COMMANDER.JS OPTION TYPES
@@ -57,14 +57,6 @@ export interface TokenCreateCommandOptions extends LabelOptions {
   ttl?: number;
 }
 
-/**
- * Processed options after Commander.js parsing.
- * Combines global and command-specific options with noColor normalization.
- */
-export interface ProcessedOptions extends GlobalOptions {
-  noColor?: boolean;
-}
-
 // =============================================================================
 // FORMATTER RESULT TYPES
 // =============================================================================
@@ -72,8 +64,9 @@ export interface ProcessedOptions extends GlobalOptions {
 /**
  * Domain with CLI-specific enrichment fields.
  * Added by CLI when creating external domains to show DNS setup info.
+ * Extends DomainSetResult (Domain + isCreate) since it's used after set operations.
  */
-export interface EnrichedDomain extends Domain {
+export interface EnrichedDomain extends DomainSetResult {
   _dnsRecords?: DnsRecord[];
   _shareHash?: string;
 }
@@ -94,55 +87,12 @@ export type CLIResult =
   | DomainListResponse
   | TokenListResponse
   | Deployment
+  | Domain
   | EnrichedDomain
   | DomainValidateResponse
   | Account
   | TokenCreateResponse
   | MessageResult
-  | PingResponse
   | boolean
   | void;
 
-// =============================================================================
-// TYPE GUARDS
-// =============================================================================
-
-export function isDeploymentListResponse(result: unknown): result is DeploymentListResponse {
-  return result !== null && typeof result === 'object' && 'deployments' in result;
-}
-
-export function isDomainListResponse(result: unknown): result is DomainListResponse {
-  return result !== null && typeof result === 'object' && 'domains' in result;
-}
-
-export function isTokenListResponse(result: unknown): result is TokenListResponse {
-  return result !== null && typeof result === 'object' && 'tokens' in result;
-}
-
-export function isDomain(result: unknown): result is EnrichedDomain {
-  return result !== null && typeof result === 'object' && 'domain' in result;
-}
-
-export function isDeployment(result: unknown): result is Deployment {
-  return result !== null && typeof result === 'object' && 'deployment' in result;
-}
-
-export function isToken(result: unknown): result is TokenCreateResponse {
-  return result !== null && typeof result === 'object' && 'token' in result;
-}
-
-export function isAccount(result: unknown): result is Account {
-  return result !== null && typeof result === 'object' && 'email' in result;
-}
-
-export function isMessageResult(result: unknown): result is MessageResult {
-  return result !== null && typeof result === 'object' && 'message' in result;
-}
-
-export function isPingResponse(result: unknown): result is PingResponse {
-  return result !== null && typeof result === 'object' && 'success' in result;
-}
-
-export function isDomainValidateResponse(result: unknown): result is DomainValidateResponse {
-  return result !== null && typeof result === 'object' && 'valid' in result;
-}
