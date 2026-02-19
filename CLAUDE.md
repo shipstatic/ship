@@ -358,16 +358,23 @@ The SDK maps directly to API endpoints:
 | `deployments.list()` | `GET /deployments` | Paginated |
 | `deployments.get()` | `GET /deployments/:id` | Single deployment |
 | `deployments.set()` | `PATCH /deployments/:id` | Update labels only |
-| `deployments.remove()` | `DELETE /deployments/:id` | Permanent deletion |
+| `deployments.remove()` | `DELETE /deployments/:id` | Returns 202 (async) |
 | `domains.set()` | `PUT /domains/:name` | Upsert (create, update, or labels) |
 | `domains.list()` | `GET /domains` | All domains |
 | `domains.get()` | `GET /domains/:name` | Single domain |
 | `domains.verify()` | `POST /domains/:name/verify` | Triggers async DNS check |
+| `domains.validate()` | `POST /domains/:name/validate` | Pre-flight domain validation |
+| `domains.dns()` | `GET /domains/:name/dns` | Required DNS records |
+| `domains.records()` | `GET /domains/:name/records` | Current DNS records |
+| `domains.share()` | `GET /domains/:name/share` | Shareable domain hash |
 | `domains.remove()` | `DELETE /domains/:name` | Permanent deletion |
-| `tokens.create()` | `POST /tokens` | New deploy token |
+| `tokens.create()` | `POST /tokens` | Returns 201 |
 | `tokens.list()` | `GET /tokens` | All tokens |
-| `tokens.remove()` | `DELETE /tokens/:token` | Revoke token |
-| `whoami()` | `GET /account` | Current user |
+| `tokens.remove()` | `DELETE /tokens/:token` | Returns 202 (async) |
+| `account.get()` | `GET /account` | Current user |
+| `ping()` | `GET /ping` | Health check (returns boolean) |
+| `checkSPA()` | `POST /spa-check` | SPA auto-detection |
+| `getConfig()` | `GET /config` | Platform config + plan limits |
 
 ### Domain Write Semantics
 
