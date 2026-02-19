@@ -7,7 +7,6 @@ import type { ShipError as ShipErrorClassType } from '@shipstatic/types'; // Imp
 // 1. Use vi.hoisted() for variables used in vi.mock factories
 const mockApiHttpInstance = {
   ping: vi.fn(),
-  getPingResponse: vi.fn().mockResolvedValue({ success: true, timestamp: 1753379248270 }),
   deploy: vi.fn(),
   getConfig: vi.fn().mockResolvedValue({
     maxFileSize: 10 * 1024 * 1024,

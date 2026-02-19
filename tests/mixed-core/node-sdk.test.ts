@@ -7,7 +7,6 @@ import type { Ship as ShipClass } from '../../src/index'; // Import type for cli
 // 1. Use vi.hoisted() for variables used in vi.mock factories
 const mockApiHttpInstance = {
   ping: vi.fn(),
-  getPingResponse: vi.fn().mockResolvedValue({ success: true, timestamp: 1753379248270 }),
   deploy: vi.fn().mockResolvedValue({
     deployment: 'test-deployment-id',
     files: 1,
@@ -417,14 +416,14 @@ describe('NodeShipClient', () => {
           { token: 'hash1', account: 'acc1', created: 1234567890, labels: ['production'] },
           { token: 'hash2', account: 'acc1', created: 1234567891, labels: ['staging'] }
         ],
-        count: 2
+        total: 2
       });
 
       const result = await client.tokens.list();
 
       expect(apiClientMock.listTokens).toHaveBeenCalled();
       expect(result.tokens).toHaveLength(2);
-      expect(result.count).toBe(2);
+      expect(result.total).toBe(2);
     });
 
     it('should remove token', async () => {

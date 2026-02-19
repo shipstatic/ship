@@ -108,13 +108,7 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
   return {
     set: async (name: string, options: { deployment?: string; labels?: string[] } = {}) => {
       await ensureInit();
-      const { deployment, labels } = options;
-
-      // Smart routing: labels-only → PATCH; otherwise → PUT (create/link/reserve)
-      if (deployment === undefined && labels && labels.length > 0) {
-        return getApi().updateDomainLabels(name, labels);
-      }
-      return getApi().setDomain(name, deployment, labels);
+      return getApi().setDomain(name, options.deployment, options.labels);
     },
 
     list: async () => {

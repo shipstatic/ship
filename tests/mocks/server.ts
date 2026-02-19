@@ -211,8 +211,6 @@ function routeRequest(
         handleDomainGet(res, domainName);
       } else if (method === 'PUT') {
         handleDomainSet(req, res, domainName);
-      } else if (method === 'PATCH') {
-        handleDomainUpdate(req, res, domainName);
       } else if (method === 'DELETE') {
         handleDomainDelete(res, domainName);
       }
@@ -251,7 +249,7 @@ function handleDeploymentsList(res: ServerResponse, url: URL): void {
   const populate = url.searchParams.get('populate');
   const response: DeploymentListResponse = {
     deployments: populate === 'true' ? mockDeployments : [],
-    cursor: undefined,
+    cursor: null,
     total: populate === 'true' ? mockDeployments.length : 0,
   };
   res.writeHead(200);
@@ -291,7 +289,7 @@ function handleDeploymentDelete(res: ServerResponse, id: string): void {
   res.end(JSON.stringify({
     message: 'Deployment marked for removal',
     deployment: id,
-    status: 'removing',
+    status: 'deleting',
   }));
 }
 
@@ -303,7 +301,7 @@ function handleDomainsList(res: ServerResponse, _url: URL): void {
   // Always return all mock domains (matches real API behavior)
   const response: DomainListResponse = {
     domains: mockDomains,
-    cursor: undefined,
+    cursor: null,
     total: mockDomains.length,
   };
   res.writeHead(200);
@@ -340,53 +338,29 @@ function handleDomainSet(req: IncomingMessage, res: ServerResponse, domainName: 
 
       // Check if domain already exists (update) or is new (create)
       const existingIndex = mockDomains.findIndex((d) => d.domain === domainName);
-      const domain = createDynamicDomain(domainName, data.deployment || null, {
-        labels: data.labels,
-      });
 
       if (existingIndex >= 0) {
-        // Update existing domain
+        // Update existing domain — merge semantics: omitted fields preserve existing values
+        const existing = mockDomains[existingIndex];
+        const mergedDeployment = data.deployment !== undefined ? data.deployment : existing.deployment;
+        const mergedLabels = data.labels !== undefined ? data.labels : existing.labels;
+        const domain = createDynamicDomain(domainName, mergedDeployment, {
+          labels: mergedLabels,
+        });
         mockDomains[existingIndex] = domain;
         res.writeHead(200);
-      } else {
-        // Create new domain
-        mockDomains.push(domain);
-        res.writeHead(201);
-      }
-
-      res.end(JSON.stringify(domain));
-    } catch {
-      res.writeHead(400);
-      res.end(JSON.stringify(errors.invalidJson));
-    }
-  });
-}
-
-function handleDomainUpdate(req: IncomingMessage, res: ServerResponse, domainName: string): void {
-  let body = '';
-  req.on('data', (chunk) => (body += chunk));
-  req.on('end', () => {
-    try {
-      const data = JSON.parse(body);
-
-      // Find existing domain
-      const existingIndex = mockDomains.findIndex((d) => d.domain === domainName);
-      if (existingIndex < 0) {
-        res.writeHead(404);
-        res.end(JSON.stringify(errors.notFound('Domain', domainName)));
+        res.end(JSON.stringify(domain));
         return;
       }
 
-      // Update labels only (PATCH semantics)
-      const existingDomain = mockDomains[existingIndex];
-      const updatedDomain = {
-        ...existingDomain,
-        labels: data.labels || [],
-      };
-      mockDomains[existingIndex] = updatedDomain;
+      // Create new domain
+      const domain = createDynamicDomain(domainName, data.deployment || null, {
+        labels: data.labels,
+      });
+      mockDomains.push(domain);
+      res.writeHead(201);
 
-      res.writeHead(200);
-      res.end(JSON.stringify(updatedDomain));
+      res.end(JSON.stringify(domain));
     } catch {
       res.writeHead(400);
       res.end(JSON.stringify(errors.invalidJson));
@@ -453,9 +427,13 @@ function handleDomainRecords(res: ServerResponse, domainName: string): void {
     return;
   }
 
+  // Derive apex from domain name (strip leading subdomain for www.x.com → x.com, otherwise use as-is)
+  const apex = domainName.startsWith('www.') ? domainName.slice(4) : domainName;
+
   res.writeHead(200);
   res.end(JSON.stringify({
     domain: domainName,
+    apex,
     records: domainRecordsResponses.standard.records,
   }));
 }
@@ -530,9 +508,17 @@ function handleDomainVerify(res: ServerResponse, domainName: string): void {
 // =============================================================================
 
 function handleTokensList(res: ServerResponse): void {
+  // Sanitize tokens for list response (mirrors real API: truncate hash, omit account/ip)
+  const sanitizedTokens = mockTokens.map(token => ({
+    token: token.token.substring(0, 12) + '...',
+    labels: token.labels,
+    created: token.created,
+    expires: token.expires ?? null,
+    used: token.used ?? null,
+  }));
   const response: TokenListResponse = {
-    tokens: mockTokens,
-    count: mockTokens.length,
+    tokens: sanitizedTokens,
+    total: sanitizedTokens.length,
   };
   res.writeHead(200);
   res.end(JSON.stringify(response));
@@ -551,11 +537,12 @@ function handleTokenCreate(req: IncomingMessage, res: ServerResponse): void {
 
       mockTokens.push(token);
 
-      // Return only the token value (and labels if provided)
-      const response: { token: string; labels?: string[] } = { token: token.token };
-      if (data.labels) {
-        response.labels = data.labels;
-      }
+      // Return token value with labels and expires (always present)
+      const response: { token: string; labels: string[]; expires: number | null } = {
+        token: token.token,
+        labels: data.labels || [],
+        expires: data.ttl ? Math.floor(Date.now() / 1000) + data.ttl : null,
+      };
 
       res.writeHead(201);
       res.end(JSON.stringify(response));
@@ -575,8 +562,8 @@ function handleTokenDelete(res: ServerResponse, tokenHash: string): void {
   }
 
   mockTokens.splice(tokenIndex, 1);
-  res.writeHead(200);
-  res.end(JSON.stringify({ success: true, message: 'Token marked for deletion' }));
+  res.writeHead(202);
+  res.end(JSON.stringify({ message: 'Token marked for deletion' }));
 }
 
 // =============================================================================

@@ -8,7 +8,7 @@ import * as os from 'os';
 import { success, error, info, warn } from './utils.js';
 
 export interface CompletionOptions {
-  isJson?: boolean;
+  json?: boolean;
   noColor?: boolean;
 }
 
@@ -53,12 +53,12 @@ function getShellPaths(shell: 'bash' | 'zsh' | 'fish', homeDir: string) {
  * Install shell completion script
  */
 export function installCompletion(scriptDir: string, options: CompletionOptions = {}): void {
-  const { isJson, noColor } = options;
+  const { json, noColor } = options;
   const shell = detectShell();
   const homeDir = os.homedir();
 
   if (!shell) {
-    error(`unsupported shell: ${process.env.SHELL}. supported: bash, zsh, fish`, isJson, noColor);
+    error(`unsupported shell: ${process.env.SHELL}. supported: bash, zsh, fish`, json, noColor);
     return;
   }
 
@@ -73,8 +73,8 @@ export function installCompletion(scriptDir: string, options: CompletionOptions 
         fs.mkdirSync(fishDir, { recursive: true });
       }
       fs.copyFileSync(sourceScript, paths.completionFile);
-      success('fish completion installed successfully', isJson, noColor);
-      info('please restart your shell to apply the changes', isJson, noColor);
+      success('fish completion installed successfully', json, noColor);
+      info('please restart your shell to apply the changes', json, noColor);
       return;
     }
 
@@ -93,12 +93,12 @@ export function installCompletion(scriptDir: string, options: CompletionOptions 
         fs.writeFileSync(paths.profileFile, sourceLine);
       }
 
-      success(`completion script installed for ${shell}`, isJson, noColor);
-      warn(`run "source ${paths.profileFile}" or restart your shell`, isJson, noColor);
+      success(`completion script installed for ${shell}`, json, noColor);
+      warn(`run "source ${paths.profileFile}" or restart your shell`, json, noColor);
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    error(`could not install completion script: ${message}`, isJson, noColor);
+    error(`could not install completion script: ${message}`, json, noColor);
   }
 }
 
@@ -106,12 +106,12 @@ export function installCompletion(scriptDir: string, options: CompletionOptions 
  * Uninstall shell completion script
  */
 export function uninstallCompletion(options: CompletionOptions = {}): void {
-  const { isJson, noColor } = options;
+  const { json, noColor } = options;
   const shell = detectShell();
   const homeDir = os.homedir();
 
   if (!shell) {
-    error(`unsupported shell: ${process.env.SHELL}. supported: bash, zsh, fish`, isJson, noColor);
+    error(`unsupported shell: ${process.env.SHELL}. supported: bash, zsh, fish`, json, noColor);
     return;
   }
 
@@ -122,11 +122,11 @@ export function uninstallCompletion(options: CompletionOptions = {}): void {
     if (shell === 'fish') {
       if (fs.existsSync(paths.completionFile)) {
         fs.unlinkSync(paths.completionFile);
-        success('fish completion uninstalled successfully', isJson, noColor);
+        success('fish completion uninstalled successfully', json, noColor);
       } else {
-        warn('fish completion was not installed', isJson, noColor);
+        warn('fish completion was not installed', json, noColor);
       }
-      info('please restart your shell to apply the changes', isJson, noColor);
+      info('please restart your shell to apply the changes', json, noColor);
       return;
     }
 
@@ -138,7 +138,7 @@ export function uninstallCompletion(options: CompletionOptions = {}): void {
     if (!paths.profileFile) return;
 
     if (!fs.existsSync(paths.profileFile)) {
-      error('profile file not found', isJson, noColor);
+      error('profile file not found', json, noColor);
       return;
     }
 
@@ -168,13 +168,13 @@ export function uninstallCompletion(options: CompletionOptions = {}): void {
         ? ''
         : filtered.join('\n') + (endsWithNewline ? '\n' : '');
       fs.writeFileSync(paths.profileFile, newContent);
-      success(`completion script uninstalled for ${shell}`, isJson, noColor);
-      warn(`run "source ${paths.profileFile}" or restart your shell`, isJson, noColor);
+      success(`completion script uninstalled for ${shell}`, json, noColor);
+      warn(`run "source ${paths.profileFile}" or restart your shell`, json, noColor);
     } else {
-      error('completion was not found in profile', isJson, noColor);
+      error('completion was not found in profile', json, noColor);
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    error(`could not uninstall completion script: ${message}`, isJson, noColor);
+    error(`could not uninstall completion script: ${message}`, json, noColor);
   }
 }
