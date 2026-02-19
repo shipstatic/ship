@@ -29,7 +29,7 @@ ship deployments remove <id>
 
 # Domains
 ship domains list
-ship domains set staging <deployment-id>          # Point domain to deployment
+ship domains set staging <deployment-id>          # Link domain to deployment
 ship domains set staging --label production       # Update domain labels
 ship domains get staging
 ship domains verify www.example.com
@@ -148,10 +148,10 @@ ship.ping()                                  // Check API connectivity
 ### domains.set() Behavior
 
 ```typescript
-// Point domain to deployment
+// Link domain to deployment
 ship.domains.set('staging', { deployment: 'abc123' });
 
-// Point domain to deployment with labels
+// Link domain to deployment with labels
 ship.domains.set('staging', { deployment: 'abc123', labels: ['prod'] });
 
 // Update labels only (domain must exist)

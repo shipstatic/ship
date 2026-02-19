@@ -22,16 +22,14 @@ _ship_completions() {
           COMPREPLY=( $(compgen -f -- "${current_word}") )
           return
           ;;
-        "get"|"remove")
-          if [[ ${COMP_CWORD} -eq 3 ]]; then
-            # Would ideally complete deployment IDs from API, but keep simple for now
-            COMPREPLY=()
-            return
-          fi
+        "get"|"set"|"remove")
+          # Deployment ID position
+          COMPREPLY=()
+          return
           ;;
         *)
           if [[ ${COMP_CWORD} -eq 2 ]]; then
-            completions="list create get remove"
+            completions="list create get set remove"
             COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
             return
           fi
@@ -41,22 +39,34 @@ _ship_completions() {
     "domains")
       case "${COMP_WORDS[2]}" in
         "set")
-          if [[ ${COMP_CWORD} -eq 4 ]]; then
-            # Would ideally complete deployment IDs, but keep simple
-            COMPREPLY=()
-            return
-          fi
+          # Domain name or deployment ID positions
+          COMPREPLY=()
+          return
           ;;
-        "get"|"remove")
-          if [[ ${COMP_CWORD} -eq 3 ]]; then
-            # Would ideally complete domain names, but keep simple
-            COMPREPLY=()
-            return
-          fi
+        "get"|"validate"|"verify"|"remove")
+          # Domain name position
+          COMPREPLY=()
+          return
           ;;
         *)
           if [[ ${COMP_CWORD} -eq 2 ]]; then
-            completions="list get set remove"
+            completions="list get set validate verify remove"
+            COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
+            return
+          fi
+          ;;
+      esac
+      ;;
+    "tokens")
+      case "${COMP_WORDS[2]}" in
+        "remove")
+          # Token ID position
+          COMPREPLY=()
+          return
+          ;;
+        *)
+          if [[ ${COMP_CWORD} -eq 2 ]]; then
+            completions="list create remove"
             COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
             return
           fi
@@ -79,7 +89,7 @@ _ship_completions() {
       ;;
   esac
 
-  # Delegate for commands that expect files, like 'create'
+  # Delegate for commands that expect files
   if [[ "$prev_word" == "create" || "$prev_word" == "--config" ]]; then
     COMPREPLY=( $(compgen -f -- "${current_word}") )
     return
@@ -87,14 +97,14 @@ _ship_completions() {
 
   # Flag completion
   if [[ "$current_word" == --* ]]; then
-    completions="--api-key --config --api-url --no-path-detect --no-spa-detect --json --no-color --version --help"
+    completions="--api-key --deploy-token --config --api-url --label --no-path-detect --no-spa-detect --json --no-color --version --help"
     COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
     return
   fi
 
   # Top-level commands
   if [[ ${COMP_CWORD} -eq 1 ]]; then
-    completions="ping whoami deployments domains account completion"
+    completions="ping whoami deployments domains tokens account config completion"
     COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
     return
   fi
