@@ -232,7 +232,7 @@ function withErrorHandling<T extends unknown[], R extends CLIResult>(
 
     try {
       const client = createClient();
-      const result = await handler(client, ...args);
+      const result = await handler.call(this, client, ...args);
       formatOutput(result, resolvedContext, { json: globalOptions.json, noColor: globalOptions.noColor });
     } catch (err) {
       handleError(err, resolvedContext);
