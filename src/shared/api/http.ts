@@ -18,7 +18,7 @@ import type {
   TokenCreateResponse,
   TokenListResponse
 } from '@shipstatic/types';
-import type { ApiDeployOptions, DeployBodyCreator, DomainSetResult } from '../types.js';
+import type { ApiDeployOptions, DeployBodyCreator, DomainSetResult, ShipClientOptions } from '../types.js';
 import { ShipError, isShipError, DEFAULT_API } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 
