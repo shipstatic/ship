@@ -7,12 +7,13 @@ import { ShipError, validateApiKey, validateDeployToken, validateApiUrl, isShipE
 import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
 import { success, error } from './utils.js';
-import { formatOutput } from './formatters.js';
+import { formatOutput, type OutputContext } from './formatters.js';
 import { installCompletion, uninstallCompletion } from './completion.js';
 import { runConfig } from './config.js';
-import { getUserMessage, toShipError, formatErrorJson, type ErrorContext } from './error-handling.js';
+import { getUserMessage, toShipError, formatErrorJson } from './error-handling.js';
 import { bold, dim } from 'yoctocolors';
-import type { GlobalOptions, DeployCommandOptions, LabelOptions, TokenCreateCommandOptions, ProcessedOptions, CLIResult } from './types.js';
+import type { GlobalOptions, DeployCommandOptions, LabelOptions, TokenCreateCommandOptions, CLIResult } from './types.js';
+import type { DomainSetResult } from '../../shared/types.js';
 
 // Load package.json for version
 function loadPackageJson(): { version: string } {
@@ -41,8 +42,8 @@ program
     if (err.code === 'commander.help' || err.code === 'commander.version' || err.exitCode === 0) {
       process.exit(err.exitCode || 0);
     }
-    
-    const globalOptions = program.opts();
+
+    const globalOptions = processOptions(program);
 
     let message = err.message || 'unknown command error';
     message = message
@@ -56,7 +57,7 @@ program
     if (!globalOptions.json) {
       displayHelp(globalOptions.noColor);
     }
-    
+
     process.exit(err.exitCode || 1);
   })
   .configureOutput({
@@ -169,18 +170,15 @@ function handleUnknownSubcommand(validSubcommands: string[]): (...args: unknown[
  * Process CLI options using Commander's built-in option merging.
  * Applies CLI-specific transformations (validation is done in preAction hook).
  */
-function processOptions(command: Command): ProcessedOptions {
-  // Use Commander's built-in option merging
-  // optsWithGlobals() gets both command-level and global options
-  const options = command.optsWithGlobals ? command.optsWithGlobals() : command.opts();
+function processOptions(command: Command): GlobalOptions {
+  const options = command.optsWithGlobals();
 
   // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
   if (options.color === false) {
     options.noColor = true;
   }
 
-  // Note: Validation is handled by the preAction hook to avoid duplication
-  return options as ProcessedOptions;
+  return options as GlobalOptions;
 }
 
 /**
@@ -189,9 +187,9 @@ function processOptions(command: Command): ProcessedOptions {
  */
 function handleError(
   err: unknown,
-  context?: ErrorContext
+  context?: OutputContext
 ) {
-  const opts = program.opts() as GlobalOptions;
+  const opts = processOptions(program);
   const shipError = toShipError(err);
 
   // Get user-facing message using the extracted pure function
@@ -204,7 +202,7 @@ function handleError(
   if (opts.json) {
     console.error(formatErrorJson(message, shipError.details) + '\n');
   } else {
-    error(message, opts.json, opts.noColor);
+    error(message, false, opts.noColor);
     // Show help only for unknown command errors (user CLI mistake)
     if (shipError.isValidationError() && message.includes('unknown command')) {
       displayHelp(opts.noColor);
@@ -223,29 +221,21 @@ function withErrorHandling<T extends unknown[], R extends CLIResult>(
   context?: { operation?: string; resourceType?: string; getResourceId?: (...args: T) => string }
 ) {
   return async function(this: Command, ...args: T) {
-    // Process options once at the start (used by both success and error paths)
     const globalOptions = processOptions(this);
+
+    // Build context once for both output and error paths
+    const resolvedContext: OutputContext = context ? {
+      operation: context.operation,
+      resourceType: context.resourceType,
+      resourceId: context.getResourceId?.(...args)
+    } : {};
 
     try {
       const client = createClient();
       const result = await handler(client, ...args);
-
-      // Build context for output if provided
-      const outputContext = context ? {
-        operation: context.operation,
-        resourceType: context.resourceType,
-        resourceId: context.getResourceId ? context.getResourceId(...args) : undefined
-      } : {};
-
-      output(result, outputContext, globalOptions);
+      formatOutput(result, resolvedContext, { json: globalOptions.json, noColor: globalOptions.noColor });
     } catch (err) {
-      const errorContext = context ? {
-        operation: context.operation,
-        resourceType: context.resourceType,
-        resourceId: context.getResourceId ? context.getResourceId(...args) : undefined
-      } : undefined;
-
-      handleError(err, errorContext);
+      handleError(err, resolvedContext);
     }
   };
 }
@@ -271,7 +261,7 @@ async function performDeploy(
   client: Ship,
   deployPath: string,
   cmdOptions: DeployCommandOptions | undefined,
-  commandContext?: Command
+  commandContext: Command
 ): Promise<Deployment> {
   if (!existsSync(deployPath)) {
     throw ShipError.file(`${deployPath} path does not exist`, deployPath);
@@ -308,7 +298,7 @@ async function performDeploy(
 
   // Spinner (TTY only, not JSON, not --no-color)
   let spinner: Spinner | null = null;
-  const globalOptions = commandContext ? processOptions(commandContext) : {} as ProcessedOptions;
+  const globalOptions = processOptions(commandContext);
   if (process.stdout.isTTY && !globalOptions.json && !globalOptions.noColor) {
     const { default: yoctoSpinner } = await import('yocto-spinner');
     spinner = yoctoSpinner({ text: 'uploading…' }).start();
@@ -322,23 +312,11 @@ async function performDeploy(
   process.on('SIGINT', sigintHandler);
 
   try {
-    const result = await client.deployments.create(deployPath, deployOptions);
+    return await client.deployments.create(deployPath, deployOptions);
+  } finally {
     process.removeListener('SIGINT', sigintHandler);
     if (spinner) spinner.stop();
-    return result;
-  } catch (err) {
-    process.removeListener('SIGINT', sigintHandler);
-    if (spinner) spinner.stop();
-    throw err;
   }
-}
-
-/**
- * Output result using formatters module.
- */
-function output(result: CLIResult, context: { operation?: string; resourceType?: string; resourceId?: string }, options?: ProcessedOptions) {
-  const opts = options || (program.opts() as ProcessedOptions);
-  formatOutput(result, context, { isJson: opts.json, noColor: opts.noColor });
 }
 
 
@@ -357,35 +335,33 @@ program
   .helpOption(false); // Disable default help
 
 // Handle --help flag manually to show custom help
-program.hook('preAction', (thisCommand, actionCommand) => {
-  const options = thisCommand.opts();
+program.hook('preAction', (thisCommand) => {
+  const options = processOptions(thisCommand);
   if (options.help) {
-    const noColor = options.color === false || options.noColor;
-    displayHelp(noColor);
+    displayHelp(options.noColor);
     process.exit(0);
   }
 });
 
 // Validate options early - before any action is executed
-program.hook('preAction', (thisCommand, actionCommand) => {
-  const options = thisCommand.opts();
-  
+program.hook('preAction', (thisCommand) => {
+  const options = processOptions(thisCommand);
+
   try {
     if (options.apiKey && typeof options.apiKey === 'string') {
       validateApiKey(options.apiKey);
     }
-    
+
     if (options.deployToken && typeof options.deployToken === 'string') {
       validateDeployToken(options.deployToken);
     }
-    
+
     if (options.apiUrl && typeof options.apiUrl === 'string') {
       validateApiUrl(options.apiUrl);
     }
   } catch (validationError) {
     if (isShipError(validationError)) {
-      const noColor = options.color === false || options.noColor;
-      error(validationError.message, options.json, noColor);
+      error(validationError.message, options.json, options.noColor);
       process.exit(1);
     }
     throw validationError;
@@ -511,7 +487,8 @@ domainsCmd
       if (deployment) options.deployment = deployment;
       if (labels && labels.length > 0) options.labels = labels;
 
-      const result = await client.domains.set(name, options);
+      // SDK returns DomainSetResult (Domain + isCreate derived from HTTP 201/200)
+      const result = await client.domains.set(name, options) as DomainSetResult;
 
       // Enrich with DNS info for new external domains (pure formatter will display it)
       if (result.isCreate && name.includes('.')) {
@@ -602,17 +579,17 @@ completionCmd
   .command('install')
   .description('Install shell completion script')
   .action(() => {
-    const options = program.opts();
+    const options = processOptions(program);
     const scriptDir = path.resolve(__dirname, 'completions');
-    installCompletion(scriptDir, { isJson: options.json, noColor: options.noColor });
+    installCompletion(scriptDir, { json: options.json, noColor: options.noColor });
   });
 
 completionCmd
   .command('uninstall')
   .description('Uninstall shell completion script')
   .action(() => {
-    const options = program.opts();
-    uninstallCompletion({ isJson: options.json, noColor: options.noColor });
+    const options = processOptions(program);
+    uninstallCompletion({ json: options.json, noColor: options.noColor });
   });
 
 // Config command
@@ -638,10 +615,7 @@ program
   .action(withErrorHandling(
     async function(this: Command, client: Ship, deployPath?: string, cmdOptions?: DeployCommandOptions) {
       if (!deployPath) {
-        const globalOptions = program.opts() as GlobalOptions;
-        // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
-        const noColor = globalOptions.color === false || globalOptions.noColor;
-        displayHelp(noColor);
+        displayHelp(processOptions(program).noColor);
         process.exit(0);
       }
 

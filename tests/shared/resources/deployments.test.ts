@@ -38,7 +38,8 @@ describe('Deployment Resource (Unified Architecture)', () => {
       deploy: vi.fn().mockResolvedValue({
         id: 'dep_123',
         url: 'https://dep_123.shipstatic.dev',
-        files: []
+        files: [],
+        labels: []
       }),
       ping: vi.fn().mockResolvedValue(true),
       checkSPA: vi.fn().mockResolvedValue(false)
@@ -75,7 +76,8 @@ describe('Deployment Resource (Unified Architecture)', () => {
       expect(result).toEqual({
         id: 'dep_123',
         url: 'https://dep_123.shipstatic.dev',
-        files: []
+        files: [],
+        labels: []
       });
     });
 
@@ -130,7 +132,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
       const deployOptions = deployCallArgs[1];
       expect(deployOptions.labels).toBeUndefined();
-      expect(result.labels).toBeUndefined();
+      expect(result.labels).toEqual([]);
     });
 
     it('should handle empty labels array', async () => {

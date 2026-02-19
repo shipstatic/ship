@@ -10,9 +10,9 @@ import {
   getUserMessage,
   toShipError,
   formatErrorJson,
-  type ErrorContext,
   type ErrorOptions
 } from '../../../src/node/cli/error-handling';
+import type { OutputContext } from '../../../src/node/cli/formatters';
 
 describe('CLI Error Handling', () => {
   describe('getUserMessage', () => {

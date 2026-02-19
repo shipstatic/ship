@@ -198,7 +198,7 @@ export const apiHandlers = [
     return HttpResponse.json({
       message: 'Deployment marked for removal',
       deployment: params.id,
-      status: 'removing'
+      status: 'deleting'
     }, { status: 202 });
   }),
 

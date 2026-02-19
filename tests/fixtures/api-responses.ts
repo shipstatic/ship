@@ -18,6 +18,7 @@ import type {
   DomainRecordsResponse,
   Account,
   Token,
+  TokenListItem,
   TokenListResponse,
   TokenCreateResponse,
   ConfigResponse,
@@ -25,7 +26,6 @@ import type {
   SPACheckResponse,
   ErrorResponse,
   ErrorType,
-  DeploymentRemoveResponse,
 } from '@shipstatic/types';
 
 // =============================================================================
@@ -55,6 +55,8 @@ export const deployments = {
     size: 1024000,
     status: 'success',
     config: false,
+    labels: [],
+    via: null,
     url: 'https://test-deployment-1.shipstatic.dev',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
@@ -70,6 +72,7 @@ export const deployments = {
     status: 'success',
     config: false,
     labels: ['production', 'v1.0.0'],
+    via: null,
     url: 'https://labeled-deployment-1.shipstatic.dev',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
@@ -84,8 +87,11 @@ export const deployments = {
     size: 512000,
     status: 'pending',
     config: false,
+    labels: [],
+    via: null,
     url: 'https://pending-deployment-1.shipstatic.dev',
     created: timestamps.jan2022,
+    expires: null,
   } satisfies Deployment,
 
   /**
@@ -97,11 +103,13 @@ export const deployments = {
     size: 1024000,
     status: 'success',
     config: false,
+    labels: [],
     via: 'cli',
     url: 'https://cli-deployment-1.shipstatic.dev',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
   } satisfies Deployment,
+
 } as const;
 
 export const deploymentListResponses = {
@@ -110,7 +118,7 @@ export const deploymentListResponses = {
    */
   empty: {
     deployments: [],
-    cursor: undefined,
+    cursor: null,
     total: 0,
   } satisfies DeploymentListResponse,
 
@@ -119,7 +127,7 @@ export const deploymentListResponses = {
    */
   single: {
     deployments: [deployments.success],
-    cursor: undefined,
+    cursor: null,
     total: 1,
   } satisfies DeploymentListResponse,
 
@@ -128,20 +136,9 @@ export const deploymentListResponses = {
    */
   multiple: {
     deployments: [deployments.success, deployments.withLabels],
-    cursor: undefined,
+    cursor: null,
     total: 2,
   } satisfies DeploymentListResponse,
-} as const;
-
-export const deploymentRemoveResponses = {
-  /**
-   * Successful removal
-   */
-  success: {
-    success: true,
-    deployment: 'test-deployment-1',
-    message: 'Deployment marked for removal',
-  } satisfies DeploymentRemoveResponse,
 } as const;
 
 // =============================================================================
@@ -156,8 +153,11 @@ export const domains = {
     domain: 'staging',
     deployment: 'test-deployment-1',
     status: 'success',
+    labels: [],
     url: 'https://staging.shipstatic.dev',
     created: timestamps.jan2022,
+    linked: null,
+    links: 0,
   } satisfies Domain,
 
   /**
@@ -167,8 +167,11 @@ export const domains = {
     domain: 'preview',
     deployment: 'test-deployment-1',
     status: 'pending',
+    labels: [],
     url: 'https://preview.shipstatic.dev',
     created: timestamps.jan2022,
+    linked: null,
+    links: 0,
   } satisfies Domain,
 
   /**
@@ -181,6 +184,8 @@ export const domains = {
     labels: ['primary', 'live'],
     url: 'https://production.shipstatic.dev',
     created: timestamps.jan2022,
+    linked: null,
+    links: 0,
   } satisfies Domain,
 
   /**
@@ -190,8 +195,11 @@ export const domains = {
     domain: 'example.com',
     deployment: 'test-deployment-1',
     status: 'pending',
+    labels: [],
     url: 'https://example.com',
     created: timestamps.jan2022,
+    linked: null,
+    links: 0,
   } satisfies Domain,
 
   /**
@@ -201,8 +209,11 @@ export const domains = {
     domain: 'verified-example.com',
     deployment: 'test-deployment-1',
     status: 'success',
+    labels: [],
     url: 'https://verified-example.com',
     created: timestamps.jan2022,
+    linked: null,
+    links: 0,
   } satisfies Domain,
 
   /**
@@ -212,8 +223,11 @@ export const domains = {
     domain: 'reserved',
     deployment: null,
     status: 'pending',
+    labels: [],
     url: 'https://reserved.shipstatic.dev',
     created: timestamps.jan2022,
+    linked: null,
+    links: 0,
   } satisfies Domain,
 
   /**
@@ -223,8 +237,11 @@ export const domains = {
     domain: 'paused-custom.com',
     deployment: 'test-deployment-1',
     status: 'paused',
+    labels: [],
     url: 'https://paused-custom.com',
     created: timestamps.jan2022,
+    linked: null,
+    links: 0,
   } satisfies Domain,
 } as const;
 
@@ -234,7 +251,7 @@ export const domainListResponses = {
    */
   empty: {
     domains: [],
-    cursor: undefined,
+    cursor: null,
     total: 0,
   } satisfies DomainListResponse,
 
@@ -243,7 +260,7 @@ export const domainListResponses = {
    */
   single: {
     domains: [domains.internal],
-    cursor: undefined,
+    cursor: null,
     total: 1,
   } satisfies DomainListResponse,
 
@@ -252,7 +269,7 @@ export const domainListResponses = {
    */
   multiple: {
     domains: [domains.internal, domains.pending],
-    cursor: undefined,
+    cursor: null,
     total: 2,
   } satisfies DomainListResponse,
 } as const;
@@ -271,6 +288,8 @@ export const accounts = {
     picture: 'https://example.com/avatar.jpg',
     plan: 'free',
     created: timestamps.jan2022,
+    activated: null,
+    hint: null,
   } satisfies Account,
 
   /**
@@ -283,6 +302,7 @@ export const accounts = {
     plan: 'standard',
     created: timestamps.jan2022,
     activated: timestamps.jan2022,
+    hint: null,
   } satisfies Account,
 
   /**
@@ -291,8 +311,11 @@ export const accounts = {
   noPicture: {
     email: 'minimal@example.com',
     name: 'Minimal User',
+    picture: null,
     plan: 'free',
     created: timestamps.jan2022,
+    activated: null,
+    hint: null,
   } satisfies Account,
 } as const;
 
@@ -307,7 +330,11 @@ export const tokens = {
   standard: {
     token: 'token-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
     account: 'test@example.com',
+    ip: null,
+    labels: [],
     created: timestamps.jan2022,
+    expires: null,
+    used: null,
   } satisfies Token,
 
   /**
@@ -316,8 +343,11 @@ export const tokens = {
   withExpiry: {
     token: 'token-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
     account: 'test@example.com',
+    ip: null,
+    labels: [],
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
+    used: null,
   } satisfies Token,
 
   /**
@@ -326,9 +356,51 @@ export const tokens = {
   withLabels: {
     token: 'token-lbl123abc456lbl123abc456lbl123abc456lbl123abc456lbl123abc456lbls',
     account: 'test@example.com',
+    ip: null,
     labels: ['ci', 'github-actions'],
     created: timestamps.jan2022,
+    expires: null,
+    used: null,
   } satisfies Token,
+} as const;
+
+/**
+ * Token list items (security-redacted for list display).
+ * Mirrors the shape returned by GET /tokens.
+ */
+export const tokenListItems = {
+  /**
+   * Standard token list item (truncated prefix, no account/ip)
+   */
+  standard: {
+    token: 'token-123456...',
+    labels: [],
+    created: timestamps.jan2022,
+    expires: null,
+    used: null,
+  } satisfies TokenListItem,
+
+  /**
+   * Token list item with expiration
+   */
+  withExpiry: {
+    token: 'token-123456...',
+    labels: [],
+    created: timestamps.jan2022,
+    expires: timestamps.jan2023,
+    used: null,
+  } satisfies TokenListItem,
+
+  /**
+   * Token list item with labels
+   */
+  withLabels: {
+    token: 'token-lbl123...',
+    labels: ['ci', 'github-actions'],
+    created: timestamps.jan2022,
+    expires: null,
+    used: null,
+  } satisfies TokenListItem,
 } as const;
 
 export const tokenListResponses = {
@@ -337,15 +409,15 @@ export const tokenListResponses = {
    */
   empty: {
     tokens: [],
-    count: 0,
+    total: 0,
   } satisfies TokenListResponse,
 
   /**
    * Single token
    */
   single: {
-    tokens: [tokens.standard],
-    count: 1,
+    tokens: [tokenListItems.standard],
+    total: 1,
   } satisfies TokenListResponse,
 } as const;
 
@@ -355,6 +427,8 @@ export const tokenCreateResponses = {
    */
   success: {
     token: 'token-newtoken123newtoken123newtoken123newtoken123newtoken123newtoken1',
+    labels: [],
+    expires: null,
   } satisfies TokenCreateResponse,
 
   /**
@@ -362,6 +436,7 @@ export const tokenCreateResponses = {
    */
   withTtl: {
     token: 'token-ttltoken123ttltoken123ttltoken123ttltoken123ttltoken123ttltoken',
+    labels: [],
     expires: timestamps.jan2023,
   } satisfies TokenCreateResponse,
 
@@ -370,6 +445,8 @@ export const tokenCreateResponses = {
    */
   withLabels: {
     token: 'token-labeled123labeled123labeled123labeled123labeled123labeled12345',
+    labels: ['production'],
+    expires: null,
   } satisfies TokenCreateResponse,
 } as const;
 
@@ -418,6 +495,7 @@ export const domainRecordsResponses = {
    */
   standard: {
     domain: 'example.com',
+    apex: 'example.com',
     records: [
       { type: 'A' as const, name: '@', value: '76.76.21.21' },
       { type: 'CNAME' as const, name: 'www', value: 'cname.shipstatic.com' },
@@ -606,6 +684,8 @@ export function createDynamicDeployment(overrides: Partial<Deployment> = {}): De
     size: 1024000,
     status: 'success',
     config: false,
+    labels: [],
+    via: null,
     url: `https://${deploymentId}.shipstatic.dev`,
     created: now,
     expires: now + (7 * 24 * 60 * 60), // 7 days
@@ -630,7 +710,11 @@ export function createDynamicToken(overrides: Partial<Token> = {}): Token {
   return {
     token: tokenId.padEnd(68, '0'), // Ensure proper length
     account: 'test@example.com',
+    ip: null,
+    labels: [],
     created: now,
+    expires: null,
+    used: null,
     ...overrides,
   };
 }
@@ -656,10 +740,13 @@ export function createDynamicDomain(
     // External domains start as 'pending' (need DNS verification)
     // Internal domains are immediately 'success'
     status: isExternal ? 'pending' : 'success',
+    labels: [],
     url: isExternal
       ? `https://${domainName}`
       : `https://${domainName}.shipstatic.dev`,
     created: now,
+    linked: null,
+    links: 0,
     ...overrides,
   };
 }
@@ -672,7 +759,6 @@ export const fixtures = {
   timestamps,
   deployments,
   deploymentListResponses,
-  deploymentRemoveResponses,
   domains,
   domainListResponses,
   domainDnsResponses,
@@ -681,6 +767,7 @@ export const fixtures = {
   domainVerifyResponses,
   accounts,
   tokens,
+  tokenListItems,
   tokenListResponses,
   tokenCreateResponses,
   configs,

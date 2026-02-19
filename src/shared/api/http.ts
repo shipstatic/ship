@@ -6,7 +6,6 @@ import type {
   DeploymentListResponse,
   PingResponse,
   ConfigResponse,
-  DeploymentRemoveResponse,
   Domain,
   DomainListResponse,
   DomainDnsResponse,
@@ -19,7 +18,7 @@ import type {
   TokenCreateResponse,
   TokenListResponse
 } from '@shipstatic/types';
-import type { ApiDeployOptions, ShipClientOptions, ShipEvents, DeployBodyCreator } from '../types.js';
+import type { ApiDeployOptions, DeployBodyCreator, DomainSetResult } from '../types.js';
 import { ShipError, isShipError, DEFAULT_API } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 
@@ -283,7 +282,7 @@ export class ApiHttp extends SimpleEvents {
   }
 
   async removeDeployment(id: string): Promise<void> {
-    await this.request<DeploymentRemoveResponse>(
+    await this.request<void>(
       `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
       { method: 'DELETE' },
       'Remove deployment'
@@ -296,7 +295,7 @@ export class ApiHttp extends SimpleEvents {
   // All domain methods accept FQDN (Fully Qualified Domain Name) as the `name` parameter.
   // The SDK does not validate or normalize - the API handles all domain semantics.
 
-  async setDomain(name: string, deployment?: string, labels?: string[]): Promise<Domain> {
+  async setDomain(name: string, deployment?: string, labels?: string[]): Promise<DomainSetResult> {
     const body: { deployment?: string; labels?: string[] } = {};
     if (deployment) body.deployment = deployment;
     if (labels !== undefined) body.labels = labels;
@@ -316,14 +315,6 @@ export class ApiHttp extends SimpleEvents {
 
   async getDomain(name: string): Promise<Domain> {
     return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`, { method: 'GET' }, 'Get domain');
-  }
-
-  async updateDomainLabels(name: string, labels: string[]): Promise<Domain> {
-    return this.request(
-      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels }) },
-      'Update domain labels'
-    );
   }
 
   async removeDomain(name: string): Promise<void> {
@@ -393,10 +384,6 @@ export class ApiHttp extends SimpleEvents {
   async ping(): Promise<boolean> {
     const data = await this.request<PingResponse>(`${this.apiUrl}${ENDPOINTS.PING}`, { method: 'GET' }, 'Ping');
     return data?.success || false;
-  }
-
-  async getPingResponse(): Promise<PingResponse> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.PING}`, { method: 'GET' }, 'Ping');
   }
 
   // ===========================================================================

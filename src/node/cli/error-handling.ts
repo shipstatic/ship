@@ -4,6 +4,7 @@
  */
 
 import { ShipError, isShipError } from '@shipstatic/types';
+import type { OutputContext } from './formatters.js';
 
 /**
  * Convert any error to a ShipError.
@@ -17,15 +18,6 @@ export function toShipError(err: unknown): ShipError {
     return ShipError.business(err.message);
   }
   return ShipError.business(String(err ?? 'Unknown error'));
-}
-
-/**
- * Context for error message generation
- */
-export interface ErrorContext {
-  operation?: string;
-  resourceType?: string;
-  resourceId?: string;
 }
 
 /**
@@ -45,7 +37,7 @@ export interface ErrorOptions {
  */
 export function getUserMessage(
   err: ShipError,
-  context?: ErrorContext,
+  context?: OutputContext,
   options?: ErrorOptions
 ): string {
   // Auth errors - tell user what credentials to provide

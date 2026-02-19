@@ -89,8 +89,8 @@ describe('CLI with Mock API', () => {
             url: 'https://test-deployment-123.shipstatic.dev',
             files: 2,
             size: 1024,
-            ...(via ? { via } : {}),
-            ...(labels && labels.length > 0 ? { labels } : {})
+            labels: labels ?? [],
+            ...(via ? { via } : {})
           }));
           return;
         }
@@ -106,7 +106,7 @@ describe('CLI with Mock API', () => {
             domain: domainName,
             deployment: requestData.deployment || 'test-deployment-123',
             url: `https://${domainName}.shipstatic.dev`,
-            ...(requestData.labels && requestData.labels.length > 0 ? { labels: requestData.labels } : {})
+            labels: requestData.labels ?? []
           }));
           return;
         }
@@ -137,7 +137,7 @@ describe('CLI with Mock API', () => {
             token: 'token-abc123def456',
             expires: requestData.ttl ? Date.now() + (requestData.ttl * 1000) : null,
             message: 'Token created successfully',
-            ...(requestData.labels && requestData.labels.length > 0 ? { labels: requestData.labels } : {})
+            labels: requestData.labels ?? []
           }));
           return;
         }
@@ -305,7 +305,7 @@ describe('CLI with Mock API', () => {
     it('should work without --label flag', async () => {
       const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).labels).toBeUndefined();
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual([]);
     });
   });
 
@@ -332,7 +332,7 @@ describe('CLI with Mock API', () => {
     it('should work without --label flag', async () => {
       const result = await runCli(['--json', 'domains', 'set', 'test-domain', 'test-deployment-xyz'], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).labels).toBeUndefined();
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual([]);
     });
   });
 
@@ -366,7 +366,7 @@ describe('CLI with Mock API', () => {
     it('should work without --label flag', async () => {
       const result = await runCli(['--json', 'tokens', 'create'], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).labels).toBeUndefined();
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual([]);
     });
 
     it('should handle labels with special characters', async () => {

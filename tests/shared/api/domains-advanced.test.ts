@@ -176,9 +176,11 @@ describe('Advanced Domain Operations', () => {
       expect(result.domain).toBe('some-domain');
     });
 
-    it('should fail for non-existent domain', async () => {
-      await expect(ship.domains.set('non-existent-domain', { labels: ['env'] }))
-        .rejects.toThrow(/not found/i);
+    it('should create domain with labels-only on non-existent domain (PUT upsert)', async () => {
+      const result = await ship.domains.set('non-existent-domain', { labels: ['env'] });
+      expect(result.domain).toBe('non-existent-domain');
+      expect(result.labels).toEqual(['env']);
+      expect(result.isCreate).toBe(true);
     });
 
     it('should preserve domain properties when updating labels', async () => {

@@ -88,32 +88,6 @@ describe('ApiHttp', () => {
     });
   });
 
-  describe('getPingResponse', () => {
-    it('should return full PingResponse object', async () => {
-      const mockResponse = { success: true, timestamp: 1753379248270 };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
-
-      const result = await apiHttp.getPingResponse();
-      
-      expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/ping',
-        expect.objectContaining({
-          method: 'GET',
-          headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
-      );
-      expect(result).toEqual(mockResponse);
-    });
-
-    it('should handle network errors', async () => {
-      (global.fetch as any).mockRejectedValue(new Error('Network error'));
-
-      await expect(apiHttp.getPingResponse()).rejects.toThrow('Network error');
-    });
-  });
-
   describe('getConfig', () => {
     it('should fetch platform configuration', async () => {
       const mockConfig = {
@@ -1044,65 +1018,4 @@ describe('ApiHttp', () => {
     });
   });
 
-  describe('updateDomainLabels', () => {
-    it('should update domain labels using PATCH', async () => {
-      const labels = ['production', 'v2.0.0'];
-      const mockDomain = { domain: 'staging', deployment: 'dep1', labels };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
-
-      const result = await apiHttp.updateDomainLabels('staging', labels);
-
-      expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/domains/staging',
-        expect.objectContaining({
-          method: 'PATCH',
-          headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key',
-            'Content-Type': 'application/json'
-          }),
-          body: JSON.stringify({ labels })
-        })
-      );
-      expect(result).toEqual(mockDomain);
-    });
-
-    it('should handle empty labels array', async () => {
-      const mockDomain = { domain: 'staging', deployment: 'dep1', labels: [] };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
-
-      const result = await apiHttp.updateDomainLabels('staging', []);
-
-      expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/domains/staging',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: JSON.stringify({ labels: [] })
-        })
-      );
-      expect(result).toEqual(mockDomain);
-    });
-
-    it('should encode special characters in domain name', async () => {
-      const mockDomain = { domain: 'test.example.com', deployment: 'dep1', labels: ['prod'] };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockDomain, 200));
-
-      await apiHttp.updateDomainLabels('test.example.com', ['prod']);
-
-      expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/domains/test.example.com',
-        expect.objectContaining({
-          method: 'PATCH'
-        })
-      );
-    });
-
-    it('should handle 404 for non-existent domain', async () => {
-      (global.fetch as any).mockResolvedValue(createMockResponse(
-        { error: 'not_found', message: 'Domain not-found not found' },
-        404
-      ));
-
-      await expect(apiHttp.updateDomainLabels('not-found', ['env'])).rejects.toThrow();
-    });
-  });
 });

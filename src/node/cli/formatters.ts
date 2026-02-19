@@ -5,6 +5,7 @@
 import type {
   Deployment,
   DeploymentListResponse,
+  Domain,
   DomainListResponse,
   DomainValidateResponse,
   Account,
@@ -21,7 +22,7 @@ export interface OutputContext {
 }
 
 export interface FormatOptions {
-  isJson?: boolean;
+  json?: boolean;
   noColor?: boolean;
 }
 
@@ -29,15 +30,11 @@ export interface FormatOptions {
  * Format deployments list
  */
 export function formatDeploymentsList(result: DeploymentListResponse, context: OutputContext, options: FormatOptions): void {
-  const { isJson, noColor } = options;
+  const { noColor } = options;
 
-  if (!result.deployments || result.deployments.length === 0) {
-    if (isJson) {
-      console.log(JSON.stringify({ deployments: [] }, null, 2));
-    } else {
-      console.log('no deployments found');
-      console.log();
-    }
+  if (result.deployments.length === 0) {
+    console.log('no deployments found');
+    console.log();
     return;
   }
 
@@ -49,15 +46,11 @@ export function formatDeploymentsList(result: DeploymentListResponse, context: O
  * Format domains list
  */
 export function formatDomainsList(result: DomainListResponse, context: OutputContext, options: FormatOptions): void {
-  const { isJson, noColor } = options;
+  const { noColor } = options;
 
-  if (!result.domains || result.domains.length === 0) {
-    if (isJson) {
-      console.log(JSON.stringify({ domains: [] }, null, 2));
-    } else {
-      console.log('no domains found');
-      console.log();
-    }
+  if (result.domains.length === 0) {
+    console.log('no domains found');
+    console.log();
     return;
   }
 
@@ -67,35 +60,34 @@ export function formatDomainsList(result: DomainListResponse, context: OutputCon
 
 /**
  * Format single domain result.
- * Expects _dnsRecords and _shareHash to be pre-populated for new external domains.
+ * Accepts plain Domain (from get) or EnrichedDomain (from set, with DNS info).
  */
-export function formatDomain(result: EnrichedDomain, context: OutputContext, options: FormatOptions): void {
-  const { isJson, noColor } = options;
+export function formatDomain(result: Domain | EnrichedDomain, context: OutputContext, options: FormatOptions): void {
+  const { noColor } = options;
 
-  // Show success message for set/update operations
-  if (result.domain && (context.operation === 'set' || context.operation === 'update')) {
-    const verb = context.operation === 'update' ? 'updated'
-      : result.isCreate ? 'created' : 'updated';
-    success(`${result.domain} domain ${verb}`, isJson, noColor);
+  // Destructure enrichment fields (undefined when result is plain Domain)
+  const { _dnsRecords, _shareHash, isCreate, ...displayResult } = result as EnrichedDomain;
+
+  // Show success message for set operations
+  if (context.operation === 'set') {
+    const verb = isCreate ? 'created' : 'updated';
+    success(`${result.domain} domain ${verb}`, false, noColor);
   }
 
   // Display pre-fetched DNS records (for new external domains)
-  if (!isJson && result._dnsRecords && result._dnsRecords.length > 0) {
+  if (_dnsRecords && _dnsRecords.length > 0) {
     console.log();
-    info('DNS Records to configure:', isJson, noColor);
-    result._dnsRecords.forEach((record) => {
+    info('DNS Records to configure:', false, noColor);
+    _dnsRecords.forEach((record) => {
       console.log(`  ${record.type}: ${record.name} → ${record.value}`);
     });
   }
 
   // Display setup instructions link
-  if (!isJson && result._shareHash) {
+  if (_shareHash) {
     console.log();
-    info(`Setup instructions: https://setup.shipstatic.com/${result._shareHash}/${result.domain}`, isJson, noColor);
+    info(`Setup instructions: https://setup.shipstatic.com/${_shareHash}/${result.domain}`, false, noColor);
   }
-
-  // Filter out internal fields before displaying details
-  const { _dnsRecords, _shareHash, ...displayResult } = result;
 
   console.log();
   console.log(formatDetails(displayResult, noColor));
@@ -105,11 +97,11 @@ export function formatDomain(result: EnrichedDomain, context: OutputContext, opt
  * Format single deployment result
  */
 export function formatDeployment(result: Deployment, context: OutputContext, options: FormatOptions): void {
-  const { isJson, noColor } = options;
+  const { noColor } = options;
 
   // Show success message for create operations
-  if (result.status && context.operation === 'create') {
-    success(`${result.deployment} deployment created`, isJson, noColor);
+  if (context.operation === 'create') {
+    success(`${result.deployment} deployment created`, false, noColor);
   }
 
   console.log(formatDetails(result, noColor));
@@ -127,9 +119,9 @@ export function formatAccount(result: Account, context: OutputContext, options: 
  * Format message result (e.g., from DNS verification)
  */
 export function formatMessage(result: MessageResult, context: OutputContext, options: FormatOptions): void {
-  const { isJson, noColor } = options;
+  const { noColor } = options;
   if (result.message) {
-    success(result.message, isJson, noColor);
+    success(result.message, false, noColor);
   }
 }
 
@@ -137,27 +129,21 @@ export function formatMessage(result: MessageResult, context: OutputContext, opt
  * Format domain validation result
  */
 export function formatDomainValidate(result: DomainValidateResponse, context: OutputContext, options: FormatOptions): void {
-  const { isJson, noColor } = options;
-
-  if (isJson) {
-    console.log(JSON.stringify(result, null, 2));
-    console.log();
-    return;
-  }
+  const { noColor } = options;
 
   if (result.valid) {
-    success(`domain is valid`, isJson, noColor);
+    success(`domain is valid`, false, noColor);
     console.log();
     if (result.normalized) {
       console.log(`  normalized: ${result.normalized}`);
     }
-    if (result.available !== undefined) {
+    if (result.available !== null) {
       const availabilityText = result.available ? 'available ✓' : 'already taken';
       console.log(`  availability: ${availabilityText}`);
     }
     console.log();
   } else {
-    error(result.error || 'domain is invalid', isJson, noColor);
+    error(result.error || 'domain is invalid', false, noColor);
   }
 }
 
@@ -165,15 +151,11 @@ export function formatDomainValidate(result: DomainValidateResponse, context: Ou
  * Format tokens list
  */
 export function formatTokensList(result: TokenListResponse, context: OutputContext, options: FormatOptions): void {
-  const { isJson, noColor } = options;
+  const { noColor } = options;
 
-  if (!result.tokens || result.tokens.length === 0) {
-    if (isJson) {
-      console.log(JSON.stringify({ tokens: [] }, null, 2));
-    } else {
-      console.log('no tokens found');
-      console.log();
-    }
+  if (result.tokens.length === 0) {
+    console.log('no tokens found');
+    console.log();
     return;
   }
 
@@ -185,10 +167,10 @@ export function formatTokensList(result: TokenListResponse, context: OutputConte
  * Format single token result
  */
 export function formatToken(result: TokenCreateResponse, context: OutputContext, options: FormatOptions): void {
-  const { isJson, noColor } = options;
+  const { noColor } = options;
 
   if (context.operation === 'create' && result.token) {
-    success(`token created`, isJson, noColor);
+    success(`token created`, false, noColor);
   }
 
   console.log(formatDetails(result, noColor));
@@ -203,35 +185,35 @@ export function formatOutput(
   context: OutputContext,
   options: FormatOptions
 ): void {
-  const { isJson, noColor } = options;
+  const { json, noColor } = options;
 
   // Handle void/undefined results (removal operations)
   if (result === undefined) {
     if (context.operation === 'remove' && context.resourceType && context.resourceId) {
-      success(`${context.resourceId} ${context.resourceType.toLowerCase()} removed`, isJson, noColor);
+      success(`${context.resourceId} ${context.resourceType.toLowerCase()} removed`, json, noColor);
     } else {
-      success('removed successfully', isJson, noColor);
+      success('removed successfully', json, noColor);
     }
     return;
   }
 
-  // Handle ping result (boolean or PingResponse)
-  if (result === true || (result !== null && typeof result === 'object' && 'success' in result)) {
-    const isSuccess = result === true || (result as { success: boolean }).success;
-    if (isSuccess) {
-      success('api reachable', isJson, noColor);
+  // Handle ping result (boolean from client.ping())
+  if (typeof result === 'boolean') {
+    if (result) {
+      success('api reachable', json, noColor);
     } else {
-      error('api unreachable', isJson, noColor);
+      error('api unreachable', json, noColor);
     }
     return;
   }
 
   // JSON mode: output raw JSON for all results
-  if (isJson && result !== null && typeof result === 'object') {
+  if (json && result !== null && typeof result === 'object') {
     // Filter internal fields from JSON output
     const output = { ...result } as Record<string, unknown>;
     delete output._dnsRecords;
     delete output._shareHash;
+    delete output.isCreate;
     console.log(JSON.stringify(output, null, 2));
     console.log();
     return;
@@ -247,7 +229,7 @@ export function formatOutput(
     } else if ('tokens' in result) {
       formatTokensList(result as TokenListResponse, context, options);
     } else if ('domain' in result) {
-      formatDomain(result as EnrichedDomain, context, options);
+      formatDomain(result as Domain, context, options);
     } else if ('deployment' in result) {
       formatDeployment(result as Deployment, context, options);
     } else if ('token' in result) {
@@ -260,10 +242,10 @@ export function formatOutput(
       formatMessage(result as MessageResult, context, options);
     } else {
       // Fallback
-      success('success', isJson, noColor);
+      success('success', json, noColor);
     }
   } else {
     // Fallback for non-object results
-    success('success', isJson, noColor);
+    success('success', json, noColor);
   }
 }
