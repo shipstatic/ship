@@ -10,30 +10,10 @@
  * This means CLI flags always win, followed by env vars, then config files.
  */
 
-import { DEFAULT_API, type PlatformConfig, type ResolvedConfig } from '@shipstatic/types';
+import { DEFAULT_API, type ResolvedConfig } from '@shipstatic/types';
 import type { ShipClientOptions, DeploymentOptions } from '../types.js';
-import { getENV } from '../lib/env.js';
 
 export type { ResolvedConfig } from '@shipstatic/types';
-
-/**
- * Cross-environment config loader that dispatches to appropriate implementation.
- */
-export async function loadConfig(configFile?: string): Promise<PlatformConfig> {
-  const env = getENV();
-
-  if (env === 'browser') {
-    // In browser, return empty config (no file system access)
-    return {};
-  } else if (env === 'node') {
-    // In Node.js, load from environment and files
-    const { loadConfig: nodeLoadConfig } = await import('../../node/core/config.js');
-    return nodeLoadConfig(configFile);
-  } else {
-    // Fallback to empty config for unknown environments
-    return {};
-  }
-}
 
 /**
  * Universal configuration resolver for all environments.

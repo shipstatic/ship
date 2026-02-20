@@ -8,6 +8,7 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processFilesForBrowser } from '../../src/browser/lib/browser-files';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
+import { setConfig } from '../../src/shared/core/platform-config';
 
 // Helper function to create mock File objects with webkitRelativePath
 function createMockFileWithPath(name: string, webkitRelativePath: string, content: string): File {
@@ -25,6 +26,13 @@ describe('Browser SDK Directory Structure Preservation', () => {
   beforeEach(() => {
     // Set environment to browser for these tests
     __setTestEnvironment('browser');
+
+    // Initialize platform config (required by processFilesForBrowser)
+    setConfig({
+      maxFileSize: 10 * 1024 * 1024,
+      maxFilesCount: 1000,
+      maxTotalSize: 100 * 1024 * 1024,
+    });
   });
 
   afterEach(() => {

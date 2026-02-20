@@ -328,8 +328,9 @@ export const tokens = {
    * Standard token
    */
   standard: {
-    token: 'token-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+    token: 'a1b2c3d',
     account: 'test@example.com',
+    hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
     ip: null,
     labels: [],
     created: timestamps.jan2022,
@@ -341,8 +342,9 @@ export const tokens = {
    * Token with expiration
    */
   withExpiry: {
-    token: 'token-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+    token: 'x9y8z7w',
     account: 'test@example.com',
+    hash: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
     ip: null,
     labels: [],
     created: timestamps.jan2022,
@@ -354,8 +356,9 @@ export const tokens = {
    * Token with labels
    */
   withLabels: {
-    token: 'token-lbl123abc456lbl123abc456lbl123abc456lbl123abc456lbl123abc456lbls',
+    token: 'lbl12ab',
     account: 'test@example.com',
+    hash: 'f1e2d3c4b5a6f1e2d3c4b5a6f1e2d3c4b5a6f1e2d3c4b5a6f1e2d3c4b5a6f1e2',
     ip: null,
     labels: ['ci', 'github-actions'],
     created: timestamps.jan2022,
@@ -370,10 +373,10 @@ export const tokens = {
  */
 export const tokenListItems = {
   /**
-   * Standard token list item (truncated prefix, no account/ip)
+   * Standard token list item (7-char ID, no account/ip/hash)
    */
   standard: {
-    token: 'token-123456...',
+    token: 'a1b2c3d',
     labels: [],
     created: timestamps.jan2022,
     expires: null,
@@ -384,7 +387,7 @@ export const tokenListItems = {
    * Token list item with expiration
    */
   withExpiry: {
-    token: 'token-123456...',
+    token: 'x9y8z7w',
     labels: [],
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
@@ -395,7 +398,7 @@ export const tokenListItems = {
    * Token list item with labels
    */
   withLabels: {
-    token: 'token-lbl123...',
+    token: 'lbl12ab',
     labels: ['ci', 'github-actions'],
     created: timestamps.jan2022,
     expires: null,
@@ -426,7 +429,8 @@ export const tokenCreateResponses = {
    * Token creation response
    */
   success: {
-    token: 'token-newtoken123newtoken123newtoken123newtoken123newtoken123newtoken1',
+    token: 'n3wt0kn',
+    secret: 'token-newtoken123newtoken123newtoken123newtoken123newtoken123newtoken1',
     labels: [],
     expires: null,
   } satisfies TokenCreateResponse,
@@ -435,7 +439,8 @@ export const tokenCreateResponses = {
    * Token with TTL
    */
   withTtl: {
-    token: 'token-ttltoken123ttltoken123ttltoken123ttltoken123ttltoken123ttltoken',
+    token: 'ttlt0kn',
+    secret: 'token-ttltoken123ttltoken123ttltoken123ttltoken123ttltoken123ttltoken',
     labels: [],
     expires: timestamps.jan2023,
   } satisfies TokenCreateResponse,
@@ -444,7 +449,8 @@ export const tokenCreateResponses = {
    * Token with labels
    */
   withLabels: {
-    token: 'token-labeled123labeled123labeled123labeled123labeled123labeled12345',
+    token: 'lbl0tkn',
+    secret: 'token-labeled123labeled123labeled123labeled123labeled123labeled12345',
     labels: ['production'],
     expires: null,
   } satisfies TokenCreateResponse,
@@ -705,11 +711,12 @@ export function isExternalDomain(domain: string): boolean {
  */
 export function createDynamicToken(overrides: Partial<Token> = {}): Token {
   const now = Math.floor(Date.now() / 1000);
-  const tokenId = `token-${Date.now()}${Math.random().toString(36).substring(2, 8)}`;
+  const tokenId = Math.random().toString(36).substring(2, 9); // 7-char ID
 
   return {
-    token: tokenId.padEnd(68, '0'), // Ensure proper length
+    token: tokenId,
     account: 'test@example.com',
+    hash: `hash-${Date.now()}${Math.random().toString(36).substring(2, 8)}`.padEnd(64, '0'),
     ip: null,
     labels: [],
     created: now,

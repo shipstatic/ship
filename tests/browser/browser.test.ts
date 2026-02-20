@@ -25,6 +25,7 @@ import BrowserIndex, {
 import type { StaticFile } from '../../src/browser/index';
 // Import error class
 import { ShipError } from '@shipstatic/types';
+import { setConfig } from '../../src/shared/core/platform-config';
 
 // Mock API HTTP client
 const mockApiHttpInstance = {
@@ -90,6 +91,13 @@ describe('Browser Entry Point (@/browser)', () => {
     });
     // __setTestEnvironment is now imported from @/browser
     __setTestEnvironment('browser');
+
+    // Initialize platform config (required by processFilesForBrowser)
+    setConfig({
+      maxFileSize: 10 * 1024 * 1024,
+      maxFilesCount: 1000,
+      maxTotalSize: 100 * 1024 * 1024,
+    });
   });
 
   afterEach(() => {

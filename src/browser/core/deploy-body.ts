@@ -3,14 +3,7 @@
  */
 import { ShipError } from '@shipstatic/types';
 import type { StaticFile, DeployBody } from '../../shared/types.js';
-import { getMimeType } from '../../shared/utils/mimeType.js';
-
-function getContentType(file: File | string): string {
-  if (typeof file === 'string') {
-    return getMimeType(file);
-  }
-  return file.type || getMimeType(file.name);
-}
+import { getMimeType } from '../../shared/lib/mimeType.js';
 
 export async function createDeployBody(
   files: StaticFile[],
@@ -21,16 +14,20 @@ export async function createDeployBody(
   const checksums: string[] = [];
 
   for (const file of files) {
+    // 1. Validate content type
     if (!(file.content instanceof File || file.content instanceof Blob)) {
       throw ShipError.file(`Unsupported file.content type for browser: ${file.path}`, file.path);
     }
+
+    // 2. Validate md5
     if (!file.md5) {
       throw ShipError.file(`File missing md5 checksum: ${file.path}`, file.path);
     }
 
-    const contentType = getContentType(file.content instanceof File ? file.content : file.path);
-    const fileWithPath = new File([file.content], file.path, { type: contentType });
-    formData.append('files[]', fileWithPath);
+    // 3. Create File with deterministic MIME type and append
+    const contentType = getMimeType(file.path);
+    const fileInstance = new File([file.content], file.path, { type: contentType });
+    formData.append('files[]', fileInstance);
     checksums.push(file.md5);
   }
 

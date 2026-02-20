@@ -134,9 +134,9 @@ describe('CLI with Mock API', () => {
 
           res.writeHead(201, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
-            token: 'token-abc123def456',
+            token: 't3sttkn',
+            secret: 'token-t3sttkn0123456789abcdef0123456789abcdef0123456789abcdef01234567',
             expires: requestData.ttl ? Date.now() + (requestData.ttl * 1000) : null,
-            message: 'Token created successfully',
             labels: requestData.labels ?? []
           }));
           return;
@@ -345,7 +345,7 @@ describe('CLI with Mock API', () => {
       const result = await runCli(['--json', 'tokens', 'create', '--label', 'production'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.token).toBe('token-abc123def456');
+      expect(output.token).toBe('t3sttkn');
       expect(output.labels).toEqual(['production']);
     });
 

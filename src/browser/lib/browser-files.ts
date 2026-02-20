@@ -1,86 +1,102 @@
 /**
  * @file Browser-specific file utilities for the Ship SDK.
- * Provides helpers for processing browser files into deploy-ready objects and extracting common directory info.
+ * Provides helpers for processing browser files into deploy-ready objects.
+ *
+ * Pipeline order matches Node.js (node-files.ts) for consistency:
+ * 1. Extract paths → 2. Filter junk → 3. Optimize paths →
+ * 4. Security validate → 5. Skip empties → 6. Size validate →
+ * 7. Calculate MD5 → 8. Count validate
  */
 import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
 import { ShipError } from '@shipstatic/types';
+import { getENV } from '../../shared/lib/env.js';
 import { filterJunk } from '../../shared/lib/junk.js';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
-
-interface BrowserFileProcessItem {
-  file: File;
-  relativePath: string;
-}
+import { validateDeployPath } from '../../shared/lib/security.js';
+import { getCurrentConfig } from '../../shared/core/platform-config.js';
 
 /**
  * Processes browser files into an array of StaticFile objects ready for deploy.
- * Calculates MD5, filters junk files, and applies automatic path optimization.
+ * Calculates MD5, filters junk files, validates sizes, and applies path optimization.
  *
  * @param browserFiles - File[] to process for deploy.
  * @param options - Processing options including pathDetect for automatic path optimization.
  * @returns Promise resolving to an array of StaticFile objects.
- * @throws {ShipClientError} If called outside a browser or with invalid input.
+ * @throws {ShipError} If called outside a browser or with invalid input.
  */
 export async function processFilesForBrowser(
   browserFiles: File[],
   options: DeploymentOptions = {}
 ): Promise<StaticFile[]> {
-  // Check environment using getENV
-  const { getENV } = await import('../../shared/lib/env.js');
+  // 1. Environment check
   if (getENV() !== 'browser') {
     throw ShipError.business('processFilesForBrowser can only be called in a browser environment.');
   }
 
-  const filesArray = browserFiles;
+  // 2. Extract raw paths from File objects
+  const rawPaths = browserFiles.map(file => file.webkitRelativePath || file.name);
 
-  // webkitRelativePath is set by browser when selecting directories
-  const filePaths = filesArray.map(file => file.webkitRelativePath || file.name);
-  
-  // Optimize paths for clean deployment URLs
-  const deployFiles = optimizeDeployPaths(filePaths, { 
-    flatten: options.pathDetect !== false 
-  });
-  
-  // Prepare file information with security validation
-  const initialFileInfos: BrowserFileProcessItem[] = [];
-  for (let i = 0; i < filesArray.length; i++) {
-    const file = filesArray[i];
-    const deployPath = deployFiles[i].path;
-    
-    // Security validation: Ensure no dangerous characters in paths
-    if (deployPath.includes('..') || deployPath.includes('\0')) {
-      throw ShipError.business(`Security error: Unsafe file path "${deployPath}" for file: ${file.name}`);
+  // 3. Filter junk files first (matches Node pipeline — don't waste time on junk)
+  const nonJunkSet = new Set(filterJunk(rawPaths));
+  const validPairs: Array<{ file: File; rawPath: string }> = [];
+  for (let i = 0; i < browserFiles.length; i++) {
+    if (nonJunkSet.has(rawPaths[i])) {
+      validPairs.push({ file: browserFiles[i], rawPath: rawPaths[i] });
     }
-    
-    initialFileInfos.push({ file, relativePath: deployPath });
   }
 
-  // Filter out junk files
-  const allRelativePaths = initialFileInfos.map(info => info.relativePath);
-  const nonJunkRelativePathsArray = filterJunk(allRelativePaths);
-  const nonJunkRelativePathsSet = new Set(nonJunkRelativePathsArray);
+  if (validPairs.length === 0) {
+    return [];
+  }
 
-  // Create StaticFile objects for each valid file
-  const result: StaticFile[] = [];
-  for (const fileInfo of initialFileInfos) {
-    // Skip junk files but NOT empty files (tests expect empty files to be processed)
-    if (!nonJunkRelativePathsSet.has(fileInfo.relativePath)) {
+  // 4. Optimize paths for clean deployment URLs
+  const deployFiles = optimizeDeployPaths(
+    validPairs.map(p => p.rawPath),
+    { flatten: options.pathDetect !== false }
+  );
+
+  // 5. Process files with validation (matches Node pipeline)
+  const platformLimits = getCurrentConfig();
+  const results: StaticFile[] = [];
+  let totalSize = 0;
+
+  for (let i = 0; i < validPairs.length; i++) {
+    const { file } = validPairs[i];
+    const deployPath = deployFiles[i].path;
+
+    // Security validation (shared with Node)
+    validateDeployPath(deployPath, file.name);
+
+    // Skip empty files — R2 cannot store zero-byte objects
+    if (file.size === 0) {
       continue;
     }
-    
+
+    // Validate file sizes (matches Node validation)
+    if (file.size > platformLimits.maxFileSize) {
+      throw ShipError.business(`File ${file.name} is too large. Maximum allowed size is ${platformLimits.maxFileSize / (1024 * 1024)}MB.`);
+    }
+    totalSize += file.size;
+    if (totalSize > platformLimits.maxTotalSize) {
+      throw ShipError.business(`Total deploy size is too large. Maximum allowed is ${platformLimits.maxTotalSize / (1024 * 1024)}MB.`);
+    }
+
     // Calculate MD5 hash
-    const { md5 } = await calculateMD5(fileInfo.file);
-    
-    // Create and add the StaticFile - keep File as File (impossible simplicity!)
-    result.push({
-      content: fileInfo.file,
-      path: fileInfo.relativePath,
-      size: fileInfo.file.size,
+    const { md5 } = await calculateMD5(file);
+
+    results.push({
+      path: deployPath,
+      content: file,
+      size: file.size,
       md5,
     });
   }
-  
-  return result;
-}
 
+  // Validate file count (matches Node validation)
+  if (results.length > platformLimits.maxFilesCount) {
+    throw ShipError.business(`Too many files to deploy. Maximum allowed is ${platformLimits.maxFilesCount} files.`);
+  }
+
+  return results;
+}

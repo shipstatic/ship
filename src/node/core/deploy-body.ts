@@ -3,7 +3,7 @@
  */
 import { ShipError } from '@shipstatic/types';
 import type { StaticFile, DeployBody } from '../../shared/types.js';
-import { getMimeType } from '../../shared/utils/mimeType.js';
+import { getMimeType } from '../../shared/lib/mimeType.js';
 
 export async function createDeployBody(
   files: StaticFile[],
@@ -17,23 +17,20 @@ export async function createDeployBody(
   const checksums: string[] = [];
 
   for (const file of files) {
-    const contentType = getMimeType(file.path);
-
-    let fileInstance;
-    if (Buffer.isBuffer(file.content)) {
-      fileInstance = new File([file.content], file.path, { type: contentType });
-    } else if (typeof Blob !== 'undefined' && file.content instanceof Blob) {
-      fileInstance = new File([file.content], file.path, { type: contentType });
-    } else {
+    // 1. Validate content type
+    if (!Buffer.isBuffer(file.content) && !(typeof Blob !== 'undefined' && file.content instanceof Blob)) {
       throw ShipError.file(`Unsupported file.content type for Node.js: ${file.path}`, file.path);
     }
 
+    // 2. Validate md5
     if (!file.md5) {
       throw ShipError.file(`File missing md5 checksum: ${file.path}`, file.path);
     }
 
-    const preservedPath = file.path.startsWith('/') ? file.path : '/' + file.path;
-    formData.append('files[]', fileInstance, preservedPath);
+    // 3. Create File with deterministic MIME type and append
+    const contentType = getMimeType(file.path);
+    const fileInstance = new File([file.content], file.path, { type: contentType });
+    formData.append('files[]', fileInstance);
     checksums.push(file.md5);
   }
 

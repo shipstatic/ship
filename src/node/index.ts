@@ -113,4 +113,3 @@ export { setConfig as setPlatformConfig, getCurrentConfig } from '../shared/core
 
 // Node.js utilities
 export { processFilesForNode } from './core/node-files.js';
-export { __setTestEnvironment, getENV } from '../shared/lib/env.js';

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { __setTestEnvironment, getENV } from '../../src/shared/lib/env';
+import { setConfig } from '../../src/shared/core/platform-config';
 
 /**
  * Environment Switching Validation Tests
@@ -86,32 +87,39 @@ describe('Environment Switching Cross-Platform Validation', () => {
   describe('Environment-Specific Behavior Validation', () => {
     it('should enforce browser-only functionality in browser environment', async () => {
       __setTestEnvironment('browser');
-      
+
+      // Initialize platform config (required by processFilesForBrowser)
+      setConfig({
+        maxFileSize: 10 * 1024 * 1024,
+        maxFilesCount: 1000,
+        maxTotalSize: 100 * 1024 * 1024,
+      });
+
       // Mock DOM APIs since we're running in Node.js
       global.Blob = class MockBlob {
         constructor(public bits: any[], public options: any = {}) {}
         get size() { return this.bits.join('').length; }
         get type() { return this.options.type || 'text/plain'; }
         async arrayBuffer() { return new ArrayBuffer(this.size); }
-        slice(start = 0, end = this.size) { 
+        slice(start = 0, end = this.size) {
           return new MockBlob([this.bits.join('').slice(start, end)], this.options);
         }
       } as any;
-      
+
       global.File = class MockFile extends (global.Blob as any) {
         constructor(public bits: any[], public name: string, public options: any = {}) {
           super(bits, options);
         }
       } as any;
-      
+
       global.FileReader = class MockFileReader {
         readAsArrayBuffer() { this.onload?.({ target: { result: new ArrayBuffer(4) } } as any); }
         onload: any;
       } as any;
-      
+
       // Import browser-specific functionality
       const { processFilesForBrowser } = await import('../../src/browser/lib/browser-files');
-      
+
       // Should work in browser environment with mocked APIs
       const mockFile = new File(['test'], 'test.txt');
       await expect(processFilesForBrowser([mockFile], {})).resolves.toBeDefined();
@@ -209,23 +217,13 @@ describe('Environment Switching Cross-Platform Validation', () => {
     });
 
     it('should handle config loading consistently across environment switches', async () => {
-      const configs: any[] = [];
-      
-      // Load config in browser environment
-      __setTestEnvironment('browser');
-      const { loadConfig: loadBrowserConfig } = await import('../../src/browser/core/config');
-      configs.push(await loadBrowserConfig());
-      
-      // Load config in node environment
+      // Node loads config from env/files; browser receives config via constructor (no file loading)
       __setTestEnvironment('node');
       const { loadConfig: loadNodeConfig } = await import('../../src/node/core/config');
-      configs.push(await loadNodeConfig());
-      
-      // Browser config should be empty (no file access)
-      expect(configs[0]).toEqual({});
-      
-      // Node config behavior depends on mocking, but should not throw
-      expect(configs[1]).toBeDefined();
+      const nodeConfig = await loadNodeConfig();
+
+      // Node config behavior depends on environment — should not throw
+      expect(nodeConfig).toBeDefined();
     });
   });
 

@@ -17,11 +17,6 @@ vi.mock('../../src/node/core/node-files', () => ({
   ])
 }));
 
-vi.mock('../../src/browser/core/config', () => ({
-  setConfig: vi.fn(),
-  loadConfig: vi.fn().mockResolvedValue({})
-}));
-
 vi.mock('../../src/browser/lib/browser-files', () => ({
   processFilesForBrowser: vi.fn().mockResolvedValue([
     { path: 'test.html', content: new ArrayBuffer(13), size: 13, md5: 'browser-hash' }

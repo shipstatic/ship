@@ -13,23 +13,25 @@ vi.mock('cosmiconfig', () => ({
 }));
 
 describe('config', () => {
-  let config: typeof import('../../src/shared/core/config');
+  let sharedConfig: typeof import('../../src/shared/core/config');
+  let nodeConfig: typeof import('../../src/node/core/config');
   let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.resetModules();
     originalEnv = { ...process.env };
-    
+
     // Clear env vars
     delete process.env.SHIP_API_URL;
     delete process.env.SHIP_API_KEY;
-    
+
     // Setup getENV mock to return 'node' by default
     const { getENV } = await import('../../src/shared/lib/env');
     (getENV as any).mockReturnValue('node');
-    
-    config = await import('../../src/shared/core/config');
+
+    sharedConfig = await import('../../src/shared/core/config');
+    nodeConfig = await import('../../src/node/core/config');
   });
 
   afterEach(() => {
@@ -40,8 +42,8 @@ describe('config', () => {
     it('should return empty object in browser environment', async () => {
       const { getENV } = await import('../../src/shared/lib/env');
       (getENV as any).mockReturnValue('browser');
-      
-      const result = await config.loadConfig();
+
+      const result = await nodeConfig.loadConfig();
       expect(result).toEqual({});
     });
 
@@ -49,9 +51,9 @@ describe('config', () => {
       // Set environment variables
       process.env.SHIP_API_URL = 'https://api.example.com';
       process.env.SHIP_API_KEY = 'test-key';
-      
-      const result = await config.loadConfig();
-      
+
+      const result = await nodeConfig.loadConfig();
+
       expect(result).toEqual({
         apiUrl: 'https://api.example.com',
         apiKey: 'test-key'
@@ -69,9 +71,9 @@ describe('config', () => {
         })
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
-      
-      const result = await config.loadConfig();
-      
+
+      const result = await nodeConfig.loadConfig();
+
       expect(result).toEqual({
         apiUrl: 'https://file.example.com',
         apiKey: 'file-key'
@@ -80,7 +82,7 @@ describe('config', () => {
 
     it('should prioritize env vars over file config', async () => {
       process.env.SHIP_API_URL = 'https://env.example.com';
-      
+
       const mockExplorer = {
         search: vi.fn().mockReturnValue({
           isEmpty: false,
@@ -91,9 +93,9 @@ describe('config', () => {
         })
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
-      
-      const result = await config.loadConfig();
-      
+
+      const result = await nodeConfig.loadConfig();
+
       expect(result).toEqual({
         apiUrl: 'https://env.example.com',
         apiKey: 'file-key'
@@ -105,9 +107,9 @@ describe('config', () => {
         search: vi.fn().mockReturnValue(null)
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
-      
-      const result = await config.loadConfig();
-      
+
+      const result = await nodeConfig.loadConfig();
+
       expect(result).toEqual({
         apiUrl: undefined,
         apiKey: undefined
@@ -122,9 +124,9 @@ describe('config', () => {
         })
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
-      
-      const result = await config.loadConfig();
-      
+
+      const result = await nodeConfig.loadConfig();
+
       expect(result).toEqual({
         apiUrl: undefined,
         apiKey: undefined
@@ -142,14 +144,14 @@ describe('config', () => {
         })
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
-      
-      await expect(config.loadConfig()).rejects.toThrow('Configuration validation failed');
+
+      await expect(nodeConfig.loadConfig()).rejects.toThrow('Configuration validation failed');
     });
   });
 
   describe('resolveConfig', () => {
     it('should resolve config with default values', () => {
-      const result = config.resolveConfig();
+      const result = sharedConfig.resolveConfig();
       
       expect(result).toEqual({
         apiUrl: 'https://api.shipstatic.com'
@@ -167,7 +169,7 @@ describe('config', () => {
         apiKey: 'loaded-key'
       };
       
-      const result = config.resolveConfig(userOptions, loadedConfig);
+      const result = sharedConfig.resolveConfig(userOptions, loadedConfig);
       
       expect(result).toEqual({
         apiUrl: 'https://user.example.com',
@@ -181,7 +183,7 @@ describe('config', () => {
         apiKey: 'loaded-key'
       };
       
-      const result = config.resolveConfig({}, loadedConfig);
+      const result = sharedConfig.resolveConfig({}, loadedConfig);
       
       expect(result).toEqual({
         apiUrl: 'https://loaded.example.com',
@@ -200,7 +202,7 @@ describe('config', () => {
         apiKey: 'loaded-key'
       };
       
-      const result = config.resolveConfig(userOptions, loadedConfig);
+      const result = sharedConfig.resolveConfig(userOptions, loadedConfig);
       
       expect(result).toEqual({
         apiUrl: 'https://user.example.com',
@@ -209,7 +211,7 @@ describe('config', () => {
     });
 
     it('should return config without apiKey when not provided', () => {
-      const result = config.resolveConfig();
+      const result = sharedConfig.resolveConfig();
       
       expect(result).toEqual({
         apiUrl: 'https://api.shipstatic.com'
@@ -231,7 +233,7 @@ describe('config', () => {
         maxConcurrency: 3
       };
       
-      const result = config.mergeDeployOptions(userOptions, clientDefaults);
+      const result = sharedConfig.mergeDeployOptions(userOptions, clientDefaults);
       
       expect(result).toEqual({
         timeout: 5000,
@@ -252,7 +254,7 @@ describe('config', () => {
         apiKey: 'default-key'
       };
       
-      const result = config.mergeDeployOptions(userOptions, clientDefaults);
+      const result = sharedConfig.mergeDeployOptions(userOptions, clientDefaults);
       
       expect(result).toEqual({
         timeout: 5000,
@@ -268,7 +270,7 @@ describe('config', () => {
         maxConcurrency: 3
       };
       
-      const result = config.mergeDeployOptions({}, clientDefaults);
+      const result = sharedConfig.mergeDeployOptions({}, clientDefaults);
       
       expect(result).toEqual({
         timeout: 10000,
@@ -287,7 +289,7 @@ describe('config', () => {
         apiUrl: 'https://api.example.com'
       };
       
-      const result = config.mergeDeployOptions(userOptions, clientDefaults);
+      const result = sharedConfig.mergeDeployOptions(userOptions, clientDefaults);
       
       expect(result).toEqual({
         timeout: 5000,

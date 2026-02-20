@@ -61,7 +61,7 @@ describe('Node.js Deploy Body Creation', () => {
       expect(result.headers['Content-Length']).toBeDefined();
     });
 
-    it('should append files to FormData with preserved path', async () => {
+    it('should append files to FormData with file path as name', async () => {
       const files: StaticFile[] = [
         {
           path: 'assets/style.css',
@@ -73,49 +73,10 @@ describe('Node.js Deploy Body Creation', () => {
 
       await createDeployBody(files);
 
-      // Check FormData.append was called with files[]
+      // Check FormData.append was called with files[] (no third arg — File name is the path)
       expect(mockFormDataAppend).toHaveBeenCalledWith(
         'files[]',
-        expect.anything(),
-        '/assets/style.css' // Leading slash added
-      );
-    });
-
-    it('should preserve leading slash for paths that already have it', async () => {
-      const files: StaticFile[] = [
-        {
-          path: '/already/has/slash.js',
-          content: Buffer.from('code'),
-          size: 4,
-          md5: 'js123'
-        }
-      ];
-
-      await createDeployBody(files);
-
-      expect(mockFormDataAppend).toHaveBeenCalledWith(
-        'files[]',
-        expect.anything(),
-        '/already/has/slash.js'
-      );
-    });
-
-    it('should add leading slash for paths without it', async () => {
-      const files: StaticFile[] = [
-        {
-          path: 'no/leading/slash.txt',
-          content: Buffer.from('text'),
-          size: 4,
-          md5: 'txt123'
-        }
-      ];
-
-      await createDeployBody(files);
-
-      expect(mockFormDataAppend).toHaveBeenCalledWith(
-        'files[]',
-        expect.anything(),
-        '/no/leading/slash.txt'
+        expect.objectContaining({ name: 'assets/style.css' })
       );
     });
   });
@@ -340,10 +301,10 @@ describe('Node.js Deploy Body Creation', () => {
       );
       expect(filesAppends).toHaveLength(3);
 
-      // Verify paths have leading slashes
-      expect(filesAppends[0][2]).toBe('/file1.txt');
-      expect(filesAppends[1][2]).toBe('/file2.js');
-      expect(filesAppends[2][2]).toBe('/dir/file3.css');
+      // Verify file names match paths (no leading slash — aligned with browser)
+      expect(filesAppends[0][1]).toEqual(expect.objectContaining({ name: 'file1.txt' }));
+      expect(filesAppends[1][1]).toEqual(expect.objectContaining({ name: 'file2.js' }));
+      expect(filesAppends[2][1]).toEqual(expect.objectContaining({ name: 'dir/file3.css' }));
     });
 
     it('should maintain order of files in checksums array', async () => {
