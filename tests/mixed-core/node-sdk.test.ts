@@ -372,22 +372,24 @@ describe('NodeShipClient', () => {
   describe('NodeShipClient.tokens', () => {
     it('should create token without parameters', async () => {
       apiClientMock.createToken = vi.fn().mockResolvedValue({
-        token: 'token-abc123',
+        token: 'a1b2c3d',
+        secret: 'token-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         expires: null,
-        message: 'Token created successfully'
+        labels: []
       });
 
       const result = await client.tokens.create();
 
       expect(apiClientMock.createToken).toHaveBeenCalledWith(undefined, undefined);
-      expect(result.token).toBe('token-abc123');
+      expect(result.token).toBe('a1b2c3d');
     });
 
     it('should create token with ttl', async () => {
       apiClientMock.createToken = vi.fn().mockResolvedValue({
-        token: 'token-def456',
+        token: 'd3f4567',
+        secret: 'token-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         expires: 1234567890,
-        message: 'Token created successfully'
+        labels: []
       });
 
       const result = await client.tokens.create({ ttl: 3600 });
@@ -399,22 +401,23 @@ describe('NodeShipClient', () => {
     it('should create token with labels', async () => {
       const labels = ['production', 'api', 'automated'];
       apiClientMock.createToken = vi.fn().mockResolvedValue({
-        token: 'token-ghi789',
+        token: 'g7h8i9j',
+        secret: 'token-g7h8i9j0123456789abcdef0123456789abcdef0123456789abcdef01234567',
         expires: null,
-        message: 'Token created successfully'
+        labels: ['production', 'api', 'automated']
       });
 
       const result = await client.tokens.create({ labels });
 
       expect(apiClientMock.createToken).toHaveBeenCalledWith(undefined, ['production', 'api', 'automated']);
-      expect(result.token).toBe('token-ghi789');
+      expect(result.token).toBe('g7h8i9j');
     });
 
     it('should list tokens', async () => {
       apiClientMock.listTokens = vi.fn().mockResolvedValue({
         tokens: [
-          { token: 'hash1', account: 'acc1', created: 1234567890, labels: ['production'] },
-          { token: 'hash2', account: 'acc1', created: 1234567891, labels: ['staging'] }
+          { token: 't0kn001', account: 'acc1', created: 1234567890, labels: ['production'] },
+          { token: 't0kn002', account: 'acc1', created: 1234567891, labels: ['staging'] }
         ],
         total: 2
       });
@@ -429,9 +432,9 @@ describe('NodeShipClient', () => {
     it('should remove token', async () => {
       apiClientMock.removeToken = vi.fn().mockResolvedValue(undefined);
 
-      await client.tokens.remove('token-abc123');
+      await client.tokens.remove('a1b2c3d');
 
-      expect(apiClientMock.removeToken).toHaveBeenCalledWith('token-abc123');
+      expect(apiClientMock.removeToken).toHaveBeenCalledWith('a1b2c3d');
     });
   });
 });

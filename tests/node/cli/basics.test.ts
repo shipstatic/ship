@@ -124,7 +124,7 @@ describe('CLI Basics', () => {
     });
 
     it('tokens remove should fail gracefully without auth', async () => {
-      const result = await runCli(['tokens', 'remove', 'token-abc123'], { expectFailure: true });
+      const result = await runCli(['tokens', 'remove', 'a1b2c3d'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('error');
     });
