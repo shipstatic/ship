@@ -129,7 +129,7 @@ describe('createDeployBody (browser)', () => {
   });
 
   describe('content type handling', () => {
-    it('should use File type when available', async () => {
+    it('should use deterministic MIME type from file extension', async () => {
       const blob = new Blob(['test'], { type: 'application/json' });
       const files: StaticFile[] = [{
         path: 'data.json',

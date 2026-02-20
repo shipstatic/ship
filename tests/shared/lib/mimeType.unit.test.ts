@@ -2,7 +2,7 @@
  * Tests for MIME type utility
  */
 import { describe, it, expect } from 'vitest';
-import { getMimeType } from '../../../src/shared/utils/mimeType';
+import { getMimeType } from '../../../src/shared/lib/mimeType';
 
 describe('getMimeType', () => {
   describe('common file types', () => {

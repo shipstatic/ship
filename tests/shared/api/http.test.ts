@@ -746,7 +746,7 @@ describe('ApiHttp', () => {
 
   describe('token operations', () => {
     it('should create token with ttl', async () => {
-      const mockResponse = { token: 'token-abc123', expires: 1234567890 };
+      const mockResponse = { token: 'a1b2c3d', secret: 'token-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', expires: 1234567890, labels: [] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken(3600);
@@ -765,7 +765,7 @@ describe('ApiHttp', () => {
     });
 
     it('should create token with labels', async () => {
-      const mockResponse = { token: 'token-abc123', expires: 1234567890 };
+      const mockResponse = { token: 'd3f4567', secret: 'token-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', expires: 1234567890, labels: ['ci', 'deploy'] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken(undefined, ['ci', 'deploy']);
@@ -781,7 +781,7 @@ describe('ApiHttp', () => {
     });
 
     it('should create token with both ttl and labels', async () => {
-      const mockResponse = { token: 'token-abc123', expires: 1234567890 };
+      const mockResponse = { token: 'g7h8i9j', secret: 'token-g7h8i9j0123456789abcdef0123456789abcdef0123456789abcdef01234567', expires: 1234567890, labels: ['production'] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken(7200, ['production']);
@@ -797,7 +797,7 @@ describe('ApiHttp', () => {
     });
 
     it('should create token without parameters', async () => {
-      const mockResponse = { token: 'token-abc123', expires: 1234567890 };
+      const mockResponse = { token: 't0kn001', secret: 'token-t0kn0010123456789abcdef0123456789abcdef0123456789abcdef01234567', expires: 1234567890, labels: [] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken();

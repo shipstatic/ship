@@ -12,11 +12,6 @@ vi.mock('../../src/browser/lib/browser-files', () => ({
   ])
 }));
 
-// Mock browser config (browser only has loadConfig, no setConfig)
-vi.mock('../../src/browser/core/config', () => ({
-  loadConfig: vi.fn().mockResolvedValue({})
-}));
-
 describe('Ship - Browser Implementation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -130,12 +125,8 @@ describe('Ship - Browser Implementation', () => {
     it('should export browser-specific utilities', async () => {
       const browserModule = await import('../../src/browser/index');
 
-      expect(browserModule.loadConfig).toBeDefined();
       expect(browserModule.setPlatformConfig).toBeDefined(); // Platform config, not client config
       expect(browserModule.processFilesForBrowser).toBeDefined();
-
-      // Should NOT export client config setConfig (dead code removed)
-      expect((browserModule as any).setConfig).toBeUndefined();
     });
 
     it('should re-export shared utilities', async () => {
@@ -179,10 +170,6 @@ describe('Ship - Browser Implementation', () => {
 
       // Browser loadFullConfig should only fetch platform config, not load client config files
       expect(getConfigSpy).toHaveBeenCalled();
-
-      // loadConfig is available but not called during initialization (browser gets config from constructor)
-      const configModule = await import('../../src/browser/core/config');
-      expect(configModule.loadConfig).toBeDefined();
     });
   });
 
@@ -253,12 +240,8 @@ describe('Ship - Browser Implementation', () => {
 
       const emptyFiles: File[] = [];
 
-      const result = await ship.deploy(emptyFiles);
-
-      expect(result).toEqual({
-        id: 'dep_empty_123',
-        url: 'https://dep_empty_123.shipstatic.dev'
-      });
+      // Empty File[] is rejected early — aligned with Node behavior
+      await expect(ship.deploy(emptyFiles)).rejects.toThrow('No files to deploy.');
     });
 
     it('should handle File objects with different MIME types', async () => {

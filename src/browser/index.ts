@@ -59,6 +59,10 @@ export class Ship extends BaseShip {
       throw ShipError.business('Invalid input type for browser environment. Expected File[].');
     }
 
+    if (input.length === 0) {
+      throw ShipError.business('No files to deploy.');
+    }
+
     // Process files directly
     const { processFilesForBrowser } = await import('./lib/browser-files.js');
     return processFilesForBrowser(input, options);

@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { processFilesForBrowser } from '../../../src/browser/lib/browser-files';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
+import { setConfig } from '../../../src/shared/core/platform-config';
 import { ShipError } from '@shipstatic/types';
 
 // Mock MD5 calculation for browser files
@@ -15,6 +16,13 @@ describe('Browser File Processing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     __setTestEnvironment('browser');
+
+    // Initialize platform config (matches Node test setup)
+    setConfig({
+      maxFileSize: 10 * 1024 * 1024,
+      maxFilesCount: 1000,
+      maxTotalSize: 100 * 1024 * 1024,
+    });
   });
 
   describe('processFilesForBrowser', () => {
@@ -151,7 +159,7 @@ describe('Browser File Processing', () => {
       ]);
     });
 
-    it('should handle empty files', async () => {
+    it('should skip empty files (aligned with Node — R2 cannot store zero-byte objects)', async () => {
       const emptyFiles = [
         new File([], 'empty.txt'),
         new File([''], 'empty-string.html'),
@@ -160,11 +168,8 @@ describe('Browser File Processing', () => {
 
       const result = await processFilesForBrowser(emptyFiles, {});
 
-      expect(result).toHaveLength(3);
-      result.forEach(file => {
-        expect(file.size).toBe(0);
-        expect(file.content).toBeInstanceOf(File);
-      });
+      // Empty files are skipped — same behavior as Node
+      expect(result).toHaveLength(0);
     });
 
     it('should handle files with unusual MIME types', async () => {

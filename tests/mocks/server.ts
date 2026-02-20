@@ -229,9 +229,9 @@ function routeRequest(
   }
 
   if (path.startsWith('/tokens/')) {
-    const tokenHash = path.split('/')[2];
+    const tokenId = path.split('/')[2];
     if (method === 'DELETE') {
-      handleTokenDelete(res, tokenHash);
+      handleTokenDelete(res, tokenId);
     }
     return;
   }
@@ -508,9 +508,9 @@ function handleDomainVerify(res: ServerResponse, domainName: string): void {
 // =============================================================================
 
 function handleTokensList(res: ServerResponse): void {
-  // Sanitize tokens for list response (mirrors real API: truncate hash, omit account/ip)
+  // Return tokens with 7-char management ID (no truncation needed)
   const sanitizedTokens = mockTokens.map(token => ({
-    token: token.token.substring(0, 12) + '...',
+    token: token.token,
     labels: token.labels,
     created: token.created,
     expires: token.expires ?? null,
@@ -537,9 +537,10 @@ function handleTokenCreate(req: IncomingMessage, res: ServerResponse): void {
 
       mockTokens.push(token);
 
-      // Return token value with labels and expires (always present)
-      const response: { token: string; labels: string[]; expires: number | null } = {
+      // Return token ID + secret with labels and expires
+      const response: { token: string; secret: string; labels: string[]; expires: number | null } = {
         token: token.token,
+        secret: `token-${Date.now()}${Math.random().toString(36).substring(2, 10)}`.padEnd(70, '0'),
         labels: data.labels || [],
         expires: data.ttl ? Math.floor(Date.now() / 1000) + data.ttl : null,
       };
@@ -553,8 +554,8 @@ function handleTokenCreate(req: IncomingMessage, res: ServerResponse): void {
   });
 }
 
-function handleTokenDelete(res: ServerResponse, tokenHash: string): void {
-  const tokenIndex = mockTokens.findIndex((t) => t.token === tokenHash || t.token.startsWith(tokenHash));
+function handleTokenDelete(res: ServerResponse, tokenId: string): void {
+  const tokenIndex = mockTokens.findIndex((t) => t.token === tokenId);
   if (tokenIndex === -1) {
     res.writeHead(404);
     res.end(JSON.stringify(errors.notFound('Token')));

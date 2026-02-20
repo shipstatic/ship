@@ -164,13 +164,13 @@ export function formatTokensList(result: TokenListResponse, context: OutputConte
 }
 
 /**
- * Format single token result
+ * Format single token result (creation response includes both token ID and secret)
  */
 export function formatToken(result: TokenCreateResponse, context: OutputContext, options: FormatOptions): void {
   const { noColor } = options;
 
   if (context.operation === 'create' && result.token) {
-    success(`token created`, false, noColor);
+    success(`token ${result.token} created`, false, noColor);
   }
 
   console.log(formatDetails(result, noColor));

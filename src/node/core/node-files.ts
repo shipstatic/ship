@@ -6,6 +6,7 @@ import { getENV } from '../../shared/lib/env.js';
 import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
 import { filterJunk } from '../../shared/lib/junk.js';
+import { validateDeployPath } from '../../shared/lib/security.js';
 import { ShipError, isShipError } from '@shipstatic/types';
 import { getCurrentConfig } from '../../shared/core/platform-config.js';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
@@ -126,9 +127,12 @@ export async function processFilesForNode(
     const deployPath = deployFiles[i].path;
     
     try {
+      // Security validation (shared with browser) — fail fast before any I/O
+      validateDeployPath(deployPath, filePath);
+
       const stats = fs.statSync(filePath);
 
-      // Skip empty files - they cannot be stored in R2
+      // Skip empty files — R2 cannot store zero-byte objects
       if (stats.size === 0) {
         continue;
       }
@@ -144,12 +148,7 @@ export async function processFilesForNode(
 
       const content = fs.readFileSync(filePath);
       const { md5 } = await calculateMD5(content);
-      
-      // Security validation: Ensure no dangerous characters in paths
-      if (deployPath.includes('\0') || deployPath.includes('/../') || deployPath.startsWith('../') || deployPath.endsWith('/..')) {
-        throw ShipError.business(`Security error: Unsafe file path "${deployPath}" for file: ${filePath}`);
-      }
-      
+
       results.push({
         path: deployPath,
         content,

@@ -59,7 +59,7 @@ describe('CLI Commands', () => {
 
     it('should handle tokens remove command', async () => {
       // Tokens remove with non-existent token should fail
-      const result = await runCli(['tokens', 'remove', 'token-abc123'], { expectFailure: true });
+      const result = await runCli(['tokens', 'remove', 'a1b2c3d'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('error');
     });
