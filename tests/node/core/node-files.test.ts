@@ -640,14 +640,12 @@ describe('Node File Utilities', () => {
       ]);
     });
 
-    it('should handle files with special characters in names', async () => {
+    it('should handle files with spaces, dashes, underscores, and dots', async () => {
       setupMockFsNode({
         '/mock/cwd/file with spaces.txt': { type: 'file', content: 'Spaced file' },
         '/mock/cwd/file-with-dashes': { type: 'file', content: 'Dashed file' },
         '/mock/cwd/file_with_underscores.css': { type: 'file', content: 'Underscored file' },
         '/mock/cwd/file.with.many.dots.html': { type: 'file', content: 'Dotted file' },
-        '/mock/cwd/file(with)parentheses.json': { type: 'file', content: 'Parentheses file' },
-        '/mock/cwd/file[with]brackets.xml': { type: 'file', content: 'Brackets file' }
       });
 
       const result = await processFilesForNode([
@@ -655,18 +653,14 @@ describe('Node File Utilities', () => {
         'file-with-dashes',
         'file_with_underscores.css',
         'file.with.many.dots.html',
-        'file(with)parentheses.json',
-        'file[with]brackets.xml'
       ]);
 
-      expect(result).toHaveLength(6);
+      expect(result).toHaveLength(4);
       expect(result.map(f => f.path)).toEqual([
         'file with spaces.txt',
         'file-with-dashes',
         'file_with_underscores.css',
         'file.with.many.dots.html',
-        'file(with)parentheses.json',
-        'file[with]brackets.xml'
       ]);
     });
 
@@ -1155,6 +1149,83 @@ describe('Node File Utilities', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].path.length).toBeGreaterThan(100);
+    });
+  });
+
+  describe('filename and extension validation', () => {
+    it('should reject blocked extensions (.exe, .msi)', async () => {
+      setupMockFsNode({
+        '/mock/cwd/virus.exe': { type: 'file', content: 'malware' },
+      });
+
+      await expect(processFilesForNode(['virus.exe']))
+        .rejects.toThrow('File extension not allowed');
+
+      setupMockFsNode({
+        '/mock/cwd/installer.msi': { type: 'file', content: 'installer' },
+      });
+
+      await expect(processFilesForNode(['installer.msi']))
+        .rejects.toThrow('File extension not allowed');
+    });
+
+    it('should reject unsafe filename characters (?, ;, (), [])', async () => {
+      setupMockFsNode({
+        '/mock/cwd/file?.txt': { type: 'file', content: 'question' },
+      });
+
+      await expect(processFilesForNode(['file?.txt']))
+        .rejects.toThrow('unsafe characters');
+
+      setupMockFsNode({
+        '/mock/cwd/file;cmd.txt': { type: 'file', content: 'injection' },
+      });
+
+      await expect(processFilesForNode(['file;cmd.txt']))
+        .rejects.toThrow('unsafe characters');
+
+      setupMockFsNode({
+        '/mock/cwd/file(with)parentheses.json': { type: 'file', content: 'Parentheses file' },
+      });
+
+      await expect(processFilesForNode(['file(with)parentheses.json']))
+        .rejects.toThrow('unsafe characters');
+
+      setupMockFsNode({
+        '/mock/cwd/file[with]brackets.xml': { type: 'file', content: 'Brackets file' },
+      });
+
+      await expect(processFilesForNode(['file[with]brackets.xml']))
+        .rejects.toThrow('unsafe characters');
+    });
+
+    it('should reject Windows reserved names', async () => {
+      setupMockFsNode({
+        '/mock/cwd/CON.txt': { type: 'file', content: 'reserved' },
+      });
+
+      await expect(processFilesForNode(['CON.txt']))
+        .rejects.toThrow('reserved system name');
+    });
+
+    it('should reject filenames ending with dots', async () => {
+      setupMockFsNode({
+        '/mock/cwd/file.': { type: 'file', content: 'trailing dot' },
+      });
+
+      await expect(processFilesForNode(['file.']))
+        .rejects.toThrow('cannot end with dots');
+    });
+
+    it('should allow valid file extensions (.html, .css, .json)', async () => {
+      setupMockFsNode({
+        '/mock/cwd/page.html': { type: 'file', content: '<html>' },
+        '/mock/cwd/style.css': { type: 'file', content: 'body {}' },
+        '/mock/cwd/data.json': { type: 'file', content: '{}' },
+      });
+
+      const result = await processFilesForNode(['page.html', 'style.css', 'data.json']);
+      expect(result).toHaveLength(3);
     });
   });
 
