@@ -40,7 +40,7 @@ export function formatFileSize(bytes: number, decimals: number = 1): string {
  * - Reserved names: CON, PRN, AUX, NUL, COM1-9, LPT1-9 (Windows)
  * - Leading/trailing dots or spaces
  */
-function validateFileName(filename: string): { valid: boolean; reason?: string } {
+export function validateFileName(filename: string): { valid: boolean; reason?: string } {
   const unsafeChars = /[?&#%<>\[\]{}|\\^~`;$()'"*\r\n\t]/;
   if (unsafeChars.test(filename)) {
     return { valid: false, reason: 'File name contains unsafe characters' };

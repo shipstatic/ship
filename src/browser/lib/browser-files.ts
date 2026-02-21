@@ -4,8 +4,8 @@
  *
  * Pipeline order matches Node.js (node-files.ts) for consistency:
  * 1. Extract paths → 2. Filter junk → 3. Optimize paths →
- * 4. Security validate → 5. Skip empties → 6. Size validate →
- * 7. Calculate MD5 → 8. Count validate
+ * 4. Security validate → 5. Skip empties → 6. Name & extension validate →
+ * 7. Size validate → 8. Calculate MD5 → 9. Count validate
  */
 import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
@@ -13,7 +13,7 @@ import { ShipError } from '@shipstatic/types';
 import { getENV } from '../../shared/lib/env.js';
 import { filterJunk } from '../../shared/lib/junk.js';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
-import { validateDeployPath } from '../../shared/lib/security.js';
+import { validateDeployPath, validateDeployFile } from '../../shared/lib/security.js';
 import { getCurrentConfig } from '../../shared/core/platform-config.js';
 
 /**
@@ -72,6 +72,9 @@ export async function processFilesForBrowser(
     if (file.size === 0) {
       continue;
     }
+
+    // Filename and extension validation (shared with Node)
+    validateDeployFile(deployPath, file.name);
 
     // Validate file sizes (matches Node validation)
     if (file.size > platformLimits.maxFileSize) {

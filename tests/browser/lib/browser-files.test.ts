@@ -272,6 +272,59 @@ describe('Browser File Processing', () => {
     });
   });
 
+  describe('filename and extension validation', () => {
+    it('should reject blocked extensions (.exe, .msi)', async () => {
+      const exeFile = new File(['malware'], 'virus.exe');
+      await expect(processFilesForBrowser([exeFile], {}))
+        .rejects.toThrow('File extension not allowed');
+
+      const msiFile = new File(['installer'], 'installer.msi');
+      await expect(processFilesForBrowser([msiFile], {}))
+        .rejects.toThrow('File extension not allowed');
+    });
+
+    it('should reject unsafe filename characters (?, ;, (), [])', async () => {
+      const questionFile = new File(['test'], 'file?.txt');
+      await expect(processFilesForBrowser([questionFile], {}))
+        .rejects.toThrow('unsafe characters');
+
+      const semicolonFile = new File(['test'], 'file;cmd.txt');
+      await expect(processFilesForBrowser([semicolonFile], {}))
+        .rejects.toThrow('unsafe characters');
+
+      const parenFile = new File(['test'], 'file(with)parens.json');
+      await expect(processFilesForBrowser([parenFile], {}))
+        .rejects.toThrow('unsafe characters');
+
+      const bracketFile = new File(['test'], 'file[with]brackets.xml');
+      await expect(processFilesForBrowser([bracketFile], {}))
+        .rejects.toThrow('unsafe characters');
+    });
+
+    it('should reject Windows reserved names', async () => {
+      const conFile = new File(['reserved'], 'CON.txt');
+      await expect(processFilesForBrowser([conFile], {}))
+        .rejects.toThrow('reserved system name');
+    });
+
+    it('should reject filenames ending with dots', async () => {
+      const dotFile = new File(['trailing'], 'file.');
+      await expect(processFilesForBrowser([dotFile], {}))
+        .rejects.toThrow('cannot end with dots');
+    });
+
+    it('should allow valid file extensions (.html, .css, .json)', async () => {
+      const validFiles = [
+        new File(['<html>'], 'page.html'),
+        new File(['body {}'], 'style.css'),
+        new File(['{}'], 'data.json'),
+      ];
+
+      const result = await processFilesForBrowser(validFiles, {});
+      expect(result).toHaveLength(3);
+    });
+  });
+
   describe('browser memory and performance edge cases', () => {
     it('should handle processing without memory leaks', async () => {
       // Process multiple batches to test for memory leaks
