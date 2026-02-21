@@ -143,25 +143,19 @@ describe('filterJunk', () => {
     expect(filterJunk(files)).toEqual(expected);
   });
 
-  it('should allow .well-known at root level (RFC 8615)', () => {
+  it('should allow .well-known directory (RFC 8615)', () => {
+    // .well-known is not junk — it's a standard public directory.
+    // Works with any path shape: relative, prefixed, absolute.
+    // Root-level constraint is enforced at upload (buildFileKey) and serving (isBlockedDotFile).
     const files = [
-      'index.html',
       '.well-known/security.txt',
       '.well-known/acme-challenge/token-12345',
       '.well-known/apple-app-site-association',
       '.well-known/assetlinks.json',
-      'app.js',
+      'mysite/.well-known/security.txt',
+      '/Users/bob/site/.well-known/acme-challenge/token',
     ];
     expect(filterJunk(files)).toEqual(files);
-  });
-
-  it('should block .well-known at non-root levels', () => {
-    const files = [
-      'index.html',
-      'subdir/.well-known/security.txt',
-      'deep/nested/.well-known/file',
-    ];
-    expect(filterJunk(files)).toEqual(['index.html']);
   });
 
   it('should require exact case for .well-known', () => {
