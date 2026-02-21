@@ -194,7 +194,7 @@ describe('Node.js Deploy Body Creation', () => {
   });
 
   describe('content type handling', () => {
-    it('should use correct MIME type from getMimeType', async () => {
+    it('should create File objects for each static file', async () => {
       const files: StaticFile[] = [
         { path: 'script.js', content: Buffer.from('code'), size: 4, md5: 'js1' },
         { path: 'style.css', content: Buffer.from('css'), size: 3, md5: 'css1' },

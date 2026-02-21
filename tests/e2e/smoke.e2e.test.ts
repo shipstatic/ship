@@ -77,7 +77,7 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
       expect(config.maxFileSize).toBeGreaterThan(0);
       expect(config.maxFilesCount).toBeGreaterThan(0);
       expect(config.maxTotalSize).toBeGreaterThan(0);
-      expect(Array.isArray(config.allowedMimeTypes)).toBe(true);
+      // ConfigResponse returns plan-based limits: maxFileSize, maxFilesCount, maxTotalSize
     });
   });
 

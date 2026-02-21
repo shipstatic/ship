@@ -129,7 +129,7 @@ describe('createDeployBody (browser)', () => {
   });
 
   describe('content type handling', () => {
-    it('should use deterministic MIME type from file extension', async () => {
+    it('should use application/octet-stream for all files (API derives Content-Type from extension)', async () => {
       const blob = new Blob(['test'], { type: 'application/json' });
       const files: StaticFile[] = [{
         path: 'data.json',
@@ -142,7 +142,7 @@ describe('createDeployBody (browser)', () => {
       const formData = result.body as FormData;
       const fileEntry = formData.get('files[]') as File;
 
-      expect(fileEntry.type).toBe('application/json');
+      expect(fileEntry.type).toBe('application/octet-stream');
     });
 
     it('should handle Blob content', async () => {

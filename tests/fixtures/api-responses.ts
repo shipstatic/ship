@@ -540,20 +540,6 @@ export const configs = {
     maxFileSize: 10485760,      // 10MB
     maxFilesCount: 1000,
     maxTotalSize: 104857600,    // 100MB
-    allowedMimeTypes: [
-      'text/',
-      'image/',
-      'font/',
-      'video/',
-      'audio/',
-      'application/json',
-      'application/javascript',
-      'application/xml',
-      'application/pdf',
-      'application/zip',
-      'application/gzip',
-      'application/wasm',
-    ],
   } satisfies ConfigResponse,
 
   /**
@@ -563,7 +549,6 @@ export const configs = {
     maxFileSize: 5242880,       // 5MB
     maxFilesCount: 100,
     maxTotalSize: 26214400,     // 25MB
-    allowedMimeTypes: ['text/', 'image/'],
   } satisfies ConfigResponse,
 } as const;
 

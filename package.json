@@ -1,6 +1,6 @@
 {
   "name": "@shipstatic/ship",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "description": "SDK & CLI for Shipstatic platform",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -66,7 +66,6 @@
     "form-data-encoder": "^4.1.0",
     "formdata-node": "^6.0.3",
     "junk": "^4.0.1",
-    "mime-db": "^1.54.0",
     "spark-md5": "^3.0.2",
     "yocto-spinner": "^1.1.0",
     "yoctocolors": "^2.1.2",
@@ -75,7 +74,6 @@
   "devDependencies": {
     "@shipstatic/types": "^0.5.4",
     "@types/columnify": "^1.5.4",
-    "@types/mime-db": "^1.43.6",
     "@types/node": "^20.19.33",
     "@types/spark-md5": "^3.0.5",
     "@vitest/coverage-v8": "^3.2.4",

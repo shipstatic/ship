@@ -563,8 +563,8 @@ function handleTokenDelete(res: ServerResponse, tokenId: string): void {
   }
 
   mockTokens.splice(tokenIndex, 1);
-  res.writeHead(202);
-  res.end(JSON.stringify({ message: 'Token marked for deletion' }));
+  res.writeHead(200);
+  res.end(JSON.stringify({ message: 'Token deleted' }));
 }
 
 // =============================================================================
