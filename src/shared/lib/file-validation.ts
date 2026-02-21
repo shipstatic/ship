@@ -12,21 +12,8 @@ import type {
 } from '@shipstatic/types';
 import {
   FileValidationStatus as FILE_VALIDATION_STATUS,
-  isAllowedMimeType,
-  ALLOWED_MIME_TYPES
+  isBlockedExtension,
 } from '@shipstatic/types';
-import type { MimeDatabase } from 'mime-db';
-import mimeDb from 'mime-db';
-
-const typedMimeDb: MimeDatabase = mimeDb;
-
-const VALID_MIME_TYPES = new Set(Object.keys(typedMimeDb));
-
-const MIME_TYPE_EXTENSIONS = new Map(
-  Object.entries(typedMimeDb)
-    .filter(([_, data]) => data.extensions)
-    .map(([type, data]) => [type, new Set(data.extensions)])
-);
 
 export { FILE_VALIDATION_STATUS };
 
@@ -81,35 +68,10 @@ function validateFileName(filename: string): { valid: boolean; reason?: string }
 }
 
 /**
- * Validate that file extension matches MIME type
- * Prevents file masquerading (e.g., .exe file with image/png MIME type)
- *
- * Special cases:
- * - Hidden files (starting with dot) like .gitignore, .env are treated as extensionless
- * - Files with no extension like README, Makefile are allowed with any MIME type
- * - Files with multiple dots use the last segment as extension (archive.tar.gz -> gz)
- */
-function validateFileExtension(filename: string, mimeType: string): boolean {
-  if (filename.startsWith('.')) {
-    return true;
-  }
-
-  const nameParts = filename.toLowerCase().split('.');
-  if (nameParts.length > 1 && nameParts[nameParts.length - 1]) {
-    const extension = nameParts[nameParts.length - 1];
-    const allowedExtensions = MIME_TYPE_EXTENSIONS.get(mimeType);
-    if (allowedExtensions && !allowedExtensions.has(extension)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
  * Validate files against configuration limits with severity-based reporting
  *
  * Validation categorizes issues by severity:
- * - **Errors**: Block deployment (file too large, invalid type, etc.)
+ * - **Errors**: Block deployment (file too large, blocked extension, etc.)
  * - **Warnings**: Exclude files but allow deployment (empty files, etc.)
  *
  * @param files - Array of files to validate
@@ -253,34 +215,10 @@ export function validateFiles<T extends ValidatableFile>(
       });
     }
 
-    // MIME type validation
-    else if (!file.type || file.type.trim().length === 0) {
+    // Blocked extension check
+    else if (isBlockedExtension(file.name)) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = 'File MIME type is required';
-      errors.push({
-        file: file.name,
-        message: statusMessage
-      });
-    }
-    else if (!isAllowedMimeType(file.type)) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = `File type "${file.type}" is not allowed`;
-      errors.push({
-        file: file.name,
-        message: statusMessage
-      });
-    }
-    else if (!ALLOWED_MIME_TYPES.some(allowed => file.type === allowed) && !VALID_MIME_TYPES.has(file.type)) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = `Invalid MIME type "${file.type}"`;
-      errors.push({
-        file: file.name,
-        message: statusMessage
-      });
-    }
-    else if (!validateFileExtension(file.name, file.type)) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = 'File extension does not match MIME type';
+      statusMessage = `File extension not allowed: "${file.name}"`;
       errors.push({
         file: file.name,
         message: statusMessage

@@ -14,11 +14,10 @@ import {
 import type { ConfigResponse } from '@shipstatic/types';
 
 // Mock file helper
-function createMockFile(name: string, size: number, type: string = 'text/plain'): ValidatableFile {
+function createMockFile(name: string, size: number): ValidatableFile {
   return {
     name,
     size,
-    type,
     status: FILE_VALIDATION_STATUS.PENDING,
   };
 }
@@ -30,7 +29,6 @@ describe('File Validation', () => {
         maxFileSize: 5 * 1024 * 1024,
         maxTotalSize: 25 * 1024 * 1024,
         maxFilesCount: 100,
-        allowedMimeTypes: ['text/', 'image/'],
       };
 
       const result = validateFiles([], config);
@@ -63,12 +61,6 @@ describe('File Validation', () => {
       maxFileSize: 5 * 1024 * 1024, // 5MB
       maxTotalSize: 25 * 1024 * 1024, // 25MB
       maxFilesCount: 100,
-      allowedMimeTypes: [
-        'text/',
-        'image/',
-        'application/json',
-        'application/pdf',
-      ],
     };
 
     it('should mark all files as valid when within limits', () => {
@@ -161,7 +153,6 @@ describe('File Validation', () => {
         maxFileSize: 15 * 1024 * 1024, // 15MB per file
         maxTotalSize: 25 * 1024 * 1024, // 25MB total
         maxFilesCount: 100,
-        allowedMimeTypes: config.allowedMimeTypes,
       };
 
       const files = [
@@ -207,12 +198,12 @@ describe('File Validation', () => {
       expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
     });
 
-    describe('MIME type validation', () => {
-      it('should accept files with allowed MIME types', () => {
+    describe('Extension blocklist validation', () => {
+      it('should accept files with non-blocked extensions', () => {
         const files = [
-          createMockFile('doc.txt', 100, 'text/plain'),
-          createMockFile('image.png', 100, 'image/png'),
-          createMockFile('data.json', 100, 'application/json'),
+          createMockFile('doc.txt', 100),
+          createMockFile('image.png', 100),
+          createMockFile('data.json', 100),
         ];
 
         const result = validateFiles(files, config);
@@ -224,29 +215,28 @@ describe('File Validation', () => {
         });
       });
 
-      it('should reject files with disallowed MIME types (atomic)', () => {
+      it('should reject files with blocked extensions (atomic)', () => {
         const files = [
-          createMockFile('archive.zip', 100, 'application/zip'),
-          createMockFile('valid.txt', 100, 'text/plain'),
+          createMockFile('malware.exe', 100),
+          createMockFile('valid.txt', 100),
         ];
 
         const result = validateFiles(files, config);
 
-        // ATOMIC: All files rejected if any has invalid MIME type
+        // ATOMIC: All files rejected if any has blocked extension
         expect(result.canDeploy).toBe(false);
-        expect(result.errors[0].message).toContain('not allowed');
-        expect(result.errors[0].message).toContain('application/zip');
+        expect(result.errors[0].message).toContain('extension not allowed');
         expect(result.validFiles).toHaveLength(0);
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
         expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
 
-      it('should accept MIME types that match category prefixes', () => {
+      it('should accept unknown file extensions (not in blocklist)', () => {
         const files = [
-          createMockFile('doc.html', 100, 'text/html'),
-          createMockFile('style.css', 100, 'text/css'),
-          createMockFile('photo.jpg', 100, 'image/jpeg'),
-          createMockFile('icon.svg', 100, 'image/svg+xml'),
+          createMockFile('doc.html', 100),
+          createMockFile('style.css', 100),
+          createMockFile('photo.jpg', 100),
+          createMockFile('icon.svg', 100),
         ];
 
         const result = validateFiles(files, config);
@@ -258,23 +248,24 @@ describe('File Validation', () => {
         });
       });
 
-      it('should reject files with empty MIME type', () => {
+      it('should accept files with unknown/custom extensions', () => {
         const files = [
-          { ...createMockFile('unknown.xyz', 100, ''), type: '' },
+          createMockFile('data.parquet', 100),
+          createMockFile('model.onnx', 100),
+          createMockFile('custom.xyz', 100),
         ];
 
         const result = validateFiles(files, config);
 
-        expect(result.validFiles).toHaveLength(0);
-        expect(result.canDeploy).toBe(false);
-        expect(result.errors[0].message).toContain('required');
+        expect(result.validFiles).toHaveLength(3);
+        expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
       });
 
-      it('should reject multiple files with invalid types (atomic)', () => {
+      it('should reject multiple files with blocked extensions (atomic)', () => {
         const files = [
-          createMockFile('valid.txt', 100, 'text/plain'),
-          createMockFile('bad1.exe', 100, 'application/x-msdownload'),
-          createMockFile('bad2.bin', 100, 'application/octet-stream'),
+          createMockFile('valid.txt', 100),
+          createMockFile('bad1.exe', 100),
+          createMockFile('bad2.msi', 100),
         ];
 
         const result = validateFiles(files, config);
@@ -285,11 +276,9 @@ describe('File Validation', () => {
 
         // Verify both errors are in the errors array
         expect(result.errors).toHaveLength(2);
-        expect(result.errors[0].message).toContain('not allowed');
+        expect(result.errors[0].message).toContain('extension not allowed');
         expect(result.errors[0].file).toBe('bad1.exe');
-        expect(result.errors[0].message).toContain('application/x-msdownload');
-        expect(result.errors[1].file).toBe('bad2.bin');
-        expect(result.errors[1].message).toContain('application/octet-stream');
+        expect(result.errors[1].file).toBe('bad2.msi');
 
         // All files marked as VALIDATION_FAILED (atomic)
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
@@ -297,9 +286,9 @@ describe('File Validation', () => {
         expect(result.files[2].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
 
-      it('should allow WASM files (web standard)', () => {
+      it('should accept WASM files (web standard)', () => {
         const files = [
-          createMockFile('app.wasm', 100, 'application/wasm'),
+          createMockFile('app.wasm', 100),
         ];
 
         const result = validateFiles(files, config);
@@ -320,7 +309,6 @@ describe('File Validation', () => {
         {
           name: 'test.txt',
           size: 100,
-          type: 'text/plain',
           customProperty: 'custom value',
         },
       ];
@@ -337,13 +325,12 @@ describe('File Validation', () => {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
-      allowedMimeTypes: ['text/'],
     };
 
     it('should reject empty file names (atomic)', () => {
       const files = [
-        { ...createMockFile('', 100, 'text/plain'), name: '' },
-        createMockFile('valid.txt', 100, 'text/plain'),
+        { ...createMockFile('', 100), name: '' },
+        createMockFile('valid.txt', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -358,8 +345,8 @@ describe('File Validation', () => {
 
     it('should reject file names with path traversal (atomic)', () => {
       const files = [
-        createMockFile('../../../etc/passwd', 100, 'text/plain'),
-        createMockFile('valid.txt', 100, 'text/plain'),
+        createMockFile('../../../etc/passwd', 100),
+        createMockFile('valid.txt', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -374,8 +361,8 @@ describe('File Validation', () => {
 
     it('should reject file names with null bytes (atomic)', () => {
       const files = [
-        createMockFile('file\0.txt', 100, 'text/plain'),
-        createMockFile('valid.txt', 100, 'text/plain'),
+        createMockFile('file\0.txt', 100),
+        createMockFile('valid.txt', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -394,13 +381,12 @@ describe('File Validation', () => {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
-      allowedMimeTypes: ['text/'],
     };
 
     it('should reject negative file sizes (atomic)', () => {
       const files = [
-        { ...createMockFile('negative.txt', -100, 'text/plain'), size: -100 },
-        createMockFile('valid.txt', 100, 'text/plain'),
+        { ...createMockFile('negative.txt', -100), size: -100 },
+        createMockFile('valid.txt', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -413,88 +399,19 @@ describe('File Validation', () => {
     });
   });
 
-  describe('MIME Type Validation - Advanced', () => {
-    const config: ConfigResponse = {
-      maxFileSize: 5 * 1024 * 1024,
-      maxTotalSize: 25 * 1024 * 1024,
-      maxFilesCount: 100,
-      allowedMimeTypes: ['text/', 'image/'],
-    };
-
-    it('should reject files with empty MIME type (atomic)', () => {
-      const files = [
-        { ...createMockFile('file.txt', 100, ''), type: '' },
-        createMockFile('valid.txt', 100, 'text/plain'),
-      ];
-
-      const result = validateFiles(files, config);
-
-      expect(result.canDeploy).toBe(false);
-      expect(result.errors[0].message).toContain('File MIME type is required');
-      expect(result.validFiles).toHaveLength(0);
-      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
-      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
-    });
-
-    it('should reject files with invalid MIME type (not in mime-db) (atomic)', () => {
-      const files = [
-        createMockFile('file.xyz', 100, 'image/invalid-made-up-type'), // In allowed category (image/*) but not in mime-db
-        createMockFile('valid.txt', 100, 'text/plain'),
-      ];
-
-      const result = validateFiles(files, config);
-
-      expect(result.canDeploy).toBe(false);
-      expect(result.errors[0].message).toContain('Invalid MIME type');
-      expect(result.validFiles).toHaveLength(0);
-      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
-      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
-    });
-
-    it('should reject files where extension does not match MIME type (atomic)', () => {
-      const files = [
-        createMockFile('image.txt', 100, 'image/png'), // .txt file claiming to be PNG
-        createMockFile('valid.txt', 100, 'text/plain'),
-      ];
-
-      const result = validateFiles(files, config);
-
-      expect(result.canDeploy).toBe(false);
-      expect(result.errors[0].message).toContain('does not match');
-      expect(result.errors[0].message).toContain('File extension does not match MIME type');
-      expect(result.validFiles).toHaveLength(0);
-      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
-      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
-    });
-
-    it('should accept files where extension matches MIME type', () => {
-      const files = [
-        createMockFile('document.txt', 100, 'text/plain'),
-        createMockFile('image.png', 100, 'image/png'),
-        createMockFile('photo.jpg', 100, 'image/jpeg'),
-      ];
-
-      const result = validateFiles(files, config);
-
-      expect(result.validFiles).toHaveLength(3);
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
-    });
-  });
-
   describe('Edge Case File Names', () => {
     const config: ConfigResponse = {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
-      allowedMimeTypes: ['text/', 'image/', 'application/'],
     };
 
     it('should accept files with no extension', () => {
       const files = [
-        createMockFile('README', 100, 'text/plain'),
-        createMockFile('Makefile', 100, 'text/plain'),
-        createMockFile('LICENSE', 100, 'text/plain'),
-        createMockFile('Dockerfile', 100, 'text/plain'),
+        createMockFile('README', 100),
+        createMockFile('Makefile', 100),
+        createMockFile('LICENSE', 100),
+        createMockFile('Dockerfile', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -505,9 +422,9 @@ describe('File Validation', () => {
 
     it('should accept files with multiple dots (handles last extension)', () => {
       const files = [
-        createMockFile('bundle.min.js', 100, 'application/javascript'),
-        createMockFile('style.2024.css', 100, 'text/css'),
-        createMockFile('data.min.js', 100, 'application/javascript'),
+        createMockFile('bundle.min.js', 100),
+        createMockFile('style.2024.css', 100),
+        createMockFile('data.min.js', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -518,9 +435,9 @@ describe('File Validation', () => {
 
     it('should accept hidden files (files starting with dot)', () => {
       const files = [
-        createMockFile('.gitignore', 100, 'text/plain'),
-        createMockFile('.env', 100, 'text/plain'),
-        createMockFile('.htaccess', 100, 'text/plain'),
+        createMockFile('.gitignore', 100),
+        createMockFile('.env', 100),
+        createMockFile('.htaccess', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -531,9 +448,9 @@ describe('File Validation', () => {
 
     it('should accept hidden files with extensions', () => {
       const files = [
-        createMockFile('.env.local', 100, 'text/plain'),
-        createMockFile('.env.production', 100, 'text/plain'),
-        createMockFile('.gitignore.backup', 100, 'text/plain'),
+        createMockFile('.env.local', 100),
+        createMockFile('.env.production', 100),
+        createMockFile('.gitignore.backup', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -542,34 +459,31 @@ describe('File Validation', () => {
       expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
     });
 
-    it('should handle case-insensitive extensions', () => {
+    it('should handle case-insensitive blocked extensions', () => {
       const files = [
-        createMockFile('photo.JPG', 100, 'image/jpeg'),
-        createMockFile('image.PNG', 100, 'image/png'),
-        createMockFile('document.TXT', 100, 'text/plain'),
-        createMockFile('script.JS', 100, 'application/javascript'),
+        createMockFile('virus.EXE', 100),
+        createMockFile('malware.MSI', 100),
       ];
 
       const result = validateFiles(files, config);
 
-      expect(result.validFiles).toHaveLength(4);
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors).toHaveLength(2);
     });
   });
 
-  describe('Uncommon but Valid MIME Types', () => {
+  describe('Uncommon but Valid File Types', () => {
     const config: ConfigResponse = {
       maxFileSize: 10 * 1024 * 1024,
       maxTotalSize: 50 * 1024 * 1024,
       maxFilesCount: 100,
-      allowedMimeTypes: ['font/', 'video/', 'audio/', 'application/', 'image/'],
     };
 
     it('should accept font files', () => {
       const files = [
-        createMockFile('font.woff', 100, 'font/woff'),
-        createMockFile('font.woff2', 100, 'font/woff2'),
-        createMockFile('font.ttf', 100, 'font/ttf'),
+        createMockFile('font.woff', 100),
+        createMockFile('font.woff2', 100),
+        createMockFile('font.ttf', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -580,9 +494,9 @@ describe('File Validation', () => {
 
     it('should accept video files', () => {
       const files = [
-        createMockFile('video.mp4', 100, 'video/mp4'),
-        createMockFile('video.webm', 100, 'video/webm'),
-        createMockFile('video.mov', 100, 'video/quicktime'),
+        createMockFile('video.mp4', 100),
+        createMockFile('video.webm', 100),
+        createMockFile('video.mov', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -593,9 +507,9 @@ describe('File Validation', () => {
 
     it('should accept audio files', () => {
       const files = [
-        createMockFile('audio.mp3', 100, 'audio/mpeg'),
-        createMockFile('audio.wav', 100, 'audio/wav'),
-        createMockFile('audio.ogg', 100, 'audio/ogg'),
+        createMockFile('audio.mp3', 100),
+        createMockFile('audio.wav', 100),
+        createMockFile('audio.ogg', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -606,9 +520,9 @@ describe('File Validation', () => {
 
     it('should accept modern image formats', () => {
       const files = [
-        createMockFile('image.webp', 100, 'image/webp'),
-        createMockFile('image.svg', 100, 'image/svg+xml'),
-        createMockFile('image.avif', 100, 'image/avif'),
+        createMockFile('image.webp', 100),
+        createMockFile('image.svg', 100),
+        createMockFile('image.avif', 100),
       ];
 
       const result = validateFiles(files, config);
@@ -684,7 +598,6 @@ describe('File Validation', () => {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
-      allowedMimeTypes: ['text/', 'image/', 'application/'],
     };
 
     it('should reject files with URL-unsafe characters', () => {
@@ -784,7 +697,7 @@ describe('File Validation', () => {
     });
 
     it('should reject files with path traversal (..)', () => {
-      const result = validateFiles([createMockFile('../../../etc/passwd', 100, 'text/plain')], config);
+      const result = validateFiles([createMockFile('../../../etc/passwd', 100)], config);
       expect(result.canDeploy).toBe(false);
       expect(result.errors[0].message).toBeDefined();
       expect(result.errors[0].message).toContain('traversal');
@@ -792,22 +705,22 @@ describe('File Validation', () => {
 
     it('should accept valid filenames', () => {
       const validFiles = [
-        { name: 'file.txt', type: 'text/plain' },
-        { name: 'my-file.txt', type: 'text/plain' },
-        { name: 'my_file.txt', type: 'text/plain' },
-        { name: 'file123.txt', type: 'text/plain' },
-        { name: 'FILE.TXT', type: 'text/plain' },
-        { name: 'bundle.min.js', type: 'application/javascript' },
-        { name: 'index.html', type: 'text/html' },
-        { name: 'README.md', type: 'text/markdown' },
-        { name: 'package.json', type: 'application/json' },
-        { name: '.gitignore', type: 'text/plain' }, // Hidden files are allowed
-        { name: '.env', type: 'text/plain' },
-        { name: '.htaccess', type: 'text/plain' },
+        'file.txt',
+        'my-file.txt',
+        'my_file.txt',
+        'file123.txt',
+        'FILE.TXT',
+        'bundle.min.js',
+        'index.html',
+        'README.md',
+        'package.json',
+        '.gitignore', // Hidden files are allowed
+        '.env',
+        '.htaccess',
       ];
 
-      validFiles.forEach(({ name, type }) => {
-        const result = validateFiles([createMockFile(name, 100, type)], config);
+      validFiles.forEach(name => {
+        const result = validateFiles([createMockFile(name, 100)], config);
         expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
         expect(result.validFiles).toHaveLength(1);
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.READY);
@@ -818,7 +731,7 @@ describe('File Validation', () => {
       const result = validateFiles([
         createMockFile('folder/file.txt', 100),
         createMockFile('folder/subfolder/file.txt', 100),
-        createMockFile('assets/images/logo.png', 100, 'image/png'),
+        createMockFile('assets/images/logo.png', 100),
       ], config);
 
       expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);

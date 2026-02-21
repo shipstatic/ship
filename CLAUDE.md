@@ -381,18 +381,39 @@ The SDK maps directly to API endpoints:
 `PUT /domains/:name` is the single write endpoint. Merge semantics — omitted fields are preserved on update, defaulted on create:
 
 ```typescript
-// Create or re-point domain
+// Reserve domain (no deployment linked yet)
+ship.domains.set('staging');
+
+// Link domain to deployment
 ship.domains.set('staging', { deployment: 'abc123' });
+
+// Switch to different deployment (atomic)
+ship.domains.set('staging', { deployment: 'xyz789' });
 
 // Update labels (deployment preserved)
 ship.domains.set('staging', { labels: ['prod', 'v2'] });
 
 // Update both
 ship.domains.set('staging', { deployment: 'abc123', labels: ['prod'] });
-
-// Reserve domain (no deployment linked)
-ship.domains.set('staging');
 ```
+
+**Important Design Decision: No "Unlinking"**
+
+Once a domain is linked to a deployment, it must always have a deployment. The API rejects `{"deployment": null}`:
+
+```typescript
+// ❌ NOT SUPPORTED - This will return 400 error
+ship.domains.set('staging', { deployment: null });
+```
+
+**Why?** This is intentional simplicity (see "Impossible Simplicity" principle):
+- **Reservation** (forward-looking) makes sense: "I'm claiming this domain, will link soon"
+- **Unlinking** (backward-looking) doesn't: "I had something, now it serves... what?"
+
+**What to do instead:**
+- **To take site offline:** Deploy a maintenance page, then switch to it
+- **To switch deployments:** Use atomic switch: `set(domain, { deployment: newId })`
+- **To remove domain:** Use `ship.domains.remove(domain)` for clean deletion
 
 **Why PUT, not PATCH?** Domains are mutable routing records identified by natural key. PUT upsert is the right verb — one endpoint for create, re-point, and label. Deployments use PATCH because they're immutable artifacts with one mutable annotation (labels).
 

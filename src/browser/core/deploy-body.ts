@@ -3,7 +3,6 @@
  */
 import { ShipError } from '@shipstatic/types';
 import type { StaticFile, DeployBody } from '../../shared/types.js';
-import { getMimeType } from '../../shared/lib/mimeType.js';
 
 export async function createDeployBody(
   files: StaticFile[],
@@ -24,9 +23,8 @@ export async function createDeployBody(
       throw ShipError.file(`File missing md5 checksum: ${file.path}`, file.path);
     }
 
-    // 3. Create File with deterministic MIME type and append
-    const contentType = getMimeType(file.path);
-    const fileInstance = new File([file.content], file.path, { type: contentType });
+    // 3. Create File and append — API derives Content-Type from extension
+    const fileInstance = new File([file.content], file.path, { type: 'application/octet-stream' });
     formData.append('files[]', fileInstance);
     checksums.push(file.md5);
   }

@@ -11,11 +11,10 @@ import {
 import type { ConfigResponse } from '@shipstatic/types';
 
 // Mock file helper
-function createMockFile(name: string, size: number, type: string = 'text/plain'): ValidatableFile {
+function createMockFile(name: string, size: number): ValidatableFile {
   return {
     name,
     size,
-    type,
     status: FILE_VALIDATION_STATUS.PENDING,
   };
 }
@@ -25,7 +24,6 @@ describe('File Validation - Boundary Tests', () => {
     maxFileSize: 5 * 1024 * 1024, // 5MB
     maxTotalSize: 25 * 1024 * 1024, // 25MB
     maxFilesCount: 100,
-    allowedMimeTypes: ['text/', 'image/', 'application/json'],
   };
 
   describe('File Size Boundaries', () => {
@@ -171,26 +169,22 @@ describe('File Validation - Boundary Tests', () => {
     });
   });
 
-  describe('MIME Type Edge Cases', () => {
-    it('should reject MIME types with parameters (not in mime-db)', () => {
-      // MIME types with parameters are checked against mime-db
-      // 'text/html; charset=utf-8' is not a valid mime-db entry
-      // The validation checks: isAllowed && (explicitly allowed || in mime-db)
+  describe('Extension Blocklist Edge Cases', () => {
+    it('should reject blocked extensions regardless of case', () => {
       const files = [
-        createMockFile('page.html', 100, 'text/html; charset=utf-8'),
-        createMockFile('data.json', 100, 'application/json; charset=utf-8'),
+        createMockFile('virus.EXE', 100),
+        createMockFile('valid.txt', 100),
       ];
       const result = validateFiles(files, config);
 
-      // These will fail because the full string with parameters isn't in mime-db
       expect(result.canDeploy).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].message).toContain('extension not allowed');
     });
 
-    it('should accept MIME types without parameters', () => {
+    it('should accept unknown extensions (not blocked)', () => {
       const files = [
-        createMockFile('page.html', 100, 'text/html'),
-        createMockFile('data.json', 100, 'application/json'),
+        createMockFile('data.parquet', 100),
+        createMockFile('model.onnx', 100),
       ];
       const result = validateFiles(files, config);
 
@@ -310,7 +304,7 @@ describe('File Validation - Boundary Tests', () => {
     it('should accept paths without traversal', () => {
       const files = [
         createMockFile('folder/subfolder/file.txt', 100),
-        createMockFile('assets/images/logo.png', 100, 'image/png'),
+        createMockFile('assets/images/logo.png', 100),
       ];
       const result = validateFiles(files, config);
 
@@ -343,14 +337,14 @@ describe('File Validation - Boundary Tests', () => {
     it('should report different types of errors', () => {
       const files = [
         createMockFile('toobig.txt', config.maxFileSize + 1),  // Size error
-        createMockFile('invalid.exe', 100, 'application/x-msdownload'), // MIME error
+        createMockFile('malware.exe', 100),                     // Blocked extension
         createMockFile('valid.txt', 100),
       ];
       const result = validateFiles(files, config);
 
       expect(result.errors).toHaveLength(2);
       expect(result.errors[0].message).toContain('exceeds limit');
-      expect(result.errors[1].message).toContain('not allowed');
+      expect(result.errors[1].message).toContain('extension not allowed');
 
       // All failed atomically
       expect(result.validFiles).toHaveLength(0);
