@@ -9,7 +9,6 @@ const nodeExternals = [
   'form-data-encoder',
   'formdata-node',
   'junk',
-  'mime-db',
   'spark-md5',
   'yocto-spinner',
   'yoctocolors',
@@ -20,7 +19,6 @@ const nodeExternals = [
 // Dependencies to be bundled into the browser build
 const browserBundleDeps = [
   'spark-md5',
-  'mime-db',
   'form-data-encoder',
   'junk',
   'zod',

@@ -106,6 +106,11 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
   const { getApi, ensureInit } = ctx;
 
   return {
+    // INTENTIONAL DESIGN: The API does NOT support unlinking domains (setting deployment to null).
+    // Once a domain is linked to a deployment, it must always have a deployment.
+    // Supported: reserve (omit deployment), link, switch deployments atomically, delete entirely.
+    // Not supported: unlink after linking (creates ambiguous state with no clear use case).
+    // See npm/ship/CLAUDE.md "Domain Write Semantics" for full rationale.
     set: async (name: string, options: { deployment?: string; labels?: string[] } = {}) => {
       await ensureInit();
       return getApi().setDomain(name, options.deployment, options.labels);
