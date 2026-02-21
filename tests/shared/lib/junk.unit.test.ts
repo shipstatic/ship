@@ -143,6 +143,46 @@ describe('filterJunk', () => {
     expect(filterJunk(files)).toEqual(expected);
   });
 
+  it('should allow .well-known at root level (RFC 8615)', () => {
+    const files = [
+      'index.html',
+      '.well-known/security.txt',
+      '.well-known/acme-challenge/token-12345',
+      '.well-known/apple-app-site-association',
+      '.well-known/assetlinks.json',
+      'app.js',
+    ];
+    expect(filterJunk(files)).toEqual(files);
+  });
+
+  it('should block .well-known at non-root levels', () => {
+    const files = [
+      'index.html',
+      'subdir/.well-known/security.txt',
+      'deep/nested/.well-known/file',
+    ];
+    expect(filterJunk(files)).toEqual(['index.html']);
+  });
+
+  it('should require exact case for .well-known', () => {
+    const files = [
+      'index.html',
+      '.Well-Known/security.txt',
+      '.WELL-KNOWN/security.txt',
+      '.Well-known/security.txt',
+    ];
+    expect(filterJunk(files)).toEqual(['index.html']);
+  });
+
+  it('should still block dot files under .well-known', () => {
+    const files = [
+      '.well-known/security.txt',
+      '.well-known/.secret',
+      '.well-known/.env',
+    ];
+    expect(filterJunk(files)).toEqual(['.well-known/security.txt']);
+  });
+
   it('should filter path segments exceeding 255 characters', () => {
     // Path segments (directory or filename) are checked individually
     // Each segment must be <= 255 characters
