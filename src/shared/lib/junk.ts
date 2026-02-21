@@ -28,7 +28,7 @@ export const JUNK_DIRECTORIES = [
  * A path is filtered out if any of these conditions are met:
  * 1. The basename is identified as junk by the 'junk' package (e.g., .DS_Store, Thumbs.db)
  * 2. Any path segment starts with a dot (e.g., .env, .git, .htaccess)
- *    Exception: `.well-known` at root is allowed (RFC 8615 — ACME, security.txt, app links)
+ *    Exception: `.well-known` is allowed (RFC 8615 — ACME, security.txt, app links)
  * 3. Any path segment exceeds 255 characters (filesystem limit)
  * 4. Any directory segment in the path matches an entry in JUNK_DIRECTORIES (case-insensitive)
  *
@@ -90,11 +90,10 @@ export function filterJunk(filePaths: string[]): string[] {
     }
 
     // Filter out dot files and directories (security: prevents .env, .git, etc.)
-    // Exception: .well-known at root is allowed (RFC 8615 — ACME, security.txt, app links)
-    // Also enforce path segment length limit to match server validation
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (part === '.well-known' && i === 0) continue;
+    // .well-known is not junk — it's a standard directory (RFC 8615)
+    // Path position constraints enforced at upload (buildFileKey) and serving (isBlockedDotFile)
+    for (const part of parts) {
+      if (part === '.well-known') continue;
       if (part.startsWith('.') || part.length > 255) {
         return false;
       }
