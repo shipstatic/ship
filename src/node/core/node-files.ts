@@ -6,7 +6,7 @@ import { getENV } from '../../shared/lib/env.js';
 import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
 import { filterJunk } from '../../shared/lib/junk.js';
-import { validateDeployPath } from '../../shared/lib/security.js';
+import { validateDeployPath, validateDeployFile } from '../../shared/lib/security.js';
 import { ShipError, isShipError } from '@shipstatic/types';
 import { getCurrentConfig } from '../../shared/core/platform-config.js';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
@@ -136,6 +136,9 @@ export async function processFilesForNode(
       if (stats.size === 0) {
         continue;
       }
+
+      // Filename and extension validation (shared with browser)
+      validateDeployFile(deployPath, filePath);
 
       // Validate file sizes
       if (stats.size > platformLimits.maxFileSize) {
