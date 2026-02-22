@@ -69,6 +69,9 @@ vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
 vi.mock('../../src/node/core/node-files', () => NODE_FILE_UTILS_MOCK);
 vi.mock('../../src/shared/lib/path', () => PATH_HELPERS_MOCK);
 vi.mock('../../src/shared/core/config', () => CONFIG_LOADER_MOCK_IMPLEMENTATION);
+vi.mock('../../src/node/core/config', () => ({
+  loadConfig: CONFIG_LOADER_MOCK_IMPLEMENTATION.loadConfig
+}));
 
 // Aliases to the mocked implementations
 const apiClientMock = mockApiHttpInstance;
@@ -158,31 +161,31 @@ describe('NodeShipClient', () => {
       timeout: 10000 // Overrides file/env timeout
     };
     
+    // Import the SDK with a fresh module
+    vi.resetModules(); // Ensure clean state for module imports and config loading
+    const { Ship } = await import('../../src/index'); // Re-import after reset
+
     // Mock loadConfig to simulate the combined result of file config overridden by environment variables
     configLoaderMock.mockReturnValueOnce({
       apiKey: process.env.SHIPSTATIC_API_KEY, // Value from env
       apiUrl: process.env.SHIPSTATIC_API_URL, // Value from env
       timeout: fileConfigValues.timeout    // Value from file (as no env override)
     });
-    
-    // Import the SDK with a fresh module
-    vi.resetModules(); // Ensure clean state for module imports and config loading
-    const { Ship } = await import('../../src/index'); // Re-import after reset
-    
+
     // Create client with direct options using constructor
-    const combinedClient = new Ship(directDeployOptions); // Renamed to avoid conflict with outer scope client
-    
+    const combinedClient = new Ship(directDeployOptions);
+
     // Clear the mock history to ignore the first call
     MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
-    
+
     // NOW, trigger the async initialization that makes the SECOND, correct call
     await combinedClient.ping();
-    
+
     // Assert against the most recent call, which has the working config
     expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
       expect.objectContaining({
         apiKey: 'direct_api_key',        // Direct option takes precedence
-        apiUrl: 'https://api.shipstatic.dev', // Working API URL
+        apiUrl: 'https://env.api.host', // Env overrides file, direct didn't specify
         timeout: 10000                   // Direct option takes precedence
       })
     );

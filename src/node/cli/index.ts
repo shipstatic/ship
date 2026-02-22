@@ -113,6 +113,7 @@ ${applyBold('FLAGS')}
   --api-key <key>           API key for authenticated deployments
   --deploy-token <token>    Deploy token for single-use deployments
   --config <file>           Custom config file path
+  --label <label>           Add label (repeatable, works with deploy/set commands)
   --no-path-detect          Disable automatic path optimization and flattening
   --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
