@@ -53,7 +53,10 @@ const mockAccount: Account = {
   picture: 'https://example.com/avatar.jpg',
   plan: 'free',
   usage: { customDomains: 0 },
-  created: 1640995000
+  created: 1640995000,
+  activated: null,
+  hint: null,
+  grace: null,
 };
 
 // Default: Return empty lists for deterministic tests
