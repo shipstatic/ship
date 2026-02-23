@@ -52,6 +52,7 @@ const mockAccount: Account = {
   name: 'Test User',
   picture: 'https://example.com/avatar.jpg',
   plan: 'free',
+  usage: { customDomains: 0 },
   created: 1640995000
 };
 
