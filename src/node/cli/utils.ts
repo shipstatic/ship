@@ -76,7 +76,7 @@ export const formatTimestamp = (timestamp?: number, context: 'table' | 'details'
  */
 const formatValue = (key: string, value: unknown, context: 'table' | 'details' = 'details', noColor?: boolean): string => {
   if (value === null) return '-';
-  if (typeof value === 'number' && (key === 'created' || key === 'expires' || key === 'linked')) {
+  if (typeof value === 'number' && (key === 'created' || key === 'activated' || key === 'expires' || key === 'linked' || key === 'grace')) {
     return formatTimestamp(value, context, noColor);
   }
   if (key === 'size' && typeof value === 'number') {

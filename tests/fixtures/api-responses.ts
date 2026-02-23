@@ -291,6 +291,7 @@ export const accounts = {
     created: timestamps.jan2022,
     activated: null,
     hint: null,
+    grace: null,
   } satisfies Account,
 
   /**
@@ -305,6 +306,7 @@ export const accounts = {
     created: timestamps.jan2022,
     activated: timestamps.jan2022,
     hint: null,
+    grace: null,
   } satisfies Account,
 
   /**
@@ -319,6 +321,7 @@ export const accounts = {
     created: timestamps.jan2022,
     activated: null,
     hint: null,
+    grace: null,
   } satisfies Account,
 } as const;
 
