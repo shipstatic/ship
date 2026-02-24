@@ -103,7 +103,7 @@ describe('Strip Common Prefix Test', () => {
       ];
       
       // Call upload with flattenDirs: true
-      await client.deployments.create(files, { flattenDirs: true });
+      await client.deployments.upload(files, { flattenDirs: true });
       
       // Check what paths were sent to the API
       const uploadedFiles = mockApiHttpInstance.deploy.mock.calls[0][0] as any[]; // Typed as any[]
@@ -128,7 +128,7 @@ describe('Strip Common Prefix Test', () => {
       ];
       
       // Call upload with flattenDirs flag
-      await client.deployments.create(files, {
+      await client.deployments.upload(files, {
         flattenDirs: true
       });
       

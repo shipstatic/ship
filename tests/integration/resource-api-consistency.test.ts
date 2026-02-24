@@ -86,12 +86,12 @@ describe('Resource API Cross-Environment Consistency', () => {
       });
 
       // Validate identical method signatures
-      expect(typeof nodeDeploymentResource.create).toBe('function');
+      expect(typeof nodeDeploymentResource.upload).toBe('function');
       expect(typeof nodeDeploymentResource.list).toBe('function');
       expect(typeof nodeDeploymentResource.get).toBe('function');
       expect(typeof nodeDeploymentResource.remove).toBe('function');
 
-      expect(typeof browserDeploymentResource.create).toBe('function');
+      expect(typeof browserDeploymentResource.upload).toBe('function');
       expect(typeof browserDeploymentResource.list).toBe('function');
       expect(typeof browserDeploymentResource.get).toBe('function');
       expect(typeof browserDeploymentResource.remove).toBe('function');
@@ -104,7 +104,7 @@ describe('Resource API Cross-Environment Consistency', () => {
       expect(mockApiClient.listDeployments).toHaveBeenCalledTimes(2);
     });
 
-    it('should return identical deployment create responses across environments', async () => {
+    it('should return identical deployment upload responses across environments', async () => {
       // Node.js deployment
       __setTestEnvironment('node');
       const { createDeploymentResource: createNodeResource } = await import('../../src/shared/resources');
@@ -123,8 +123,8 @@ describe('Resource API Cross-Environment Consistency', () => {
         processInput: vi.fn().mockResolvedValue([{ path: 'test.html', content: new ArrayBuffer(4), size: 4, md5: 'hash' }])
       });
 
-      const nodeResult = await nodeResource.create(['./test.html'] as any, {});
-      const browserResult = await browserResource.create([new File(['test'], 'test.html')] as any, {});
+      const nodeResult = await nodeResource.upload(['./test.html'] as any, {});
+      const browserResult = await browserResource.upload([new File(['test'], 'test.html')] as any, {});
 
       // Results should be identical
       expect(nodeResult).toEqual(browserResult);
@@ -158,10 +158,10 @@ describe('Resource API Cross-Environment Consistency', () => {
       });
 
       // Both should throw identical errors
-      await expect(nodeResource.create(['./test.html'] as any, {}))
+      await expect(nodeResource.upload(['./test.html'] as any, {}))
         .rejects.toThrow('API key is invalid');
-      
-      await expect(browserResource.create([new File(['test'], 'test.html')] as any, {}))
+
+      await expect(browserResource.upload([new File(['test'], 'test.html')] as any, {}))
         .rejects.toThrow('API key is invalid');
     });
   });

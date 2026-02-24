@@ -115,9 +115,9 @@ describe('BrowserShipClient', () => {
     });
   });
 
-  describe('BrowserShipClient.deployments.create()', () => {
+  describe('BrowserShipClient.deployments.upload()', () => {
     it('should call processFilesForBrowser for File[] input', async () => {
-      await client.deployments.create([mockF('f.txt', 'c')], {});
+      await client.deployments.upload([mockF('f.txt', 'c')], {});
       expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
         [expect.any(File)],
         expect.objectContaining({
@@ -130,7 +130,7 @@ describe('BrowserShipClient', () => {
 
     it('should throw ShipError for non-browser input type', async () => {
       const { ShipError } = await import('@shipstatic/types');
-      await expect(client.deployments.create(['/path/to/file'] as any, {})).rejects.toThrow(ShipError.business('Invalid input type for browser environment. Expected File[].'));
+      await expect(client.deployments.upload(['/path/to/file'] as any, {})).rejects.toThrow(ShipError.business('Invalid input type for browser environment. Expected File[].'));
     });
 
 
@@ -148,7 +148,7 @@ describe('BrowserShipClient', () => {
       fileUtilsMock.processFilesForBrowser.mockResolvedValueOnce([{ path: 'file.txt', content: new Blob(['content']), md5:'m', size:1 }]);
 
       // Call deploy with browser-compatible input
-      await client.deployments.create(files, specificDeployOptions);
+      await client.deployments.upload(files, specificDeployOptions);
 
       // Verify we're passing the options through correctly to processFiles
       expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
@@ -177,7 +177,7 @@ describe('BrowserShipClient', () => {
         { path: 'app.js', content: new Blob(['console.log("hello")']), md5: 'abc123', size: 20 }
       ]);
 
-      await client.deployments.create(files, { labels });
+      await client.deployments.upload(files, { labels });
 
       // Verify labels are passed through to the HTTP layer
       expect(apiClientMock.deploy).toHaveBeenCalledWith(

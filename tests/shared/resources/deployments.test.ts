@@ -62,12 +62,12 @@ describe('Deployment Resource (Unified Architecture)', () => {
     });
   });
 
-  describe('create', () => {
+  describe('upload', () => {
     it('should process input and deploy files through unified pipeline', async () => {
       const mockInput = ['./dist'];
       const options: DeploymentOptions = {};
 
-      const result = await deploymentResource.create(mockInput as any, options);
+      const result = await deploymentResource.upload(mockInput as any, options);
 
       // Verify the pipeline executed correctly
       expect(mockEnsureInit).toHaveBeenCalled();
@@ -93,7 +93,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
         labels
       });
 
-      const result = await deploymentResource.create(mockInput as any, options);
+      const result = await deploymentResource.upload(mockInput as any, options);
 
       // Verify labels were passed through the pipeline
       expect(mockApiHttp.deploy).toHaveBeenCalled();
@@ -115,7 +115,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
         labels
       });
 
-      const result = await deploymentResource.create(mockInput as any, options);
+      const result = await deploymentResource.upload(mockInput as any, options);
 
       const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
       const deployOptions = deployCallArgs[1];
@@ -127,7 +127,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       const mockInput = ['./dist'];
       const options: DeploymentOptions = {};
 
-      const result = await deploymentResource.create(mockInput as any, options);
+      const result = await deploymentResource.upload(mockInput as any, options);
 
       const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
       const deployOptions = deployCallArgs[1];
@@ -139,7 +139,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       const mockInput = ['./dist'];
       const options: DeploymentOptions = { labels: [] };
 
-      const result = await deploymentResource.create(mockInput as any, options);
+      const result = await deploymentResource.upload(mockInput as any, options);
 
       const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
       const deployOptions = deployCallArgs[1];
@@ -150,7 +150,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       const mockInput = ['./dist'];
       const options: DeploymentOptions = { spaDetect: true };
 
-      await deploymentResource.create(mockInput as any, options);
+      await deploymentResource.upload(mockInput as any, options);
 
       // Verify SPA detection was applied (through our mock)
       const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
@@ -168,7 +168,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
         processInput: undefined as any
       });
 
-      await expect(brokenResource.create(['./dist'] as any, {}))
+      await expect(brokenResource.upload(['./dist'] as any, {}))
         .rejects.toThrow('processInput function is not provided.');
     });
 
@@ -182,7 +182,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       });
 
       const options = { timeout: 10000 }; // Override timeout
-      await resourceWithDefaults.create(['./dist'] as any, options);
+      await resourceWithDefaults.upload(['./dist'] as any, options);
 
       // Verify mergedOptions were passed to processInput
       const processInputCall = mockProcessInput.mock.calls[0];

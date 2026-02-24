@@ -54,7 +54,7 @@ const ship = new Ship({
 });
 
 // Deploy
-const result = await ship.deployments.create('./dist', {
+const result = await ship.deployments.upload('./dist', {
   onProgress: ({ percent }) => console.log(`${percent}%`)
 });
 
@@ -78,7 +78,7 @@ const ship = new Ship({ apiKey: 'ship-your-api-key' });
 
 // From file input
 const files = Array.from(fileInput.files);
-const result = await ship.deployments.create(files);
+const result = await ship.deployments.upload(files);
 ```
 
 ## Authentication
@@ -120,7 +120,7 @@ SHIP_API_KEY=ship-your-api-key
 
 ```typescript
 // Deployments
-ship.deployments.create(input, options?)    // Create new deployment
+ship.deployments.upload(input, options?)     // Upload new deployment
 ship.deployments.list()                      // List all deployments
 ship.deployments.get(id)                     // Get deployment details
 ship.deployments.set(id, { labels })         // Update deployment labels
@@ -179,7 +179,7 @@ ship.on('error', (error, url) => console.error(error));
 import { isShipError } from '@shipstatic/types';
 
 try {
-  await ship.deployments.create('./dist');
+  await ship.deployments.upload('./dist');
 } catch (error) {
   if (isShipError(error)) {
     if (error.isAuthError()) { /* ... */ }

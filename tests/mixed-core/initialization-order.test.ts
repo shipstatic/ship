@@ -79,7 +79,7 @@ describe('SDK Initialization Order', () => {
       const files = ['./tests/fixtures/demo-site/index.html'];
       
       // Deploy - this should trigger initialization and SPA detection
-      await ship.deployments.create(files);
+      await ship.deployments.upload(files);
       
       // Verify that /config was called before /spa-check
       expect(apiCalls).toContain('/config');
@@ -147,7 +147,7 @@ describe('SDK Initialization Order', () => {
       const files = ['./tests/fixtures/demo-site/index.html'];
       
       // Deploy
-      await ship.deployments.create(files);
+      await ship.deployments.upload(files);
       
       // All API calls should use the custom API URL, not the default
       apiUrls.forEach(url => {

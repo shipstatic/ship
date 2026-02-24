@@ -19,7 +19,7 @@ function App() {
     setStatus('Deploying...');
 
     try {
-      const result = await ship.deployments.create(files, {
+      const result = await ship.deployments.upload(files, {
         tags: ['production', 'v1.0.0'],
         onProgress: ({ percent }) => {
           setStatus(`Deploy progress: ${Math.round(percent)}%`);

@@ -136,7 +136,7 @@ describe('BaseShipClient', () => {
     });
   });
 
-  describe('ShipClient.deployments.create() - DeployOptions Passthrough', () => {
+  describe('ShipClient.deployments.upload() - DeployOptions Passthrough', () => {
     beforeEach(async () => {
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
       await __setTestEnvironment('node');
@@ -165,7 +165,7 @@ describe('BaseShipClient', () => {
       nodeFileUtilsMock.processFilesForNode.mockResolvedValueOnce(processedFiles);
       
       // Call deploy without progress callback - should use default from Ship instance
-      await clientWithDefaults.deployments.create(mockFiles, {});
+      await clientWithDefaults.deployments.upload(mockFiles, {});
       
       // Verify the default progress callback was passed through
       expect(apiClientMock.deploy).toHaveBeenCalledWith(

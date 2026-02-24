@@ -67,12 +67,12 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       const browserShip = new BrowserShip({ deployToken: 'test-token', apiUrl: 'https://test.com' });
 
       // Deployment resource methods
-      expect(typeof nodeShip.deployments.create).toBe('function');
+      expect(typeof nodeShip.deployments.upload).toBe('function');
       expect(typeof nodeShip.deployments.list).toBe('function');
       expect(typeof nodeShip.deployments.get).toBe('function');
       expect(typeof nodeShip.deployments.remove).toBe('function');
 
-      expect(typeof browserShip.deployments.create).toBe('function');
+      expect(typeof browserShip.deployments.upload).toBe('function');
       expect(typeof browserShip.deployments.list).toBe('function');
       expect(typeof browserShip.deployments.get).toBe('function');
       expect(typeof browserShip.deployments.remove).toBe('function');
@@ -105,7 +105,7 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       const nodeShip = new NodeShip({ apiKey: 'test-key' });
       
       // Spy on the resource method directly
-      vi.spyOn(nodeShip.deployments, 'create').mockResolvedValue(mockDeployResult);
+      vi.spyOn(nodeShip.deployments, 'upload').mockResolvedValue(mockDeployResult);
 
       const nodeResult = await nodeShip.deploy('./dist');
 
@@ -115,7 +115,7 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       const browserShip = new BrowserShip({ deployToken: 'test-token', apiUrl: 'https://test.com' });
       
       // Spy on the resource method directly
-      vi.spyOn(browserShip.deployments, 'create').mockResolvedValue(mockDeployResult);
+      vi.spyOn(browserShip.deployments, 'upload').mockResolvedValue(mockDeployResult);
 
       const mockFiles = [new File(['<html></html>'], 'index.html')];
       const browserResult = await browserShip.deploy(mockFiles);

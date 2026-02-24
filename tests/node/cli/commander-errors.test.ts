@@ -29,7 +29,7 @@ describe('Commander.js Error Handling', () => {
   });
 
   it('should format missing argument errors consistently', async () => {
-    const result = await runCli(['deployments', 'create']);
+    const result = await runCli(['deployments', 'upload']);
     
     expect(result.exitCode).not.toBe(0);
     // Should contain our error formatting (strip ANSI for easier testing)

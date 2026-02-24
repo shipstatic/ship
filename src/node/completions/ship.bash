@@ -17,7 +17,7 @@ _ship_completions() {
   case "${COMP_WORDS[1]}" in
     "deployments")
       case "${COMP_WORDS[2]}" in
-        "create")
+        "upload")
           # File/directory completion for deploy path
           COMPREPLY=( $(compgen -f -- "${current_word}") )
           return
@@ -29,7 +29,7 @@ _ship_completions() {
           ;;
         *)
           if [[ ${COMP_CWORD} -eq 2 ]]; then
-            completions="list create get set remove"
+            completions="list upload get set remove"
             COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
             return
           fi
@@ -90,7 +90,7 @@ _ship_completions() {
   esac
 
   # Delegate for commands that expect files
-  if [[ "$prev_word" == "create" || "$prev_word" == "--config" ]]; then
+  if [[ "$prev_word" == "upload" || "$prev_word" == "--config" ]]; then
     COMPREPLY=( $(compgen -f -- "${current_word}") )
     return
   fi

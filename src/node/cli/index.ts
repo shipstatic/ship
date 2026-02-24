@@ -83,7 +83,7 @@ function displayHelp(noColor?: boolean) {
 ${applyBold('COMMANDS')}
   📦 ${applyBold('Deployments')}
   ship deployments list                 List all deployments
-  ship deployments create <path>        Create deployment from directory
+  ship deployments upload <path>        Upload deployment from directory
   ship deployments get <id>             Show deployment information
   ship deployments set <id>             Set deployment labels
   ship deployments remove <id>          Delete deployment permanently
@@ -312,7 +312,7 @@ async function performDeploy(
   process.on('SIGINT', sigintHandler);
 
   try {
-    return await client.deployments.create(deployPath, deployOptions);
+    return await client.deployments.upload(deployPath, deployOptions);
   } finally {
     process.removeListener('SIGINT', sigintHandler);
     if (spinner) spinner.stop();
@@ -388,7 +388,7 @@ const deploymentsCmd = program
   .command('deployments')
   .description('Manage deployments')
   .enablePositionalOptions()
-  .action(handleUnknownSubcommand(['list', 'create', 'get', 'set', 'remove']));
+  .action(handleUnknownSubcommand(['list', 'upload', 'get', 'set', 'remove']));
 
 deploymentsCmd
   .command('list')
@@ -396,8 +396,8 @@ deploymentsCmd
   .action(withErrorHandling((client: Ship, _options: GlobalOptions) => client.deployments.list()));
 
 deploymentsCmd
-  .command('create <path>')
-  .description('Create deployment from file or directory')
+  .command('upload <path>')
+  .description('Upload deployment from file or directory')
   .passThroughOptions()
   .option('--label <label>', 'Label to add (can be repeated)', collect, [])
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
@@ -405,7 +405,7 @@ deploymentsCmd
   .action(withErrorHandling(
     (client: Ship, options: GlobalOptions, deployPath: string, cmdOptions: DeployCommandOptions) =>
       performDeploy(client, deployPath, mergeLabelOption(cmdOptions, program.opts() as LabelOptions), cmdOptions, options),
-    { operation: 'create' }
+    { operation: 'upload' }
   ));
 
 deploymentsCmd
@@ -633,7 +633,7 @@ program
 
       return performDeploy(client, deployPath, mergeLabelOption(cmdOptions, program.opts() as LabelOptions), cmdOptions, options);
     },
-    { operation: 'create' }
+    { operation: 'upload' }
   ));
 
 

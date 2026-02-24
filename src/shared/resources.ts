@@ -42,13 +42,13 @@ export interface DeploymentResourceContext extends ResourceContext {
 }
 
 /**
- * Create deployment resource with all CRUD operations.
+ * Upload deployment resource with all CRUD operations.
  */
 export function createDeploymentResource(ctx: DeploymentResourceContext): DeploymentResource {
   const { getApi, ensureInit, processInput, clientDefaults, hasAuth } = ctx;
 
   return {
-    create: async (input: DeployInput, options: DeploymentOptions = {}) => {
+    upload: async (input: DeployInput, options: DeploymentOptions = {}) => {
       await ensureInit();
 
       const mergedOptions = clientDefaults

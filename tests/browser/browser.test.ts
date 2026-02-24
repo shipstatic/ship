@@ -110,7 +110,7 @@ describe('Browser Entry Point (@/browser)', () => {
       expect(Ship).toBeDefined();
       const client = new Ship(); // Pass empty options
       // Check if client has expected resource methods instead of legacy deploy
-      expect(typeof client.deployments.create).toBe('function');
+      expect(typeof client.deployments.upload).toBe('function');
     });
 
     it('should re-export __setTestEnvironment (used by tests)', () => {

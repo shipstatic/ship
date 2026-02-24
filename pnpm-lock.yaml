@@ -40,8 +40,8 @@ importers:
         version: 4.3.6
     devDependencies:
       '@shipstatic/types':
-        specifier: ^0.6.2
-        version: 0.6.2
+        specifier: ^0.7.0
+        version: 0.7.0
       '@types/columnify':
         specifier: ^1.5.4
         version: 1.5.4
@@ -688,8 +688,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shipstatic/types@0.6.2':
-    resolution: {integrity: sha512-rc/oAUewpqcrYMZ5CM1s1GZXH61N8WmLQUX6A1ecX43FuOTDiYMgSSmrP81P7zYfywQ9ZOj7t+WnLY7kSRX9XA==}
+  '@shipstatic/types@0.7.0':
+    resolution: {integrity: sha512-EKUqrWAYVDacBiFQuOBOHGV0ZKrL9+Y7BDdgnB4pStadcbclO3ONSLM/InrxAGSwRWkirJjcqB0H94CJoUdFug==}
     engines: {node: '>=20.0.0'}
 
   '@tsconfig/node10@1.0.12':
@@ -1076,8 +1076,8 @@ packages:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
 
-  graphql@16.12.0:
-    resolution: {integrity: sha512-DKKrynuQRne0PNpEbzuEdHlYOMksHSUI8Zc9Unei5gTsMNA2/vMpoMz/yKba50pejK56qj98qM0SjYxAKi13gQ==}
+  graphql@16.13.0:
+    resolution: {integrity: sha512-uSisMYERbaB9bkA9M4/4dnqyktaEkf1kMHNKq/7DHyxVeWqHQ2mBmVqm5u6/FVHwF3iCNalKcg82Zfl+tffWoA==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
   has-flag@4.0.0:
@@ -2213,7 +2213,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.59.0':
     optional: true
 
-  '@shipstatic/types@0.6.2': {}
+  '@shipstatic/types@0.7.0': {}
 
   '@tsconfig/node10@1.0.12': {}
 
@@ -2620,7 +2620,7 @@ snapshots:
 
   gopd@1.2.0: {}
 
-  graphql@16.12.0: {}
+  graphql@16.13.0: {}
 
   has-flag@4.0.0: {}
 
@@ -2819,7 +2819,7 @@ snapshots:
       '@open-draft/deferred-promise': 2.2.0
       '@types/statuses': 2.0.6
       cookie: 1.1.1
-      graphql: 16.12.0
+      graphql: 16.13.0
       headers-polyfill: 4.0.3
       is-node-process: 1.2.0
       outvariant: 1.4.3

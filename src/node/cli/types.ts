@@ -43,7 +43,7 @@ export interface LabelOptions {
 }
 
 /**
- * Options for deploy commands (create deployment, deploy shortcut).
+ * Options for deploy commands (upload deployment, deploy shortcut).
  */
 export interface DeployCommandOptions extends LabelOptions {
   noPathDetect?: boolean;

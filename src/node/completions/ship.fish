@@ -23,7 +23,7 @@ function __ship_needs_file
   set -l cmd (commandline -opc)
   if test (count $cmd) -ge 2
     set -l prev $cmd[-1]
-    if test "$prev" = "create" -o "$prev" = "--config"
+    if test "$prev" = "upload" -o "$prev" = "--config"
       return 0
     end
   end
@@ -55,7 +55,7 @@ complete -c ship -l help -d 'Display help for command'
 
 # Deployments subcommands
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'list' -d 'List all deployments'
-complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'create' -d 'Create deployment from directory'
+complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'upload' -d 'Upload deployment from directory'
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'get' -d 'Show deployment information'
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'set' -d 'Set deployment labels'
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'remove' -d 'Delete deployment permanently'

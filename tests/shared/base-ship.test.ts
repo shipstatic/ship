@@ -85,7 +85,7 @@ describe('Base Ship Class (Abstract)', () => {
   });
 
   describe('deploy convenience method', () => {
-    it('should call deployments.create with input and options', async () => {
+    it('should call deployments.upload with input and options', async () => {
       const input = ['./test'];
       const options = { timeout: 5000 };
 
@@ -119,7 +119,7 @@ describe('Base Ship Class (Abstract)', () => {
 
   describe('resource getters', () => {
     it('should provide access to all resources', () => {
-      expect(typeof ship.deployments.create).toBe('function');
+      expect(typeof ship.deployments.upload).toBe('function');
       expect(typeof ship.deployments.list).toBe('function');
       expect(typeof ship.deployments.get).toBe('function');
       expect(typeof ship.deployments.remove).toBe('function');
