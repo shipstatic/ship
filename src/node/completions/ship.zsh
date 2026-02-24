@@ -27,7 +27,7 @@ if [[ -n ${ZSH_VERSION-} ]]; then
     case "${words[2]}" in
       "deployments")
         case "${words[3]}" in
-          "create")
+          "upload")
             # File/directory completion for deploy path
             _files
             return
@@ -38,7 +38,7 @@ if [[ -n ${ZSH_VERSION-} ]]; then
             ;;
           *)
             if [[ $CURRENT -eq 3 ]]; then
-              completions=("list:List all deployments" "create:Create deployment from directory" "get:Show deployment information" "set:Set deployment labels" "remove:Delete deployment permanently")
+              completions=("list:List all deployments" "upload:Upload deployment from directory" "get:Show deployment information" "set:Set deployment labels" "remove:Delete deployment permanently")
               _describe 'deployments commands' completions
               return
             fi
@@ -96,7 +96,7 @@ if [[ -n ${ZSH_VERSION-} ]]; then
     esac
 
     # If the previous command expects a file path, also use file completion.
-    if [[ "$prev_word" == "create" || "$prev_word" == "--config" ]]; then
+    if [[ "$prev_word" == "upload" || "$prev_word" == "--config" ]]; then
       _files
       return
     fi

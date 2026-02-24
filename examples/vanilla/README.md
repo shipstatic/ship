@@ -47,7 +47,7 @@ deployButton?.addEventListener('click', async () => {
   setStatus('Deploying...');
 
   try {
-    const result = await ship.deployments.create(files, {
+    const result = await ship.deployments.upload(files, {
       onProgress: ({ percent }) => {
         setStatus(`Deploy progress: ${Math.round(percent)}%`);
       }

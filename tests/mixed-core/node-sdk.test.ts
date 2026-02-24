@@ -191,11 +191,11 @@ describe('NodeShipClient', () => {
     );
   });
 
-  describe('NodeShipClient.deployments.create()', () => {
+  describe('NodeShipClient.deployments.upload()', () => {
     it('should call processFilesForNode for string[] input', async () => {
       // Mock scanNodePaths to return some files
       fileUtilsMock.processFilesForNode.mockResolvedValueOnce([{ path: 'file.txt', content: Buffer.from("content"), md5:'m', size:1 }]);
-      await client.deployments.create(['/path/to/file'], {});
+      await client.deployments.upload(['/path/to/file'], {});
       expect(fileUtilsMock.processFilesForNode).toHaveBeenCalledWith(['/path/to/file'], expect.objectContaining({
         apiKey: 'custom_test_key',
         apiUrl: 'https://custom.example.com'
@@ -211,7 +211,7 @@ describe('NodeShipClient', () => {
         { path: 'file1.txt', content: Buffer.from('a'), md5: 'm', size: 1 },
         { path: 'nested/file2.txt', content: Buffer.from('b'), md5: 'm', size: 1 }
       ]);
-      await client.deployments.create(['/base/folder/file1.txt', '/base/folder/nested/file2.txt'], { stripCommonPrefix: true });
+      await client.deployments.upload(['/base/folder/file1.txt', '/base/folder/nested/file2.txt'], { stripCommonPrefix: true });
       // The returned paths should be root-relative, not prefixed with basePath
       expect((apiClientMock.deploy.mock.calls[0][0] as any[]).map(f => f.path)).toEqual(['file1.txt', 'nested/file2.txt']);
     });
@@ -226,7 +226,7 @@ describe('NodeShipClient', () => {
       
       // In browser environment, string[] input should throw validation error
       try {
-        await browserClient.deployments.create(['/path/to/file'], {});
+        await browserClient.deployments.upload(['/path/to/file'], {});
         expect.fail('Should have thrown an error for string[] input in browser environment');
       } catch (error: any) {
         expect(error.message).toContain('Invalid input type');
@@ -246,7 +246,7 @@ describe('NodeShipClient', () => {
         apiUrl: 'https://specific.host.for.upload'
       };
       
-      await client.deployments.create(['/path/to/file'], options);
+      await client.deployments.upload(['/path/to/file'], options);
       
       expect(apiClientMock.deploy).toHaveBeenCalledWith(
         expect.any(Array),
@@ -262,27 +262,27 @@ describe('NodeShipClient', () => {
       const { ShipError } = await import('@shipstatic/types');
       // Simulate a browser File object (minimal mock)
       const fakeFile = { name: 'f.txt', size: 1, type: 'text/plain' };
-      await expect(client.deployments.create([fakeFile] as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
+      await expect(client.deployments.upload([fakeFile] as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
     });
 
     it('should throw ShipError for FileList input', async () => {
       const { ShipError } = await import('@shipstatic/types');
       // Simulate a FileList (array-like)
       const fakeFileList = { 0: { name: 'f.txt', size: 1, type: 'text/plain' }, length: 1, item: () => null };
-      await expect(client.deployments.create(fakeFileList as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
+      await expect(client.deployments.upload(fakeFileList as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
     });
 
     it('should throw ShipError for HTMLInputElement input', async () => {
       const { ShipError } = await import('@shipstatic/types');
       // Simulate an input element
       const fakeInput = { tagName: 'INPUT', type: 'file', files: [] };
-      await expect(client.deployments.create(fakeInput as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
+      await expect(client.deployments.upload(fakeInput as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
     });
 
     it('should throw ShipError for Buffer input', async () => {
       const { ShipError } = await import('@shipstatic/types');
       const fakeBuffer = Buffer.from('abc');
-      await expect(client.deployments.create(fakeBuffer as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
+      await expect(client.deployments.upload(fakeBuffer as any, {})).rejects.toThrow(ShipError.business('Invalid input type for Node.js environment. Expected string or string[].'));
     });
     
     // New tests for file validation
@@ -304,7 +304,7 @@ describe('NodeShipClient', () => {
       PATH_HELPERS_MOCK.findCommonParent.mockReturnValue('/common/path');
       
       // Call upload with two file paths (one will be "empty" after processing)
-      await client.deployments.create(['/common/path/file.txt', '/common/path/empty.txt'], {});
+      await client.deployments.upload(['/common/path/file.txt', '/common/path/empty.txt'], {});
       
       // Verify only one file was uploaded
       expect(apiClientMock.deploy).toHaveBeenCalledWith(
@@ -325,7 +325,7 @@ describe('NodeShipClient', () => {
       });
       
       // Call upload with a file path that will be rejected for size
-      await expect(client.deployments.create(['/path/to/large.txt'], {})).rejects.toThrow(
+      await expect(client.deployments.upload(['/path/to/large.txt'], {})).rejects.toThrow(
         ShipError.business(`File large.txt is too large. Maximum allowed size is 5MB.`)
       );
     });
@@ -339,7 +339,7 @@ describe('NodeShipClient', () => {
       });
 
       // Call upload with multiple files that collectively exceed the size limit
-      await expect(client.deployments.create([
+      await expect(client.deployments.upload([
         '/path/to/file1.txt',
         '/path/to/file2.txt',
         '/path/to/file3.txt',
@@ -359,7 +359,7 @@ describe('NodeShipClient', () => {
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'def456', size: 13 }
       ]);
 
-      await client.deployments.create(filePaths, { labels });
+      await client.deployments.upload(filePaths, { labels });
 
       // Verify labels are passed through to the HTTP layer
       expect(apiClientMock.deploy).toHaveBeenCalledWith(

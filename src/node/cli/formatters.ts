@@ -99,9 +99,9 @@ export function formatDomain(result: Domain | EnrichedDomain, context: OutputCon
 export function formatDeployment(result: Deployment, context: OutputContext, options: FormatOptions): void {
   const { noColor } = options;
 
-  // Show success message for create operations
-  if (context.operation === 'create') {
-    success(`${result.deployment} deployment created`, false, noColor);
+  // Show success message for upload operations
+  if (context.operation === 'upload') {
+    success(`${result.deployment} deployment uploaded`, false, noColor);
   }
 
   console.log(formatDetails(result, noColor));

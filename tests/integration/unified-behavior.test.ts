@@ -125,7 +125,7 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
         processInput: nodeProcessInput
       });
 
-      const nodeResult = await nodeResource.create(['./dist'] as any, { spaDetect: true });
+      const nodeResult = await nodeResource.upload(['./dist'] as any, { spaDetect: true });
 
       // Test browser deployment resource
       const browserResource = createDeploymentResource({
@@ -135,7 +135,7 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       });
 
       const mockFileList = {} as FileList;
-      const browserResult = await browserResource.create(mockFileList, { spaDetect: true });
+      const browserResult = await browserResource.upload(mockFileList, { spaDetect: true });
 
       // Both should have called SPA detection
       expect(mockApiClient.checkSPA).toHaveBeenCalledTimes(2);
@@ -162,7 +162,7 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
         processInput: nodeProcessInput
       });
 
-      await nodeResource.create(['./dist'] as any, { spaDetect: true });
+      await nodeResource.upload(['./dist'] as any, { spaDetect: true });
 
       // Should still deploy original files
       const deployedFiles = mockApiClient.deploy.mock.calls[0][0];
@@ -185,7 +185,7 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
         clientDefaults
       });
 
-      await resource.create(['./test'] as any, userOptions);
+      await resource.upload(['./test'] as any, userOptions);
 
       // Verify merged options were passed to processInput
       const passedOptions = mockProcessInput.mock.calls[0][1];
@@ -203,7 +203,7 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
         processInput: undefined as any
       });
 
-      await expect(resource.create(['./test'] as any, {}))
+      await expect(resource.upload(['./test'] as any, {}))
         .rejects.toThrow('processInput function is not provided.');
     });
   });
@@ -218,12 +218,12 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
 
       // Both should have identical interfaces
       expect(Object.keys(nodeResource)).toEqual(Object.keys(browserResource));
-      expect(typeof nodeResource.create).toBe('function');
+      expect(typeof nodeResource.upload).toBe('function');
       expect(typeof nodeResource.list).toBe('function');
       expect(typeof nodeResource.get).toBe('function');
       expect(typeof nodeResource.remove).toBe('function');
       
-      expect(typeof browserResource.create).toBe('function');
+      expect(typeof browserResource.upload).toBe('function');
       expect(typeof browserResource.list).toBe('function');
       expect(typeof browserResource.get).toBe('function');
       expect(typeof browserResource.remove).toBe('function');

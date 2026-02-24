@@ -10,19 +10,19 @@ Minimal examples demonstrating Ship SDK usage across different environments.
 ### [🌐 Vanilla JavaScript](./vanilla/)
 Deploy files directly from the browser with vanilla JavaScript. No build system - just like including jQuery from a CDN.
 ```javascript
-const result = await ship.deployments.create(files);
+const result = await ship.deployments.upload(files);
 ```
 
 ### [⚛️ React](./react/)  
 Deploy files from React applications.
 ```javascript
-const result = await ship.deployments.create(files);
+const result = await ship.deployments.upload(files);
 ```
 
 ### [⚡ Node.js](./node/)
 Deploy directories from Node.js applications and scripts.
 ```javascript
-const result = await ship.deployments.create([directory]);
+const result = await ship.deployments.upload([directory]);
 ```
 
 ### [🚀 CLI](./cli/)
@@ -43,7 +43,7 @@ const ship = new Ship({
 });
 
 // 2. Deploy
-const result = await ship.deployments.create(input, {
+const result = await ship.deployments.upload(input, {
   onProgress: (progress) => console.log(`Deploy progress: ${progress}%`)
 });
 

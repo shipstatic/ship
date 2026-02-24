@@ -169,14 +169,14 @@ describe('CLI with Mock API', () => {
   // ─────────────────────────────────────────────────────────────────────────────
 
   describe('via field', () => {
-    it('should set via: cli when using deployments create', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH], testEnv());
+    it('should set via: cli when using deployments upload', async () => {
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH], testEnv());
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout.trim()).via).toBe('cli');
     });
 
-    it('should set via: cli when using deployments create with labels', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'production'], testEnv());
+    it('should set via: cli when using deployments upload with labels', async () => {
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'production'], testEnv());
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout.trim()).via).toBe('cli');
     });
@@ -190,7 +190,7 @@ describe('CLI with Mock API', () => {
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Deploy Shortcut Parity Tests
-  // Ensures shortcut (`ship <path>`) supports same flags as `ship deployments create <path>`
+  // Ensures shortcut (`ship <path>`) supports same flags as `ship deployments upload <path>`
   // ─────────────────────────────────────────────────────────────────────────────
 
   describe('deploy shortcut parity', () => {
@@ -210,7 +210,7 @@ describe('CLI with Mock API', () => {
 
     it('should produce same result with shortcut and long command', async () => {
       const shortcutResult = await runCli(['--json', DEMO_SITE_PATH, '--label', 'test-label'], testEnv());
-      const longResult = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'test-label'], testEnv());
+      const longResult = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'test-label'], testEnv());
 
       expect(shortcutResult.exitCode).toBe(0);
       expect(longResult.exitCode).toBe(0);
@@ -234,7 +234,7 @@ describe('CLI with Mock API', () => {
       fs.writeFileSync(path.join(tempDir, 'test.txt'), 'test content');
 
       try {
-        const result = await runCli(['--json', 'deployments', 'create', tempDir], testEnv());
+        const result = await runCli(['--json', 'deployments', 'upload', tempDir], testEnv());
         expect(result.exitCode).toBe(1);
         expect(result.stderr).toContain('"error"');
         expect(result.stderr).not.toContain('uploading');
@@ -250,7 +250,7 @@ describe('CLI with Mock API', () => {
       fs.writeFileSync(path.join(tempDir, 'test.txt'), 'test content');
 
       try {
-        const result = await runCli(['--no-color', 'deployments', 'create', tempDir], testEnv());
+        const result = await runCli(['--no-color', 'deployments', 'upload', tempDir], testEnv());
         expect(result.exitCode).toBe(1);
         expect(result.stderr).toContain('error');
         expect(result.stderr).not.toContain('uploading');
@@ -266,7 +266,7 @@ describe('CLI with Mock API', () => {
       fs.writeFileSync(path.join(tempDir, 'test.txt'), 'test content');
 
       try {
-        const result = await runCli(['deployments', 'create', tempDir], testEnv());
+        const result = await runCli(['deployments', 'upload', tempDir], testEnv());
         expect(result.exitCode).toBe(1);
         expect(result.stderr).not.toContain('uploading');
       } finally {
@@ -280,9 +280,9 @@ describe('CLI with Mock API', () => {
   // Label Tests - Deployments
   // ─────────────────────────────────────────────────────────────────────────────
 
-  describe('deployments create --label', () => {
+  describe('deployments upload --label', () => {
     it('should accept single --label flag', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'production'], testEnv());
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'production'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
       expect(output.deployment).toBe('test-deployment-123');
@@ -290,20 +290,20 @@ describe('CLI with Mock API', () => {
     });
 
     it('should accept multiple --label flags', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'production', '--label', 'v1.0.0'], testEnv());
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'production', '--label', 'v1.0.0'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
       expect(output.labels).toEqual(['production', 'v1.0.0']);
     });
 
     it('should handle labels with special characters', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'release-2024', '--label', 'version_1.0.0', '--label', 'env:prod'], testEnv());
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'release-2024', '--label', 'version_1.0.0', '--label', 'env:prod'], testEnv());
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout.trim()).labels).toEqual(['release-2024', 'version_1.0.0', 'env:prod']);
     });
 
     it('should work without --label flag', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH], testEnv());
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH], testEnv());
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout.trim()).labels).toEqual([]);
     });
@@ -382,13 +382,13 @@ describe('CLI with Mock API', () => {
 
   describe('label validation', () => {
     it('should preserve label order', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'first', '--label', 'second', '--label', 'third'], testEnv());
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'first', '--label', 'second', '--label', 'third'], testEnv());
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout.trim()).labels).toEqual(['first', 'second', 'third']);
     });
 
     it('should use same --label pattern for both commands', async () => {
-      const deployResult = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'v1.0.0', '--label', 'production'], testEnv());
+      const deployResult = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'v1.0.0', '--label', 'production'], testEnv());
       const domainResult = await runCli(['--json', 'domains', 'set', 'prod', 'test-deployment-123', '--label', 'v1.0.0', '--label', 'production'], testEnv());
 
       expect(JSON.parse(deployResult.stdout.trim()).labels).toEqual(['v1.0.0', 'production']);
@@ -396,7 +396,7 @@ describe('CLI with Mock API', () => {
     });
 
     it('should reject labels shorter than 3 characters (deployments)', async () => {
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, '--label', 'ab'], testEnv());
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'ab'], testEnv());
       expect(result.exitCode).toBe(1);
       expect(JSON.parse(result.stderr.trim()).error).toContain('at least 3 characters');
     });
@@ -409,7 +409,7 @@ describe('CLI with Mock API', () => {
 
     it('should reject more than 10 labels (deployments)', async () => {
       const labels = Array.from({ length: 11 }, (_, i) => ['--label', `label${String(i + 1).padStart(2, '0')}`]).flat();
-      const result = await runCli(['--json', 'deployments', 'create', DEMO_SITE_PATH, ...labels], testEnv());
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, ...labels], testEnv());
       expect(result.exitCode).toBe(1);
       expect(JSON.parse(result.stderr.trim()).error).toContain('Maximum 10 labels');
     });

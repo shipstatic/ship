@@ -25,7 +25,7 @@ exports[`CLI Basics > Output Snapshots > help output should match snapshot 1`] =
 COMMANDS
   📦 Deployments
   ship deployments list                 List all deployments
-  ship deployments create <path>        Create deployment from directory
+  ship deployments upload <path>        Upload deployment from directory
   ship deployments get <id>             Show deployment information
   ship deployments set <id>             Set deployment labels
   ship deployments remove <id>          Delete deployment permanently
@@ -74,7 +74,7 @@ exports[`CLI Basics > Output Snapshots > no args help output should match snapsh
 COMMANDS
   📦 Deployments
   ship deployments list                 List all deployments
-  ship deployments create <path>        Create deployment from directory
+  ship deployments upload <path>        Upload deployment from directory
   ship deployments get <id>             Show deployment information
   ship deployments set <id>             Set deployment labels
   ship deployments remove <id>          Delete deployment permanently
@@ -123,7 +123,7 @@ exports[`CLI Basics > Tokens Command Snapshots > tokens help should match expect
 COMMANDS
   📦 Deployments
   ship deployments list                 List all deployments
-  ship deployments create <path>        Create deployment from directory
+  ship deployments upload <path>        Upload deployment from directory
   ship deployments get <id>             Show deployment information
   ship deployments set <id>             Set deployment labels
   ship deployments remove <id>          Delete deployment permanently

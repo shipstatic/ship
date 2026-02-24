@@ -59,10 +59,10 @@ The site contains exactly **10 files** to provide consistent testing:
 ship /path/to/demo-site
 
 # Or explicitly
-ship deployments create /path/to/demo-site
+ship deployments upload /path/to/demo-site
 
 # JSON format
-ship deployments create /path/to/demo-site --json
+ship deployments upload /path/to/demo-site --json
 ```
 
 ## Expected Output

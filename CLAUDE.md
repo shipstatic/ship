@@ -147,12 +147,12 @@ ship.on('error', (error, url) => console.error('✗', error));
 
 ```typescript
 // Node.js: paths or StaticFile[]
-ship.deployments.create('./dist');
-ship.deployments.create([{ path: 'index.html', content: Buffer.from('...') }]);
+ship.deployments.upload('./dist');
+ship.deployments.upload([{ path: 'index.html', content: Buffer.from('...') }]);
 
 // Browser: File objects or StaticFile[]
-ship.deployments.create(fileInput.files);
-ship.deployments.create([{ path: 'index.html', content: new Blob(['...']) }]);
+ship.deployments.upload(fileInput.files);
+ship.deployments.upload([{ path: 'index.html', content: new Blob(['...']) }]);
 ```
 
 **Content type detection:**
@@ -231,7 +231,7 @@ Required configuration for option inheritance:
 const deployments = program.command('deployments').enablePositionalOptions();
 
 // Subcommand - passThroughOptions() for commands with --label
-deployments.command('create').passThroughOptions().option('--label <label>', 'Label', collect, []);
+deployments.command('upload').passThroughOptions().option('--label <label>', 'Label', collect, []);
 ```
 
 ## Testing
@@ -354,7 +354,7 @@ The SDK maps directly to API endpoints:
 
 | SDK Method | API Endpoint | Notes |
 |------------|--------------|-------|
-| `deployments.create()` | `POST /deployments` | Multipart upload |
+| `deployments.upload()` | `POST /deployments` | Multipart upload |
 | `deployments.list()` | `GET /deployments` | Paginated |
 | `deployments.get()` | `GET /deployments/:id` | Single deployment |
 | `deployments.set()` | `PATCH /deployments/:id` | Update labels only |

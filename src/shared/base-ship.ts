@@ -124,10 +124,10 @@ export abstract class Ship {
   }
 
   /**
-   * Deploy project (convenience shortcut to ship.deployments.create())
+   * Deploy project (convenience shortcut to ship.deployments.upload())
    */
   async deploy(input: DeployInput, options?: DeploymentOptions): Promise<Deployment> {
-    return this.deployments.create(input, options);
+    return this.deployments.upload(input, options);
   }
 
   /**
