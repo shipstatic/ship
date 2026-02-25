@@ -2,11 +2,7 @@
 
 Claude Code instructions for the **Ship SDK & CLI** package.
 
-## Package Identity
-
-**@shipstatic/ship** is the universal SDK and CLI for Shipstatic. It provides a clean `resource.action()` API that works identically in Node.js and Browser environments.
-
-**Maturity:** Release candidate. Interfaces are stabilizing; changes should be deliberate and well-considered.
+**@shipstatic/ship** — universal SDK and CLI for Shipstatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Release candidate; interfaces stabilizing.
 
 ## Architecture
 
@@ -14,21 +10,13 @@ Claude Code instructions for the **Ship SDK & CLI** package.
 src/
 ├── shared/              # Cross-platform code (70% of codebase)
 │   ├── api/http.ts      # HTTP client with events, timeout, auth
-│   ├── base-ship.ts     # Base Ship class (auth state, init)
+│   ├── base-ship.ts     # Base Ship class (auth state, init, resources)
 │   ├── resources.ts     # Resource factories (deployments, domains, etc.)
-│   ├── events.ts        # Event system (request, response, error)
 │   ├── types.ts         # Internal SDK types
 │   ├── core/            # Configuration resolution
 │   └── lib/             # Utilities (validation, junk filtering, MD5, SPA detection)
-├── browser/             # Browser-specific
-│   ├── index.ts         # Browser Ship class
-│   ├── core/            # Browser config, body creation
-│   └── lib/             # File object handling
-└── node/                # Node.js-specific
-    ├── index.ts         # Node Ship class
-    ├── cli/             # CLI commands (Commander.js)
-    ├── core/            # Node config, file discovery, body creation
-    └── completions/     # Shell completions
+├── browser/             # Browser Ship class + file handling
+└── node/                # Node Ship class + CLI (Commander.js) + config loading
 ```
 
 ## Quick Reference
@@ -47,415 +35,246 @@ pnpm build                   # Build all bundles
 |------|---------|
 | `src/shared/resources.ts` | Resource factory implementations |
 | `src/shared/api/http.ts` | HTTP client (all API calls) |
-| `src/shared/base-ship.ts` | Base Ship class (auth, init) |
-| `src/node/cli/index.ts` | CLI command definitions |
-| `src/node/cli/utils.ts` | CLI formatting utilities |
-| `src/node/cli/formatters.ts` | Resource-specific output formatters |
+| `src/shared/base-ship.ts` | Base Ship class (auth, init, top-level methods) |
+| `src/node/cli/index.ts` | CLI command definitions, `withErrorHandling`, `performDeploy` |
+| `src/node/cli/utils.ts` | Output primitives (`success`, `error`, `warn`, `info`, `formatTable`, `formatDetails`) |
+| `src/node/cli/formatters.ts` | Resource-specific output formatters, `formatOutput` router |
+| `src/node/cli/types.ts` | CLI option and result types (`GlobalOptions`, `CLIResult`, `EnrichedDomain`) |
+| `src/node/cli/error-handling.ts` | Pure error formatting (`getUserMessage`, `toShipError`) |
+| `src/node/cli/config.ts` | Interactive `ship config` wizard |
+| `src/node/cli/completion.ts` | Shell completion install/uninstall |
 | `tests/fixtures/api-responses.ts` | Typed API response fixtures |
 
 ## Core Patterns
 
-### Resource Factory Pattern
-
-Resources are created via factory functions that receive context:
+### Ship Class Public Surface (base-ship.ts)
 
 ```typescript
-interface ResourceContext {
-  getApi: () => ApiHttp;      // Lazy API client access
-  ensureInit: () => Promise<void>;  // Ensure config loaded
-}
+// Resources
+ship.deployments / ship.domains / ship.account / ship.tokens
 
-// Usage in Ship class
-this.deployments = createDeploymentResource({
-  getApi: () => this.api,
-  ensureInit: () => this.ensureInitialized(),
-  processInput: (input, opts) => this.processInput(input, opts),
-  clientDefaults: this.options,
-  hasAuth: () => this.hasAuth()
-});
+// Convenience shortcuts
+ship.deploy(input, options?)   // → deployments.upload()
+ship.whoami()                  // → account.get()
+
+// Top-level
+ship.ping()                    // returns boolean
+ship.getConfig()               // returns ConfigResponse (cached after init)
+ship.setApiKey(key)
+ship.setDeployToken(token)
+ship.on(event, handler)
+ship.off(event, handler)
 ```
 
-**Why this pattern:** Enables functional composition without tight coupling. The factory doesn't need the full Ship instance, just the callbacks it needs.
+### Resource Factory Pattern
+
+Resources are factory functions that receive a `ResourceContext` (`getApi`, `ensureInit`) instead of the full Ship instance. This enables functional composition: factories only depend on the callbacks they actually need. Deployment resource additionally receives `processInput`, `clientDefaults`, and `hasAuth`.
 
 ### HTTP Client Architecture
 
-`ApiHttp` in `src/shared/api/http.ts`:
-
-```typescript
-// Centralized endpoint definitions
-const ENDPOINTS = {
-  DEPLOYMENTS: '/deployments',
-  DOMAINS: '/domains',
-  TOKENS: '/tokens',
-  ACCOUNT: '/account',
-  CONFIG: '/config',
-  PING: '/ping',
-  SPA_CHECK: '/spa-check'
-} as const;
-
-// Core request method - all API calls flow through here
-private async executeRequest<T>(url, options, operationName): Promise<RequestResult<T>> {
-  // 1. Merge headers (auth injection)
-  // 2. Create timeout signal with cleanup
-  // 3. Emit 'request' event
-  // 4. Make fetch call
-  // 5. Handle response errors (401 → ShipError.authentication, etc.)
-  // 6. Emit 'response' or 'error' event
-  // 7. Parse and return { data, status }
-}
-
-// Simple request - returns data only
-private async request<T>(...): Promise<T> {
-  const { data } = await this.executeRequest<T>(...);
-  return data;
-}
-
-// Request with status - for operations that need HTTP status (e.g., 201 vs 200)
-private async requestWithStatus<T>(...): Promise<RequestResult<T>> {
-  return this.executeRequest<T>(...);
-}
-```
+`ApiHttp` in `src/shared/api/http.ts` — all API calls flow through `executeRequest`, which handles header merging, timeout, event emission, and error mapping. Two public variants: `request<T>()` returns data directly; `requestWithStatus<T>()` returns `{ data, status }` for operations where HTTP status matters (e.g. 201 vs 200 on domain upsert).
 
 **Key patterns:**
-- All path parameters use `encodeURIComponent()` for safety
-- Optional arrays use `labels !== undefined` (not `labels?.length`) to distinguish "not provided" from "empty"
-- `requestWithStatus()` used when HTTP status matters (e.g., domain creation returns 201)
+- All path parameters use `encodeURIComponent()`
+- Optional arrays: use `labels !== undefined` (not `labels?.length`) — distinguishes "not provided" from "empty array"
+- `requestWithStatus()` used when HTTP status drives behavior (domain creation: 201 = `isCreate: true`)
 
-**Events for debugging:**
+**Events:**
 ```typescript
-ship.on('request', (url, init) => console.log('→', url));
-ship.on('response', (response, url) => console.log('←', response.status));
-ship.on('error', (error, url) => console.error('✗', error));
+ship.on('request', (url, init) => ...);
+ship.on('response', (response, url) => ...);
+ship.on('error', (error, url) => ...);
 ```
 
 ### Authentication Flow
 
-```
-1. Ship instantiated with options (apiKey, deployToken, or neither)
-2. On first API call, ensureInit() runs:
-   - Loads config from files (.shiprc, package.json)
-   - Merges with constructor options
-   - Validates configuration
-3. getAuthHeaders() called on every request:
-   - Returns { Authorization: 'Bearer xxx' } or {}
-   - Deploy token overrides API key for single request
-```
+Init is lazy — triggered on first API call via `ensureInitialized()`, which loads config from files/env and replaces the HTTP client while preserving event listeners.
 
-**Token precedence:** Deploy token (per-request) > API key (instance) > Cookie (browser)
+**Token precedence:** Deploy token (per-request) > API key (instance) > Cookie (browser, `useCredentials: true`)
 
-### Cross-Platform File Handling
+### Cross-Platform File Input
 
 ```typescript
-// Node.js: paths or StaticFile[]
-ship.deployments.upload('./dist');
-ship.deployments.upload([{ path: 'index.html', content: Buffer.from('...') }]);
+// Node.js: string path(s) or StaticFile[]
+ship.deploy('./dist');
+ship.deploy([{ path: 'index.html', content: Buffer.from('...') }]);
 
-// Browser: File objects or StaticFile[]
-ship.deployments.upload(fileInput.files);
-ship.deployments.upload([{ path: 'index.html', content: new Blob(['...']) }]);
-```
-
-**Content type detection:**
-```typescript
-// In http.ts checkSPA()
-if (Buffer.isBuffer(content)) { /* Node */ }
-else if (content instanceof Blob) { /* Browser */ }
-else if (content instanceof File) { /* Browser */ }
+// Browser: FileList/File[] or StaticFile[]
+ship.deploy(fileInput.files);
+ship.deploy([{ path: 'index.html', content: new Blob(['...']) }]);
 ```
 
 ## CLI Patterns
 
 ### Output Conventions
 
-| Type | Format | Color |
-|------|--------|-------|
-| Success | `message` | Green |
-| Error | `🔴 message` | Red |
-| Warning | `[warning] message` | Yellow |
-| Info | `[info] message` | Blue |
+| Type | Text format | JSON format |
+|------|------------|-------------|
+| Success message | green text | `{ "success": "..." }` |
+| Data (object/list) | table or key-value | raw JSON object (no wrapper) |
+| Error | `[error]` prefix, red | `{ "error": "..." }` |
+| Warning | `[warning]` prefix, yellow | `{ "warning": "..." }` |
+| Info | `[info]` prefix, blue | `{ "info": "..." }` |
 
-### JSON Mode
-
-When `--json` flag is used:
-- Success: `{ "data": ... }`
-- Error: `{ "error": "message" }`
+- Text messages are lowercased; trailing periods stripped
+- Removal operations (void result) produce a success message
+- Internal fields (`isCreate`, `_dnsRecords`, `_shareHash`) are stripped from JSON output
+- `[error]`/`[warning]`/`[info]` prefixes use inverse color backgrounds in TTY
 
 ### Table Output
 
 - **3 spaces** between columns (matches ps, kubectl, docker)
-- Headers are dimmed
+- Headers are dimmed; property names can be remapped via `headerMap` (e.g. `{ url: 'deployment' }`)
 - Property order matches API response exactly
-- Internal fields filtered: `isCreate`
+- `INTERNAL_FIELDS` list (`['isCreate']`) is filtered from all output
 
-### Scriptability
+### `processOptions` Helper
 
-```bash
-ship deployments list | awk '{print $1}'      # Extract first column
-ship domains list | grep -E '^prod-'          # Filter by pattern
-```
+Always call `processOptions(this)` inside action handlers — not `program.opts()`. It converts Commander's `--no-color` (which sets `color: false`) to the `noColor: true` convention used throughout.
+
+### `performDeploy` Helper
+
+Shared deploy logic used by both `ship <path>` shortcut and `ship deployments upload`. Handles: path existence/type validation, option merging (labels, `--no-path-detect`, `--no-spa-detect`), AbortController for Ctrl+C, and a spinner (TTY only, suppressed in `--json` and `--no-color` modes).
 
 ### Command Handler Pattern
 
-All CLI commands use `withErrorHandling()` wrapper with consistent typing:
-
 ```typescript
-// Handler signature: (client: Ship, ...args) => Promise<Result>
+// Handler: (client: Ship, options: GlobalOptions, ...positional args) => Promise<CLIResult>
 deploymentsCmd
   .command('get <deployment>')
   .action(withErrorHandling(
-    (client: Ship, deployment: string) => client.deployments.get(deployment),
+    (client: Ship, _options: GlobalOptions, deployment: string) =>
+      client.deployments.get(deployment),
     { operation: 'get', resourceType: 'Deployment', getResourceId: (id: string) => id }
   ));
 ```
 
-**Key conventions:**
-- All handlers have explicit `client: Ship` type annotation
-- Context object provides error message enrichment
-- `getResourceId` extracts ID from args for error messages
+The context object (`operation`, `resourceType`, `getResourceId`) enriches error messages. `getResourceId` extracts the ID from positional args.
+
+### `formatOutput` Router
+
+Routes by result shape (discriminated union) — order matters:
+
+```
+'deployments' in result  → formatDeploymentsList
+'domains' in result      → formatDomainsList
+'tokens' in result       → formatTokensList
+'domain' in result       → formatDomain        // plain Domain or EnrichedDomain
+'deployment' in result   → formatDeployment
+'token' in result        → formatToken
+'email' in result        → formatAccount
+'valid' in result        → formatDomainValidate
+'message' in result      → formatMessage
+boolean                  → ping result
+undefined                → removal success message
+```
+
+### DNS Enrichment on Domain Create
+
+When `ship domains set <name> [deployment]` creates a new external domain (`isCreate: true`, name contains `.`), the CLI fetches `domains.records()` and `domains.share()` in parallel, attaching results as `_dnsRecords` and `_shareHash` on the result for the formatter to display. This is CLI-only behavior; SDK resources return plain data.
 
 ### Commander.js Option Merging
 
-When both parent and subcommand define `--label`:
+When both parent and subcommand define `--label`, subcommand options take precedence via `mergeLabelOption(cmdOptions, program.opts())`. Required boilerplate:
+- Parent commands: `.enablePositionalOptions()`
+- Subcommands with `--label`: `.passThroughOptions()`
 
-```typescript
-.action(async (directory, cmdOptions) => {
-  const programOpts = program.opts();
-  // Subcommand options take precedence
-  const labelArray = cmdOptions?.label?.length > 0 ? cmdOptions.label : programOpts.label;
-});
-```
+## SDK-Local Types
 
-Required configuration for option inheritance:
-```typescript
-// Parent command - enablePositionalOptions() required for all parent commands
-const deployments = program.command('deployments').enablePositionalOptions();
+`DomainSetResult = Domain & { isCreate: boolean }` — HTTP 201 vs 200 determines `isCreate`. Defined in `src/shared/types.ts`.
 
-// Subcommand - passThroughOptions() for commands with --label
-deployments.command('upload').passThroughOptions().option('--label <label>', 'Label', collect, []);
-```
+`EnrichedDomain extends DomainSetResult` — adds optional `_dnsRecords` and `_shareHash` for CLI display. `CLIResult` is the discriminated union of all possible command outputs. Both in `src/node/cli/types.ts`.
 
 ## Testing
-
-### Test Types
 
 | Pattern | Description | Mock Server |
 |---------|-------------|-------------|
 | `*.unit.test.ts` | Pure functions, no I/O | No |
-| `*.test.ts` | SDK/CLI with mocked API | Yes |
+| `*.test.ts` | SDK/CLI with mocked API | Yes (localhost:3000) |
 | `*.e2e.test.ts` | Real API integration | No (real API) |
 
-### Test Directory Structure
+Tests run sequentially (`fileParallelism: false`) — mock server is shared. Don't change this.
 
 ```
 tests/
-├── shared/           # Shared code tests
-├── browser/          # Browser-specific tests
-├── node/             # Node SDK + CLI tests
-├── integration/      # Cross-environment parity
-├── e2e/              # Real API smoke tests
-├── fixtures/         # Typed API response fixtures
-├── mocks/            # Mock HTTP server
-└── setup.ts          # Mock server lifecycle
+├── shared/ browser/ node/ integration/ e2e/
+├── fixtures/api-responses.ts   # Typed response fixtures (satisfies for compile-time validation)
+├── mocks/                      # Mock HTTP server
+└── setup.ts                    # Mock server lifecycle
 ```
 
-### Mock Server
-
-Runs on `http://localhost:3000` with typed fixtures:
-
-```typescript
-import { deployments, errors } from '../fixtures/api-responses';
-
-// Type-safe with compile-time validation via `satisfies`
-expect(result).toMatchObject(deployments.success);
-```
-
-**Important:** Tests run sequentially (`fileParallelism: false`) to share the mock server.
-
-### When API Changes
-
-1. Update types in `@shipstatic/types`
-2. Update fixtures in `tests/fixtures/api-responses.ts`
-3. TypeScript errors guide remaining updates
+**When API changes:** Update types in `@shipstatic/types` → update `tests/fixtures/api-responses.ts` → TypeScript errors guide the rest.
 
 ## Adding New Features
 
-### New SDK Method
+**New SDK method:** `@shipstatic/types` (interface) → `api/http.ts` (HTTP call) → `resources.ts` (factory wrapper) → fixture → tests.
 
-1. Add type to `@shipstatic/types` (resource interface)
-2. Add method to `ApiHttp` in `src/shared/api/http.ts`
-3. Add wrapper in resource factory (`src/shared/resources.ts`)
-4. Add fixture in `tests/fixtures/api-responses.ts`
-5. Add tests
+**New CLI command:** `cli/index.ts` (command + `withErrorHandling`) → `cli/formatters.ts` (formatter if needed) → `cli/types.ts` (`CLIResult` union if needed) → tests.
 
-### New CLI Command
-
-1. Add command in `src/node/cli/index.ts`
-2. Add formatter in `src/node/cli/formatters.ts` (if needed)
-3. Add tests in `tests/node/cli/`
-
-### New Shared Utility
-
-1. Add to `src/shared/lib/`
-2. Export from `src/shared/lib/index.ts` if public
-3. Add unit tests in `tests/shared/lib/`
+**New shared utility:** `src/shared/lib/` → export from `lib/index.ts` if public → unit tests.
 
 ## SPA Auto-Detection
 
-The SDK auto-detects Single Page Applications:
-
-```typescript
-// In api/http.ts
-async checkSPA(files: StaticFile[]): Promise<boolean> {
-  // 1. Find index.html (must be < 100KB)
-  // 2. Extract content (handles Buffer, Blob, File)
-  // 3. POST to /spa-check with file list and index content
-  // 4. API analyzes for SPA patterns (React, Vue, etc.)
-  // 5. Returns true/false
-}
-```
-
-When SPA detected, deployment automatically includes rewrite rules for client-side routing.
+On upload, the SDK POSTs `index.html` content (must be < 100KB) to `/spa-check` along with the file list. If the API detects SPA patterns (React router, Vue, etc.), the deployment gets rewrite rules for client-side routing. Disable with `spaDetect: false` (SDK) or `--no-spa-detect` (CLI).
 
 ## Error Handling
 
-All errors use `ShipError` from `@shipstatic/types`. See `../types/CLAUDE.md` for the full API including factory methods and type checking.
+All errors use `ShipError` from `@shipstatic/types`. It provides factory methods (`ShipError.authentication()`, `ShipError.validation()`, etc.) and type guards (`isShipError()`, `error.isAuthError()`, etc.).
 
-## Design Principles
-
-1. **Scriptability first** - CLI output works with Unix tools
-2. **API consistency** - Property order matches API exactly
-3. **Impossible simplicity** - Everything should "just work"
-4. **No backward compatibility** - Remove unused code aggressively
-5. **Native APIs** - Built on `fetch`, `crypto`, `fs` (no axios, no polyfills)
-6. **Functional composition** - Resource factories over class hierarchies
+CLI error formatting (`src/node/cli/error-handling.ts`) — pure functions, fully unit-testable:
+- `toShipError(err)` — normalizes any thrown value to `ShipError`
+- `getUserMessage(err, context, options)` — maps error type to actionable user message
+- `formatErrorJson(message, details)` — serializes to `{ "error": "...", "details": ... }`
 
 ## Known Gotchas
 
-### Tests Must Run Sequentially
-Mock server is shared across tests. Don't add `fileParallelism: true`.
+**Tests must run sequentially** — mock server is shared. Never add `fileParallelism: true`.
 
-### Deploy Token vs API Key
-- **API Key**: Persistent, used for all requests
-- **Deploy Token**: Single-use, consumed on successful deploy, overrides API key
+**Deploy token vs API key** — API key is persistent; deploy token is single-use (consumed on successful deploy) and overrides the API key for that request.
 
-### Browser File Handling
-Browser uses `File` objects from `<input type="file">`. The SDK handles path extraction from `webkitRelativePath` or `name`.
+**Browser file handling** — SDK extracts path from `webkitRelativePath` or falls back to `name`.
 
-### Config File Loading
-Node.js loads config from (in order):
-1. Constructor options
-2. Environment variables (`SHIP_API_KEY`, `SHIP_API_URL`)
-3. `.shiprc` in current directory
-4. `package.json` `"ship"` key
+**Config file loading order** — constructor options → env vars (`SHIP_API_KEY`, `SHIP_API_URL`) → `.shiprc` → `package.json` `"ship"` key.
+
+**`getConfig()` is cached** — reuses the `ConfigResponse` fetched during initialization; no extra API call.
 
 ## Backend Integration
-
-The SDK maps directly to API endpoints:
 
 | SDK Method | API Endpoint | Notes |
 |------------|--------------|-------|
 | `deployments.upload()` | `POST /deployments` | Multipart upload |
 | `deployments.list()` | `GET /deployments` | Paginated |
-| `deployments.get()` | `GET /deployments/:id` | Single deployment |
-| `deployments.set()` | `PATCH /deployments/:id` | Update labels only |
+| `deployments.get()` | `GET /deployments/:id` | |
+| `deployments.set()` | `PATCH /deployments/:id` | Labels only |
 | `deployments.remove()` | `DELETE /deployments/:id` | Returns 202 (async) |
-| `domains.set()` | `PUT /domains/:name` | Upsert (create, update, or labels) |
-| `domains.list()` | `GET /domains` | All domains |
-| `domains.get()` | `GET /domains/:name` | Single domain |
+| `domains.set()` | `PUT /domains/:name` | Upsert — create, repoint, or label |
+| `domains.list()` | `GET /domains` | |
+| `domains.get()` | `GET /domains/:name` | |
+| `domains.validate()` | `POST /domains/:name/validate` | Pre-flight check |
 | `domains.verify()` | `POST /domains/:name/verify` | Triggers async DNS check |
-| `domains.validate()` | `POST /domains/:name/validate` | Pre-flight domain validation |
 | `domains.dns()` | `GET /domains/:name/dns` | Required DNS records |
-| `domains.records()` | `GET /domains/:name/records` | Current DNS records |
-| `domains.share()` | `GET /domains/:name/share` | Shareable domain hash |
-| `domains.remove()` | `DELETE /domains/:name` | Permanent deletion |
+| `domains.records()` | `GET /domains/:name/records` | Current live DNS records |
+| `domains.share()` | `GET /domains/:name/share` | Shareable setup hash |
+| `domains.remove()` | `DELETE /domains/:name` | |
 | `tokens.create()` | `POST /tokens` | Returns 201 |
-| `tokens.list()` | `GET /tokens` | All tokens |
+| `tokens.list()` | `GET /tokens` | |
 | `tokens.remove()` | `DELETE /tokens/:token` | Returns 202 (async) |
-| `account.get()` | `GET /account` | Current user |
-| `ping()` | `GET /ping` | Health check (returns boolean) |
-| `checkSPA()` | `POST /spa-check` | SPA auto-detection |
-| `getConfig()` | `GET /config` | Platform config + plan limits |
+| `account.get()` | `GET /account` | |
+| `ping()` | `GET /ping` | Returns boolean |
+| `getConfig()` | `GET /config` | Cached after init |
+| (internal) | `POST /spa-check` | SPA detection during upload |
 
 ### Domain Write Semantics
 
-`PUT /domains/:name` is the single write endpoint. Merge semantics — omitted fields are preserved on update, defaulted on create:
+`PUT /domains/:name` is a merge-upsert: omitted fields are preserved on update, defaulted on create. Supports: reserve (omit deployment), link, atomic deployment switch, label update.
 
-```typescript
-// Reserve domain (no deployment linked yet)
-ship.domains.set('staging');
+**No unlinking (by design).** `{ deployment: null }` returns 400. Reservation (forward-looking: "claiming domain, will link soon") is valid; unlinking (backward-looking: "what does this serve now?") is not. To take a site offline, deploy a maintenance page. To clean up, delete the domain.
 
-// Link domain to deployment
-ship.domains.set('staging', { deployment: 'abc123' });
+**Why PUT not PATCH?** Domains are mutable routing records identified by natural key — PUT upsert is one endpoint for create, repoint, and label. Deployments use PATCH because they're immutable artifacts with labels as the only mutable annotation.
 
-// Switch to different deployment (atomic)
-ship.domains.set('staging', { deployment: 'xyz789' });
+### Domain Normalization
 
-// Update labels (deployment preserved)
-ship.domains.set('staging', { labels: ['prod', 'v2'] });
-
-// Update both
-ship.domains.set('staging', { deployment: 'abc123', labels: ['prod'] });
-```
-
-**Important Design Decision: No "Unlinking"**
-
-Once a domain is linked to a deployment, it must always have a deployment. The API rejects `{"deployment": null}`:
-
-```typescript
-// ❌ NOT SUPPORTED - This will return 400 error
-ship.domains.set('staging', { deployment: null });
-```
-
-**Why?** This is intentional simplicity (see "Impossible Simplicity" principle):
-- **Reservation** (forward-looking) makes sense: "I'm claiming this domain, will link soon"
-- **Unlinking** (backward-looking) doesn't: "I had something, now it serves... what?"
-
-**What to do instead:**
-- **To take site offline:** Deploy a maintenance page, then switch to it
-- **To switch deployments:** Use atomic switch: `set(domain, { deployment: newId })`
-- **To remove domain:** Use `ship.domains.remove(domain)` for clean deletion
-
-**Why PUT, not PATCH?** Domains are mutable routing records identified by natural key. PUT upsert is the right verb — one endpoint for create, re-point, and label. Deployments use PATCH because they're immutable artifacts with one mutable annotation (labels).
-
-### Domain Format and Normalization
-
-**Domain names are FQDNs** (Fully Qualified Domain Names). The SDK passes domain names directly to the API without transformation:
-
-```typescript
-// SDK accepts any format - API normalizes
-ship.domains.set('Example.COM', { deployment: 'abc123' });
-// → API normalizes to 'example.com' (lowercase)
-// → Returns { domain: 'example.com', ... }
-
-// Unicode domains supported (API handles normalization)
-ship.domains.set('münchen.de', { deployment: 'abc123' });
-// → API normalizes as needed
-// → Returns { domain: 'münchen.de', ... }
-```
-
-**SDK responsibilities:**
-- ✅ URL-encode domain names in API paths (`encodeURIComponent`)
-- ✅ Pass domain names as-is to the API
-- ✅ Return API responses without modification
-
-**API responsibilities (Postel's Law):**
-- ✅ Accept liberal input (various cases, Unicode, etc.)
-- ✅ Normalize to canonical form (lowercase, etc.)
-- ✅ Validate format and reject invalid domains
-- ✅ Return normalized domain in responses
-
-**Key principle:** The SDK has **zero** domain validation or normalization logic. It's a transparent pipe between user input and the API. The API owns all domain semantics.
-
-All responses use shared types from `@shipstatic/types`.
-
-## Related Documentation
-
-| Resource | Location |
-|----------|----------|
-| Shared types | `../types/CLAUDE.md` |
-| API Worker | `../../cloudflare/api/CLAUDE.md` |
-| Backend overview | `../../cloudflare/CLAUDE.md` |
-| Root guidelines | `../../CLAUDE.md` |
+The SDK is a transparent pipe — zero domain validation or normalization. It URL-encodes names in API paths (`encodeURIComponent`) and passes everything else as-is. The API owns all domain semantics: it accepts liberal input (any case, Unicode), normalizes to canonical form, validates, and returns the normalized name.
 
 ---
 
