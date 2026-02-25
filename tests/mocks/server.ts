@@ -159,7 +159,7 @@ function routeRequest(
     if (method === 'GET') {
       handleDeploymentsList(res, url);
     } else if (method === 'POST') {
-      handleDeploymentCreate(req, res);
+      handleDeploymentUpload(req, res);
     }
     return;
   }
@@ -256,7 +256,7 @@ function handleDeploymentsList(res: ServerResponse, url: URL): void {
   res.end(JSON.stringify(response));
 }
 
-function handleDeploymentCreate(req: IncomingMessage, res: ServerResponse): void {
+function handleDeploymentUpload(req: IncomingMessage, res: ServerResponse): void {
   let body = '';
   req.on('data', (chunk) => (body += chunk));
   req.on('end', () => {
