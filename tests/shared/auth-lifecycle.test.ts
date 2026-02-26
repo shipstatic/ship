@@ -401,7 +401,7 @@ describe('Authentication Lifecycle', () => {
     it('should preserve custom headers across client replacement', () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
-      ship.setHeaders({ 'X-Impersonate': 'account-123' });
+      ship.setHeaders({ 'X-Account': 'account-123' });
 
       // Simulate client replacement (happens during initialization)
       // ApiHttp imported at top of file
@@ -414,7 +414,7 @@ describe('Authentication Lifecycle', () => {
       const spySetGlobalHeaders = vi.spyOn(newClient, 'setGlobalHeaders');
       (ship as any).replaceHttpClient(newClient);
 
-      expect(spySetGlobalHeaders).toHaveBeenCalledWith({ 'X-Impersonate': 'account-123' });
+      expect(spySetGlobalHeaders).toHaveBeenCalledWith({ 'X-Account': 'account-123' });
     });
 
     it('should not call setGlobalHeaders on replacement when no custom headers', () => {
