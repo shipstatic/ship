@@ -67,6 +67,7 @@ export class ApiHttp extends SimpleEvents {
   private readonly getAuthHeadersCallback: () => Record<string, string>;
   private readonly timeout: number;
   private readonly createDeployBody: DeployBodyCreator;
+  private globalHeaders: Record<string, string> = {};
 
   constructor(options: ApiHttpOptions) {
     super();
@@ -74,6 +75,14 @@ export class ApiHttp extends SimpleEvents {
     this.getAuthHeadersCallback = options.getAuthHeaders;
     this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
     this.createDeployBody = options.createDeployBody;
+  }
+
+  /**
+   * Set global headers included in every request.
+   * Priority: globalHeaders (lowest) < per-request headers < auth headers (highest)
+   */
+  setGlobalHeaders(headers: Record<string, string>): void {
+    this.globalHeaders = headers;
   }
 
   /**
@@ -146,7 +155,7 @@ export class ApiHttp extends SimpleEvents {
   // ===========================================================================
 
   private mergeHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
-    return { ...customHeaders, ...this.getAuthHeadersCallback() };
+    return { ...this.globalHeaders, ...customHeaders, ...this.getAuthHeadersCallback() };
   }
 
   private createTimeoutSignal(existingSignal?: AbortSignal | null): { signal: AbortSignal; cleanup: () => void } {

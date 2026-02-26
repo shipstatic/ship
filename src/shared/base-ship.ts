@@ -51,6 +51,9 @@ export abstract class Ship {
   // Authentication state management
   private auth: AuthState = null;
 
+  // Custom headers (survives client replacement during initialization)
+  private customHeaders: Record<string, string> = {};
+
   // Store the auth headers callback to reuse when replacing HTTP client
   protected readonly authHeadersCallback: () => Record<string, string>;
 
@@ -199,6 +202,23 @@ export abstract class Ship {
   }
 
   /**
+   * Set global headers included in every request.
+   * Useful for injecting custom headers (e.g. for admin impersonation).
+   */
+  setHeaders(headers: Record<string, string>): void {
+    this.customHeaders = headers;
+    this.http.setGlobalHeaders(headers);
+  }
+
+  /**
+   * Clear all custom global headers.
+   */
+  clearHeaders(): void {
+    this.customHeaders = {};
+    this.http.setGlobalHeaders({});
+  }
+
+  /**
    * Replace HTTP client while preserving event listeners
    * Used during initialization to maintain user event subscriptions
    * @protected
@@ -213,6 +233,10 @@ export abstract class Ship {
       }
     }
     this.http = newClient;
+    // Preserve custom headers across client replacement
+    if (Object.keys(this.customHeaders).length > 0) {
+      this.http.setGlobalHeaders(this.customHeaders);
+    }
   }
 
   /**
