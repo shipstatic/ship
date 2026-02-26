@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
+import { ApiHttp } from '../../src/shared/api/http';
 import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
 
 const mockDeployBodyCreator: DeployBodyCreator = async () => ({
@@ -370,6 +371,66 @@ describe('Authentication Lifecycle', () => {
       expect((ship as any).authHeadersCallback()).toEqual({
         'Authorization': 'Bearer ship-override123'
       });
+    });
+  });
+
+  describe('setHeaders() / clearHeaders()', () => {
+    it('should set global headers on the HTTP client', () => {
+      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
+
+      const mockSetGlobalHeaders = vi.fn();
+      (ship as any).http.setGlobalHeaders = mockSetGlobalHeaders;
+
+      ship.setHeaders({ 'X-Custom': 'value' });
+
+      expect(mockSetGlobalHeaders).toHaveBeenCalledWith({ 'X-Custom': 'value' });
+    });
+
+    it('should clear global headers', () => {
+      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
+
+      const mockSetGlobalHeaders = vi.fn();
+      (ship as any).http.setGlobalHeaders = mockSetGlobalHeaders;
+
+      ship.setHeaders({ 'X-Custom': 'value' });
+      ship.clearHeaders();
+
+      expect(mockSetGlobalHeaders).toHaveBeenLastCalledWith({});
+    });
+
+    it('should preserve custom headers across client replacement', () => {
+      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
+
+      ship.setHeaders({ 'X-Impersonate': 'account-123' });
+
+      // Simulate client replacement (happens during initialization)
+      // ApiHttp imported at top of file
+      const newClient = new ApiHttp({
+        apiUrl: 'https://test-api.com',
+        getAuthHeaders: () => ({}),
+        createDeployBody: mockDeployBodyCreator,
+      });
+
+      const spySetGlobalHeaders = vi.spyOn(newClient, 'setGlobalHeaders');
+      (ship as any).replaceHttpClient(newClient);
+
+      expect(spySetGlobalHeaders).toHaveBeenCalledWith({ 'X-Impersonate': 'account-123' });
+    });
+
+    it('should not call setGlobalHeaders on replacement when no custom headers', () => {
+      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
+
+      // ApiHttp imported at top of file
+      const newClient = new ApiHttp({
+        apiUrl: 'https://test-api.com',
+        getAuthHeaders: () => ({}),
+        createDeployBody: mockDeployBodyCreator,
+      });
+
+      const spySetGlobalHeaders = vi.spyOn(newClient, 'setGlobalHeaders');
+      (ship as any).replaceHttpClient(newClient);
+
+      expect(spySetGlobalHeaders).not.toHaveBeenCalled();
     });
   });
 });
