@@ -48,7 +48,7 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
     // and if they're not already set via options.env
     if (!hasApiKey && !hasApiUrl) {
       if (!testEnv.SHIP_API_URL) {
-        testEnv.SHIP_API_URL = 'http://localhost:3000';
+        testEnv.SHIP_API_URL = 'http://localhost:13579';
       }
       if (!testEnv.SHIP_API_KEY) {
         testEnv.SHIP_API_KEY = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
