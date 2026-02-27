@@ -8,7 +8,7 @@ import { __setTestEnvironment } from '../../src/shared/lib/env';
 import { setupMockServer, cleanupMockServer } from '../mocks/server';
 
 describe('SDK Initialization Order', () => {
-  const mockServerPort = 3000; // Standard port used by the mock server
+  const mockServerPort = 13579; // Standard port used by the mock server
   
   beforeAll(async () => {
     __setTestEnvironment('node');

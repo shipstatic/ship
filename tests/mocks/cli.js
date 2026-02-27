@@ -27,7 +27,7 @@ export async function runCli(args, options = {}) {
       env: {
         ...process.env,
         // Force test environment settings
-        SHIP_API_URL: 'http://localhost:3000',
+        SHIP_API_URL: 'http://localhost:13579',
         SHIP_API_KEY: 'ship-test1234567890abcdef1234567890abcdef12345678',
         SHIP_DEPLOY_TOKEN: 'token-test1234567890abcdef1234567890abcdef1234567890abcdef',
         NO_COLOR: '1', // Disable colors for predictable output
