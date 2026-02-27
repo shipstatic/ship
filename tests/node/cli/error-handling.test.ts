@@ -135,6 +135,16 @@ describe('CLI Error Handling', () => {
       });
     });
 
+    describe('cancelled/timeout errors', () => {
+      it('should show timeout message for cancelled errors', () => {
+        const err = ShipError.cancelled('Deploy was cancelled');
+
+        const message = getUserMessage(err);
+
+        expect(message).toBe('upload timed out: the server may still be processing your deployment');
+      });
+    });
+
     describe('server errors', () => {
       it('should show generic server error for API errors', () => {
         const err = ShipError.api('Internal server error', 500);

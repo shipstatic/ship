@@ -37,6 +37,7 @@ const ENDPOINTS = {
 } as const;
 
 const DEFAULT_REQUEST_TIMEOUT = 30000;
+const DEPLOY_REQUEST_TIMEOUT = 60000;
 
 // =============================================================================
 // TYPES
@@ -102,10 +103,11 @@ export class ApiHttp extends SimpleEvents {
   private async executeRequest<T>(
     url: string,
     options: RequestInit,
-    operationName: string
+    operationName: string,
+    timeoutOverride?: number
   ): Promise<RequestResult<T>> {
     const headers = this.mergeHeaders(options.headers as Record<string, string>);
-    const { signal, cleanup } = this.createTimeoutSignal(options.signal);
+    const { signal, cleanup } = this.createTimeoutSignal(options.signal, timeoutOverride);
 
     const fetchOptions: RequestInit = {
       ...options,
@@ -138,8 +140,8 @@ export class ApiHttp extends SimpleEvents {
   /**
    * Simple request - returns data only
    */
-  private async request<T>(url: string, options: RequestInit, operationName: string): Promise<T> {
-    const { data } = await this.executeRequest<T>(url, options, operationName);
+  private async request<T>(url: string, options: RequestInit, operationName: string, timeoutOverride?: number): Promise<T> {
+    const { data } = await this.executeRequest<T>(url, options, operationName, timeoutOverride);
     return data;
   }
 
@@ -158,9 +160,9 @@ export class ApiHttp extends SimpleEvents {
     return { ...this.globalHeaders, ...customHeaders, ...this.getAuthHeadersCallback() };
   }
 
-  private createTimeoutSignal(existingSignal?: AbortSignal | null): { signal: AbortSignal; cleanup: () => void } {
+  private createTimeoutSignal(existingSignal?: AbortSignal | null, timeoutOverride?: number): { signal: AbortSignal; cleanup: () => void } {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutOverride ?? this.timeout);
 
     if (existingSignal) {
       const abort = () => controller.abort();
@@ -270,7 +272,8 @@ export class ApiHttp extends SimpleEvents {
     return this.request<Deployment>(
       `${options.apiUrl || this.apiUrl}${ENDPOINTS.DEPLOYMENTS}`,
       { method: 'POST', body, headers: { ...bodyHeaders, ...authHeaders }, signal: options.signal || null },
-      'Deploy'
+      'Deploy',
+      DEPLOY_REQUEST_TIMEOUT
     );
   }
 

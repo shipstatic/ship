@@ -3,7 +3,7 @@
  * Pure functions for error message formatting - fully unit testable.
  */
 
-import { ShipError, isShipError } from '@shipstatic/types';
+import { ShipError, isShipError, ErrorType } from '@shipstatic/types';
 import type { OutputContext } from './formatters.js';
 
 /**
@@ -58,6 +58,11 @@ export function getUserMessage(
       return `network error: could not reach ${url}`;
     }
     return 'network error: could not reach the API. check your internet connection';
+  }
+
+  // Cancelled errors - typically a timeout
+  if (err.isType(ErrorType.Cancelled)) {
+    return 'upload timed out: the server may still be processing your deployment';
   }
 
   // File, validation, config errors - trust the original message (we wrote it)

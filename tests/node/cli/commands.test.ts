@@ -99,7 +99,7 @@ describe('CLI Commands', () => {
 
     it('should handle domains set with multiple labels', async () => {
       const result = await runCli(['domains', 'set', 'staging', '--label', 'label1', '--label', 'label2']);
-      expect(result.exitCode).toBe(0);
+expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('staging');
     });
 
