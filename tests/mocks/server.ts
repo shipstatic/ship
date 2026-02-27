@@ -66,7 +66,7 @@ resetState();
 // =============================================================================
 
 function handleRequest(req: IncomingMessage, res: ServerResponse): void {
-  const url = new URL(req.url || '/', 'http://localhost:3000');
+  const url = new URL(req.url || '/', 'http://localhost:13579');
   const method = req.method || 'GET';
   const path = url.pathname;
 
@@ -614,8 +614,8 @@ export function setupMockServer(): Promise<void> {
       }
     });
 
-    server.listen(3000, () => {
-      console.log('Mock API server running on http://localhost:3000');
+    server.listen(13579, () => {
+      console.log('Mock API server running on http://localhost:13579');
       resolve();
     });
   });
