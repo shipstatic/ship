@@ -280,7 +280,7 @@ async function performDeploy(
     pathDetect?: boolean;
     spaDetect?: boolean;
     signal?: AbortSignal;
-  } = { via: 'cli' };
+  } = { via: process.env.SHIP_VIA || 'cli' };
 
   // Handle labels
   if (labels) deployOptions.labels = labels;

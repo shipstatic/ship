@@ -226,6 +226,10 @@ CLI error formatting (`src/node/cli/error-handling.ts`) — pure functions, full
 - `getUserMessage(err, context, options)` — maps error type to actionable user message
 - `formatErrorJson(message, details)` — serializes to `{ "error": "...", "details": ... }`
 
+## TODO
+
+- Consider adding `ship domains records <name>` CLI command — returns required DNS records for a domain. Currently only used programmatically (SDK, MCP) and baked into `domains set` output via DNS enrichment.
+
 ## Known Gotchas
 
 **Tests must run sequentially** — mock server is shared. Never add `fileParallelism: true`.
@@ -252,8 +256,8 @@ CLI error formatting (`src/node/cli/error-handling.ts`) — pure functions, full
 | `domains.get()` | `GET /domains/:name` | |
 | `domains.validate()` | `POST /domains/:name/validate` | Pre-flight check |
 | `domains.verify()` | `POST /domains/:name/verify` | Triggers async DNS check |
-| `domains.dns()` | `GET /domains/:name/dns` | Required DNS records |
-| `domains.records()` | `GET /domains/:name/records` | Current live DNS records |
+| `domains.dns()` | `GET /domains/:name/dns` | DNS provider information |
+| `domains.records()` | `GET /domains/:name/records` | Required DNS records |
 | `domains.share()` | `GET /domains/:name/share` | Shareable setup hash |
 | `domains.remove()` | `DELETE /domains/:name` | |
 | `tokens.create()` | `POST /tokens` | Returns 201 |
