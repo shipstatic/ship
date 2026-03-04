@@ -186,6 +186,38 @@ describe('CLI with Mock API', () => {
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout.trim()).via).toBe('cli');
     });
+
+    it('should use SHIP_VIA env var when set', async () => {
+      const env = testEnv();
+      env.env.SHIP_VIA = 'git';
+      const result = await runCli(['--json', DEMO_SITE_PATH], env);
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout.trim()).via).toBe('git');
+    });
+
+    it('should use SHIP_VIA for deployments upload command', async () => {
+      const env = testEnv();
+      env.env.SHIP_VIA = 'mcp';
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH], env);
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout.trim()).via).toBe('mcp');
+    });
+
+    it('should default to cli when SHIP_VIA is not set', async () => {
+      const env = testEnv();
+      delete env.env.SHIP_VIA;
+      const result = await runCli(['--json', DEMO_SITE_PATH], env);
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout.trim()).via).toBe('cli');
+    });
+
+    it('should default to cli when SHIP_VIA is empty', async () => {
+      const env = testEnv();
+      env.env.SHIP_VIA = '';
+      const result = await runCli(['--json', DEMO_SITE_PATH], env);
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout.trim()).via).toBe('cli');
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────────

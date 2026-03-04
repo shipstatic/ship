@@ -203,8 +203,8 @@ ship.domains.list()               // List all domains
 ship.domains.remove(name)         // Delete domain
 ship.domains.validate(name)       // Pre-flight: check if domain is valid and available
 ship.domains.verify(name)         // Trigger async DNS verification
-ship.domains.dns(name)            // Get required DNS records
-ship.domains.records(name)        // Get current live DNS records
+ship.domains.dns(name)            // Get DNS provider information
+ship.domains.records(name)        // Get required DNS records
 ship.domains.share(name)          // Get shareable domain hash
 ```
 
