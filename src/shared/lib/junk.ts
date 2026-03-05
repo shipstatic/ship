@@ -26,7 +26,7 @@ export const JUNK_DIRECTORIES = [
 /**
  * Filters an array of file paths, removing those considered junk
  *
- * Throws if any path contains an unbuilt project marker (e.g. `node_modules/`).
+ * Throws if any path contains an unbuilt project marker (e.g. `node_modules`, `package.json`).
  * This check runs first because the dot-file filter below would strip paths like
  * `node_modules/.pnpm/...`, destroying the evidence.
  *
