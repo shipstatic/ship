@@ -1352,5 +1352,110 @@ describe('Node File Utilities', () => {
       const paths = result.map(f => f.path);
       expect(paths.some(p => p.includes('desktop.ini'))).toBe(false);
     });
+
+    it('should deploy files from directories with dot-prefixed parents', async () => {
+      // `ship ./dist` from /project/.app/ — parent directory names above
+      // the upload root don't affect content path filtering
+      const basePath = '/project/.app/dist';
+
+      MOCK_PATH_MODULE_IMPLEMENTATION.resolve.mockImplementation((...args: string[]) => {
+        const p = args[args.length - 1];
+        if (p === './dist' || p === 'dist') return basePath;
+        return p;
+      });
+
+      MOCK_PATH_MODULE_IMPLEMENTATION.relative.mockImplementation((from: string, to: string) => {
+        if (to.startsWith(from + '/')) {
+          return to.substring(from.length + 1);
+        }
+        if (to.startsWith(from)) {
+          return to.substring(from.length).replace(/^\//, '');
+        }
+        return to;
+      });
+
+      setupMockFsNode({
+        [basePath]: { type: 'dir' },
+        [`${basePath}/index.html`]: { type: 'file', content: '<html>hello</html>' },
+        [`${basePath}/style.css`]: { type: 'file', content: 'body {}' },
+      });
+
+      const result = await processFilesForNode(['./dist']);
+
+      // Content files are returned — parent directory names don't affect filtering
+      expect(result).toHaveLength(2);
+      const paths = result.map(f => f.path);
+      expect(paths).toContain('index.html');
+      expect(paths).toContain('style.css');
+    });
+
+    it('should deploy files from directories with node_modules in parent path', async () => {
+      // `ship ./dist` from /project/node_modules/my-tool/ — parent directory names above
+      // the upload root don't affect content path filtering
+      const basePath = '/project/node_modules/my-tool/dist';
+
+      MOCK_PATH_MODULE_IMPLEMENTATION.resolve.mockImplementation((...args: string[]) => {
+        const p = args[args.length - 1];
+        if (p === './dist' || p === 'dist') return basePath;
+        return p;
+      });
+
+      MOCK_PATH_MODULE_IMPLEMENTATION.relative.mockImplementation((from: string, to: string) => {
+        if (to.startsWith(from + '/')) {
+          return to.substring(from.length + 1);
+        }
+        if (to.startsWith(from)) {
+          return to.substring(from.length).replace(/^\//, '');
+        }
+        return to;
+      });
+
+      setupMockFsNode({
+        [basePath]: { type: 'dir' },
+        [`${basePath}/index.html`]: { type: 'file', content: '<html>hello</html>' },
+        [`${basePath}/app.js`]: { type: 'file', content: 'console.log("hi")' },
+      });
+
+      const result = await processFilesForNode(['./dist']);
+
+      expect(result).toHaveLength(2);
+      const paths = result.map(f => f.path);
+      expect(paths).toContain('index.html');
+      expect(paths).toContain('app.js');
+    });
+
+    it('should filter junk files within the upload root', async () => {
+      // Junk filtering applies to content paths within the upload root
+      const basePath = '/project/.app/dist';
+
+      MOCK_PATH_MODULE_IMPLEMENTATION.resolve.mockImplementation((...args: string[]) => {
+        const p = args[args.length - 1];
+        if (p === './dist' || p === 'dist') return basePath;
+        return p;
+      });
+
+      MOCK_PATH_MODULE_IMPLEMENTATION.relative.mockImplementation((from: string, to: string) => {
+        if (to.startsWith(from + '/')) {
+          return to.substring(from.length + 1);
+        }
+        if (to.startsWith(from)) {
+          return to.substring(from.length).replace(/^\//, '');
+        }
+        return to;
+      });
+
+      setupMockFsNode({
+        [basePath]: { type: 'dir' },
+        [`${basePath}/index.html`]: { type: 'file', content: '<html>hello</html>' },
+        [`${basePath}/.DS_Store`]: { type: 'file', content: 'junk' },
+        [`${basePath}/.env`]: { type: 'file', content: 'SECRET=x' },
+      });
+
+      const result = await processFilesForNode(['./dist']);
+
+      // index.html should be kept, .DS_Store and .env should be filtered
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe('index.html');
+    });
   });
 });
