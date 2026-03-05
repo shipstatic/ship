@@ -882,6 +882,46 @@ describe('Node File Utilities', () => {
     });
   });
 
+  describe('unbuilt project detection', () => {
+    it('should reject directories containing node_modules', async () => {
+      __setTestEnvironment('node');
+      setupMockFsNode({
+        '/mock/cwd/myproject': { type: 'dir' },
+      });
+      MOCK_FS_IMPLEMENTATION.readdirSync.mockReturnValue([
+        'index.html', 'node_modules', 'src',
+      ]);
+
+      await expect(processFilesForNode(['myproject']))
+        .rejects.toThrow('"node_modules" detected');
+    });
+
+    it('should reject directories containing package.json', async () => {
+      __setTestEnvironment('node');
+      setupMockFsNode({
+        '/mock/cwd/myproject': { type: 'dir' },
+      });
+      MOCK_FS_IMPLEMENTATION.readdirSync.mockReturnValue([
+        'index.html', 'package.json', 'src',
+      ]);
+
+      await expect(processFilesForNode(['myproject']))
+        .rejects.toThrow('"package.json" detected');
+    });
+
+    it('should allow directories without unbuilt markers', async () => {
+      __setTestEnvironment('node');
+      setupMockFsNode({
+        '/mock/cwd/dist': { type: 'dir' },
+        '/mock/cwd/dist/index.html': { type: 'file', content: '<html>', size: 6 },
+      });
+      MOCK_FS_IMPLEMENTATION.readdirSync.mockReturnValue(['index.html']);
+
+      const result = await processFilesForNode(['dist']);
+      expect(result).toHaveLength(1);
+    });
+  });
+
   describe('final file count validation', () => {
     it('should throw when results exceed maxFilesCount', async () => {
       // Set a very low max file count
