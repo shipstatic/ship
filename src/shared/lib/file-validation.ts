@@ -13,6 +13,7 @@ import type {
 import {
   FileValidationStatus as FILE_VALIDATION_STATUS,
   isBlockedExtension,
+  hasUnbuiltMarker,
 } from '@shipstatic/types';
 
 export { FILE_VALIDATION_STATUS };
@@ -119,6 +120,27 @@ export function validateFiles<T extends ValidatableFile>(
       warnings: [],
       canDeploy: false,
     };
+  }
+
+  // Check for unbuilt project markers (node_modules/, etc.)
+  for (const file of files) {
+    if (hasUnbuiltMarker(file.name)) {
+      errors.push({
+        file: file.name,
+        message: `Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder`
+      });
+      return {
+        files: files.map(f => ({
+          ...f,
+          status: FILE_VALIDATION_STATUS.VALIDATION_FAILED,
+          statusMessage: 'Unbuilt project detected'
+        })),
+        validFiles: [],
+        errors,
+        warnings: [],
+        canDeploy: false
+      };
+    }
   }
 
   // Check file count limit
