@@ -1209,7 +1209,7 @@ describe('Node File Utilities', () => {
         .rejects.toThrow('File extension not allowed');
     });
 
-    it('should reject unsafe filename characters (?, ;, (), [])', async () => {
+    it('should reject URL-breaking and HTML-unsafe filename characters', async () => {
       setupMockFsNode({
         '/mock/cwd/file?.txt': { type: 'file', content: 'question' },
       });
@@ -1218,25 +1218,44 @@ describe('Node File Utilities', () => {
         .rejects.toThrow('unsafe characters');
 
       setupMockFsNode({
-        '/mock/cwd/file;cmd.txt': { type: 'file', content: 'injection' },
+        '/mock/cwd/file#anchor.txt': { type: 'file', content: 'hash' },
       });
 
-      await expect(processFilesForNode(['file;cmd.txt']))
+      await expect(processFilesForNode(['file#anchor.txt']))
         .rejects.toThrow('unsafe characters');
 
       setupMockFsNode({
-        '/mock/cwd/file(with)parentheses.json': { type: 'file', content: 'Parentheses file' },
+        '/mock/cwd/file<tag>.txt': { type: 'file', content: 'html' },
       });
 
-      await expect(processFilesForNode(['file(with)parentheses.json']))
+      await expect(processFilesForNode(['file<tag>.txt']))
         .rejects.toThrow('unsafe characters');
+    });
+
+    it('should allow characters that survive the URL round-trip', async () => {
+      setupMockFsNode({
+        '/mock/cwd/file(1).json': { type: 'file', content: 'Parentheses file' },
+      });
+      const result1 = await processFilesForNode(['file(1).json']);
+      expect(result1).toHaveLength(1);
 
       setupMockFsNode({
-        '/mock/cwd/file[with]brackets.xml': { type: 'file', content: 'Brackets file' },
+        '/mock/cwd/file[slug].js': { type: 'file', content: 'Brackets file' },
       });
+      const result2 = await processFilesForNode(['file[slug].js']);
+      expect(result2).toHaveLength(1);
 
-      await expect(processFilesForNode(['file[with]brackets.xml']))
-        .rejects.toThrow('unsafe characters');
+      setupMockFsNode({
+        '/mock/cwd/file{id}.txt': { type: 'file', content: 'Braces file' },
+      });
+      const result3 = await processFilesForNode(['file{id}.txt']);
+      expect(result3).toHaveLength(1);
+
+      setupMockFsNode({
+        '/mock/cwd/file;semi.txt': { type: 'file', content: 'Semicolon file' },
+      });
+      const result4 = await processFilesForNode(['file;semi.txt']);
+      expect(result4).toHaveLength(1);
     });
 
     it('should reject Windows reserved names', async () => {
