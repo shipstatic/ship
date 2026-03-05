@@ -14,6 +14,7 @@ import {
   FileValidationStatus as FILE_VALIDATION_STATUS,
   isBlockedExtension,
   hasUnbuiltMarker,
+  hasUnsafeChars,
 } from '@shipstatic/types';
 
 export { FILE_VALIDATION_STATUS };
@@ -31,19 +32,19 @@ export function formatFileSize(bytes: number, decimals: number = 1): string {
 
 /**
  * Validate filename for deployment safety
- * Rejects filenames that would cause issues in URLs, filesystems, or shells
  *
- * Rejected patterns:
- * - URL-unsafe: ?, &, #, %, <, >, [, ], {, }, |, \, ^, ~, `
- * - Path traversal: .. (already checked separately)
- * - Shell dangerous: ; $ ( ) ' " *
- * - Control characters: \0, \r, \n, \t
- * - Reserved names: CON, PRN, AUX, NUL, COM1-9, LPT1-9 (Windows)
- * - Leading/trailing dots or spaces
+ * Blocks only characters that genuinely break the upload→serve round-trip:
+ * - # ? %     URL round-trip breakers (fragment, query, encoding ambiguity)
+ * - \         Path separator confusion (buildFileKey splits on backslash)
+ * - < > "     XSS vectors with zero legitimate use in filenames
+ * - \x00-\x1f \x7f  Control characters (header injection, display corruption)
+ *
+ * Everything else is allowed — browser percent-encodes, Worker decodes, R2 matches.
+ *
+ * Additional checks: path traversal, reserved names, leading/trailing dots or spaces.
  */
 export function validateFileName(filename: string): { valid: boolean; reason?: string } {
-  const unsafeChars = /[?&#%<>\[\]{}|\\^~`;$()'"*\r\n\t]/;
-  if (unsafeChars.test(filename)) {
+  if (hasUnsafeChars(filename)) {
     return { valid: false, reason: 'File name contains unsafe characters' };
   }
 

@@ -15,7 +15,7 @@ importers:
         specifier: ^12.1.0
         version: 12.1.0
       cosmiconfig:
-        specifier: ^9.0.0
+        specifier: ^9.0.1
         version: 9.0.1(typescript@5.9.3)
       form-data-encoder:
         specifier: ^4.1.0
@@ -40,13 +40,13 @@ importers:
         version: 4.3.6
     devDependencies:
       '@shipstatic/types':
-        specifier: ^0.7.4
-        version: 0.7.4
+        specifier: ^0.7.5
+        version: 0.7.5
       '@types/columnify':
         specifier: ^1.5.4
         version: 1.5.4
       '@types/node':
-        specifier: ^20.19.34
+        specifier: ^20.19.35
         version: 20.19.35
       '@types/spark-md5':
         specifier: ^3.0.5
@@ -688,8 +688,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shipstatic/types@0.7.4':
-    resolution: {integrity: sha512-qHcSIw7dCyUvlT/HVHV15GB+JOG8vj+4qxHuCtOrIydkn0Nn8wzYG4AvrpNfmBl7VTySKTjHc2L64KePmqswxw==}
+  '@shipstatic/types@0.7.5':
+    resolution: {integrity: sha512-aIVFHcWcawuzjKylzbYnRjNVYZhVQFNZG8FzVbkG1TX82YAkk4nsgh/9i2KyMkchRcTHs9HZqww+mxLYItia4A==}
     engines: {node: '>=20.0.0'}
 
   '@tsconfig/node10@1.0.12':
@@ -2219,7 +2219,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.59.0':
     optional: true
 
-  '@shipstatic/types@0.7.4': {}
+  '@shipstatic/types@0.7.5': {}
 
   '@tsconfig/node10@1.0.12': {}
 
