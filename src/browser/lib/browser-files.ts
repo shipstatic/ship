@@ -38,7 +38,7 @@ export async function processFilesForBrowser(
   const rawPaths = browserFiles.map(file => file.webkitRelativePath || file.name);
 
   // 3. Filter junk files first (matches Node pipeline — don't waste time on junk)
-  // filterJunk also rejects unbuilt projects (node_modules/) before dot-file filter runs
+  // filterJunk also rejects unbuilt projects before dot-file filter runs
   const nonJunkSet = new Set(filterJunk(rawPaths));
   const validPairs: Array<{ file: File; rawPath: string }> = [];
   for (let i = 0; i < browserFiles.length; i++) {

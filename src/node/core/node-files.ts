@@ -75,7 +75,7 @@ export async function processFilesForNode(
       if (fs.statSync(absPath).isDirectory()) {
         const marker = fs.readdirSync(absPath).find(e => UNBUILT_PROJECT_MARKERS.has(e));
         if (marker) {
-          throw ShipError.business(`"${marker}/" detected — deploy your build output (dist/, build/, out/), not the project folder`);
+          throw ShipError.business(`"${marker}" detected — deploy your build output (dist/, build/, out/), not the project folder`);
         }
       }
     } catch (e) {
