@@ -833,18 +833,18 @@ describe('Node File Utilities', () => {
         '/mock/cwd/test.txt': { type: 'file', content: 'content', size: 1 }
       });
 
-      // Override the statSync to throw a ShipError on the second call (during processing)
+      // Override the statSync to throw a ShipError on the third call (during processing)
       let callCount = 0;
       MOCK_FS_IMPLEMENTATION.statSync.mockImplementation((filePath: string) => {
         callCount++;
         const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
 
-        // First call is for path validation, return valid directory
-        if (callCount === 1) {
+        // Calls 1-2: pre-walk marker check + flatMap path validation
+        if (callCount <= 2) {
           return { isDirectory: () => false, isFile: () => true, size: 1 };
         }
 
-        // Second call during file processing - throw ShipError
+        // Third call during file processing - throw ShipError
         throw ShipError.business('Simulated ShipError during file processing');
       });
 

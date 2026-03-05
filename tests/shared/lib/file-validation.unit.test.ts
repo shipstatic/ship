@@ -299,6 +299,63 @@ describe('File Validation', () => {
       });
     });
 
+    describe('Unbuilt project detection', () => {
+      it('should reject files with node_modules in path (atomic)', () => {
+        const files = [
+          createMockFile('node_modules/react/index.js', 100),
+          createMockFile('index.html', 100),
+        ];
+
+        const result = validateFiles(files, config);
+
+        expect(result.canDeploy).toBe(false);
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0].message).toContain('Unbuilt project detected');
+        expect(result.validFiles).toHaveLength(0);
+        // All files marked as failed (atomic)
+        result.files.forEach(f => {
+          expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
+        });
+      });
+
+      it('should reject nested node_modules paths', () => {
+        const files = [
+          createMockFile('src/vendor/node_modules/lodash/index.js', 100),
+        ];
+
+        const result = validateFiles(files, config);
+
+        expect(result.canDeploy).toBe(false);
+        expect(result.errors[0].message).toContain('Unbuilt project detected');
+      });
+
+      it('should accept clean build output', () => {
+        const files = [
+          createMockFile('dist/index.html', 100),
+          createMockFile('dist/assets/app.js', 200),
+          createMockFile('dist/assets/style.css', 150),
+        ];
+
+        const result = validateFiles(files, config);
+
+        expect(result.canDeploy).toBe(true);
+        expect(result.errors).toHaveLength(0);
+        expect(result.validFiles).toHaveLength(3);
+      });
+
+      it('should not false-positive on partial matches', () => {
+        const files = [
+          createMockFile('my_node_modules_docs.txt', 100),
+          createMockFile('node_modules_backup.zip', 100),
+        ];
+
+        const result = validateFiles(files, config);
+
+        expect(result.canDeploy).toBe(true);
+        expect(result.errors).toHaveLength(0);
+      });
+    });
+
     it('should work with generic ValidatableFile interface', () => {
       // Custom file type that extends ValidatableFile
       interface CustomFile extends ValidatableFile {
