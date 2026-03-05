@@ -770,7 +770,7 @@ describe('File Validation', () => {
         'bundle.min.js',
         'index.html',
         'README.md',
-        'package.json',
+        'config.json',
         '.gitignore', // Hidden files are allowed
         '.env',
         '.htaccess',
