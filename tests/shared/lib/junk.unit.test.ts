@@ -66,7 +66,7 @@ describe('filterJunk', () => {
       'src/component',
       'README.md',
       'assets/logo.svg',
-      'package.json',
+      'config.json',
     ];
     expect(filterJunk(files)).toEqual(files);
   });
@@ -195,5 +195,54 @@ describe('filterJunk', () => {
       `dir/${okSegment}/file.txt`,  // Only this passes (all segments <= 255)
     ];
     expect(filterJunk(files)).toEqual(expected);
+  });
+});
+
+describe('filterJunk — unbuilt project detection', () => {
+  it('should throw on paths containing node_modules/', () => {
+    expect(() => filterJunk([
+      'index.html',
+      'node_modules/react/index.js',
+      'app.js',
+    ])).toThrow('Unbuilt project detected');
+  });
+
+  it('should throw on paths containing package.json', () => {
+    expect(() => filterJunk([
+      'index.html',
+      'package.json',
+    ])).toThrow('Unbuilt project detected');
+
+    expect(() => filterJunk([
+      'myproject/index.html',
+      'myproject/package.json',
+    ])).toThrow('Unbuilt project detected');
+  });
+
+  it('should detect markers BEFORE dot-file filter removes evidence (pnpm regression)', () => {
+    // pnpm stores files under node_modules/.pnpm/ — the dot-file filter
+    // would strip .pnpm/ paths, hiding the node_modules marker.
+    // filterJunk must check markers first.
+    expect(() => filterJunk([
+      'demo/index.html',
+      'demo/node_modules/.pnpm/lodash@4/node_modules/lodash/index.js',
+    ])).toThrow('Unbuilt project detected');
+  });
+
+  it('should not throw when no markers present', () => {
+    expect(() => filterJunk([
+      'index.html',
+      '.DS_Store',
+      'assets/app.js',
+    ])).not.toThrow();
+  });
+
+  it('should not throw on partial matches (node_modules as substring)', () => {
+    // hasUnbuiltMarker checks path segments, not substrings
+    expect(() => filterJunk([
+      'my_node_modules_docs.txt',
+      'node_modules_backup.zip',
+      'not-node_modules/file.js',
+    ])).not.toThrow();
   });
 });
