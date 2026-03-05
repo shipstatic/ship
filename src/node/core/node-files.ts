@@ -53,7 +53,8 @@ function findAllFilePaths(dirPath: string, visited: Set<string> = new Set()): st
 
 /**
  * Processes Node.js file and directory paths into an array of StaticFile objects ready for deploy.
- * Uses corrected logic to properly handle common parent directory stripping.
+ * Computes content paths relative to the upload root before filtering, so only the deployed
+ * directory structure is evaluated — not the user's filesystem above it.
  * 
  * @param paths - File or directory paths to scan and process.
  * @param options - Processing options (pathDetect, etc.).
@@ -95,15 +96,8 @@ export async function processFilesForNode(
     }
   });
   const uniquePaths = [...new Set(absolutePaths)];
-  
-  // 2. Filter out junk files from the final list
-  const validPaths = filterJunk(uniquePaths);
-  if (validPaths.length === 0) {
-    return [];
-  }
 
-  // 3. Determine the base path for calculating relative paths
-  // Find the common parent of the INPUT paths (not the discovered file paths)
+  // 2. Determine base path for content paths (from INPUT paths, not discovered files)
   const inputAbsolutePaths = paths.map(p => path.resolve(p));
   const inputBasePath = findCommonParent(inputAbsolutePaths.map(p => {
     try {
@@ -114,32 +108,45 @@ export async function processFilesForNode(
     }
   }));
 
-  // 4. Create raw relative paths for optimization
-  const relativePaths = validPaths.map(filePath => {
-    // If we have a meaningful common base path from inputs, use it
+  // 3. Compute content paths (relative to upload root) for filtering
+  const contentPaths = uniquePaths.map(absPath => {
     if (inputBasePath && inputBasePath.length > 0) {
-      const rel = path.relative(inputBasePath, filePath);
+      const rel = path.relative(inputBasePath, absPath);
       if (rel && typeof rel === 'string' && !rel.startsWith('..')) {
         return rel.replace(/\\/g, '/');
       }
     }
-    
-    // Fallback: if no good common parent or relative path goes up, just use basename
-    return path.basename(filePath);
+    return path.basename(absPath);
   });
 
-  // 5. Optimize paths for deployment (flattening)
-  const deployFiles = optimizeDeployPaths(relativePaths, {
+  // 4. Filter junk files from content paths
+  const filteredContentSet = new Set(filterJunk(contentPaths));
+  if (filteredContentSet.size === 0) {
+    return [];
+  }
+
+  // 5. Collect valid file pairs (absolute path for reading, content path for deploy)
+  const validAbsPaths: string[] = [];
+  const validContentPaths: string[] = [];
+  for (let i = 0; i < uniquePaths.length; i++) {
+    if (filteredContentSet.has(contentPaths[i])) {
+      validAbsPaths.push(uniquePaths[i]);
+      validContentPaths.push(contentPaths[i]);
+    }
+  }
+
+  // 6. Optimize paths for deployment (flattening)
+  const deployFiles = optimizeDeployPaths(validContentPaths, {
     flatten: options.pathDetect !== false
   });
 
-  // 6. Process files into StaticFile objects
+  // 7. Process files into StaticFile objects
   const results: StaticFile[] = [];
   let totalSize = 0;
   const platformLimits = getCurrentConfig();
 
-  for (let i = 0; i < validPaths.length; i++) {
-    const filePath = validPaths[i];
+  for (let i = 0; i < validAbsPaths.length; i++) {
+    const filePath = validAbsPaths[i];
     const deployPath = deployFiles[i].path;
     
     try {
