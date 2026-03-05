@@ -9,7 +9,7 @@
  */
 import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
-import { ShipError, hasUnbuiltMarker } from '@shipstatic/types';
+import { ShipError } from '@shipstatic/types';
 import { getENV } from '../../shared/lib/env.js';
 import { filterJunk } from '../../shared/lib/junk.js';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
@@ -37,14 +37,8 @@ export async function processFilesForBrowser(
   // 2. Extract raw paths from File objects
   const rawPaths = browserFiles.map(file => file.webkitRelativePath || file.name);
 
-  // Check for unbuilt project markers in file paths
-  for (const rawPath of rawPaths) {
-    if (hasUnbuiltMarker(rawPath)) {
-      throw ShipError.business(`Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder`);
-    }
-  }
-
   // 3. Filter junk files first (matches Node pipeline — don't waste time on junk)
+  // filterJunk also rejects unbuilt projects (node_modules/) before dot-file filter runs
   const nonJunkSet = new Set(filterJunk(rawPaths));
   const validPairs: Array<{ file: File; rawPath: string }> = [];
   for (let i = 0; i < browserFiles.length; i++) {

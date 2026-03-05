@@ -272,6 +272,43 @@ describe('Browser File Processing', () => {
     });
   });
 
+  describe('unbuilt project detection', () => {
+    it('should reject files with node_modules in path', async () => {
+      const files = [
+        new File(['<html>'], 'index.html'),
+        new File(['module.exports'], 'react.js'),
+      ];
+      // Set webkitRelativePath to simulate folder drop
+      Object.defineProperty(files[0], 'webkitRelativePath', { value: 'demo/index.html' });
+      Object.defineProperty(files[1], 'webkitRelativePath', { value: 'demo/node_modules/react/index.js' });
+
+      await expect(processFilesForBrowser(files, {}))
+        .rejects.toThrow('Unbuilt project detected');
+    });
+
+    it('should reject files with package.json in path', async () => {
+      const files = [
+        new File(['<html>'], 'index.html'),
+        new File(['{}'], 'package.json'),
+      ];
+      Object.defineProperty(files[0], 'webkitRelativePath', { value: 'demo/index.html' });
+      Object.defineProperty(files[1], 'webkitRelativePath', { value: 'demo/package.json' });
+
+      await expect(processFilesForBrowser(files, {}))
+        .rejects.toThrow('Unbuilt project detected');
+    });
+
+    it('should reject even when node_modules files are under .pnpm (pnpm regression)', async () => {
+      const file = new File(['lodash'], 'index.js');
+      Object.defineProperty(file, 'webkitRelativePath', {
+        value: 'demo/node_modules/.pnpm/lodash@4/node_modules/lodash/index.js',
+      });
+
+      await expect(processFilesForBrowser([file], {}))
+        .rejects.toThrow('Unbuilt project detected');
+    });
+  });
+
   describe('filename and extension validation', () => {
     it('should reject blocked extensions (.exe, .msi)', async () => {
       const exeFile = new File(['malware'], 'virus.exe');
