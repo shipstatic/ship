@@ -7,7 +7,7 @@ import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
 import { filterJunk } from '../../shared/lib/junk.js';
 import { validateDeployPath, validateDeployFile } from '../../shared/lib/security.js';
-import { ShipError, isShipError } from '@shipstatic/types';
+import { ShipError, isShipError, UNBUILT_PROJECT_MARKERS } from '@shipstatic/types';
 import { getCurrentConfig } from '../../shared/core/platform-config.js';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
 import { findCommonParent } from '../../shared/lib/path.js';
@@ -66,6 +66,22 @@ export async function processFilesForNode(
 ): Promise<StaticFile[]> {
   if (getENV() !== 'node') {
     throw ShipError.business('processFilesForNode can only be called in Node.js environment.');
+  }
+
+  // Check input directories for unbuilt project markers before recursive walk
+  for (const p of paths) {
+    const absPath = path.resolve(p);
+    try {
+      if (fs.statSync(absPath).isDirectory()) {
+        const marker = fs.readdirSync(absPath).find(e => UNBUILT_PROJECT_MARKERS.has(e));
+        if (marker) {
+          throw ShipError.business(`"${marker}/" detected — deploy your build output (dist/, build/, out/), not the project folder`);
+        }
+      }
+    } catch (e) {
+      if (isShipError(e)) throw e;
+      // Path errors handled in the existing flatMap below
+    }
   }
 
   // 1. Discover all unique, absolute file paths from the input list
