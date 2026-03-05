@@ -6,6 +6,7 @@
  * a custom list to filter out common junk directories.
  */
 import { isJunk } from 'junk';
+import { ShipError, hasUnbuiltMarker } from '@shipstatic/types';
 
 /**
  * List of directory names considered as junk
@@ -25,6 +26,10 @@ export const JUNK_DIRECTORIES = [
 /**
  * Filters an array of file paths, removing those considered junk
  *
+ * Throws if any path contains an unbuilt project marker (e.g. `node_modules/`).
+ * This check runs first because the dot-file filter below would strip paths like
+ * `node_modules/.pnpm/...`, destroying the evidence.
+ *
  * A path is filtered out if any of these conditions are met:
  * 1. The basename is identified as junk by the 'junk' package (e.g., .DS_Store, Thumbs.db)
  * 2. Any path segment starts with a dot (e.g., .env, .git, .htaccess)
@@ -39,6 +44,7 @@ export const JUNK_DIRECTORIES = [
  *
  * @param filePaths - An array of file path strings to filter
  * @returns A new array containing only non-junk file paths
+ * @throws {ShipError} If any path contains an unbuilt project marker
  *
  * @example
  * ```typescript
@@ -72,6 +78,16 @@ export const JUNK_DIRECTORIES = [
 export function filterJunk(filePaths: string[]): string[] {
   if (!filePaths || filePaths.length === 0) {
     return [];
+  }
+
+  // Reject unbuilt projects before the dot-file filter removes evidence.
+  // pnpm stores files under node_modules/.pnpm/ — the dot-file filter below
+  // strips .pnpm/ paths, destroying the only signal that this is an unbuilt project.
+  const marker = filePaths.find(p => p && hasUnbuiltMarker(p));
+  if (marker) {
+    throw ShipError.business(
+      'Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder'
+    );
   }
 
   return filePaths.filter(filePath => {
