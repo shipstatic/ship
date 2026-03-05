@@ -657,48 +657,73 @@ describe('File Validation', () => {
       maxFilesCount: 100,
     };
 
-    it('should reject files with URL-unsafe characters', () => {
+    it('should reject files with URL-breaking characters', () => {
       const unsafeNames = [
         'file?.txt',
-        'file&name.txt',
         'file#hash.txt',
         'file%percent.txt',
-        'file<less.txt',
-        'file>greater.txt',
-        'file[bracket.txt',
-        'file{brace.txt',
-        'file|pipe.txt',
-        'file\\backslash.txt',
-        'file^caret.txt',
-        'file~tilde.txt',
-        'file`backtick.txt',
       ];
 
       unsafeNames.forEach(name => {
         const result = validateFiles([createMockFile(name, 100)], config);
         expect(result.canDeploy).toBe(false);
-      expect(result.errors[0].message).toBeDefined();
+        expect(result.errors[0].message).toBeDefined();
         expect(result.validFiles).toHaveLength(0);
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
     });
 
-    it('should reject files with shell-dangerous characters', () => {
-      const dangerousNames = [
+    it('should reject files with HTML-unsafe characters', () => {
+      const htmlUnsafe = [
+        'file<less.txt',
+        'file>greater.txt',
+        'file"doublequote.txt',
+      ];
+
+      htmlUnsafe.forEach(name => {
+        const result = validateFiles([createMockFile(name, 100)], config);
+        expect(result.canDeploy).toBe(false);
+        expect(result.errors[0].message).toBeDefined();
+        expect(result.validFiles).toHaveLength(0);
+      });
+    });
+
+    it('should reject files with backslash', () => {
+      const result = validateFiles([createMockFile('file\\backslash.txt', 100)], config);
+      expect(result.canDeploy).toBe(false);
+      expect(result.errors[0].message).toBeDefined();
+      expect(result.validFiles).toHaveLength(0);
+    });
+
+    it('should allow all characters that survive the URL round-trip', () => {
+      const safeNames = [
+        'file&name.txt',
+        'file~tilde.txt',
         'file;semicolon.txt',
         'file$dollar.txt',
         'file(paren.txt',
         'file)paren.txt',
         "file'quote.txt",
-        'file"doublequote.txt',
         'file*asterisk.txt',
+        'file!bang.txt',
+        'file+plus.txt',
+        'file,comma.txt',
+        'file=equals.txt',
+        'file@at.txt',
+        'file:colon.txt',
+        'file[bracket.txt',
+        'file]bracket.txt',
+        'file{brace.txt',
+        'file}brace.txt',
+        'file|pipe.txt',
+        'file^caret.txt',
+        'file`backtick.txt',
       ];
 
-      dangerousNames.forEach(name => {
+      safeNames.forEach(name => {
         const result = validateFiles([createMockFile(name, 100)], config);
-        expect(result.canDeploy).toBe(false);
-      expect(result.errors[0].message).toBeDefined();
-        expect(result.validFiles).toHaveLength(0);
+        expect(result.canDeploy).toBe(true);
+        expect(result.validFiles).toHaveLength(1);
       });
     });
 

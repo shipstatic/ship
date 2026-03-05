@@ -320,22 +320,36 @@ describe('Browser File Processing', () => {
         .rejects.toThrow('File extension not allowed');
     });
 
-    it('should reject unsafe filename characters (?, ;, (), [])', async () => {
+    it('should reject URL-breaking and HTML-unsafe filename characters', async () => {
       const questionFile = new File(['test'], 'file?.txt');
       await expect(processFilesForBrowser([questionFile], {}))
         .rejects.toThrow('unsafe characters');
 
-      const semicolonFile = new File(['test'], 'file;cmd.txt');
-      await expect(processFilesForBrowser([semicolonFile], {}))
+      const hashFile = new File(['test'], 'file#anchor.txt');
+      await expect(processFilesForBrowser([hashFile], {}))
         .rejects.toThrow('unsafe characters');
 
-      const parenFile = new File(['test'], 'file(with)parens.json');
-      await expect(processFilesForBrowser([parenFile], {}))
+      const htmlFile = new File(['test'], 'file<tag>.txt');
+      await expect(processFilesForBrowser([htmlFile], {}))
         .rejects.toThrow('unsafe characters');
+    });
 
-      const bracketFile = new File(['test'], 'file[with]brackets.xml');
-      await expect(processFilesForBrowser([bracketFile], {}))
-        .rejects.toThrow('unsafe characters');
+    it('should allow characters that survive the URL round-trip', async () => {
+      const parenFile = new File(['test'], 'file(1).json');
+      const result1 = await processFilesForBrowser([parenFile], {});
+      expect(result1).toHaveLength(1);
+
+      const bracketFile = new File(['test'], 'file[slug].js');
+      const result2 = await processFilesForBrowser([bracketFile], {});
+      expect(result2).toHaveLength(1);
+
+      const braceFile = new File(['test'], 'file{id}.txt');
+      const result3 = await processFilesForBrowser([braceFile], {});
+      expect(result3).toHaveLength(1);
+
+      const semicolonFile = new File(['test'], 'file;semi.txt');
+      const result4 = await processFilesForBrowser([semicolonFile], {});
+      expect(result4).toHaveLength(1);
     });
 
     it('should reject Windows reserved names', async () => {

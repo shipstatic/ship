@@ -1,6 +1,6 @@
 {
   "name": "@shipstatic/ship",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "description": "SDK & CLI for Shipstatic platform",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -62,7 +62,7 @@
   "dependencies": {
     "columnify": "^1.6.0",
     "commander": "^12.1.0",
-    "cosmiconfig": "^9.0.0",
+    "cosmiconfig": "^9.0.1",
     "form-data-encoder": "^4.1.0",
     "formdata-node": "^6.0.3",
     "junk": "^4.0.1",
@@ -72,9 +72,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@shipstatic/types": "^0.7.4",
+    "@shipstatic/types": "^0.7.5",
     "@types/columnify": "^1.5.4",
-    "@types/node": "^20.19.34",
+    "@types/node": "^20.19.35",
     "@types/spark-md5": "^3.0.5",
     "@vitest/coverage-v8": "^3.2.4",
     "esbuild": "^0.23.1",
