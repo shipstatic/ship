@@ -1390,8 +1390,8 @@ describe('Node File Utilities', () => {
     });
 
     it('should deploy files from directories with node_modules in parent path', async () => {
-      // `ship ./dist` from /project/node_modules/my-tool/ — parent directory names above
-      // the upload root don't affect content path filtering
+      // `ship ./dist` from /project/node_modules/my-tool/ — unbuilt markers
+      // above the upload root don't trigger rejection
       const basePath = '/project/node_modules/my-tool/dist';
 
       MOCK_PATH_MODULE_IMPLEMENTATION.resolve.mockImplementation((...args: string[]) => {
