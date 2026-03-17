@@ -268,7 +268,7 @@ export class ApiHttp extends SimpleEvents {
     }
 
     return this.request<Deployment>(
-      `${options.apiUrl || this.apiUrl}${ENDPOINTS.DEPLOYMENTS}`,
+      `${options.apiUrl || this.apiUrl}${options.endpoint || ENDPOINTS.DEPLOYMENTS}`,
       { method: 'POST', body, headers: { ...bodyHeaders, ...authHeaders }, signal: options.signal || null },
       'Deploy'
     );

@@ -86,7 +86,7 @@ describe('CLI with Mock API', () => {
           res.writeHead(201, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             deployment: 'test-deployment-123',
-            url: 'https://test-deployment-123.shipstatic.dev',
+            url: 'https://test-deployment-123.shipstatic.com',
             files: 2,
             size: 1024,
             labels: labels ?? [],
@@ -105,7 +105,7 @@ describe('CLI with Mock API', () => {
           res.end(JSON.stringify({
             domain: domainName,
             deployment: requestData.deployment || 'test-deployment-123',
-            url: `https://${domainName}.shipstatic.dev`,
+            url: `https://${domainName}.shipstatic.com`,
             labels: requestData.labels ?? []
           }));
           return;

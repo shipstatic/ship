@@ -46,7 +46,7 @@ describe('Authentication Lifecycle', () => {
 
     mockApiDeploy = vi.fn().mockResolvedValue({
       id: 'dep_123',
-      url: 'https://dep_123.shipstatic.dev'
+      url: 'https://dep_123.shipstatic.com'
     });
   });
 
@@ -73,7 +73,7 @@ describe('Authentication Lifecycle', () => {
       const result = await ship.deploy(['./test'] as any);
       expect(result).toEqual({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.dev'
+        url: 'https://dep_123.shipstatic.com'
       });
       expect(mockApiDeploy).toHaveBeenCalled();
     });
@@ -130,7 +130,7 @@ describe('Authentication Lifecycle', () => {
       const result = await ship.deploy(['./test'] as any);
       expect(result).toEqual({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.dev'
+        url: 'https://dep_123.shipstatic.com'
       });
       expect(mockApiDeploy).toHaveBeenCalled();
     });
@@ -182,7 +182,7 @@ describe('Authentication Lifecycle', () => {
 
       expect(result).toEqual({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.dev'
+        url: 'https://dep_123.shipstatic.com'
       });
       expect(mockApiDeploy).toHaveBeenCalled();
     });
@@ -204,7 +204,7 @@ describe('Authentication Lifecycle', () => {
 
       expect(result).toEqual({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.dev'
+        url: 'https://dep_123.shipstatic.com'
       });
       expect(mockApiDeploy).toHaveBeenCalled();
     });

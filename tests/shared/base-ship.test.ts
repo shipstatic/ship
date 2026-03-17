@@ -48,7 +48,7 @@ describe('Base Ship Class (Abstract)', () => {
     // Mock the API deploy method
     mockApiDeploy = vi.fn().mockResolvedValue({
       id: 'dep_123',
-      url: 'https://dep_123.shipstatic.dev'
+      url: 'https://dep_123.shipstatic.com'
     });
 
     // Initialize with apiKey for authentication
@@ -93,7 +93,7 @@ describe('Base Ship Class (Abstract)', () => {
 
       expect(result).toEqual({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.dev'
+        url: 'https://dep_123.shipstatic.com'
       });
       expect(mockApiDeploy).toHaveBeenCalled();
     });

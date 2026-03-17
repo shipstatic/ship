@@ -56,6 +56,8 @@ export interface DeploymentOptions {
   via?: string;
   /** Caller identifier for multi-tenant deployments (alphanumeric, dot, underscore, hyphen). */
   caller?: string;
+  /** Override the deploy endpoint path. Defaults to '/deployments'. */
+  endpoint?: string;
 }
 
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;

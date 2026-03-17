@@ -253,6 +253,38 @@ describe('ApiHttp', () => {
       const headers = fetchCall[1].headers;
       expect(headers['X-Caller']).toBeUndefined();
     });
+
+    it('should use custom endpoint when provided', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13
+      }));
+
+      await apiHttp.deploy(mockFiles, { endpoint: '/upload' });
+
+      const fetchCall = (global.fetch as any).mock.calls[0];
+      expect(fetchCall[0]).toBe('https://api.test.com/upload');
+    });
+
+    it('should default to /deployments endpoint when not provided', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13
+      }));
+
+      await apiHttp.deploy(mockFiles);
+
+      const fetchCall = (global.fetch as any).mock.calls[0];
+      expect(fetchCall[0]).toBe('https://api.test.com/deployments');
+    });
   });
 
   describe('listDeployments', () => {
