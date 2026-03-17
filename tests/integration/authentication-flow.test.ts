@@ -6,7 +6,7 @@ const mockApiHttp = vi.fn();
 // Default mock client for when specific behavior isn't needed
 const defaultMockApiClient = {
   ping: vi.fn().mockResolvedValue(true),
-  deploy: vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://dep_123.shipstatic.dev' }),
+  deploy: vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://dep_123.shipstatic.com' }),
   getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
   getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760 }),
   checkSPA: vi.fn().mockResolvedValue(false),
@@ -29,7 +29,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
     vi.clearAllMocks();
     // Reinitialize the mock functions after clearing
     defaultMockApiClient.ping = vi.fn().mockResolvedValue(true);
-    defaultMockApiClient.deploy = vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://dep_123.shipstatic.dev' });
+    defaultMockApiClient.deploy = vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://dep_123.shipstatic.com' });
     defaultMockApiClient.getAccount = vi.fn().mockResolvedValue({ email: 'test@example.com' });
     defaultMockApiClient.getConfig = vi.fn().mockResolvedValue({ maxFileSize: 10485760 });
     defaultMockApiClient.checkSPA = vi.fn().mockResolvedValue(false);
@@ -91,7 +91,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       // Test valid deploy token
       const shipWithValidToken = new Ship({ 
         deployToken: 'valid-deploy-token',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
       expect(shipWithValidToken).toBeDefined();
       
@@ -106,7 +106,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       const { Ship } = await import('../../src/browser/index');
       const ship = new Ship({ 
         deployToken: 'test-deploy-token',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
       
       // Mock HTTP client to verify deploy token usage
@@ -122,7 +122,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       const { Ship } = await import('../../src/browser/index');
       const ship = new Ship({ 
         deployToken: 'invalid-deploy-token',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
       
       // Mock authentication failure
@@ -151,7 +151,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       const { Ship: BrowserShip } = await import('../../src/browser/index');
       const browserShip = new BrowserShip({ 
         deployToken: 'test-token',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
       (browserShip as any).http = defaultMockApiClient;
       
@@ -178,7 +178,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       const { Ship: BrowserShip } = await import('../../src/browser/index');
       const browserShip = new BrowserShip({ 
         deployToken: 'invalid-token',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
       (browserShip as any).http = defaultMockApiClient;
       
@@ -222,7 +222,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       const { Ship: BrowserShip } = await import('../../src/browser/index');
       const browserShip = new BrowserShip({ 
         deployToken: 'test-token',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
       await resourceTests(browserShip);
     });
@@ -289,7 +289,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
           const { Ship } = await import('../../src/browser/index');
           ship = new Ship({ 
             deployToken: 'test-token',
-            apiUrl: 'https://api.shipstatic.dev'
+            apiUrl: 'https://api.shipstatic.com'
           });
         }
         
@@ -361,7 +361,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
           const { Ship } = await import('../../src/browser/index');
           ship = new Ship({ 
             deployToken: 'test-token',
-            apiUrl: 'https://api.shipstatic.dev'
+            apiUrl: 'https://api.shipstatic.com'
           });
         }
         
@@ -441,7 +441,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
           const { Ship } = await import('../../src/browser/index');
           ship = new Ship({ 
             deployToken: 'test-token',
-            apiUrl: 'https://api.shipstatic.dev'
+            apiUrl: 'https://api.shipstatic.com'
           });
         }
         

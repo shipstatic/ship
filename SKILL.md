@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Deploy static sites to ShipStatic. Use when the user wants to deploy a website, upload files, manage deployments, set up domains, or publish static files to shipstatic.dev.
+description: Deploy static sites to ShipStatic. Use when the user wants to deploy a website, upload files, manage deployments, set up domains, or publish static files to shipstatic.com.
 ---
 
 ## Install
@@ -42,7 +42,7 @@ ship domains set www.example.com
 ship domains set my-site
 ```
 
-Internal domains (`my-site.shipstatic.dev`) are free and instant. Custom domains require DNS configuration — the CLI prints the required records.
+Internal domains (`my-site.shipstatic.com`) are free and instant. Custom domains require DNS configuration — the CLI prints the required records.
 
 **Apex domains are not supported.** Always use a subdomain: `www.example.com`, not `example.com`.
 

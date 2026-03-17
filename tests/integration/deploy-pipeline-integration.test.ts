@@ -7,7 +7,7 @@ const mockApiClient = {
   ping: vi.fn().mockResolvedValue(true),
   deploy: vi.fn().mockResolvedValue({
     id: 'pipeline_test_123',
-    url: 'https://pipeline_test_123.shipstatic.dev',
+    url: 'https://pipeline_test_123.shipstatic.com',
     files: []
   }),
   getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
@@ -34,7 +34,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
     mockApiClient.ping = vi.fn().mockResolvedValue(true);
     mockApiClient.deploy = vi.fn().mockResolvedValue({
       id: 'pipeline_test_123',
-      url: 'https://pipeline_test_123.shipstatic.dev',
+      url: 'https://pipeline_test_123.shipstatic.com',
       files: []
     });
     mockApiClient.getAccount = vi.fn().mockResolvedValue({ email: 'test@example.com' });
@@ -90,7 +90,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
       expect(results[0]).toEqual(results[1]);
       expect(results[0]).toEqual({
         id: 'pipeline_test_123',
-        url: 'https://pipeline_test_123.shipstatic.dev',
+        url: 'https://pipeline_test_123.shipstatic.com',
         files: []
       });
 

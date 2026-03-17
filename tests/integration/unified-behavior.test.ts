@@ -21,7 +21,7 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       checkSPA: vi.fn(),
       deploy: vi.fn().mockResolvedValue({
         id: 'integration_test',
-        url: 'https://integration_test.shipstatic.dev'
+        url: 'https://integration_test.shipstatic.com'
       })
     };
 
