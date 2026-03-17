@@ -37,7 +37,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
     mockApiHttp = {
       deploy: vi.fn().mockResolvedValue({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.dev',
+        url: 'https://dep_123.shipstatic.com',
         files: [],
         labels: []
       }),
@@ -75,7 +75,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       expect(mockApiHttp.deploy).toHaveBeenCalled();
       expect(result).toEqual({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.dev',
+        url: 'https://dep_123.shipstatic.com',
         files: [],
         labels: []
       });
@@ -88,7 +88,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
 
       (mockApiHttp.deploy as any).mockResolvedValue({
         id: 'dep_456',
-        url: 'https://dep_456.shipstatic.dev',
+        url: 'https://dep_456.shipstatic.com',
         files: [],
         labels
       });
@@ -110,7 +110,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
 
       (mockApiHttp.deploy as any).mockResolvedValue({
         id: 'dep_789',
-        url: 'https://dep_789.shipstatic.dev',
+        url: 'https://dep_789.shipstatic.com',
         files: [],
         labels
       });

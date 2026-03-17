@@ -23,7 +23,7 @@ export * from '../shared/index.js';
  * // Deploy with token obtained from server
  * const ship = new Ship({
  *   deployToken: "token-xxxx",
- *   apiUrl: "https://api.shipstatic.dev"
+ *   apiUrl: "https://api.shipstatic.com"
  * });
  *
  * // Deploy files from input element

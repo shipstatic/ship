@@ -92,7 +92,7 @@ describe('BaseShipClient', () => {
 
       // Override config via environment variables (highest priority)
       process.env.SHIP_API_KEY = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
-      process.env.SHIP_API_URL = 'https://test.api.shipstatic.dev';
+      process.env.SHIP_API_URL = 'https://test.api.shipstatic.com';
 
       const { Ship } = await import('../../src/index');
       const shipInstance = new Ship();
@@ -102,7 +102,7 @@ describe('BaseShipClient', () => {
 
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
-          apiUrl: 'https://test.api.shipstatic.dev',
+          apiUrl: 'https://test.api.shipstatic.com',
           apiKey: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
         })
       );

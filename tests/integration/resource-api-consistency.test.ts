@@ -12,19 +12,19 @@ import { __setTestEnvironment } from '../../src/shared/lib/env';
 const createMockApiClient = () => ({
   deploy: vi.fn().mockResolvedValue({
     id: 'dep_123',
-    url: 'https://dep_123.shipstatic.dev',
+    url: 'https://dep_123.shipstatic.com',
     files: []
   }),
   listDeployments: vi.fn().mockResolvedValue({
     deployments: [
-      { id: 'dep_1', url: 'https://dep_1.shipstatic.dev', created: '2024-01-01T00:00:00Z' },
-      { id: 'dep_2', url: 'https://dep_2.shipstatic.dev', created: '2024-01-02T00:00:00Z' }
+      { id: 'dep_1', url: 'https://dep_1.shipstatic.com', created: '2024-01-01T00:00:00Z' },
+      { id: 'dep_2', url: 'https://dep_2.shipstatic.com', created: '2024-01-02T00:00:00Z' }
     ],
     count: 2
   }),
   getDeployment: vi.fn().mockResolvedValue({
     id: 'dep_123',
-    url: 'https://dep_123.shipstatic.dev',
+    url: 'https://dep_123.shipstatic.com',
     created: '2024-01-01T00:00:00Z',
     files: []
   }),
@@ -130,7 +130,7 @@ describe('Resource API Cross-Environment Consistency', () => {
       expect(nodeResult).toEqual(browserResult);
       expect(nodeResult).toEqual({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.dev',
+        url: 'https://dep_123.shipstatic.com',
         files: []
       });
     });

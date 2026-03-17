@@ -1,6 +1,6 @@
 # @shipstatic/ship
 
-Universal SDK and CLI for deploying static files to Shipstatic.
+Universal SDK and CLI for deploying static files to ShipStatic.
 
 ## Installation
 
@@ -318,4 +318,4 @@ import type {
 
 ---
 
-Part of the [Shipstatic](https://shipstatic.com) platform.
+Part of the [ShipStatic](https://shipstatic.com) platform.
