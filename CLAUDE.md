@@ -2,7 +2,7 @@
 
 Claude Code instructions for the **Ship SDK & CLI** package.
 
-**@shipstatic/ship** — universal SDK and CLI for Shipstatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Release candidate; interfaces stabilizing.
+**@shipstatic/ship** — universal SDK and CLI for ShipStatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Release candidate; interfaces stabilizing.
 
 ## Architecture
 

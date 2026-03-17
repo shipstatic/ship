@@ -6,7 +6,7 @@ import { ShipError } from '@shipstatic/types';
 // Mock the ApiHttp class to prevent real network calls
 const mockApiClient = {
   ping: vi.fn().mockResolvedValue(true),
-  deploy: vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://dep_123.shipstatic.dev' }),
+  deploy: vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://dep_123.shipstatic.com' }),
   getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
   getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760 }),
   checkSPA: vi.fn().mockResolvedValue(false)
@@ -92,7 +92,7 @@ describe('Ship - Node.js Implementation', () => {
       (ship as any).http = {
         deploy: vi.fn().mockResolvedValue({
           id: 'dep_123',
-          url: 'https://dep_123.shipstatic.dev'
+          url: 'https://dep_123.shipstatic.com'
         }),
         getConfig: vi.fn().mockResolvedValue({}),
         checkSPA: vi.fn().mockResolvedValue(false)
@@ -102,7 +102,7 @@ describe('Ship - Node.js Implementation', () => {
 
       expect(result).toEqual({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.dev'
+        url: 'https://dep_123.shipstatic.com'
       });
     });
 
@@ -110,7 +110,7 @@ describe('Ship - Node.js Implementation', () => {
       // Update the global mock to return the expected value for this test
       mockApiClient.deploy.mockResolvedValue({
         id: 'dep_456',
-        url: 'https://dep_456.shipstatic.dev'
+        url: 'https://dep_456.shipstatic.com'
       });
 
       const ship = new Ship({ apiKey: 'test-key' });
@@ -118,7 +118,7 @@ describe('Ship - Node.js Implementation', () => {
 
       expect(result).toEqual({
         id: 'dep_456',
-        url: 'https://dep_456.shipstatic.dev'
+        url: 'https://dep_456.shipstatic.com'
       });
     });
   });
@@ -159,7 +159,7 @@ describe('Ship - Node.js Implementation', () => {
       (ship as any).http = {
         deploy: vi.fn().mockResolvedValue({
           id: 'dep_paths_123',
-          url: 'https://dep_paths_123.shipstatic.dev'
+          url: 'https://dep_paths_123.shipstatic.com'
         }),
         getConfig: vi.fn().mockResolvedValue({}),
         checkSPA: vi.fn().mockResolvedValue(false)
@@ -243,7 +243,7 @@ describe('Ship - Node.js Implementation', () => {
       // Update the global mock for this test
       mockApiClient.deploy.mockResolvedValue({
         id: 'dep_dir_123',
-        url: 'https://dep_dir_123.shipstatic.dev'
+        url: 'https://dep_dir_123.shipstatic.com'
       });
 
       const result = await ship.deploy('./dist');
@@ -251,7 +251,7 @@ describe('Ship - Node.js Implementation', () => {
       expect(mockProcessInput).toHaveBeenCalledWith('./dist', expect.any(Object));
       expect(result).toEqual({
         id: 'dep_dir_123',
-        url: 'https://dep_dir_123.shipstatic.dev'
+        url: 'https://dep_dir_123.shipstatic.com'
       });
     });
 
@@ -263,7 +263,7 @@ describe('Ship - Node.js Implementation', () => {
       (ship as any).http = {
         deploy: vi.fn().mockResolvedValue({
           id: 'dep_opt_123',
-          url: 'https://dep_opt_123.shipstatic.dev'
+          url: 'https://dep_opt_123.shipstatic.com'
         }),
         getConfig: vi.fn().mockResolvedValue({}),
         checkSPA: vi.fn().mockResolvedValue(false)

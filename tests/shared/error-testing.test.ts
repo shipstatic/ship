@@ -86,7 +86,7 @@ describe('Cross-Platform Error Standardization', () => {
     });
 
     it('should handle connection errors consistently', () => {
-      const connectionError = ShipError.network('Failed to connect to https://api.shipstatic.dev');
+      const connectionError = ShipError.network('Failed to connect to https://api.shipstatic.com');
       
       expect(connectionError.message).toContain('Failed to connect');
       expect(connectionError.type).toBe('network_error');

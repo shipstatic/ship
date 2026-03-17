@@ -22,7 +22,7 @@ describe('Ship - Browser Implementation', () => {
     it('should create Ship instance with explicit configuration', () => {
       const ship = new Ship({ 
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.com' 
       });
       expect(ship).toBeInstanceOf(Ship);
     });
@@ -30,7 +30,7 @@ describe('Ship - Browser Implementation', () => {
     it('should work without API key (using deploy tokens)', () => {
       const ship = new Ship({ 
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.com' 
       });
       expect(ship).toBeInstanceOf(Ship);
     });
@@ -64,14 +64,14 @@ describe('Ship - Browser Implementation', () => {
     it('should process File[] correctly', async () => {
       const ship = new Ship({ 
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.com' 
       });
       
       // Mock the API client
       (ship as any).http = {
         deploy: vi.fn().mockResolvedValue({
           id: 'dep_browser_123',
-          url: 'https://dep_browser_123.shipstatic.dev'
+          url: 'https://dep_browser_123.shipstatic.com'
         }),
         checkSPA: vi.fn().mockResolvedValue(false),
         getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
@@ -87,7 +87,7 @@ describe('Ship - Browser Implementation', () => {
 
       expect(result).toEqual({
         id: 'dep_browser_123',
-        url: 'https://dep_browser_123.shipstatic.dev'
+        url: 'https://dep_browser_123.shipstatic.com'
       });
     });
 
@@ -97,14 +97,14 @@ describe('Ship - Browser Implementation', () => {
     it('should apply SPA detection for browser files (unified pipeline)', async () => {
       const ship = new Ship({ 
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.com' 
       });
       
       // Mock the API client with SPA detection
       (ship as any).http = {
         deploy: vi.fn().mockResolvedValue({
           id: 'dep_spa_123',
-          url: 'https://dep_spa_123.shipstatic.dev'
+          url: 'https://dep_spa_123.shipstatic.com'
         }),
         checkSPA: vi.fn().mockResolvedValue(true), // SPA detected
         getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
@@ -143,7 +143,7 @@ describe('Ship - Browser Implementation', () => {
     it('should provide access to all resources (same as Node.js)', () => {
       const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
 
       expect(ship.deployments).toBeDefined();
@@ -156,7 +156,7 @@ describe('Ship - Browser Implementation', () => {
     it('should receive all config via constructor (no file loading)', async () => {
       const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
 
       // Mock the HTTP client
@@ -177,7 +177,7 @@ describe('Ship - Browser Implementation', () => {
     it('should throw error for invalid input type in browser', async () => {
       const ship = new Ship({ 
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.com' 
       });
 
       // Should reject string paths (Node.js only input)
@@ -189,7 +189,7 @@ describe('Ship - Browser Implementation', () => {
     it('should pass deployment options correctly', async () => {
       const ship = new Ship({ 
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.com' 
       });
       
       // Mock the API and processInput to verify options are passed
@@ -201,7 +201,7 @@ describe('Ship - Browser Implementation', () => {
       (ship as any).http = {
         deploy: vi.fn().mockResolvedValue({
           id: 'dep_options_123',
-          url: 'https://dep_options_123.shipstatic.dev'
+          url: 'https://dep_options_123.shipstatic.com'
         }),
         checkSPA: vi.fn().mockResolvedValue(false),
         getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
@@ -226,13 +226,13 @@ describe('Ship - Browser Implementation', () => {
     it('should handle empty File[]', async () => {
       const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
 
       (ship as any).http = {
         deploy: vi.fn().mockResolvedValue({
           id: 'dep_empty_123',
-          url: 'https://dep_empty_123.shipstatic.dev'
+          url: 'https://dep_empty_123.shipstatic.com'
         }),
         checkSPA: vi.fn().mockResolvedValue(false),
         getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
@@ -247,13 +247,13 @@ describe('Ship - Browser Implementation', () => {
     it('should handle File objects with different MIME types', async () => {
       const ship = new Ship({ 
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.com' 
       });
       
       (ship as any).http = {
         deploy: vi.fn().mockResolvedValue({
           id: 'dep_mime_123',
-          url: 'https://dep_mime_123.shipstatic.dev'
+          url: 'https://dep_mime_123.shipstatic.com'
         }),
         checkSPA: vi.fn().mockResolvedValue(false),
         getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
@@ -271,7 +271,7 @@ describe('Ship - Browser Implementation', () => {
 
       expect(result).toEqual({
         id: 'dep_mime_123',
-        url: 'https://dep_mime_123.shipstatic.dev'
+        url: 'https://dep_mime_123.shipstatic.com'
       });
     });
   });
@@ -280,7 +280,7 @@ describe('Ship - Browser Implementation', () => {
     it('should reject string paths with consistent error message', async () => {
       const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
 
       (ship as any).http = {
@@ -294,7 +294,7 @@ describe('Ship - Browser Implementation', () => {
     it('should reject Node.js-style string arrays with consistent error message', async () => {
       const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
 
       (ship as any).http = {
@@ -308,7 +308,7 @@ describe('Ship - Browser Implementation', () => {
     it('should reject invalid object types with consistent error message', async () => {
       const ship = new Ship({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
 
       (ship as any).http = {
@@ -322,7 +322,7 @@ describe('Ship - Browser Implementation', () => {
     it('should handle network errors consistently', async () => {
       const ship = new Ship({ 
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.com' 
       });
 
       // Mock network timeout
@@ -341,7 +341,7 @@ describe('Ship - Browser Implementation', () => {
     it('should handle API errors consistently', async () => {
       const ship = new Ship({ 
         deployToken: 'invalid-token',
-        apiUrl: 'https://api.shipstatic.dev' 
+        apiUrl: 'https://api.shipstatic.com' 
       });
 
       // Mock API error

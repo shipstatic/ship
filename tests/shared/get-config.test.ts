@@ -365,7 +365,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       it('should fetch config from API on first call', async () => {
         const ship = new BrowserShip({
           deployToken: 'token-xxxx',
-          apiUrl: 'https://api.shipstatic.dev'
+          apiUrl: 'https://api.shipstatic.com'
         });
         const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
         createMockedShip(ship, { getConfig: getConfigSpy });
@@ -378,7 +378,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       it('should return cached config on subsequent calls', async () => {
         const ship = new BrowserShip({
           deployToken: 'token-xxxx',
-          apiUrl: 'https://api.shipstatic.dev'
+          apiUrl: 'https://api.shipstatic.com'
         });
         const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
         createMockedShip(ship, { getConfig: getConfigSpy });
@@ -395,7 +395,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       it('should trigger initialization on first call', async () => {
         const ship = new BrowserShip({
           deployToken: 'token-xxxx',
-          apiUrl: 'https://api.shipstatic.dev'
+          apiUrl: 'https://api.shipstatic.com'
         });
 
         // Spy on ensureInitialized instead since loadFullConfig is mocked by helper
@@ -412,7 +412,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       it('should propagate API errors when fetching config', async () => {
         const ship = new BrowserShip({
           deployToken: 'token-xxxx',
-          apiUrl: 'https://api.shipstatic.dev'
+          apiUrl: 'https://api.shipstatic.com'
         });
         const apiError = new Error('Failed to fetch config from API');
 
@@ -433,7 +433,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       it('should handle CORS errors in browser', async () => {
         const ship = new BrowserShip({
           deployToken: 'token-xxxx',
-          apiUrl: 'https://api.shipstatic.dev'
+          apiUrl: 'https://api.shipstatic.com'
         });
         const corsError = new Error('CORS policy blocked the request');
 
@@ -454,7 +454,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       it('should handle concurrent getConfig calls and cache result', async () => {
         const ship = new BrowserShip({
           deployToken: 'token-xxxx',
-          apiUrl: 'https://api.shipstatic.dev'
+          apiUrl: 'https://api.shipstatic.com'
         });
         const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
         createMockedShip(ship, { getConfig: getConfigSpy });
@@ -483,7 +483,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       it('should work with deploy token authentication', async () => {
         const ship = new BrowserShip({
           deployToken: 'token-abc123',
-          apiUrl: 'https://api.shipstatic.dev'
+          apiUrl: 'https://api.shipstatic.com'
         });
         createMockedShip(ship);
 
@@ -513,7 +513,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       __setTestEnvironment('browser');
       const browserShip = new BrowserShip({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
       createMockedShip(browserShip);
 
@@ -533,7 +533,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       __setTestEnvironment('browser');
       const browserShip = new BrowserShip({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
       const browserGetConfigSpy = vi.fn().mockResolvedValue(mockConfig);
       createMockedShip(browserShip, { getConfig: browserGetConfigSpy });
@@ -657,7 +657,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       __setTestEnvironment('browser');
       const ship = new BrowserShip({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
 
       // DO NOT mock loadFullConfig - let it run to verify real integration
@@ -682,7 +682,7 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       __setTestEnvironment('browser');
       const ship = new BrowserShip({
         deployToken: 'token-xxxx',
-        apiUrl: 'https://api.shipstatic.dev'
+        apiUrl: 'https://api.shipstatic.com'
       });
 
       const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);

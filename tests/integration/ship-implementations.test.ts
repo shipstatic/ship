@@ -96,7 +96,7 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
     it('should handle deploy calls with identical return format', async () => {
       const mockDeployResult = {
         id: 'consistent_deploy',
-        url: 'https://consistent_deploy.shipstatic.dev'
+        url: 'https://consistent_deploy.shipstatic.com'
       };
 
       // Test Node.js Ship
