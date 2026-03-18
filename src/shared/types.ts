@@ -71,7 +71,8 @@ export interface DeployBody {
 export type DeployBodyCreator = (
   files: StaticFile[],
   labels?: string[],
-  via?: string
+  via?: string,
+  flags?: { build?: boolean; prerender?: boolean }
 ) => Promise<DeployBody>;
 
 // =============================================================================

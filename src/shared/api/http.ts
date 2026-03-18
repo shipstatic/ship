@@ -257,7 +257,10 @@ export class ApiHttp extends SimpleEvents {
       }
     }
 
-    const { body, headers: bodyHeaders } = await this.createDeployBody(files, options.labels, options.via);
+    const flags = (options.build || options.prerender)
+      ? { build: options.build, prerender: options.prerender }
+      : undefined;
+    const { body, headers: bodyHeaders } = await this.createDeployBody(files, options.labels, options.via, flags);
 
     const authHeaders: Record<string, string> = {};
     if (options.deployToken) {

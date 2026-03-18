@@ -245,4 +245,42 @@ describe('filterJunk — unbuilt project detection', () => {
       'not-node_modules/file.js',
     ])).not.toThrow();
   });
+
+  it('should skip marker check when allowUnbuilt is true', () => {
+    // allowUnbuilt mode: don't throw on node_modules or package.json
+    expect(() => filterJunk([
+      'index.html',
+      'node_modules/react/index.js',
+      'package.json',
+    ], { allowUnbuilt: true })).not.toThrow();
+  });
+
+  it('should still filter junk files when allowUnbuilt is true', () => {
+    // allowUnbuilt skips the marker check but keeps all other filtering
+    const result = filterJunk([
+      'index.html',
+      'package.json',
+      '.DS_Store',
+      '__MACOSX/resource.txt',
+      '.env',
+    ], { allowUnbuilt: true });
+    expect(result).toEqual(['index.html', 'package.json']);
+  });
+
+  it('should still throw by default (allowUnbuilt false/undefined)', () => {
+    expect(() => filterJunk([
+      'index.html',
+      'node_modules/react/index.js',
+    ])).toThrow('Unbuilt project detected');
+
+    expect(() => filterJunk([
+      'index.html',
+      'node_modules/react/index.js',
+    ], { allowUnbuilt: false })).toThrow('Unbuilt project detected');
+
+    expect(() => filterJunk([
+      'index.html',
+      'node_modules/react/index.js',
+    ], {})).toThrow('Unbuilt project detected');
+  });
 });

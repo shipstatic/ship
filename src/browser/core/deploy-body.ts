@@ -7,7 +7,8 @@ import type { StaticFile, DeployBody } from '../../shared/types.js';
 export async function createDeployBody(
   files: StaticFile[],
   labels?: string[],
-  via?: string
+  via?: string,
+  flags?: { build?: boolean; prerender?: boolean }
 ): Promise<DeployBody> {
   const formData = new FormData();
   const checksums: string[] = [];
@@ -38,6 +39,9 @@ export async function createDeployBody(
   if (via) {
     formData.append('via', via);
   }
+
+  if (flags?.build) formData.append('build', 'true');
+  if (flags?.prerender) formData.append('prerender', 'true');
 
   return { body: formData, headers: {} };
 }
