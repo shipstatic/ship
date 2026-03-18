@@ -4,7 +4,7 @@
  * Core types come from @shipstatic/types, while SDK-specific types are defined here.
  */
 
-import type { ProgressInfo, StaticFile, Domain } from '@shipstatic/types';
+import type { ProgressInfo, StaticFile, Domain, DeploymentUploadOptions } from '@shipstatic/types';
 
 // Re-export all types from @shipstatic/types for convenience
 export * from '@shipstatic/types';
@@ -25,15 +25,14 @@ export type DomainSetResult = Domain & { isCreate: boolean };
 // =============================================================================
 
 /**
- * Universal deploy options for both Node.js and Browser environments
+ * Universal deploy options for both Node.js and Browser environments.
+ * Extends the API contract (DeploymentUploadOptions) with SDK-specific options.
  */
-export interface DeploymentOptions {
+export interface DeploymentOptions extends DeploymentUploadOptions {
   /** The API URL to use for this specific deploy. Overrides client's default. */
   apiUrl?: string;
   /** An AbortSignal to allow cancellation of the deploy operation. */
   signal?: AbortSignal;
-  /** An optional subdomain to suggest for the deployment. Availability is subject to the API. */
-  subdomain?: string;
   /** Callback invoked if the deploy is cancelled via the AbortSignal. */
   onCancel?: () => void;
   /** Maximum number of concurrent operations. */
@@ -48,16 +47,10 @@ export interface DeploymentOptions {
   pathDetect?: boolean;
   /** Whether to auto-detect SPAs and generate ship.json configuration. Defaults to true. */
   spaDetect?: boolean;
-  /** Optional array of labels for categorization and filtering (lowercase, alphanumeric with separators). */
-  labels?: string[];
   /** Callback for deploy progress with detailed statistics. */
   onProgress?: (info: ProgressInfo) => void;
-  /** Client/tool identifier for this deployment (e.g., 'sdk', 'cli', 'web'). Alphanumeric only. */
-  via?: string;
   /** Caller identifier for multi-tenant deployments (alphanumeric, dot, underscore, hyphen). */
   caller?: string;
-  /** Override the deploy endpoint path. Defaults to '/deployments'. */
-  endpoint?: string;
 }
 
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
@@ -128,6 +121,11 @@ export interface ShipClientOptions {
    * Alphanumeric characters, dots, underscores, and hyphens allowed (max 128 chars).
    */
   caller?: string | undefined;
+  /**
+   * Override the deploy endpoint path. Defaults to '/deployments'.
+   * Used by first-party clients to target alternative upload routes (e.g., '/upload').
+   */
+  deployEndpoint?: string | undefined;
 }
 
 // =============================================================================

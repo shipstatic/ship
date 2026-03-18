@@ -254,7 +254,11 @@ describe('ApiHttp', () => {
       expect(headers['X-Caller']).toBeUndefined();
     });
 
-    it('should use custom endpoint when provided', async () => {
+    it('should use deployEndpoint from constructor when provided', async () => {
+      const customApiHttp = new ApiHttp({
+        ...mockOptions,
+        deployEndpoint: '/upload',
+      });
       const mockFiles = [
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
       ];
@@ -264,13 +268,13 @@ describe('ApiHttp', () => {
         size: 13
       }));
 
-      await apiHttp.deploy(mockFiles, { endpoint: '/upload' });
+      await customApiHttp.deploy(mockFiles);
 
       const fetchCall = (global.fetch as any).mock.calls[0];
       expect(fetchCall[0]).toBe('https://api.test.com/upload');
     });
 
-    it('should default to /deployments endpoint when not provided', async () => {
+    it('should default to /deployments endpoint when deployEndpoint not provided', async () => {
       const mockFiles = [
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
       ];
