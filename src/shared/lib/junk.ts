@@ -43,8 +43,10 @@ export const JUNK_DIRECTORIES = [
  * (.env, .git) or are not meant to be served publicly. This matches server-side filtering.
  *
  * @param filePaths - An array of file path strings to filter
+ * @param options - Optional settings
+ * @param options.allowUnbuilt - When true, skip the unbuilt project marker check (for server-processed uploads)
  * @returns A new array containing only non-junk file paths
- * @throws {ShipError} If any path contains an unbuilt project marker
+ * @throws {ShipError} If any path contains an unbuilt project marker (unless allowUnbuilt is true)
  *
  * @example
  * ```typescript
@@ -75,7 +77,10 @@ export const JUNK_DIRECTORIES = [
  * );
  * ```
  */
-export function filterJunk(filePaths: string[]): string[] {
+export function filterJunk(
+  filePaths: string[],
+  options?: { allowUnbuilt?: boolean }
+): string[] {
   if (!filePaths || filePaths.length === 0) {
     return [];
   }
@@ -83,11 +88,13 @@ export function filterJunk(filePaths: string[]): string[] {
   // Reject unbuilt projects before the dot-file filter removes evidence.
   // pnpm stores files under node_modules/.pnpm/ — the dot-file filter below
   // strips .pnpm/ paths, destroying the only signal that this is an unbuilt project.
-  const marker = filePaths.find(p => p && hasUnbuiltMarker(p));
-  if (marker) {
-    throw ShipError.business(
-      'Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder'
-    );
+  if (!options?.allowUnbuilt) {
+    const marker = filePaths.find(p => p && hasUnbuiltMarker(p));
+    if (marker) {
+      throw ShipError.business(
+        'Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder'
+      );
+    }
   }
 
   return filePaths.filter(filePath => {

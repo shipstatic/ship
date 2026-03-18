@@ -106,5 +106,26 @@ describe('SPA Detection (spa.ts)', () => {
 
       expect(result).toEqual(mockFiles);
     });
+
+    it('should skip SPA detection when build=true (server builds the output)', async () => {
+      const result = await detectAndConfigureSPA(mockFiles, mockApiClient, { build: true });
+
+      expect(mockApiClient.checkSPA).not.toHaveBeenCalled();
+      expect(result).toEqual(mockFiles);
+    });
+
+    it('should skip SPA detection when prerender=true (flat HTML output)', async () => {
+      const result = await detectAndConfigureSPA(mockFiles, mockApiClient, { prerender: true });
+
+      expect(mockApiClient.checkSPA).not.toHaveBeenCalled();
+      expect(result).toEqual(mockFiles);
+    });
+
+    it('should skip SPA detection when both build and prerender are true', async () => {
+      const result = await detectAndConfigureSPA(mockFiles, mockApiClient, { build: true, prerender: true });
+
+      expect(mockApiClient.checkSPA).not.toHaveBeenCalled();
+      expect(result).toEqual(mockFiles);
+    });
   });
 });

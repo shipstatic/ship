@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { processFilesForBrowser } from '../../../src/browser/lib/browser-files';
+import { createDeployBody } from '../../../src/browser/core/deploy-body';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
 import { setConfig } from '../../../src/shared/core/platform-config';
 import { ShipError } from '@shipstatic/types';
@@ -272,6 +273,75 @@ describe('Browser File Processing', () => {
     });
   });
 
+  describe('server-processed uploads (build/prerender)', () => {
+    it('should skip validation and only compute MD5 when build=true', async () => {
+      // Source files that would normally fail deploy validation
+      const files = [
+        new File(['<html>'], 'index.html'),
+        new File(['{}'], 'package.json'),
+        new File(['export default {}'], 'vite.config.ts'),
+      ];
+      files.forEach((f, i) => {
+        Object.defineProperty(f, 'webkitRelativePath', { value: ['demo/index.html', 'demo/package.json', 'demo/vite.config.ts'][i] });
+      });
+
+      // With build=true, package.json + .ts files should NOT throw
+      const result = await processFilesForBrowser(files, { build: true });
+
+      expect(result).toHaveLength(3);
+      expect(result.every(f => f.md5 === 'mock-browser-hash')).toBe(true);
+    });
+
+    it('should skip validation when prerender=true', async () => {
+      const files = [
+        new File(['<html>'], 'index.html'),
+        new File(['{}'], 'package.json'),
+      ];
+      files.forEach((f, i) => {
+        Object.defineProperty(f, 'webkitRelativePath', { value: ['demo/index.html', 'demo/package.json'][i] });
+      });
+
+      const result = await processFilesForBrowser(files, { prerender: true });
+
+      expect(result).toHaveLength(2);
+    });
+
+    it('should still skip empty files in server-processed mode', async () => {
+      const files = [
+        new File(['<html>'], 'index.html'),
+        new File([], 'empty.txt'),
+      ];
+
+      const result = await processFilesForBrowser(files, { build: true });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe('index.html');
+    });
+
+    it('should still filter junk files in server-processed mode', async () => {
+      const files = [
+        new File(['<html>'], 'index.html'),
+        new File([''], '.DS_Store'),
+      ];
+
+      const result = await processFilesForBrowser(files, { build: true });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe('index.html');
+    });
+
+    it('should not skip validation when build and prerender are both false/absent', async () => {
+      // .exe should be rejected by deploy validation
+      const files = [new File(['malware'], 'virus.exe')];
+
+      await expect(processFilesForBrowser(files, {}))
+        .rejects.toThrow('File extension not allowed');
+
+      await expect(processFilesForBrowser(files, { build: false, prerender: false }))
+        .rejects.toThrow('File extension not allowed');
+    });
+  });
+
   describe('unbuilt project detection', () => {
     it('should reject files with node_modules in path', async () => {
       const files = [
@@ -413,5 +483,35 @@ describe('Browser File Processing', () => {
       expect(result[0].content).toBeInstanceOf(File);
       expect(result[0].size).toBe(5);
     });
+  });
+});
+
+describe('createDeployBody — build/prerender flags', () => {
+  it('should append build=true to FormData when flag is set', async () => {
+    const files = [{ path: 'index.html', content: new File(['<html>'], 'index.html'), size: 6, md5: 'abc' }];
+    const { body } = await createDeployBody(files, undefined, undefined, { build: true });
+    expect((body as FormData).get('build')).toBe('true');
+    expect((body as FormData).get('prerender')).toBeNull();
+  });
+
+  it('should append prerender=true to FormData when flag is set', async () => {
+    const files = [{ path: 'index.html', content: new File(['<html>'], 'index.html'), size: 6, md5: 'abc' }];
+    const { body } = await createDeployBody(files, undefined, undefined, { prerender: true });
+    expect((body as FormData).get('prerender')).toBe('true');
+    expect((body as FormData).get('build')).toBeNull();
+  });
+
+  it('should append both flags when both are set', async () => {
+    const files = [{ path: 'index.html', content: new File(['<html>'], 'index.html'), size: 6, md5: 'abc' }];
+    const { body } = await createDeployBody(files, undefined, undefined, { build: true, prerender: true });
+    expect((body as FormData).get('build')).toBe('true');
+    expect((body as FormData).get('prerender')).toBe('true');
+  });
+
+  it('should not append flags when undefined', async () => {
+    const files = [{ path: 'index.html', content: new File(['<html>'], 'index.html'), size: 6, md5: 'abc' }];
+    const { body } = await createDeployBody(files);
+    expect((body as FormData).get('build')).toBeNull();
+    expect((body as FormData).get('prerender')).toBeNull();
   });
 });
