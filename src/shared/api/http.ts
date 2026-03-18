@@ -67,6 +67,7 @@ export class ApiHttp extends SimpleEvents {
   private readonly getAuthHeadersCallback: () => Record<string, string>;
   private readonly timeout: number;
   private readonly createDeployBody: DeployBodyCreator;
+  private readonly deployEndpoint: string;
   private globalHeaders: Record<string, string> = {};
 
   constructor(options: ApiHttpOptions) {
@@ -75,6 +76,7 @@ export class ApiHttp extends SimpleEvents {
     this.getAuthHeadersCallback = options.getAuthHeaders;
     this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
     this.createDeployBody = options.createDeployBody;
+    this.deployEndpoint = options.deployEndpoint || ENDPOINTS.DEPLOYMENTS;
   }
 
   /**
@@ -268,7 +270,7 @@ export class ApiHttp extends SimpleEvents {
     }
 
     return this.request<Deployment>(
-      `${options.apiUrl || this.apiUrl}${options.endpoint || ENDPOINTS.DEPLOYMENTS}`,
+      `${options.apiUrl || this.apiUrl}${this.deployEndpoint}`,
       { method: 'POST', body, headers: { ...bodyHeaders, ...authHeaders }, signal: options.signal || null },
       'Deploy'
     );
