@@ -7,7 +7,8 @@ import type { StaticFile, DeployBody } from '../../shared/types.js';
 export async function createDeployBody(
   files: StaticFile[],
   labels?: string[],
-  via?: string
+  via?: string,
+  flags?: { build?: boolean; prerender?: boolean }
 ): Promise<DeployBody> {
   const { FormData, File } = await import('formdata-node');
   const { FormDataEncoder } = await import('form-data-encoder');
@@ -41,6 +42,9 @@ export async function createDeployBody(
   if (via) {
     formData.append('via', via);
   }
+
+  if (flags?.build) formData.append('build', 'true');
+  if (flags?.prerender) formData.append('prerender', 'true');
 
   const encoder = new FormDataEncoder(formData);
   const chunks = [];

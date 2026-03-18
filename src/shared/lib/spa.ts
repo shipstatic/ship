@@ -58,8 +58,8 @@ export async function detectAndConfigureSPA(
   apiClient: ApiHttp,
   options: DeploymentOptions
 ): Promise<StaticFile[]> {
-  // Skip if disabled or config already exists
-  if (options.spaDetect === false || files.some(f => f.path === DEPLOYMENT_CONFIG_FILENAME)) {
+  // Skip if disabled, config already exists, or server will process the files
+  if (options.spaDetect === false || options.build || options.prerender || files.some(f => f.path === DEPLOYMENT_CONFIG_FILENAME)) {
     return files;
   }
 
