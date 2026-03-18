@@ -2,10 +2,12 @@
  * @file Browser-specific file utilities for the Ship SDK.
  * Provides helpers for processing browser files into deploy-ready objects.
  *
- * Pipeline order matches Node.js (node-files.ts) for consistency:
- * 1. Extract paths → 2. Filter junk → 3. Optimize paths →
- * 4. Security validate → 5. Skip empties → 6. Name & extension validate →
- * 7. Size validate → 8. Calculate MD5 → 9. Count validate
+ * Two modes:
+ * - **Deploy** (default): Full validation pipeline — security, extensions, sizes, counts.
+ * - **Server-processed** (build/prerender): Source files destined for server-side build.
+ *   Junk filtering and MD5 checksums only — the build service validates the output.
+ *
+ * Both modes share: environment check → extract paths → filter junk → optimize paths → MD5.
  */
 import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
@@ -19,6 +21,9 @@ import { getCurrentConfig } from '../../shared/core/platform-config.js';
 /**
  * Processes browser files into an array of StaticFile objects ready for deploy.
  * Calculates MD5, filters junk files, validates sizes, and applies path optimization.
+ *
+ * For server-processed uploads (build/prerender), client-side deploy validation is
+ * skipped — the build service produces and validates the actual deployment output.
  *
  * @param browserFiles - File[] to process for deploy.
  * @param options - Processing options including pathDetect for automatic path optimization.
@@ -37,9 +42,11 @@ export async function processFilesForBrowser(
   // 2. Extract raw paths from File objects
   const rawPaths = browserFiles.map(file => file.webkitRelativePath || file.name);
 
-  // 3. Filter junk files first (matches Node pipeline — don't waste time on junk)
-  // filterJunk also rejects unbuilt projects before dot-file filter runs
-  const nonJunkSet = new Set(filterJunk(rawPaths));
+  // Server-processed uploads (build/prerender) send source files, not deploy output
+  const isServerProcessed = options.build || options.prerender;
+
+  // 3. Filter junk files (allowUnbuilt for server-processed — source projects have package.json etc.)
+  const nonJunkSet = new Set(filterJunk(rawPaths, { allowUnbuilt: isServerProcessed }));
   const validPairs: Array<{ file: File; rawPath: string }> = [];
   for (let i = 0; i < browserFiles.length; i++) {
     if (nonJunkSet.has(rawPaths[i])) {
@@ -57,7 +64,19 @@ export async function processFilesForBrowser(
     { flatten: options.pathDetect !== false }
   );
 
-  // 5. Process files with validation (matches Node pipeline)
+  // 5. Server-processed: skip deploy validation, just compute checksums
+  if (isServerProcessed) {
+    const results: StaticFile[] = [];
+    for (let i = 0; i < validPairs.length; i++) {
+      const { file } = validPairs[i];
+      if (file.size === 0) continue;
+      const { md5 } = await calculateMD5(file);
+      results.push({ path: deployFiles[i].path, content: file, size: file.size, md5 });
+    }
+    return results;
+  }
+
+  // 6. Deploy: full validation pipeline
   const platformLimits = getCurrentConfig();
   const results: StaticFile[] = [];
   let totalSize = 0;
