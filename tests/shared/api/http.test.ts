@@ -626,22 +626,23 @@ describe('ApiHttp', () => {
   });
 
   describe('Cookie-based Authentication', () => {
-    let apiHttpNoCredentials: ApiHttp;
+    let apiHttpCookieAuth: ApiHttp;
 
     beforeEach(() => {
       vi.clearAllMocks();
-      // Create ApiHttp instance with callback that returns no auth headers
-      apiHttpNoCredentials = new ApiHttp({
+      // First-party browser app: useCredentials opts into cookie-based auth
+      apiHttpCookieAuth = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({}), // No auth headers - should use cookies
+        useCredentials: true,
+        getAuthHeaders: () => ({}),
         createDeployBody: mockCreateDeployBody
       });
     });
 
-    it('should include credentials when no Authorization header is returned', async () => {
+    it('should include credentials when useCredentials is true', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
 
-      await apiHttpNoCredentials.ping();
+      await apiHttpCookieAuth.ping();
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/ping',
@@ -655,9 +656,24 @@ describe('ApiHttp', () => {
       );
     });
 
-    it('should NOT include credentials when Authorization header is returned', async () => {
+    it('should NOT include credentials when useCredentials is not set', async () => {
+      const apiHttpDefault = new ApiHttp({
+        apiUrl: 'https://api.test.com',
+        getAuthHeaders: () => ({}),
+        createDeployBody: mockCreateDeployBody
+      });
+      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
+
+      await apiHttpDefault.ping();
+
+      const fetchCall = (fetch as any).mock.calls[0][1];
+      expect(fetchCall.credentials).toBeUndefined();
+    });
+
+    it('should NOT include credentials when Authorization header is present', async () => {
       const apiHttpWithKey = new ApiHttp({
         apiUrl: 'https://api.test.com',
+        useCredentials: true,
         getAuthHeaders: () => ({ 'Authorization': 'Bearer test-key' }),
         createDeployBody: mockCreateDeployBody
       });
@@ -675,7 +691,6 @@ describe('ApiHttp', () => {
         })
       );
 
-      // Ensure credentials is NOT set when we have an Authorization header
       const fetchCall = (fetch as any).mock.calls[0][1];
       expect(fetchCall.credentials).toBeUndefined();
     });
@@ -700,16 +715,15 @@ describe('ApiHttp', () => {
         })
       );
 
-      // Ensure credentials is NOT set when we have a deployToken
       const fetchCall = (fetch as any).mock.calls[0][1];
       expect(fetchCall.credentials).toBeUndefined();
     });
 
-    it('should use cookies for account operations when no credentials provided', async () => {
+    it('should use cookies for account operations', async () => {
       const mockAccount = { account: 'user123', name: 'Test User', email: 'test@example.com' };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockAccount));
 
-      const result = await apiHttpNoCredentials.getAccount();
+      const result = await apiHttpCookieAuth.getAccount();
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/account',
@@ -724,7 +738,7 @@ describe('ApiHttp', () => {
       expect(result).toEqual(mockAccount);
     });
 
-    it('should use cookies for deployment operations when no credentials provided', async () => {
+    it('should use cookies for deployment operations', async () => {
       const mockDeployment = { deployment: 'dep123', url: 'https://example.com' };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDeployment));
 
@@ -732,7 +746,7 @@ describe('ApiHttp', () => {
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
       ];
 
-      const result = await apiHttpNoCredentials.deploy(mockFiles, {});
+      const result = await apiHttpCookieAuth.deploy(mockFiles, {});
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/deployments',
@@ -747,10 +761,7 @@ describe('ApiHttp', () => {
       expect(result).toEqual(mockDeployment);
     });
 
-    it('should prioritize explicit credentials over cookies', async () => {
-      // Test that even if we start with no credentials (cookie mode)
-      // but then provide explicit credentials for a specific operation,
-      // the explicit credentials take precedence
+    it('should prioritize explicit token over cookies', async () => {
       const mockDeployment = { deployment: 'dep123', url: 'https://example.com' };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDeployment));
 
@@ -758,8 +769,7 @@ describe('ApiHttp', () => {
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
       ];
 
-      // Pass explicit apiKey in the deploy options
-      const result = await apiHttpNoCredentials.deploy(mockFiles, { 
+      const result = await apiHttpCookieAuth.deploy(mockFiles, {
         apiKey: 'explicit-key'
       });
 
@@ -772,8 +782,7 @@ describe('ApiHttp', () => {
           })
         })
       );
-      
-      // When explicit credentials are provided, credentials should NOT be 'include'
+
       const fetchCall = (fetch as any).mock.calls[0][1];
       expect(fetchCall.credentials).toBeUndefined();
       expect(result).toEqual(mockDeployment);
