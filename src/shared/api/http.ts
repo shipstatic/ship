@@ -83,7 +83,7 @@ export class ApiHttp extends SimpleEvents {
 
   /**
    * Set global headers included in every request.
-   * Priority: globalHeaders (lowest) < per-request headers < auth headers (highest)
+   * Priority: globalHeaders (lowest) < instance auth < per-request headers (highest)
    */
   setGlobalHeaders(headers: Record<string, string>): void {
     this.globalHeaders = headers;
@@ -159,7 +159,7 @@ export class ApiHttp extends SimpleEvents {
   // ===========================================================================
 
   private mergeHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
-    return { ...this.globalHeaders, ...customHeaders, ...this.getAuthHeadersCallback() };
+    return { ...this.globalHeaders, ...this.getAuthHeadersCallback(), ...customHeaders };
   }
 
   private createTimeoutSignal(existingSignal?: AbortSignal | null): { signal: AbortSignal; cleanup: () => void } {
@@ -406,7 +406,7 @@ export class ApiHttp extends SimpleEvents {
   // PUBLIC API - SPA CHECK
   // ===========================================================================
 
-  async checkSPA(files: StaticFile[]): Promise<boolean> {
+  async checkSPA(files: StaticFile[], options: ApiDeployOptions = {}): Promise<boolean> {
     const indexFile = files.find(f => f.path === 'index.html' || f.path === '/index.html');
     if (!indexFile || indexFile.size > 100 * 1024) {
       return false;
@@ -423,10 +423,17 @@ export class ApiHttp extends SimpleEvents {
       return false;
     }
 
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (options.deployToken) {
+      headers['Authorization'] = `Bearer ${options.deployToken}`;
+    } else if (options.apiKey) {
+      headers['Authorization'] = `Bearer ${options.apiKey}`;
+    }
+
     const body: SPACheckRequest = { files: files.map(f => f.path), index: indexContent };
     const response = await this.request<SPACheckResponse>(
       `${this.apiUrl}${ENDPOINTS.SPA_CHECK}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      { method: 'POST', headers, body: JSON.stringify(body) },
       'SPA check'
     );
 

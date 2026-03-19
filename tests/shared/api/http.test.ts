@@ -787,6 +787,27 @@ describe('ApiHttp', () => {
       expect(fetchCall.credentials).toBeUndefined();
       expect(result).toEqual(mockDeployment);
     });
+
+    it('should prioritize per-request deploy token over instance API key', async () => {
+      const apiHttpWithApiKey = new ApiHttp({
+        apiUrl: 'https://api.test.com',
+        getAuthHeaders: () => ({ 'Authorization': 'Bearer ship-instance-key' }),
+        createDeployBody: mockCreateDeployBody
+      });
+      const mockDeployment = { deployment: 'dep123', url: 'https://example.com' };
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockDeployment));
+
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+
+      await apiHttpWithApiKey.deploy(mockFiles, {
+        deployToken: 'token-per-request'
+      });
+
+      const fetchCall = (fetch as any).mock.calls[0][1];
+      expect(fetchCall.headers['Authorization']).toBe('Bearer token-per-request');
+    });
   });
 
   describe('token operations', () => {
