@@ -65,6 +65,7 @@ interface ApiErrorData {
 export class ApiHttp extends SimpleEvents {
   private readonly apiUrl: string;
   private readonly getAuthHeadersCallback: () => Record<string, string>;
+  private readonly useCredentials: boolean;
   private readonly timeout: number;
   private readonly createDeployBody: DeployBodyCreator;
   private readonly deployEndpoint: string;
@@ -74,6 +75,7 @@ export class ApiHttp extends SimpleEvents {
     super();
     this.apiUrl = options.apiUrl || DEFAULT_API;
     this.getAuthHeadersCallback = options.getAuthHeaders;
+    this.useCredentials = options.useCredentials ?? false;
     this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
     this.createDeployBody = options.createDeployBody;
     this.deployEndpoint = options.deployEndpoint || ENDPOINTS.DEPLOYMENTS;
@@ -112,7 +114,7 @@ export class ApiHttp extends SimpleEvents {
     const fetchOptions: RequestInit = {
       ...options,
       headers,
-      credentials: !headers.Authorization ? 'include' : undefined,
+      credentials: this.useCredentials && !headers.Authorization ? 'include' : undefined,
       signal,
     };
 
