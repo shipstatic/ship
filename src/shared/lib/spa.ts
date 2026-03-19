@@ -64,7 +64,7 @@ export async function detectAndConfigureSPA(
   }
 
   try {
-    const isSPA = await apiClient.checkSPA(files);
+    const isSPA = await apiClient.checkSPA(files, options);
 
     if (isSPA) {
       const spaConfig = await createSPAConfig();
