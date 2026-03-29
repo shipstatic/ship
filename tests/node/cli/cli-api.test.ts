@@ -85,8 +85,7 @@ describe('CLI with Mock API', () => {
 
           res.writeHead(201, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
-            deployment: 'test-deployment-123',
-            url: 'https://test-deployment-123.shipstatic.com',
+            deployment: 'test-deployment-123.shipstatic.com',
             files: 2,
             size: 1024,
             labels: labels ?? [],
@@ -104,8 +103,7 @@ describe('CLI with Mock API', () => {
           res.writeHead(201, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             domain: domainName,
-            deployment: requestData.deployment || 'test-deployment-123',
-            url: `https://${domainName}.shipstatic.com`,
+            deployment: requestData.deployment || 'test-deployment-123.shipstatic.com',
             labels: requestData.labels ?? []
           }));
           return;
@@ -317,7 +315,7 @@ describe('CLI with Mock API', () => {
       const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'production'], testEnv());
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.deployment).toBe('test-deployment-123');
+      expect(output.deployment).toBe('test-deployment-123.shipstatic.com');
       expect(output.labels).toEqual(['production']);
     });
 

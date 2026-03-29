@@ -120,7 +120,7 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
       expect(deployment).toBeDefined();
       expect(deployment.deployment).toBeDefined();
       expect(deployment.status).toBe('success');
-      expect(deployment.url).toContain('http');
+      expect(deployment.deployment).toContain('.');
       expect(deployment.files).toBeGreaterThan(0);
       expect(deployment.size).toBeGreaterThan(0);
       expect(deployment.created).toBeDefined();
@@ -129,7 +129,7 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
       deploymentsToCleanup.push(testDeploymentId);
 
       console.log(`  Created deployment: ${testDeploymentId}`);
-      console.log(`  URL: ${deployment.url}`);
+      console.log(`  URL: https://${deployment.deployment}`);
     });
 
     it('should list deployments including the test deployment', async () => {
@@ -155,7 +155,7 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
       const deployment = await ship.deployments.get(testDeploymentId);
 
       // Fetch the deployment URL and verify it returns content
-      const response = await fetch(deployment.url);
+      const response = await fetch(`https://${deployment.deployment}`);
 
       expect(response.ok).toBe(true);
       expect(response.status).toBe(200);

@@ -98,7 +98,7 @@ const ship = new Ship({
 
 // Deploy (shortcut)
 const deployment = await ship.deploy('./dist');
-console.log(`Deployed: ${deployment.url}`);
+console.log(`Deployed: https://${deployment.deployment}`);
 
 // Deploy with options
 const deployment = await ship.deployments.upload('./dist', {

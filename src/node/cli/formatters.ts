@@ -38,8 +38,8 @@ export function formatDeploymentsList(result: DeploymentListResponse, context: O
     return;
   }
 
-  const columns = ['url', 'labels', 'created'];
-  console.log(formatTable(result.deployments, columns, noColor, { url: 'deployment' }));
+  const columns = ['deployment', 'labels', 'created'];
+  console.log(formatTable(result.deployments, columns, noColor));
 }
 
 /**
@@ -54,8 +54,8 @@ export function formatDomainsList(result: DomainListResponse, context: OutputCon
     return;
   }
 
-  const columns = ['url', 'deployment', 'labels', 'linked', 'created'];
-  console.log(formatTable(result.domains, columns, noColor, { url: 'domain' }));
+  const columns = ['domain', 'deployment', 'labels', 'linked', 'created'];
+  console.log(formatTable(result.domains, columns, noColor));
 }
 
 /**

@@ -100,7 +100,7 @@ const formatValue = (key: string, value: unknown, context: 'table' | 'details' =
  * @param data - Array of objects to display as table rows
  * @param columns - Optional column order (defaults to first item's keys)
  * @param noColor - Disable colors
- * @param headerMap - Optional mapping of property names to display headers (e.g., { url: 'deployment' })
+ * @param headerMap - Optional mapping of property names to display headers
  */
 export const formatTable = (data: object[], columns?: string[], noColor?: boolean, headerMap?: Record<string, string>): string => {
   if (!data || data.length === 0) return '';
