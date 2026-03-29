@@ -122,6 +122,8 @@ ${applyBold('FLAGS')}
   --version                 Show version information
 
 ${applyBold('EXAMPLES')}
+  ship ./dist
+  ship domains set www.example.com happy-cat-abc1234.shipstatic.com
   ship ./dist -q | ship domains set www.example.com
 
 ${applyDim('Please report any issues to https://github.com/shipstatic/ship/issues')}
