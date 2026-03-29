@@ -96,11 +96,11 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
       });
     });
 
-    // Write stdin lines if provided
+    // Write stdin lines if provided, otherwise close stdin immediately
     if (options.stdin) {
       child.stdin.write(options.stdin.join('\n') + '\n');
-      child.stdin.end();
     }
+    child.stdin.end();
 
     // Handle timeout
     const timeout = options.timeout || 10000;

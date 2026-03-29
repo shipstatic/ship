@@ -23,6 +23,7 @@ export interface OutputContext {
 
 export interface FormatOptions {
   json?: boolean;
+  quiet?: boolean;
   noColor?: boolean;
 }
 
@@ -185,7 +186,35 @@ export function formatOutput(
   context: OutputContext,
   options: FormatOptions
 ): void {
-  const { json, noColor } = options;
+  const { json, quiet, noColor } = options;
+
+  // Quiet mode: output only the key identifier
+  if (quiet) {
+    if (result === undefined || typeof result === 'boolean') return;
+    if (result !== null && typeof result === 'object') {
+      if ('deployments' in result) {
+        (result as DeploymentListResponse).deployments.forEach(d => console.log(d.deployment));
+      } else if ('domains' in result) {
+        (result as DomainListResponse).domains.forEach(d => console.log(d.domain));
+      } else if ('tokens' in result) {
+        (result as TokenListResponse).tokens.forEach(t => console.log(t.token));
+      } else if ('domain' in result) {
+        console.log((result as Domain).domain);
+      } else if ('deployment' in result) {
+        console.log((result as Deployment).deployment);
+      } else if ('secret' in result) {
+        console.log((result as TokenCreateResponse).secret);
+      } else if ('email' in result) {
+        console.log((result as Account).email);
+      } else if ('valid' in result) {
+        const v = result as DomainValidateResponse;
+        if (v.valid && v.normalized) console.log(v.normalized);
+      } else if ('message' in result) {
+        console.log((result as MessageResult).message);
+      }
+    }
+    return;
+  }
 
   // Handle void/undefined results (removal operations)
   if (result === undefined) {
