@@ -101,11 +101,11 @@ ${applyBold('COMMANDS')}
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 
-  ⚙️  ${applyBold('Setup')}
+  ⚙️ ${applyBold('Setup')}
   ship config                           Create or update ~/.shiprc configuration
   ship whoami                           Get current account information
 
-  🛠️  ${applyBold('Completion')}
+  🛠️ ${applyBold('Completion')}
   ship completion install               Install shell completion script
   ship completion uninstall             Uninstall shell completion script
 
