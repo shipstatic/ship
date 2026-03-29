@@ -50,14 +50,13 @@ export const deployments = {
    * Standard successful deployment
    */
   success: {
-    deployment: 'test-deployment-1',
+    deployment: 'test-deployment-1.shipstatic.com',
     files: 5,
     size: 1024000,
     status: 'success',
     config: false,
     labels: [],
     via: null,
-    url: 'https://test-deployment-1.shipstatic.com',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
   } satisfies Deployment,
@@ -66,14 +65,13 @@ export const deployments = {
    * Deployment with labels
    */
   withLabels: {
-    deployment: 'labeled-deployment-1',
+    deployment: 'labeled-deployment-1.shipstatic.com',
     files: 10,
     size: 2048000,
     status: 'success',
     config: false,
     labels: ['production', 'v1.0.0'],
     via: null,
-    url: 'https://labeled-deployment-1.shipstatic.com',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
   } satisfies Deployment,
@@ -82,14 +80,13 @@ export const deployments = {
    * Pending deployment (not yet processed)
    */
   pending: {
-    deployment: 'pending-deployment-1',
+    deployment: 'pending-deployment-1.shipstatic.com',
     files: 3,
     size: 512000,
     status: 'pending',
     config: false,
     labels: [],
     via: null,
-    url: 'https://pending-deployment-1.shipstatic.com',
     created: timestamps.jan2022,
     expires: null,
   } satisfies Deployment,
@@ -98,14 +95,13 @@ export const deployments = {
    * Deployment with via field (CLI origin)
    */
   viaCli: {
-    deployment: 'cli-deployment-1',
+    deployment: 'cli-deployment-1.shipstatic.com',
     files: 5,
     size: 1024000,
     status: 'success',
     config: false,
     labels: [],
     via: 'cli',
-    url: 'https://cli-deployment-1.shipstatic.com',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
   } satisfies Deployment,
@@ -151,10 +147,9 @@ export const domains = {
    */
   internal: {
     domain: 'staging',
-    deployment: 'test-deployment-1',
+    deployment: 'test-deployment-1.shipstatic.com',
     status: 'success',
     labels: [],
-    url: 'https://staging.shipstatic.com',
     created: timestamps.jan2022,
     linked: null,
     links: 0,
@@ -165,10 +160,9 @@ export const domains = {
    */
   pending: {
     domain: 'preview',
-    deployment: 'test-deployment-1',
+    deployment: 'test-deployment-1.shipstatic.com',
     status: 'pending',
     labels: [],
-    url: 'https://preview.shipstatic.com',
     created: timestamps.jan2022,
     linked: null,
     links: 0,
@@ -179,10 +173,9 @@ export const domains = {
    */
   withLabels: {
     domain: 'production',
-    deployment: 'test-deployment-1',
+    deployment: 'test-deployment-1.shipstatic.com',
     status: 'success',
     labels: ['primary', 'live'],
-    url: 'https://production.shipstatic.com',
     created: timestamps.jan2022,
     linked: null,
     links: 0,
@@ -193,10 +186,9 @@ export const domains = {
    */
   externalPending: {
     domain: 'example.com',
-    deployment: 'test-deployment-1',
+    deployment: 'test-deployment-1.shipstatic.com',
     status: 'pending',
     labels: [],
-    url: 'https://example.com',
     created: timestamps.jan2022,
     linked: null,
     links: 0,
@@ -207,10 +199,9 @@ export const domains = {
    */
   externalVerified: {
     domain: 'verified-example.com',
-    deployment: 'test-deployment-1',
+    deployment: 'test-deployment-1.shipstatic.com',
     status: 'success',
     labels: [],
-    url: 'https://verified-example.com',
     created: timestamps.jan2022,
     linked: null,
     links: 0,
@@ -224,7 +215,6 @@ export const domains = {
     deployment: null,
     status: 'pending',
     labels: [],
-    url: 'https://reserved.shipstatic.com',
     created: timestamps.jan2022,
     linked: null,
     links: 0,
@@ -235,10 +225,9 @@ export const domains = {
    */
   paused: {
     domain: 'paused-custom.com',
-    deployment: 'test-deployment-1',
+    deployment: 'test-deployment-1.shipstatic.com',
     status: 'paused',
     labels: [],
-    url: 'https://paused-custom.com',
     created: timestamps.jan2022,
     linked: null,
     links: 0,
@@ -672,18 +661,17 @@ export const errors = {
  * Create a dynamic deployment with a unique ID based on timestamp
  */
 export function createDynamicDeployment(overrides: Partial<Deployment> = {}): Deployment {
-  const deploymentId = `mock-deploy-${Date.now()}`;
+  const deploymentSlug = `mock-deploy-${Date.now()}`;
   const now = Math.floor(Date.now() / 1000);
 
   return {
-    deployment: deploymentId,
+    deployment: `${deploymentSlug}.shipstatic.com`,
     files: 5,
     size: 1024000,
     status: 'success',
     config: false,
     labels: [],
     via: null,
-    url: `https://${deploymentId}.shipstatic.com`,
     created: now,
     expires: now + (7 * 24 * 60 * 60), // 7 days
     ...overrides,
@@ -726,7 +714,7 @@ export function createDynamicToken(overrides: Partial<Token> = {}): Token {
  */
 export function createDynamicDomain(
   domainName: string,
-  deploymentId: string,
+  deploymentId: string | null,
   overrides: Partial<Domain> = {}
 ): Domain {
   const now = Math.floor(Date.now() / 1000);
@@ -734,14 +722,11 @@ export function createDynamicDomain(
 
   return {
     domain: domainName,
-    deployment: deploymentId,
+    deployment: deploymentId ? (deploymentId.includes('.') ? deploymentId : `${deploymentId}.shipstatic.com`) : null,
     // External domains start as 'pending' (need DNS verification)
     // Internal domains are immediately 'success'
     status: isExternal ? 'pending' : 'success',
     labels: [],
-    url: isExternal
-      ? `https://${domainName}`
-      : `https://${domainName}.shipstatic.com`,
     created: now,
     linked: null,
     links: 0,

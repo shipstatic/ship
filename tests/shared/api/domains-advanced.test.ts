@@ -194,7 +194,6 @@ describe('Advanced Domain Operations', () => {
       expect(updated.domain).toBe(created.domain);
       expect(updated.deployment).toBe(created.deployment);
       expect(updated.status).toBe(created.status);
-      expect(updated.url).toBe(created.url);
       expect(updated.labels).toEqual(['updated-label']);
     });
   });

@@ -1,6 +1,20 @@
 ---
 name: ship
-description: Deploy static sites to ShipStatic. Use when the user wants to deploy a website, upload files, manage deployments, set up domains, or publish static files to shipstatic.com.
+description: Static hosting via ShipStatic. Use when the user wants to deploy a website, upload files, manage deployments, set up domains, or publish static files to shipstatic.com.
+metadata:
+  openclaw:
+    requires:
+      env:
+        - SHIP_API_KEY
+      bins:
+        - ship
+    primaryEnv: SHIP_API_KEY
+    emoji: "🚀"
+    homepage: https://github.com/shipstatic/ship
+    install:
+      - kind: node
+        package: "@shipstatic/ship"
+        bins: [ship]
 ---
 
 ## Install
@@ -19,7 +33,7 @@ ship config
 
 Enter your API key when prompted. Get one at https://my.shipstatic.com/settings
 
-Alternative: `export SHIP_API_KEY=ship-...` or pass `--api-key ship-...` per command.
+Alternative: set the `SHIP_API_KEY` environment variable or pass `--api-key` per command.
 
 ## Workflow 1 — Deploy
 
