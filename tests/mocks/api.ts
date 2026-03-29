@@ -9,22 +9,24 @@ import type { DeploymentListResponse, DomainListResponse, Deployment, Domain, Ac
 // Mock data - predictable and minimal for testing
 const mockDeployments: Deployment[] = [
   {
-    deployment: 'test-deployment-1',
+    deployment: 'test-deployment-1.shipstatic.com',
     files: 5,
     size: 1024000,
     status: 'success',
     config: false,
     labels: ['production', 'v1.0.0'],
-    url: 'https://test-deployment-1.shipstatic.com',
+    via: null,
     created: 1640995200, // 2022-01-01
     expires: 1672531200  // 2023-01-01
   },
   {
-    deployment: 'test-deployment-2',
+    deployment: 'test-deployment-2.shipstatic.com',
     files: 3,
     size: 512000,
     status: 'success',
-    url: 'https://test-deployment-2.shipstatic.com',
+    config: false,
+    labels: [],
+    via: null,
     created: 1640995100,
     expires: 1672531100
   }
@@ -33,17 +35,21 @@ const mockDeployments: Deployment[] = [
 const mockDomains: Domain[] = [
   {
     domain: 'staging',
-    deployment: 'test-deployment-1',
+    deployment: 'test-deployment-1.shipstatic.com',
     status: 'success',
-    url: 'https://staging.shipstatic.com',
-    created: 1640995200
+    labels: [],
+    created: 1640995200,
+    linked: null,
+    links: 0
   },
   {
     domain: 'production',
-    deployment: 'test-deployment-2',
+    deployment: 'test-deployment-2.shipstatic.com',
     status: 'success',
-    url: 'https://production.shipstatic.com',
-    created: 1640995100
+    labels: [],
+    created: 1640995100,
+    linked: null,
+    links: 0
   }
 ];
 
@@ -165,12 +171,13 @@ export const apiHandlers = [
     }
 
     const newDeployment: Deployment = {
-      deployment: 'newly-created-deployment',
+      deployment: 'newly-created-deployment.shipstatic.com',
       files: files,
       size: files.reduce((total, f) => total + (f.size || 0), 0),
       status: 'success',
+      config: false,
       labels: labels,
-      url: 'https://newly-created-deployment.shipstatic.com',
+      via: null,
       created: Math.floor(Date.now() / 1000),
       expires: Math.floor(Date.now() / 1000) + 86400
     };
@@ -255,13 +262,14 @@ export const apiHandlers = [
       }
     }
 
-    const domainResult: Domain = {
+    const domainResult: Domain & { isCreate: boolean } = {
       domain: params.name as string,
-      deployment: body.deployment ?? null,
+      deployment: body.deployment ? (body.deployment.includes('.') ? body.deployment : `${body.deployment}.shipstatic.com`) : null,
       status: 'success',
-      labels: body.labels,
-      url: `https://${params.name}.shipstatic.com`,
+      labels: body.labels ?? [],
       created: Math.floor(Date.now() / 1000),
+      linked: null,
+      links: 0,
       isCreate: true
     };
 

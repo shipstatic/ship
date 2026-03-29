@@ -267,8 +267,12 @@ function handleDeploymentUpload(req: IncomingMessage, res: ServerResponse): void
   });
 }
 
+function findDeployment(id: string): Deployment | undefined {
+  return mockDeployments.find((d) => d.deployment === id || d.deployment === `${id}.shipstatic.com`);
+}
+
 function handleDeploymentGet(res: ServerResponse, id: string): void {
-  const deployment = mockDeployments.find((d) => d.deployment === id);
+  const deployment = findDeployment(id);
   if (!deployment) {
     res.writeHead(404);
     res.end(JSON.stringify(errors.notFound('Deployment', id)));
@@ -279,7 +283,7 @@ function handleDeploymentGet(res: ServerResponse, id: string): void {
 }
 
 function handleDeploymentDelete(res: ServerResponse, id: string): void {
-  const deployment = mockDeployments.find((d) => d.deployment === id);
+  const deployment = findDeployment(id);
   if (!deployment) {
     res.writeHead(404);
     res.end(JSON.stringify(errors.notFound('Deployment', id)));
@@ -288,7 +292,7 @@ function handleDeploymentDelete(res: ServerResponse, id: string): void {
   res.writeHead(202);
   res.end(JSON.stringify({
     message: 'Deployment marked for removal',
-    deployment: id,
+    deployment: deployment.deployment,
     status: 'deleting',
   }));
 }
@@ -328,7 +332,7 @@ function handleDomainSet(req: IncomingMessage, res: ServerResponse, domainName: 
 
       // Validate deployment exists if provided
       if (data.deployment) {
-        const deploymentExists = mockDeployments.some((d) => d.deployment === data.deployment);
+        const deploymentExists = mockDeployments.some((d) => d.deployment === data.deployment || d.deployment === `${data.deployment}.shipstatic.com`);
         if (!deploymentExists) {
           res.writeHead(404);
           res.end(JSON.stringify(errors.notFound('Deployment', data.deployment)));

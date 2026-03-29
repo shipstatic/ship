@@ -137,7 +137,7 @@ These are `@internal` flags — only used by the web app (`web/my`) via the `/up
 ### Table Output
 
 - **3 spaces** between columns (matches ps, kubectl, docker)
-- Headers are dimmed; property names can be remapped via `headerMap` (e.g. `{ url: 'deployment' }`)
+- Headers are dimmed; property names can be remapped via `headerMap`
 - Property order matches API response exactly
 - `INTERNAL_FIELDS` list (`['isCreate']`) is filtered from all output
 
