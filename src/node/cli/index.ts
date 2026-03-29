@@ -102,7 +102,7 @@ ${applyBold('COMMANDS')}
   ship tokens remove <token>            Delete token permanently
 
   ⚙️ ${applyBold('Setup')}
-  ship config                           Create or update ~/.shiprc configuration
+  ship config                           Save your API key
   ship whoami                           Get current account information
 
   🛠️ ${applyBold('Completion')}
@@ -122,6 +122,8 @@ ${applyBold('FLAGS')}
   --version                 Show version information
 
 ${applyBold('EXAMPLES')}
+  ship ./dist
+  ship domains set www.example.com happy-cat-abc1234.shipstatic.com
   ship ./dist -q | ship domains set www.example.com
 
 ${applyDim('Please report any issues to https://github.com/shipstatic/ship/issues')}
@@ -608,7 +610,7 @@ completionCmd
 // Config command
 program
   .command('config')
-  .description('Create or update ~/.shiprc configuration')
+  .description('Save your API key')
   .action(async () => {
     const options = processOptions(program);
     try {

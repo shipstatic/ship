@@ -44,7 +44,7 @@ COMMANDS
   ship tokens remove <token>            Delete token permanently
 
   ⚙️ Setup
-  ship config                           Create or update ~/.shiprc configuration
+  ship config                           Save your API key
   ship whoami                           Get current account information
 
   🛠️ Completion
@@ -64,6 +64,8 @@ FLAGS
   --version                 Show version information
 
 EXAMPLES
+  ship ./dist
+  ship domains set www.example.com happy-cat-abc1234.shipstatic.com
   ship ./dist -q | ship domains set www.example.com
 
 Please report any issues to https://github.com/shipstatic/ship/issues
@@ -97,7 +99,7 @@ COMMANDS
   ship tokens remove <token>            Delete token permanently
 
   ⚙️ Setup
-  ship config                           Create or update ~/.shiprc configuration
+  ship config                           Save your API key
   ship whoami                           Get current account information
 
   🛠️ Completion
@@ -117,6 +119,8 @@ FLAGS
   --version                 Show version information
 
 EXAMPLES
+  ship ./dist
+  ship domains set www.example.com happy-cat-abc1234.shipstatic.com
   ship ./dist -q | ship domains set www.example.com
 
 Please report any issues to https://github.com/shipstatic/ship/issues
@@ -150,7 +154,7 @@ COMMANDS
   ship tokens remove <token>            Delete token permanently
 
   ⚙️ Setup
-  ship config                           Create or update ~/.shiprc configuration
+  ship config                           Save your API key
   ship whoami                           Get current account information
 
   🛠️ Completion
@@ -170,6 +174,8 @@ FLAGS
   --version                 Show version information
 
 EXAMPLES
+  ship ./dist
+  ship domains set www.example.com happy-cat-abc1234.shipstatic.com
   ship ./dist -q | ship domains set www.example.com
 
 Please report any issues to https://github.com/shipstatic/ship/issues
