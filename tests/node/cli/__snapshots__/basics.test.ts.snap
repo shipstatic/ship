@@ -43,11 +43,11 @@ COMMANDS
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 
-  ⚙️  Setup
+  ⚙️ Setup
   ship config                           Create or update ~/.shiprc configuration
   ship whoami                           Get current account information
 
-  🛠️  Completion
+  🛠️ Completion
   ship completion install               Install shell completion script
   ship completion uninstall             Uninstall shell completion script
 
@@ -92,11 +92,11 @@ COMMANDS
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 
-  ⚙️  Setup
+  ⚙️ Setup
   ship config                           Create or update ~/.shiprc configuration
   ship whoami                           Get current account information
 
-  🛠️  Completion
+  🛠️ Completion
   ship completion install               Install shell completion script
   ship completion uninstall             Uninstall shell completion script
 
@@ -141,11 +141,11 @@ COMMANDS
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 
-  ⚙️  Setup
+  ⚙️ Setup
   ship config                           Create or update ~/.shiprc configuration
   ship whoami                           Get current account information
 
-  🛠️  Completion
+  🛠️ Completion
   ship completion install               Install shell completion script
   ship completion uninstall             Uninstall shell completion script
 
