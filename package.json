@@ -1,6 +1,6 @@
 {
   "name": "@shipstatic/ship",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "SDK & CLI for ShipStatic platform",
   "type": "module",
   "main": "./dist/index.cjs",
