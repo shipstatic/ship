@@ -102,7 +102,7 @@ ${applyBold('COMMANDS')}
   ship tokens remove <token>            Delete token permanently
 
   ⚙️ ${applyBold('Setup')}
-  ship config                           Create or update ~/.shiprc configuration
+  ship config                           Save your API key
   ship whoami                           Get current account information
 
   🛠️ ${applyBold('Completion')}
@@ -608,7 +608,7 @@ completionCmd
 // Config command
 program
   .command('config')
-  .description('Create or update ~/.shiprc configuration')
+  .description('Save your API key')
   .action(async () => {
     const options = processOptions(program);
     try {

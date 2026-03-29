@@ -44,7 +44,7 @@ COMMANDS
   ship tokens remove <token>            Delete token permanently
 
   ⚙️ Setup
-  ship config                           Create or update ~/.shiprc configuration
+  ship config                           Save your API key
   ship whoami                           Get current account information
 
   🛠️ Completion
@@ -97,7 +97,7 @@ COMMANDS
   ship tokens remove <token>            Delete token permanently
 
   ⚙️ Setup
-  ship config                           Create or update ~/.shiprc configuration
+  ship config                           Save your API key
   ship whoami                           Get current account information
 
   🛠️ Completion
@@ -150,7 +150,7 @@ COMMANDS
   ship tokens remove <token>            Delete token permanently
 
   ⚙️ Setup
-  ship config                           Create or update ~/.shiprc configuration
+  ship config                           Save your API key
   ship whoami                           Get current account information
 
   🛠️ Completion
