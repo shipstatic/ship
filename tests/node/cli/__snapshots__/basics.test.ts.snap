@@ -26,9 +26,9 @@ COMMANDS
   📦 Deployments
   ship deployments list                 List all deployments
   ship deployments upload <path>        Upload deployment from directory
-  ship deployments get <id>             Show deployment information
-  ship deployments set <id>             Set deployment labels
-  ship deployments remove <id>          Delete deployment permanently
+  ship deployments get <deployment>     Show deployment information
+  ship deployments set <deployment>     Set deployment labels
+  ship deployments remove <deployment>  Delete deployment permanently
 
   🌎 Domains
   ship domains list                     List all domains
@@ -60,7 +60,11 @@ FLAGS
   --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
   --json                    Output results in JSON format
+  -q, --quiet               Output only the resource identifier
   --version                 Show version information
+
+EXAMPLES
+  ship ./dist -q | ship domains set www.example.com
 
 Please report any issues to https://github.com/shipstatic/ship/issues
 
@@ -75,9 +79,9 @@ COMMANDS
   📦 Deployments
   ship deployments list                 List all deployments
   ship deployments upload <path>        Upload deployment from directory
-  ship deployments get <id>             Show deployment information
-  ship deployments set <id>             Set deployment labels
-  ship deployments remove <id>          Delete deployment permanently
+  ship deployments get <deployment>     Show deployment information
+  ship deployments set <deployment>     Set deployment labels
+  ship deployments remove <deployment>  Delete deployment permanently
 
   🌎 Domains
   ship domains list                     List all domains
@@ -109,7 +113,11 @@ FLAGS
   --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
   --json                    Output results in JSON format
+  -q, --quiet               Output only the resource identifier
   --version                 Show version information
+
+EXAMPLES
+  ship ./dist -q | ship domains set www.example.com
 
 Please report any issues to https://github.com/shipstatic/ship/issues
 
@@ -124,9 +132,9 @@ COMMANDS
   📦 Deployments
   ship deployments list                 List all deployments
   ship deployments upload <path>        Upload deployment from directory
-  ship deployments get <id>             Show deployment information
-  ship deployments set <id>             Set deployment labels
-  ship deployments remove <id>          Delete deployment permanently
+  ship deployments get <deployment>     Show deployment information
+  ship deployments set <deployment>     Set deployment labels
+  ship deployments remove <deployment>  Delete deployment permanently
 
   🌎 Domains
   ship domains list                     List all domains
@@ -158,7 +166,11 @@ FLAGS
   --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
   --json                    Output results in JSON format
+  -q, --quiet               Output only the resource identifier
   --version                 Show version information
+
+EXAMPLES
+  ship ./dist -q | ship domains set www.example.com
 
 Please report any issues to https://github.com/shipstatic/ship/issues
 

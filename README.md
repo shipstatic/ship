@@ -15,14 +15,29 @@ npm install @shipstatic/ship
 ## CLI Usage
 
 ```bash
-# Deploy a directory (shortcut)
+# Deploy a directory
 ship ./dist
 
 # Deploy with labels
 ship ./dist --label production --label v1.0.0
 
-# Disable automatic detection
-ship ./dist --no-path-detect --no-spa-detect
+# Deploy and link to a domain in one pipe
+ship ./dist -q | ship domains set www.example.com
+```
+
+### Composability
+
+The `-q` flag outputs only the resource identifier — perfect for piping and scripting:
+
+```bash
+# Deploy and link domain
+ship ./dist -q | ship domains set www.example.com
+
+# Deploy and open in browser
+open https://$(ship ./dist -q)
+
+# Batch operations
+ship deployments list -q | xargs -I{} ship deployments remove {} -q
 ```
 
 ### Deployments
@@ -31,22 +46,22 @@ ship ./dist --no-path-detect --no-spa-detect
 ship deployments list
 ship deployments upload <path>                    # Upload from file or directory
 ship deployments upload <path> --label production # Upload with labels
-ship deployments get <id>
-ship deployments set <id> --label production      # Update labels
-ship deployments remove <id>
+ship deployments get <deployment>
+ship deployments set <deployment> --label production
+ship deployments remove <deployment>
 ```
 
 ### Domains
 
 ```bash
 ship domains list
-ship domains set staging                          # Reserve domain (no deployment yet)
-ship domains set staging <deployment-id>          # Link domain to deployment
-ship domains set staging --label production       # Update labels only
-ship domains get staging
+ship domains set www.example.com                  # Reserve domain (no deployment yet)
+ship domains set www.example.com <deployment>     # Link domain to deployment
+ship domains set www.example.com --label prod     # Update labels only
+ship domains get www.example.com
 ship domains validate www.example.com             # Check if domain is valid and available
 ship domains verify www.example.com               # Trigger DNS verification
-ship domains remove staging
+ship domains remove www.example.com
 ```
 
 ### Tokens
@@ -60,8 +75,7 @@ ship tokens remove <token>
 ### Account & Setup
 
 ```bash
-ship whoami                      # Get current account (alias for account get)
-ship account get
+ship whoami
 ship config                      # Create or update ~/.shiprc
 ship ping                        # Check API connectivity
 ```
@@ -80,10 +94,11 @@ ship completion uninstall
 --deploy-token <token>    Deploy token for single-use deployments
 --config <file>           Custom config file path
 --label <label>           Add label (repeatable)
---no-path-detect          Disable automatic path optimization and flattening
---no-spa-detect           Disable automatic SPA detection and configuration
+--no-path-detect          Disable automatic path optimization
+--no-spa-detect           Disable automatic SPA detection
 --no-color                Disable colored output
 --json                    Output results in JSON format
+-q, --quiet               Output only the resource identifier
 --version                 Show version information
 ```
 
@@ -107,12 +122,12 @@ const deployment = await ship.deployments.upload('./dist', {
 });
 
 // Manage domains
-await ship.domains.set('staging', { deployment: deployment.id });
+await ship.domains.set('www.example.com', { deployment: deployment.deployment });
 await ship.domains.list();
 
 // Update labels
-await ship.deployments.set(deployment.id, { labels: ['production', 'v1.0'] });
-await ship.domains.set('staging', { labels: ['live'] });
+await ship.deployments.set(deployment.deployment, { labels: ['production', 'v1.0'] });
+await ship.domains.set('www.example.com', { labels: ['live'] });
 ```
 
 ## Browser Usage
@@ -187,11 +202,11 @@ ship.setDeployToken(token)        // Set deploy token after construction
 ### Deployments
 
 ```typescript
-ship.deployments.upload(input, options?)  // Upload new deployment
-ship.deployments.list()                   // List all deployments
-ship.deployments.get(id)                  // Get deployment details
-ship.deployments.set(id, { labels })      // Update deployment labels
-ship.deployments.remove(id)              // Delete deployment
+ship.deployments.upload(input, options?)       // Upload new deployment
+ship.deployments.list()                        // List all deployments
+ship.deployments.get(deployment)               // Get deployment details
+ship.deployments.set(deployment, { labels })   // Update deployment labels
+ship.deployments.remove(deployment)            // Delete deployment
 ```
 
 ### Domains
@@ -228,19 +243,19 @@ ship.account.get()  // Get current account
 
 ```typescript
 // Reserve domain (no deployment yet)
-ship.domains.set('staging');
+ship.domains.set('www.example.com');
 
 // Link domain to deployment
-ship.domains.set('staging', { deployment: 'abc123' });
+ship.domains.set('www.example.com', { deployment: 'happy-cat-abc1234.shipstatic.com' });
 
 // Switch to a different deployment (atomic)
-ship.domains.set('staging', { deployment: 'xyz789' });
+ship.domains.set('www.example.com', { deployment: 'other-deploy-xyz7890.shipstatic.com' });
 
 // Update labels only (deployment preserved)
-ship.domains.set('staging', { labels: ['prod', 'v2'] });
+ship.domains.set('www.example.com', { labels: ['prod', 'v2'] });
 
 // Update both
-ship.domains.set('staging', { deployment: 'abc123', labels: ['prod'] });
+ship.domains.set('www.example.com', { deployment: 'happy-cat-abc1234.shipstatic.com', labels: ['prod'] });
 ```
 
 **No unlinking:** Once a domain is linked, `{ deployment: null }` returns a 400 error. To take a site offline, deploy a maintenance page. To clean up, delete the domain.
@@ -248,8 +263,8 @@ ship.domains.set('staging', { deployment: 'abc123', labels: ['prod'] });
 **Domain format:** Domain names are FQDNs. The SDK accepts any format (case-insensitive, Unicode) — the API normalizes:
 
 ```typescript
-ship.domains.set('Example.COM', { deployment: 'abc' });  // → normalized to 'example.com'
-ship.domains.set('münchen.de', { deployment: 'abc' });   // → Unicode supported
+ship.domains.set('WWW.Example.COM');  // → normalized to 'www.example.com'
+ship.domains.set('www.münchen.de');   // → Unicode supported
 ```
 
 ### Deploy Options
@@ -263,7 +278,6 @@ ship.deploy('./dist', {
   spaDetect?: boolean,       // Auto-detect SPA (default: true)
   maxConcurrency?: number,   // Concurrent uploads (default: 4)
   timeout?: number,          // Request timeout (ms)
-  subdomain?: string,        // Suggested subdomain
   via?: string,              // Client identifier (e.g. 'sdk', 'cli')
   apiKey?: string,           // Per-request API key override
   deployToken?: string,      // Per-request deploy token override
