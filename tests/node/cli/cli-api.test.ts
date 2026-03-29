@@ -30,6 +30,13 @@ describe('CLI with Mock API', () => {
 
       req.on('data', chunk => { body += chunk.toString(); });
       req.on('end', () => {
+        // Ping endpoint
+        if (req.method === 'GET' && url === '/ping') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, timestamp: Date.now() }));
+          return;
+        }
+
         // Config endpoint
         if (req.method === 'GET' && url === '/config') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -449,6 +456,79 @@ describe('CLI with Mock API', () => {
       const result = await runCli(['--json', 'tokens', 'create', ...labels], testEnv());
       expect(result.exitCode).toBe(1);
       expect(JSON.parse(result.stderr.trim()).error).toContain('Maximum 10 labels');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Quiet Mode (-q / --quiet)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  describe('quiet mode', () => {
+    it('deploy -q outputs only the deployment hostname', async () => {
+      const result = await runCli(['-q', DEMO_SITE_PATH], testEnv());
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe('test-deployment-123.shipstatic.com');
+    });
+
+    it('deploy --quiet outputs only the deployment hostname', async () => {
+      const result = await runCli(['--quiet', 'deployments', 'upload', DEMO_SITE_PATH], testEnv());
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe('test-deployment-123.shipstatic.com');
+    });
+
+    it('domains set -q outputs only the domain name', async () => {
+      const result = await runCli(['-q', 'domains', 'set', 'mysite.shipstatic.com', 'test-deployment-123.shipstatic.com'], testEnv());
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe('mysite.shipstatic.com');
+    });
+
+    it('tokens create -q outputs only the secret', async () => {
+      const result = await runCli(['-q', 'tokens', 'create'], testEnv());
+      expect(result.exitCode).toBe(0);
+      const secret = result.stdout.trim();
+      expect(secret).toMatch(/^token-/);
+      expect(secret.length).toBeGreaterThan(20);
+    });
+
+    it('ping -q produces no output', async () => {
+      const result = await runCli(['-q', 'ping'], testEnv());
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe('');
+    });
+
+    it('-q takes precedence over --json', async () => {
+      const result = await runCli(['-q', '--json', DEMO_SITE_PATH], testEnv());
+      expect(result.exitCode).toBe(0);
+      // Should be plain hostname, not JSON
+      expect(result.stdout.trim()).toBe('test-deployment-123.shipstatic.com');
+      expect(result.stdout).not.toContain('{');
+    });
+
+    it('-q suppresses spinner', async () => {
+      const result = await runCli(['-q', DEMO_SITE_PATH], testEnv());
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).not.toContain('uploading');
+    });
+
+    it('domains set reads deployment from stdin when piped', async () => {
+      const result = await runCli(['-q', 'domains', 'set', 'stdin-test.shipstatic.com'], {
+        ...testEnv(),
+        stdin: ['test-deployment-123.shipstatic.com'],
+      });
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe('stdin-test.shipstatic.com');
+    });
+
+    it('-q errors still go to stderr', async () => {
+      simulateAuthError = true;
+      try {
+        const result = await runCli(['-q', DEMO_SITE_PATH], testEnv());
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain('authentication');
+        expect(result.stdout.trim()).toBe('');
+      } finally {
+        simulateAuthError = false;
+      }
     });
   });
 });

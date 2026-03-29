@@ -121,18 +121,26 @@ These are `@internal` flags — only used by the web app (`web/my`) via the `/up
 
 ### Output Conventions
 
-| Type | Text format | JSON format |
-|------|------------|-------------|
-| Success message | green text | `{ "success": "..." }` |
-| Data (object/list) | table or key-value | raw JSON object (no wrapper) |
-| Error | `[error]` prefix, red | `{ "error": "..." }` |
-| Warning | `[warning]` prefix, yellow | `{ "warning": "..." }` |
-| Info | `[info]` prefix, blue | `{ "info": "..." }` |
+| Type | Text format | JSON format | Quiet (`-q`) format |
+|------|------------|-------------|---------------------|
+| Success message | green text | `{ "success": "..." }` | — |
+| Data (single) | key-value pairs | raw JSON object | key identifier only |
+| Data (list) | table | raw JSON object | one identifier per line |
+| Void/ping | success/error text | `{ "success": "..." }` | no output (exit code) |
+| Error | `[error]` prefix, red | `{ "error": "..." }` | stderr (unchanged) |
 
 - Text messages are lowercased; trailing periods stripped
 - Removal operations (void result) produce a success message
 - Internal fields (`isCreate`, `_dnsRecords`, `_shareHash`) are stripped from JSON output
 - `[error]`/`[warning]`/`[info]` prefixes use inverse color backgrounds in TTY
+
+### Composability
+
+`-q` outputs only the key identifier — the value you'd pipe forward. `domains set` reads deployment from stdin when piped.
+
+```bash
+ship ./dist -q | ship domains set www.example.com
+```
 
 ### Table Output
 
