@@ -84,9 +84,9 @@ ${applyBold('COMMANDS')}
   📦 ${applyBold('Deployments')}
   ship deployments list                 List all deployments
   ship deployments upload <path>        Upload deployment from directory
-  ship deployments get <id>             Show deployment information
-  ship deployments set <id>             Set deployment labels
-  ship deployments remove <id>          Delete deployment permanently
+  ship deployments get <deployment>     Show deployment information
+  ship deployments set <deployment>     Set deployment labels
+  ship deployments remove <deployment>  Delete deployment permanently
 
   🌎 ${applyBold('Domains')}
   ship domains list                     List all domains
@@ -118,7 +118,11 @@ ${applyBold('FLAGS')}
   --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
   --json                    Output results in JSON format
+  -q, --quiet               Output only the resource identifier
   --version                 Show version information
+
+${applyBold('EXAMPLES')}
+  ship ./dist -q | ship domains set www.example.com
 
 ${applyDim('Please report any issues to https://github.com/shipstatic/ship/issues')}
 `;
@@ -234,7 +238,7 @@ function withErrorHandling<T extends unknown[], R extends CLIResult>(
     try {
       const client = createClient();
       const result = await handler(client, globalOptions, ...args);
-      formatOutput(result, resolvedContext, { json: globalOptions.json, noColor: globalOptions.noColor });
+      formatOutput(result, resolvedContext, { json: globalOptions.json, quiet: globalOptions.quiet, noColor: globalOptions.noColor });
     } catch (err) {
       handleError(err, resolvedContext);
     }
@@ -299,7 +303,7 @@ async function performDeploy(
 
   // Spinner (TTY only, not JSON, not --no-color)
   let spinner: Spinner | null = null;
-  if (process.stdout.isTTY && !globalOptions.json && !globalOptions.noColor) {
+  if (process.stdout.isTTY && !globalOptions.json && !globalOptions.quiet && !globalOptions.noColor) {
     const { default: yoctoSpinner } = await import('yocto-spinner');
     spinner = yoctoSpinner({ text: 'uploading…' }).start();
   }
@@ -330,6 +334,7 @@ program
   .option('--config <file>', 'Custom config file path')
   .option('--api-url <url>', 'API URL (for development)')
   .option('--json', 'Output results in JSON format')
+  .option('-q, --quiet', 'Output only the resource identifier')
   .option('--no-color', 'Disable colored output')
   .option('--help', 'Display help for command')
   .helpOption(false); // Disable default help
@@ -480,6 +485,15 @@ domainsCmd
   .option('--label <label>', 'Label to set (can be repeated)', collect, [])
   .action(withErrorHandling(
     async (client: Ship, _options: GlobalOptions, name: string, deployment: string | undefined, cmdOptions: LabelOptions) => {
+      // Read deployment from stdin when piped (e.g., ship ./dist -q | ship domains set mysite.com)
+      if (!deployment && !process.stdin.isTTY) {
+        deployment = await new Promise<string | undefined>(resolve => {
+          let data = '';
+          process.stdin.on('data', chunk => data += chunk);
+          process.stdin.on('end', () => resolve(data.trim() || undefined));
+        });
+      }
+
       const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
 
       const setOptions: { deployment?: string; labels?: string[] } = {};

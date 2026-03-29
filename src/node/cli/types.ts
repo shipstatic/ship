@@ -30,6 +30,7 @@ export interface GlobalOptions {
   config?: string;
   apiUrl?: string;
   json?: boolean;
+  quiet?: boolean;
   noColor?: boolean;
   color?: boolean; // Commander's --no-color sets color: false
   help?: boolean;
