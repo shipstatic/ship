@@ -43,6 +43,13 @@ program
       process.exit(err.exitCode || 0);
     }
 
+    // --help alongside a parse error (e.g., ship deployments upload --help)
+    // Show help instead of the error
+    if (process.argv.includes('--help')) {
+      displayHelp(processOptions(program).noColor);
+      process.exit(0);
+    }
+
     const globalOptions = processOptions(program);
 
     let message = err.message || 'unknown command error';
@@ -76,36 +83,40 @@ program
 function displayHelp(noColor?: boolean) {
   const applyBold = (text: string) => noColor ? text : bold(text);
   const applyDim = (text: string) => noColor ? text : dim(text);
-  
+  const icon = (emoji: string) => noColor ? '' : `${emoji} `;
+
   const output = `${applyBold('USAGE')}
-  ship <path>               🚀 Deploy static sites with simplicity
+  ship <path>               ${icon('🚀')}Deploy static sites with simplicity
 
 ${applyBold('COMMANDS')}
-  📦 ${applyBold('Deployments')}
+  ${icon('📦')}${applyBold('Deployments')}
   ship deployments list                 List all deployments
   ship deployments upload <path>        Upload deployment from directory
   ship deployments get <deployment>     Show deployment information
   ship deployments set <deployment>     Set deployment labels
   ship deployments remove <deployment>  Delete deployment permanently
 
-  🌎 ${applyBold('Domains')}
+  ${icon('🌎')}${applyBold('Domains')}
   ship domains list                     List all domains
   ship domains set <name> [deployment]  Create domain, link to deployment, or update labels
   ship domains get <name>               Show domain information
   ship domains validate <name>          Check if domain name is valid and available
+  ship domains records <name>           Show required DNS records for domain setup
+  ship domains dns <name>               Look up DNS provider for a domain
+  ship domains share <name>             Get shareable DNS setup link
   ship domains verify <name>            Trigger DNS verification for external domain
   ship domains remove <name>            Delete domain permanently
 
-  🔑 ${applyBold('Tokens')}
+  ${icon('🔑')}${applyBold('Tokens')}
   ship tokens list                      List all deploy tokens
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 
-  ⚙️ ${applyBold('Setup')}
+  ${icon('⚙️')}${applyBold('Setup')}
   ship config                           Save your API key
   ship whoami                           Get current account information
 
-  🛠️ ${applyBold('Completion')}
+  ${icon('🛠️')}${applyBold('Completion')}
   ship completion install               Install shell completion script
   ship completion uninstall             Uninstall shell completion script
 
@@ -113,7 +124,7 @@ ${applyBold('FLAGS')}
   --api-key <key>           API key for authenticated deployments
   --deploy-token <token>    Deploy token for single-use deployments
   --config <file>           Custom config file path
-  --label <label>           Add label (repeatable, works with deploy/set commands)
+  --label <label>           Set label (repeatable, replaces all existing)
   --no-path-detect          Disable automatic path optimization and flattening
   --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
@@ -150,10 +161,10 @@ function mergeLabelOption(cmdOptions: LabelOptions | undefined, programOpts: Lab
 }
 
 /**
- * Handle unknown subcommand for parent commands.
- * Shows error for unknown subcommand, then displays help.
+ * Handle unknown or missing subcommand for parent commands.
+ * Shows scoped usage instead of full help — the user already knows the group.
  */
-function handleUnknownSubcommand(validSubcommands: string[]): (...args: unknown[]) => void {
+function handleUnknownSubcommand(parentName: string, validSubcommands: string[]): (...args: unknown[]) => void {
   return (...args: unknown[]) => {
     const globalOptions = processOptions(program);
 
@@ -168,7 +179,9 @@ function handleUnknownSubcommand(validSubcommands: string[]): (...args: unknown[
       }
     }
 
-    displayHelp(globalOptions.noColor);
+    if (!globalOptions.json) {
+      console.log(`usage: ship ${parentName} <${validSubcommands.join('|')}>\n`);
+    }
     process.exit(1);
   };
 }
@@ -183,6 +196,17 @@ function processOptions(command: Command): GlobalOptions {
   // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
   if (options.color === false) {
     options.noColor = true;
+  }
+
+  // Auto-suppress color when stdout is not a TTY (like grep --color=auto)
+  // Also respect NO_COLOR convention (https://no-color.org/)
+  // FORCE_COLOR overrides for CI environments that explicitly want color
+  // FORCE_COLOR=0 means "force no color" per the convention (0=off, 1/2/3=on)
+  const forceColor = !!process.env.FORCE_COLOR && process.env.FORCE_COLOR !== '0';
+  if (!options.noColor && !forceColor) {
+    if (!process.stdout.isTTY || process.env.NO_COLOR !== undefined) {
+      options.noColor = true;
+    }
   }
 
   return options as GlobalOptions;
@@ -395,7 +419,7 @@ const deploymentsCmd = program
   .command('deployments')
   .description('Manage deployments')
   .enablePositionalOptions()
-  .action(handleUnknownSubcommand(['list', 'upload', 'get', 'set', 'remove']));
+  .action(handleUnknownSubcommand('deployments', ['list', 'upload', 'get', 'set', 'remove']));
 
 deploymentsCmd
   .command('list')
@@ -449,7 +473,7 @@ const domainsCmd = program
   .command('domains')
   .description('Manage domains')
   .enablePositionalOptions()
-  .action(handleUnknownSubcommand(['list', 'get', 'set', 'validate', 'verify', 'remove']));
+  .action(handleUnknownSubcommand('domains', ['list', 'get', 'set', 'validate', 'records', 'dns', 'share', 'verify', 'remove']));
 
 domainsCmd
   .command('list')
@@ -468,7 +492,11 @@ domainsCmd
   .command('validate <name>')
   .description('Check if domain name is valid and available')
   .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, name: string) => client.domains.validate(name),
+    async (client: Ship, _options: GlobalOptions, name: string) => {
+      const result = await client.domains.validate(name);
+      if (!result.valid) process.exitCode = 1;
+      return result;
+    },
     { operation: 'validate', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
@@ -478,6 +506,30 @@ domainsCmd
   .action(withErrorHandling(
     (client: Ship, _options: GlobalOptions, name: string) => client.domains.verify(name),
     { operation: 'verify', resourceType: 'Domain', getResourceId: (name: string) => name }
+  ));
+
+domainsCmd
+  .command('records <name>')
+  .description('Show required DNS records for domain setup')
+  .action(withErrorHandling(
+    (client: Ship, _options: GlobalOptions, name: string) => client.domains.records(name),
+    { operation: 'records', resourceType: 'Domain', getResourceId: (name: string) => name }
+  ));
+
+domainsCmd
+  .command('dns <name>')
+  .description('Look up DNS provider for a domain')
+  .action(withErrorHandling(
+    (client: Ship, _options: GlobalOptions, name: string) => client.domains.dns(name),
+    { operation: 'dns', resourceType: 'Domain', getResourceId: (name: string) => name }
+  ));
+
+domainsCmd
+  .command('share <name>')
+  .description('Get shareable DNS setup link')
+  .action(withErrorHandling(
+    (client: Ship, _options: GlobalOptions, name: string) => client.domains.share(name),
+    { operation: 'share', resourceType: 'Domain', getResourceId: (name: string) => name }
   ));
 
 domainsCmd
@@ -539,7 +591,7 @@ const tokensCmd = program
   .command('tokens')
   .description('Manage deploy tokens')
   .enablePositionalOptions()
-  .action(handleUnknownSubcommand(['list', 'create', 'remove']));
+  .action(handleUnknownSubcommand('tokens', ['list', 'create', 'remove']));
 
 tokensCmd
   .command('list')
@@ -574,7 +626,7 @@ tokensCmd
 const accountCmd = program
   .command('account')
   .description('Manage account')
-  .action(handleUnknownSubcommand(['get']));
+  .action(handleUnknownSubcommand('account', ['get']));
 
 accountCmd
   .command('get')
@@ -588,7 +640,7 @@ accountCmd
 const completionCmd = program
   .command('completion')
   .description('Setup shell completion')
-  .action(handleUnknownSubcommand(['install', 'uninstall']));
+  .action(handleUnknownSubcommand('completion', ['install', 'uninstall']));
 
 completionCmd
   .command('install')

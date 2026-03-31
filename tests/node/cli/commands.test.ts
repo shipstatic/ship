@@ -120,6 +120,92 @@ describe('CLI Commands', () => {
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('set');
       expect(result.stdout).toContain('Create domain');
+      expect(result.stdout).toContain('records');
+      expect(result.stdout).toContain('dns');
+      expect(result.stdout).toContain('share');
+    });
+
+    it('should handle domains records for external domain', async () => {
+      // Create external domain first (external = has dots, starts as pending)
+      await runCli(['domains', 'set', 'test.example.com']);
+      const result = await runCli(['domains', 'records', 'test.example.com']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('type');
+      expect(result.stdout).toContain('CNAME');
+    });
+
+    it('should handle domains records in quiet mode', async () => {
+      await runCli(['domains', 'set', 'quiet.example.com']);
+      const result = await runCli(['domains', 'records', 'quiet.example.com', '-q']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toContain('CNAME');
+    });
+
+    it('should handle domains records in json mode', async () => {
+      await runCli(['domains', 'set', 'json.example.com']);
+      const result = await runCli(['domains', 'records', 'json.example.com', '--json']);
+      expect(result.exitCode).toBe(0);
+      const json = JSON.parse(result.stdout.trim());
+      expect(json.records).toBeInstanceOf(Array);
+      expect(json.apex).toBeDefined();
+    });
+
+    it('should handle domains dns for external domain', async () => {
+      await runCli(['domains', 'set', 'dns.example.com']);
+      const result = await runCli(['domains', 'dns', 'dns.example.com']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('provider');
+    });
+
+    it('should handle domains dns in quiet mode', async () => {
+      await runCli(['domains', 'set', 'dnsq.example.com']);
+      const result = await runCli(['domains', 'dns', 'dnsq.example.com', '-q']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe('Cloudflare');
+    });
+
+    it('should handle domains share for external domain', async () => {
+      await runCli(['domains', 'set', 'share.example.com']);
+      const result = await runCli(['domains', 'share', 'share.example.com']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('https://setup.shipstatic.com/');
+    });
+
+    it('should handle domains share in quiet mode', async () => {
+      await runCli(['domains', 'set', 'shareq.example.com']);
+      const result = await runCli(['domains', 'share', 'shareq.example.com', '-q']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toContain('https://setup.shipstatic.com/');
+    });
+
+    it('should exit 0 for valid domain', async () => {
+      const result = await runCli(['domains', 'validate', 'www.example.com']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('domain is valid');
+    });
+
+    it('should exit 1 for invalid domain', async () => {
+      const result = await runCli(['domains', 'validate', 'not a domain'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+    });
+
+    it('should exit 1 with no output in quiet mode for invalid domain', async () => {
+      const result = await runCli(['domains', 'validate', 'not a domain', '-q'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe('');
+    });
+
+    it('should output normalized name in quiet mode for valid domain', async () => {
+      const result = await runCli(['domains', 'validate', 'www.example.com', '-q']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe('www.example.com');
+    });
+
+    it('should exit 1 with valid JSON for invalid domain in json mode', async () => {
+      const result = await runCli(['domains', 'validate', 'not a domain', '--json'], { expectFailure: true });
+      expect(result.exitCode).toBe(1);
+      const json = JSON.parse(result.stdout.trim());
+      expect(json.valid).toBe(false);
     });
   });
 
