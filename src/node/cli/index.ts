@@ -157,7 +157,10 @@ function collect(value: string, previous: string[] = []): string[] {
  */
 function mergeLabelOption(cmdOptions: LabelOptions | undefined, programOpts: LabelOptions | undefined): string[] | undefined {
   const labels = cmdOptions?.label?.length ? cmdOptions.label : programOpts?.label;
-  return labels?.length ? labels : undefined;
+  if (!labels?.length) return undefined;
+  // Filter empty strings: --label '' means "clear all labels"
+  const filtered = labels.filter(l => l !== '');
+  return filtered.length ? filtered : [];
 }
 
 /**
@@ -313,7 +316,7 @@ async function performDeploy(
   } = { via: process.env.SHIP_VIA || 'cli' };
 
   // Handle labels
-  if (labels) deployOptions.labels = labels;
+  if (labels !== undefined) deployOptions.labels = labels;
 
   // Handle detection flags
   if (cmdOptions?.noPathDetect !== undefined) {
@@ -552,7 +555,7 @@ domainsCmd
 
       const setOptions: { deployment?: string; labels?: string[] } = {};
       if (deployment) setOptions.deployment = deployment;
-      if (labels && labels.length > 0) setOptions.labels = labels;
+      if (labels !== undefined) setOptions.labels = labels;
 
       // SDK returns DomainSetResult (Domain + isCreate derived from HTTP 201/200)
       const result = await client.domains.set(name, setOptions) as DomainSetResult;
@@ -608,7 +611,7 @@ tokensCmd
       const options: { ttl?: number; labels?: string[] } = {};
       if (cmdOptions?.ttl !== undefined) options.ttl = cmdOptions.ttl;
       const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
-      if (labels && labels.length > 0) options.labels = labels;
+      if (labels !== undefined) options.labels = labels;
       return client.tokens.create(options);
     },
     { operation: 'create', resourceType: 'Token' }

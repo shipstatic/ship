@@ -371,6 +371,12 @@ describe('CLI with Mock API', () => {
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout.trim()).labels).toEqual([]);
     });
+
+    it('should clear labels with --label empty string', async () => {
+      const result = await runCli(['--json', 'domains', 'set', 'staging', 'test-deployment-123', '--label', ''], testEnv());
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual([]);
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -406,6 +412,12 @@ describe('CLI with Mock API', () => {
       expect(JSON.parse(result.stdout.trim()).labels).toEqual([]);
     });
 
+    it('should clear labels with --label empty string', async () => {
+      const result = await runCli(['--json', 'tokens', 'create', '--label', ''], testEnv());
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual([]);
+    });
+
     it('should handle labels with special characters', async () => {
       const result = await runCli(['--json', 'tokens', 'create', '--label', 'ci-cd', '--label', 'version_2.0', '--label', 'env:staging'], testEnv());
       expect(result.exitCode).toBe(0);
@@ -430,6 +442,12 @@ describe('CLI with Mock API', () => {
 
       expect(JSON.parse(deployResult.stdout.trim()).labels).toEqual(['v1.0.0', 'production']);
       expect(JSON.parse(domainResult.stdout.trim()).labels).toEqual(['v1.0.0', 'production']);
+    });
+
+    it('should filter empty strings from labels', async () => {
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', '', '--label', 'production'], testEnv());
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual(['production']);
     });
 
     it('should reject labels shorter than 3 characters (deployments)', async () => {
