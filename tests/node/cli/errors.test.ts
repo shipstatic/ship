@@ -19,9 +19,9 @@ describe('CLI Error Handling', () => {
     it('should handle unknown subcommands', async () => {
       const result = await runCli(['deployments', 'unknown'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
-      // Unknown subcommands now show error message in stderr and help in stdout
+      // Unknown subcommands show error + scoped usage (not full help)
       expect(result.stderr).toContain("unknown command 'unknown'");
-      expect(result.stdout).toContain('USAGE');
+      expect(result.stdout).toContain('usage: ship deployments');
     });
 
     it('should provide JSON error format for unknown commands', async () => {
@@ -65,8 +65,8 @@ describe('CLI Error Handling', () => {
     it('should handle missing required arguments', async () => {
       const result = await runCli(['deployments'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
-      // Incomplete commands now show custom help in stdout
-      expect(result.stdout).toContain('USAGE');
+      // Bare group commands show scoped usage
+      expect(result.stdout).toContain('usage: ship deployments');
     });
 
     it('should handle invalid argument formats', async () => {

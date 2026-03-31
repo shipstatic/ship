@@ -1,6 +1,6 @@
 {
   "name": "@shipstatic/ship",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "SDK & CLI for ShipStatic platform",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -42,9 +42,21 @@
     "SKILL.md"
   ],
   "keywords": [
-    "sdk",
+    "ai",
     "cli",
-    "shipstatic"
+    "custom-domain",
+    "deploy",
+    "developer-tools",
+    "hosting",
+    "jamstack",
+    "sdk",
+    "ship",
+    "static-hosting",
+    "static-site",
+    "typescript",
+    "vibe-coding",
+    "web-hosting",
+    "website"
   ],
   "homepage": "https://github.com/shipstatic/ship",
   "repository": {
