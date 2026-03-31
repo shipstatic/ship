@@ -8,12 +8,16 @@ import type {
   Domain,
   DomainListResponse,
   DomainValidateResponse,
+  DomainRecordsResponse,
+  DomainDnsResponse,
   Account,
   TokenCreateResponse,
   TokenListResponse
 } from '@shipstatic/types';
-import type { EnrichedDomain, MessageResult, CLIResult } from './types.js';
+import type { EnrichedDomain, DomainShareResponse, MessageResult, CLIResult } from './types.js';
 import { formatTable, formatDetails, success, error, info } from './utils.js';
+
+const setupUrl = (hash: string, domain: string) => `https://setup.shipstatic.com/${hash}/${domain}`;
 
 export interface OutputContext {
   operation?: string;
@@ -39,7 +43,7 @@ export function formatDeploymentsList(result: DeploymentListResponse, context: O
     return;
   }
 
-  const columns = ['deployment', 'labels', 'created'];
+  const columns = ['deployment', 'labels', 'files', 'size', 'created', 'via'];
   console.log(formatTable(result.deployments, columns, noColor));
 }
 
@@ -55,7 +59,7 @@ export function formatDomainsList(result: DomainListResponse, context: OutputCon
     return;
   }
 
-  const columns = ['domain', 'deployment', 'labels', 'linked', 'created'];
+  const columns = ['domain', 'deployment', 'labels', 'linked', 'links', 'created'];
   console.log(formatTable(result.domains, columns, noColor));
 }
 
@@ -87,10 +91,9 @@ export function formatDomain(result: Domain | EnrichedDomain, context: OutputCon
   // Display setup instructions link
   if (_shareHash) {
     console.log();
-    info(`Setup instructions: https://setup.shipstatic.com/${_shareHash}/${result.domain}`, false, noColor);
+    info(`Setup instructions: ${setupUrl(_shareHash, result.domain)}`, false, noColor);
   }
 
-  console.log();
   console.log(formatDetails(displayResult, noColor));
 }
 
@@ -139,13 +142,46 @@ export function formatDomainValidate(result: DomainValidateResponse, context: Ou
       console.log(`  normalized: ${result.normalized}`);
     }
     if (result.available !== null) {
-      const availabilityText = result.available ? 'available ✓' : 'already taken';
+      const availabilityText = result.available ? (noColor ? 'available' : 'available ✓') : 'already taken';
       console.log(`  availability: ${availabilityText}`);
     }
     console.log();
   } else {
     error(result.error || 'domain is invalid', false, noColor);
   }
+}
+
+/**
+ * Format domain DNS records result
+ */
+export function formatDomainRecords(result: DomainRecordsResponse, context: OutputContext, options: FormatOptions): void {
+  const { noColor } = options;
+
+  if (result.records.length === 0) {
+    console.log('no records found');
+    console.log();
+    return;
+  }
+
+  const columns = ['type', 'name', 'value'];
+  console.log(formatTable(result.records, columns, noColor));
+}
+
+/**
+ * Format domain DNS provider result
+ */
+export function formatDomainDns(result: DomainDnsResponse, context: OutputContext, options: FormatOptions): void {
+  const { noColor } = options;
+  const provider = result.dns?.provider?.name || null;
+  console.log(formatDetails({ domain: result.domain, provider }, noColor));
+}
+
+/**
+ * Format domain share result as setup URL
+ */
+export function formatDomainShare(result: DomainShareResponse, context: OutputContext, options: FormatOptions): void {
+  const { noColor } = options;
+  success(setupUrl(result.hash, result.domain), false, noColor);
 }
 
 /**
@@ -198,6 +234,14 @@ export function formatOutput(
         (result as DomainListResponse).domains.forEach(d => console.log(d.domain));
       } else if ('tokens' in result) {
         (result as TokenListResponse).tokens.forEach(t => console.log(t.token));
+      } else if ('records' in result) {
+        (result as DomainRecordsResponse).records.forEach(r => console.log(`${r.type} ${r.name} ${r.value}`));
+      } else if ('hash' in result) {
+        const r = result as DomainShareResponse;
+        console.log(setupUrl(r.hash, r.domain));
+      } else if ('dns' in result) {
+        const name = (result as DomainDnsResponse).dns?.provider?.name;
+        if (name) console.log(name);
       } else if ('domain' in result) {
         console.log((result as Domain).domain);
       } else if ('deployment' in result) {
@@ -257,6 +301,12 @@ export function formatOutput(
       formatDomainsList(result as DomainListResponse, context, options);
     } else if ('tokens' in result) {
       formatTokensList(result as TokenListResponse, context, options);
+    } else if ('records' in result) {
+      formatDomainRecords(result as DomainRecordsResponse, context, options);
+    } else if ('hash' in result) {
+      formatDomainShare(result as DomainShareResponse, context, options);
+    } else if ('dns' in result) {
+      formatDomainDns(result as DomainDnsResponse, context, options);
     } else if ('domain' in result) {
       formatDomain(result as Domain, context, options);
     } else if ('deployment' in result) {

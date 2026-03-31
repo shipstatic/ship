@@ -31,6 +31,7 @@ import {
   domainRecordsResponses,
   domainShareResponses,
   domainVerifyResponses,
+  domainValidateResponses,
   isExternalDomain,
 } from '../fixtures/api-responses';
 
@@ -179,6 +180,11 @@ function routeRequest(
     if (method === 'GET') {
       handleDomainsList(res, url);
     }
+    return;
+  }
+
+  if (path === '/domains/validate' && method === 'POST') {
+    handleDomainValidate(req, res);
     return;
   }
 
@@ -505,6 +511,22 @@ function handleDomainVerify(res: ServerResponse, domainName: string): void {
 
   res.writeHead(200);
   res.end(JSON.stringify(domainVerifyResponses.queued));
+}
+
+function handleDomainValidate(req: IncomingMessage, res: ServerResponse): void {
+  let body = '';
+  req.on('data', (chunk) => (body += chunk));
+  req.on('end', () => {
+    const { domain } = JSON.parse(body || '{}');
+    const isValid = typeof domain === 'string' && /^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain);
+    if (isValid) {
+      res.writeHead(200);
+      res.end(JSON.stringify({ ...domainValidateResponses.valid, normalized: domain }));
+    } else {
+      res.writeHead(200);
+      res.end(JSON.stringify(domainValidateResponses.invalid));
+    }
+  });
 }
 
 // =============================================================================

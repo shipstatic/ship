@@ -16,6 +16,7 @@ import type {
   DomainListResponse,
   DomainDnsResponse,
   DomainRecordsResponse,
+  DomainValidateResponse,
   Account,
   Token,
   TokenListItem,
@@ -523,6 +524,28 @@ export const domainVerifyResponses = {
   } satisfies DomainVerifyResponse,
 } as const;
 
+export const domainValidateResponses = {
+  /**
+   * Valid and available domain
+   */
+  valid: {
+    valid: true,
+    normalized: 'www.example.com',
+    available: true,
+    error: null,
+  } satisfies DomainValidateResponse,
+
+  /**
+   * Invalid domain name
+   */
+  invalid: {
+    valid: false,
+    normalized: null,
+    available: null,
+    error: 'Contains invalid characters',
+  } satisfies DomainValidateResponse,
+} as const;
+
 // =============================================================================
 // CONFIG
 // =============================================================================
@@ -748,6 +771,7 @@ export const fixtures = {
   domainRecordsResponses,
   domainShareResponses,
   domainVerifyResponses,
+  domainValidateResponses,
   accounts,
   tokens,
   tokenListItems,
