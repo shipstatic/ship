@@ -76,7 +76,7 @@ export function formatDomain(result: Domain | EnrichedDomain, context: OutputCon
   // Show success message for set operations
   if (context.operation === 'set') {
     const verb = isCreate ? 'created' : 'updated';
-    success(`${result.domain} domain ${verb}`, false, noColor);
+    success(`https://${result.domain} domain ${verb}`, false, noColor);
   }
 
   // Display pre-fetched DNS records (for new external domains)
@@ -105,7 +105,7 @@ export function formatDeployment(result: Deployment, context: OutputContext, opt
 
   // Show success message for upload operations
   if (context.operation === 'upload') {
-    success(`${result.deployment} deployment uploaded`, false, noColor);
+    success(`https://${result.deployment} deployment uploaded`, false, noColor);
   }
 
   console.log(formatDetails(result, noColor));
@@ -263,7 +263,8 @@ export function formatOutput(
   // Handle void/undefined results (removal operations)
   if (result === undefined) {
     if (context.operation === 'remove' && context.resourceType && context.resourceId) {
-      success(`${context.resourceId} ${context.resourceType.toLowerCase()} removed`, json, noColor);
+      const prefix = context.resourceType !== 'Token' ? 'https://' : '';
+      success(`${prefix}${context.resourceId} ${context.resourceType.toLowerCase()} removed`, json, noColor);
     } else {
       success('removed successfully', json, noColor);
     }
