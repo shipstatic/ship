@@ -9,6 +9,8 @@ import type {
   Domain,
   DomainListResponse,
   DomainValidateResponse,
+  DomainRecordsResponse,
+  DomainDnsResponse,
   DnsRecord,
   Account,
   TokenCreateResponse,
@@ -80,6 +82,15 @@ export interface MessageResult {
 }
 
 /**
+ * Share response from domains.share() — { domain, hash }.
+ * Used to construct the setup URL: https://setup.shipstatic.com/{hash}/{domain}
+ */
+export interface DomainShareResponse {
+  domain: string;
+  hash: string;
+}
+
+/**
  * Union of all possible CLI command results.
  * Used by formatOutput to route to the correct formatter.
  */
@@ -91,6 +102,9 @@ export type CLIResult =
   | Domain
   | EnrichedDomain
   | DomainValidateResponse
+  | DomainRecordsResponse
+  | DomainDnsResponse
+  | DomainShareResponse
   | Account
   | TokenCreateResponse
   | MessageResult

@@ -180,7 +180,10 @@ Routes by result shape (discriminated union) — order matters:
 'deployments' in result  → formatDeploymentsList
 'domains' in result      → formatDomainsList
 'tokens' in result       → formatTokensList
-'domain' in result       → formatDomain        // plain Domain or EnrichedDomain
+'records' in result      → formatDomainRecords   // must precede 'domain' check
+'hash' in result         → formatDomainShare     // must precede 'domain' check
+'dns' in result          → formatDomainDns       // must precede 'domain' check
+'domain' in result       → formatDomain          // plain Domain or EnrichedDomain
 'deployment' in result   → formatDeployment
 'token' in result        → formatToken
 'email' in result        → formatAccount
@@ -246,10 +249,6 @@ CLI error formatting (`src/node/cli/error-handling.ts`) — pure functions, full
 - `toShipError(err)` — normalizes any thrown value to `ShipError`
 - `getUserMessage(err, context, options)` — maps error type to actionable user message
 - `formatErrorJson(message, details)` — serializes to `{ "error": "...", "details": ... }`
-
-## TODO
-
-- Consider adding `ship domains records <name>` CLI command — returns required DNS records for a domain. Currently only used programmatically (SDK, MCP) and baked into `domains set` output via DNS enrichment.
 
 ## Known Gotchas
 

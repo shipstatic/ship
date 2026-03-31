@@ -13,7 +13,7 @@ describe('CLI Basics', () => {
       const result = await runCli([]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
-      expect(result.stdout).toContain('🚀 Deploy static sites with simplicity');
+      expect(result.stdout).toContain('Deploy static sites with simplicity');
       expect(result.stdout).toContain('COMMANDS');
       expect(result.stdout).toContain('FLAGS');
     });
@@ -29,6 +29,24 @@ describe('CLI Basics', () => {
     });
 
     // Short form '-h' flag is not supported, only full '--help' flag is available
+
+    it('should show help (not error) for subcommands with required args', async () => {
+      // Subcommands with required args used to show "[error] missing required argument"
+      // when --help was passed. Now they show help cleanly.
+      const subcommands = [
+        ['deployments', 'upload', '--help'],
+        ['deployments', 'get', '--help'],
+        ['domains', 'get', '--help'],
+        ['domains', 'records', '--help'],
+        ['tokens', 'remove', '--help'],
+      ];
+      for (const args of subcommands) {
+        const result = await runCli(args);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain('USAGE');
+        expect(result.stderr).not.toContain('[error]');
+      }
+    });
 
     it('should show version with --version flag', async () => {
       const result = await runCli(['--version']);
