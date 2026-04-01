@@ -4,7 +4,7 @@
 import columnify from 'columnify';
 import { bold, dim, green, red, yellow, blue, inverse, hidden } from 'yoctocolors';
 
-const INTERNAL_FIELDS = ['isCreate'];
+const INTERNAL_FIELDS = ['isCreate', 'claim'];
 
 const applyColor = (colorFn: (text: string) => string, text: string, noColor?: boolean): string => {
   return noColor ? text : colorFn(text);
