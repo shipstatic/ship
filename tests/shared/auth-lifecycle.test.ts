@@ -57,19 +57,19 @@ describe('Authentication Lifecycle', () => {
       // Override http with mock
       (ship as any).http = {
         deploy: mockApiDeploy,
+        fetchAgentToken: vi.fn().mockResolvedValue({ secret: 'token-agent-auto', token: 'agt1d00', labels: [], expires: null }),
         ping: vi.fn().mockResolvedValue(true),
         getConfig: vi.fn().mockResolvedValue({})
       };
 
-      // Initially no auth - deployment should fail
-      await expect(ship.deploy(['./test'] as any)).rejects.toThrow(
-        'Authentication credentials are required for deployment'
-      );
+      // Initially no auth - deploys via auto-fetched agent token
+      await ship.deploy(['./test'] as any);
+      expect((ship as any).http.fetchAgentToken).toHaveBeenCalled();
 
-      // Set deploy token
+      // Set deploy token explicitly - should use it instead of agent token
+      vi.clearAllMocks();
       ship.setDeployToken('token-1234567890abcdef');
 
-      // Now deployment should succeed
       const result = await ship.deploy(['./test'] as any);
       expect(result).toEqual({
         id: 'dep_123',
@@ -114,19 +114,19 @@ describe('Authentication Lifecycle', () => {
       // Override http with mock
       (ship as any).http = {
         deploy: mockApiDeploy,
+        fetchAgentToken: vi.fn().mockResolvedValue({ secret: 'token-agent-auto', token: 'agt1d00', labels: [], expires: null }),
         ping: vi.fn().mockResolvedValue(true),
         getConfig: vi.fn().mockResolvedValue({})
       };
 
-      // Initially no auth - deployment should fail
-      await expect(ship.deploy(['./test'] as any)).rejects.toThrow(
-        'Authentication credentials are required for deployment'
-      );
+      // Initially no auth - deploys via auto-fetched agent token
+      await ship.deploy(['./test'] as any);
+      expect((ship as any).http.fetchAgentToken).toHaveBeenCalled();
 
-      // Set API key
+      // Set API key explicitly - should use it instead of agent token
+      vi.clearAllMocks();
       ship.setApiKey('ship-apikey789');
 
-      // Now deployment should succeed
       const result = await ship.deploy(['./test'] as any);
       expect(result).toEqual({
         id: 'dep_123',

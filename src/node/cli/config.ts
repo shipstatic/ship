@@ -67,6 +67,8 @@ export async function runConfig(options: { noColor?: boolean; json?: boolean } =
   });
 
   console.log('');
+  console.log(`  ${applyDim('Create a free API key at')} https://my.shipstatic.com/api-key`);
+  console.log('');
 
   const prompt = existingApiKey
     ? `  API Key (${applyDim(maskApiKey(existingApiKey))}): `

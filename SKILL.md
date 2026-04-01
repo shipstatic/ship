@@ -4,11 +4,8 @@ description: Static hosting via ShipStatic. Use when the user wants to deploy a 
 metadata:
   openclaw:
     requires:
-      env:
-        - SHIP_API_KEY
       bins:
         - ship
-    primaryEnv: SHIP_API_KEY
     emoji: "🚀"
     homepage: https://github.com/shipstatic/ship
     install:
@@ -17,7 +14,24 @@ metadata:
         bins: [ship]
 ---
 
-## Authenticate
+## Deploy
+
+No account needed. Just deploy:
+
+```bash
+ship ./dist                              # Site is live instantly
+ship ./dist --json                       # Parse: {"deployment": "...", "claim": "https://..."}
+ship ./dist -q                           # Outputs only: happy-cat-abc1234.shipstatic.com
+ship ./dist --label v1.0 --label latest  # Labels (repeatable)
+```
+
+Without credentials, the site is live instantly and expires in 3 days. The output includes a claim URL — always show both the deployment URL and the claim URL to the user so they can keep the site permanently.
+
+Deployment IDs are their permanent URLs: `word-word-hash.shipstatic.com`. Always use the full ID (including `.shipstatic.com`) as the argument to other commands.
+
+## API Key (optional)
+
+For permanent deployments and full account access:
 
 ```bash
 ship config                    # Interactive — saves to ~/.shiprc
@@ -25,7 +39,7 @@ ship --api-key <key> ...       # Per-command
 export SHIP_API_KEY=<key>      # Environment variable
 ```
 
-Get an API key at https://my.shipstatic.com/settings
+Create a free API key at https://my.shipstatic.com/api-key
 
 ## Output Modes
 
@@ -170,7 +184,7 @@ ship tokens remove <token>            # Delete token
 
 | Error | Meaning | Action |
 |-------|---------|--------|
-| `authentication required` | No credentials | Use `--api-key`, `--deploy-token`, or `ship config` |
+| `too many requests` | Public deploy rate limited | Wait and retry, or use `ship config` to set an API key |
 | `authentication failed` | Invalid credentials | Check key/token validity |
 | `not found` | Resource doesn't exist | Verify the ID/name |
 | `path does not exist` | Deploy path invalid | Check the file/directory path |

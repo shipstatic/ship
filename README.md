@@ -1,6 +1,6 @@
 # @shipstatic/ship
 
-Universal SDK and CLI for deploying static files to ShipStatic.
+Universal SDK and CLI for deploying static sites to ShipStatic. No account required — deploy instantly, claim later.
 
 ## Installation
 
@@ -15,7 +15,7 @@ npm install @shipstatic/ship
 ## CLI Usage
 
 ```bash
-# Deploy a directory
+# Deploy — no account needed, site is live instantly
 ship ./dist
 
 # Deploy with labels
@@ -24,6 +24,8 @@ ship ./dist --label production --label v1.0.0
 # Deploy and link to a domain in one pipe
 ship ./dist -q | ship domains set www.example.com
 ```
+
+Without credentials, deployments are public (3-day TTL) with a claim URL. Configure an API key for permanent deployments: `ship config`
 
 ### Composability
 
@@ -107,27 +109,22 @@ ship completion uninstall
 ```javascript
 import Ship from '@shipstatic/ship';
 
-const ship = new Ship({
-  apiKey: 'ship-your-api-key'
-});
-
-// Deploy (shortcut)
+// Deploy — no credentials needed
+const ship = new Ship();
 const deployment = await ship.deploy('./dist');
-console.log(`Deployed: https://${deployment.deployment}`);
+console.log(`Live: https://${deployment.deployment}`);
+console.log(`Claim: ${deployment.claim}`); // User visits to keep permanently
 
-// Deploy with options
-const deployment = await ship.deployments.upload('./dist', {
+// With an API key — deployments are permanent
+const ship = new Ship({ apiKey: 'ship-your-api-key' });
+const deployment = await ship.deploy('./dist', {
   labels: ['production', 'v1.0'],
   onProgress: ({ percent }) => console.log(`${percent}%`)
 });
 
-// Manage domains
+// Manage domains (requires API key)
 await ship.domains.set('www.example.com', { deployment: deployment.deployment });
 await ship.domains.list();
-
-// Update labels
-await ship.deployments.set(deployment.deployment, { labels: ['production', 'v1.0'] });
-await ship.domains.set('www.example.com', { labels: ['live'] });
 ```
 
 ## Browser Usage
@@ -148,6 +145,8 @@ const deployment = await ship.deploy([
 ```
 
 ## Authentication
+
+Deploying works without credentials. For permanent deployments and account features:
 
 ```javascript
 // API key (persistent access)

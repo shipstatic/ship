@@ -55,11 +55,17 @@ export function createDeploymentResource(ctx: DeploymentResourceContext): Deploy
         ? mergeDeployOptions(options, clientDefaults)
         : options;
 
+      // No credentials — deploy publicly via agent token (short-lived, IP-locked, under PUBLIC_ACCOUNT)
       if (hasAuth && !hasAuth() && !mergedOptions.deployToken && !mergedOptions.apiKey) {
-        throw ShipError.authentication(
-          'Authentication credentials are required for deployment. ' +
-          'Please call setDeployToken() or setApiKey() first, or pass credentials in the deployment options.'
-        );
+        try {
+          const api = getApi();
+          const { secret } = await api.fetchAgentToken();
+          mergedOptions.deployToken = secret;
+        } catch (err) {
+          throw ShipError.authentication(
+            'Too many requests; try again later or configure a free API key with \'ship config\''
+          );
+        }
       }
 
       if (!processInput) {

@@ -4,6 +4,7 @@
  */
 import type {
   Deployment,
+  DeploymentCreateResponse,
   DeploymentListResponse,
   Domain,
   DomainListResponse,
@@ -100,7 +101,7 @@ export function formatDomain(result: Domain | EnrichedDomain, context: OutputCon
 /**
  * Format single deployment result
  */
-export function formatDeployment(result: Deployment, context: OutputContext, options: FormatOptions): void {
+export function formatDeployment(result: Deployment | DeploymentCreateResponse, context: OutputContext, options: FormatOptions): void {
   const { noColor } = options;
 
   // Show success message for upload operations
@@ -109,6 +110,13 @@ export function formatDeployment(result: Deployment, context: OutputContext, opt
   }
 
   console.log(formatDetails(result, noColor));
+
+  // Public deployment — claim URL + CTA after details
+  const claim = (result as DeploymentCreateResponse).claim;
+  if (claim) {
+    console.log(`claim to keep permanently:\n${claim}\n`);
+    info(`configure a free API key with 'ship config' to deploy to your own account`, false, noColor);
+  }
 }
 
 /**
