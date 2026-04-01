@@ -3,6 +3,7 @@
  */
 import type {
   Deployment,
+  DeploymentCreateResponse,
   DeploymentListResponse,
   PingResponse,
   ConfigResponse,
@@ -249,7 +250,7 @@ export class ApiHttp extends SimpleEvents {
   // PUBLIC API - DEPLOYMENTS
   // ===========================================================================
 
-  async deploy(files: StaticFile[], options: ApiDeployOptions = {}): Promise<Deployment> {
+  async deploy(files: StaticFile[], options: ApiDeployOptions = {}): Promise<DeploymentCreateResponse> {
     if (!files.length) {
       throw ShipError.business('No files to deploy');
     }
@@ -274,7 +275,7 @@ export class ApiHttp extends SimpleEvents {
       authHeaders['X-Caller'] = options.caller;
     }
 
-    return this.request<Deployment>(
+    return this.request<DeploymentCreateResponse>(
       `${options.apiUrl || this.apiUrl}${this.deployEndpoint}`,
       { method: 'POST', body, headers: { ...bodyHeaders, ...authHeaders }, signal: options.signal || null },
       'Deploy'
@@ -383,6 +384,14 @@ export class ApiHttp extends SimpleEvents {
 
   async removeToken(token: string): Promise<void> {
     await this.request<void>(`${this.apiUrl}${ENDPOINTS.TOKENS}/${encodeURIComponent(token)}`, { method: 'DELETE' }, 'Remove token');
+  }
+
+  async fetchAgentToken(): Promise<TokenCreateResponse> {
+    return this.request<TokenCreateResponse>(
+      `${this.apiUrl}${ENDPOINTS.TOKENS}/agent`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+      'Fetch agent token'
+    );
   }
 
   // ===========================================================================
