@@ -38,15 +38,18 @@ describe('Authentication with useCredentials', () => {
         mockApiDeploy = vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://test.ship.com' });
     });
 
-    it('should throw error when no auth provided (default behavior)', async () => {
+    it('should auto-fetch agent token when no auth provided', async () => {
         const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
-        // Mock internal http client to avoid actual network calls
+        // Mock internal http client with agent token support
         (ship as any).http = {
-            deploy: mockApiDeploy
+            deploy: mockApiDeploy,
+            fetchAgentToken: vi.fn().mockResolvedValue({ secret: 'token-agent-auto', token: 'agt1d00', labels: [], expires: null })
         };
 
-        await expect(ship.deploy(['test'] as any)).rejects.toThrow('Authentication credentials are required');
+        await ship.deploy(['test'] as any);
+        expect((ship as any).http.fetchAgentToken).toHaveBeenCalled();
+        expect(mockApiDeploy).toHaveBeenCalled();
     });
 
     it('should allow deployment when useCredentials is true (skipping auth check)', async () => {
