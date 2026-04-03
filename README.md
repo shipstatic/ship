@@ -329,6 +329,10 @@ import type {
 } from '@shipstatic/types';
 ```
 
+## AI Agents
+
+This package includes a [SKILL.md](./SKILL.md) file — a portable skill definition that AI agents (Claude Code, Codex, OpenClaw, etc.) use to deploy sites with `ship` autonomously.
+
 ---
 
 Part of the [ShipStatic](https://shipstatic.com) platform.
