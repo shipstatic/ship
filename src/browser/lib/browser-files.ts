@@ -7,7 +7,7 @@
  * - **Server-processed** (build/prerender): Source files destined for server-side build.
  *   Junk filtering and MD5 checksums only — the build service validates the output.
  *
- * Both modes share: environment check → extract paths → filter junk → optimize paths → MD5.
+ * Both modes share: environment check → extract paths → optimize paths → filter junk → MD5.
  */
 import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
@@ -45,12 +45,16 @@ export async function processFilesForBrowser(
   // Server-processed uploads (build/prerender) send source files, not deploy output
   const isServerProcessed = options.build || options.prerender;
 
-  // 3. Filter junk files (allowUnbuilt for server-processed — source projects have package.json etc.)
-  const nonJunkSet = new Set(filterJunk(rawPaths, { allowUnbuilt: isServerProcessed }));
-  const validPairs: Array<{ file: File; rawPath: string }> = [];
+  // 3. Optimize paths for deployment (strip common root, flatten)
+  const deployFiles = optimizeDeployPaths(rawPaths, { flatten: options.pathDetect !== false });
+  const deployPaths = deployFiles.map(f => f.path);
+
+  // 4. Filter junk from deploy paths (allowUnbuilt for server-processed)
+  const filteredSet = new Set(filterJunk(deployPaths, { allowUnbuilt: isServerProcessed }));
+  const validPairs: Array<{ file: File; deployPath: string }> = [];
   for (let i = 0; i < browserFiles.length; i++) {
-    if (nonJunkSet.has(rawPaths[i])) {
-      validPairs.push({ file: browserFiles[i], rawPath: rawPaths[i] });
+    if (filteredSet.has(deployPaths[i])) {
+      validPairs.push({ file: browserFiles[i], deployPath: deployFiles[i].path });
     }
   }
 
@@ -58,20 +62,14 @@ export async function processFilesForBrowser(
     return [];
   }
 
-  // 4. Optimize paths for clean deployment URLs
-  const deployFiles = optimizeDeployPaths(
-    validPairs.map(p => p.rawPath),
-    { flatten: options.pathDetect !== false }
-  );
-
   // 5. Server-processed: skip deploy validation, just compute checksums
   if (isServerProcessed) {
     const results: StaticFile[] = [];
     for (let i = 0; i < validPairs.length; i++) {
-      const { file } = validPairs[i];
+      const { file, deployPath } = validPairs[i];
       if (file.size === 0) continue;
       const { md5 } = await calculateMD5(file);
-      results.push({ path: deployFiles[i].path, content: file, size: file.size, md5 });
+      results.push({ path: deployPath, content: file, size: file.size, md5 });
     }
     return results;
   }
@@ -82,8 +80,7 @@ export async function processFilesForBrowser(
   let totalSize = 0;
 
   for (let i = 0; i < validPairs.length; i++) {
-    const { file } = validPairs[i];
-    const deployPath = deployFiles[i].path;
+    const { file, deployPath } = validPairs[i];
 
     // Security validation (shared with Node)
     validateDeployPath(deployPath, file.name);
