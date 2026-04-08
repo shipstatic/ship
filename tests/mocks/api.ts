@@ -10,6 +10,7 @@ import type { DeploymentListResponse, DomainListResponse, Deployment, Domain, Ac
 const mockDeployments: Deployment[] = [
   {
     deployment: 'test-deployment-1.shipstatic.com',
+    url: 'https://test-deployment-1.shipstatic.com',
     files: 5,
     size: 1024000,
     status: 'success',
@@ -21,6 +22,7 @@ const mockDeployments: Deployment[] = [
   },
   {
     deployment: 'test-deployment-2.shipstatic.com',
+    url: 'https://test-deployment-2.shipstatic.com',
     files: 3,
     size: 512000,
     status: 'success',
@@ -35,6 +37,7 @@ const mockDeployments: Deployment[] = [
 const mockDomains: Domain[] = [
   {
     domain: 'staging',
+    url: 'https://staging',
     deployment: 'test-deployment-1.shipstatic.com',
     status: 'success',
     labels: [],
@@ -44,6 +47,7 @@ const mockDomains: Domain[] = [
   },
   {
     domain: 'production',
+    url: 'https://production',
     deployment: 'test-deployment-2.shipstatic.com',
     status: 'success',
     labels: [],
@@ -170,8 +174,10 @@ export const apiHandlers = [
       }
     }
 
+    const hostname = 'newly-created-deployment.shipstatic.com';
     const newDeployment: Deployment = {
-      deployment: 'newly-created-deployment.shipstatic.com',
+      deployment: hostname,
+      url: `https://${hostname}`,
       files: files,
       size: files.reduce((total, f) => total + (f.size || 0), 0),
       status: 'success',
@@ -262,8 +268,10 @@ export const apiHandlers = [
       }
     }
 
+    const domainName = params.name as string;
     const domainResult: Domain & { isCreate: boolean } = {
-      domain: params.name as string,
+      domain: domainName,
+      url: `https://${domainName}`,
       deployment: body.deployment ? (body.deployment.includes('.') ? body.deployment : `${body.deployment}.shipstatic.com`) : null,
       status: 'success',
       labels: body.labels ?? [],
