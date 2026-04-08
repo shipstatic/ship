@@ -210,6 +210,52 @@ describe('Browser File Processing', () => {
       expect(result.every(f => f.content instanceof File)).toBe(true);
     });
 
+    it('should preserve files when deploying from a dot-folder root (e.g. .output/)', async () => {
+      const createFileWithPath = (name: string, relativePath: string) => {
+        const file = new File(['content'], name);
+        Object.defineProperty(file, 'webkitRelativePath', {
+          value: relativePath,
+          configurable: true
+        });
+        return file;
+      };
+
+      const files = [
+        createFileWithPath('index.html', '.output/index.html'),
+        createFileWithPath('style.css', '.output/assets/style.css'),
+        createFileWithPath('app.js', '.output/assets/app.js'),
+      ];
+
+      const result = await processFilesForBrowser(files, {});
+
+      // Dot-folder root should be stripped — content paths should not be filtered
+      expect(result).toHaveLength(3);
+      expect(result.map(f => f.path)).toEqual(['index.html', 'assets/style.css', 'assets/app.js']);
+    });
+
+    it('should still filter dot-files within a dot-folder root', async () => {
+      const createFileWithPath = (name: string, relativePath: string) => {
+        const file = new File(['content'], name);
+        Object.defineProperty(file, 'webkitRelativePath', {
+          value: relativePath,
+          configurable: true
+        });
+        return file;
+      };
+
+      const files = [
+        createFileWithPath('index.html', '.output/index.html'),
+        createFileWithPath('.env', '.output/.env'),
+        createFileWithPath('.gitignore', '.output/.gitignore'),
+      ];
+
+      const result = await processFilesForBrowser(files, {});
+
+      // Root dot-folder stripped, but .env and .gitignore within content should still be filtered
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe('index.html');
+    });
+
     it('should handle files with webkitRelativePath', async () => {
       const createFileWithPath = (name: string, relativePath: string) => {
         const file = new File(['content'], name);
@@ -369,12 +415,17 @@ describe('Browser File Processing', () => {
     });
 
     it('should reject even when node_modules files are under .pnpm (pnpm regression)', async () => {
-      const file = new File(['lodash'], 'index.js');
-      Object.defineProperty(file, 'webkitRelativePath', {
+      const files = [
+        new File(['<html>'], 'index.html'),
+        new File(['lodash'], 'index.js'),
+      ];
+      Object.defineProperty(files[0], 'webkitRelativePath', { value: 'demo/index.html' });
+      Object.defineProperty(files[1], 'webkitRelativePath', {
         value: 'demo/node_modules/.pnpm/lodash@4/node_modules/lodash/index.js',
       });
 
-      await expect(processFilesForBrowser([file], {}))
+      // Common root 'demo/' is stripped, leaving node_modules visible in content paths
+      await expect(processFilesForBrowser(files, {}))
         .rejects.toThrow('Unbuilt project detected');
     });
   });

@@ -1070,6 +1070,37 @@ describe('Node File Utilities', () => {
       expect(result.length).toBe(1);
       expect(result[0].path).toBe('normal.txt');
     });
+
+    it('should preserve files when deploying from a dot-folder root (e.g. .output/)', async () => {
+      setupMockFsNode({
+        '/mock/cwd/.output': { type: 'dir' },
+        '/mock/cwd/.output/index.html': { type: 'file', content: '<html>Hello</html>' },
+        '/mock/cwd/.output/assets/style.css': { type: 'file', content: 'body {}' },
+      });
+
+      const result = await processFilesForNode(['.output']);
+
+      // Dot-folder root is stripped by path.relative — content paths have no dot prefix
+      expect(result.length).toBe(2);
+      expect(result.map(f => f.path).sort()).toEqual(['assets/style.css', 'index.html']);
+    });
+
+    it('should preserve files when content paths contain dot-prefixed ancestor dirs (e.g. n8n temp dir)', async () => {
+      // n8n writes files to a temp dir preserving the absolute source path structure:
+      // /tmp/xxx/home/node/.n8n-files/dist/index.html
+      // Content paths relative to temp dir include .n8n-files — must not be filtered
+      setupMockFsNode({
+        '/mock/cwd/tmpdir': { type: 'dir' },
+        '/mock/cwd/tmpdir/home/node/.n8n-files/dist/index.html': { type: 'file', content: '<html>Hello</html>' },
+        '/mock/cwd/tmpdir/home/node/.n8n-files/dist/assets/style.css': { type: 'file', content: 'body {}' },
+      });
+
+      const result = await processFilesForNode(['tmpdir']);
+
+      // optimizeDeployPaths strips common root before filterJunk runs
+      expect(result.length).toBe(2);
+      expect(result.map(f => f.path).sort()).toEqual(['assets/style.css', 'index.html']);
+    });
   });
 
   describe('file size edge cases', () => {
