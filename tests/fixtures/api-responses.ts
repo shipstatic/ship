@@ -52,6 +52,7 @@ export const deployments = {
    */
   success: {
     deployment: 'test-deployment-1.shipstatic.com',
+    url: 'https://test-deployment-1.shipstatic.com',
     files: 5,
     size: 1024000,
     status: 'success',
@@ -67,6 +68,7 @@ export const deployments = {
    */
   withLabels: {
     deployment: 'labeled-deployment-1.shipstatic.com',
+    url: 'https://labeled-deployment-1.shipstatic.com',
     files: 10,
     size: 2048000,
     status: 'success',
@@ -82,6 +84,7 @@ export const deployments = {
    */
   pending: {
     deployment: 'pending-deployment-1.shipstatic.com',
+    url: 'https://pending-deployment-1.shipstatic.com',
     files: 3,
     size: 512000,
     status: 'pending',
@@ -97,6 +100,7 @@ export const deployments = {
    */
   viaCli: {
     deployment: 'cli-deployment-1.shipstatic.com',
+    url: 'https://cli-deployment-1.shipstatic.com',
     files: 5,
     size: 1024000,
     status: 'success',
@@ -148,6 +152,7 @@ export const domains = {
    */
   internal: {
     domain: 'staging',
+    url: 'https://staging',
     deployment: 'test-deployment-1.shipstatic.com',
     status: 'success',
     labels: [],
@@ -161,6 +166,7 @@ export const domains = {
    */
   pending: {
     domain: 'preview',
+    url: 'https://preview',
     deployment: 'test-deployment-1.shipstatic.com',
     status: 'pending',
     labels: [],
@@ -174,6 +180,7 @@ export const domains = {
    */
   withLabels: {
     domain: 'production',
+    url: 'https://production',
     deployment: 'test-deployment-1.shipstatic.com',
     status: 'success',
     labels: ['primary', 'live'],
@@ -187,6 +194,7 @@ export const domains = {
    */
   externalPending: {
     domain: 'example.com',
+    url: 'https://example.com',
     deployment: 'test-deployment-1.shipstatic.com',
     status: 'pending',
     labels: [],
@@ -200,6 +208,7 @@ export const domains = {
    */
   externalVerified: {
     domain: 'verified-example.com',
+    url: 'https://verified-example.com',
     deployment: 'test-deployment-1.shipstatic.com',
     status: 'success',
     labels: [],
@@ -213,6 +222,7 @@ export const domains = {
    */
   unlinked: {
     domain: 'reserved',
+    url: 'https://reserved',
     deployment: null,
     status: 'pending',
     labels: [],
@@ -226,6 +236,7 @@ export const domains = {
    */
   paused: {
     domain: 'paused-custom.com',
+    url: 'https://paused-custom.com',
     deployment: 'test-deployment-1.shipstatic.com',
     status: 'paused',
     labels: [],
@@ -687,8 +698,10 @@ export function createDynamicDeployment(overrides: Partial<Deployment> = {}): De
   const deploymentSlug = `mock-deploy-${Date.now()}`;
   const now = Math.floor(Date.now() / 1000);
 
+  const hostname = `${deploymentSlug}.shipstatic.com`;
   return {
-    deployment: `${deploymentSlug}.shipstatic.com`,
+    deployment: hostname,
+    url: `https://${hostname}`,
     files: 5,
     size: 1024000,
     status: 'success',
@@ -745,6 +758,7 @@ export function createDynamicDomain(
 
   return {
     domain: domainName,
+    url: `https://${domainName}`,
     deployment: deploymentId ? (deploymentId.includes('.') ? deploymentId : `${deploymentId}.shipstatic.com`) : null,
     // External domains start as 'pending' (need DNS verification)
     // Internal domains are immediately 'success'
