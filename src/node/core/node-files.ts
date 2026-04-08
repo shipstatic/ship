@@ -108,7 +108,7 @@ export async function processFilesForNode(
     }
   }));
 
-  // 3. Compute content paths (relative to upload root) for filtering
+  // 3. Compute content paths (relative to upload root)
   const contentPaths = uniquePaths.map(absPath => {
     if (inputBasePath && inputBasePath.length > 0) {
       const rel = path.relative(inputBasePath, absPath);
@@ -119,26 +119,27 @@ export async function processFilesForNode(
     return path.basename(absPath);
   });
 
-  // 4. Filter junk files from content paths
-  const filteredContentSet = new Set(filterJunk(contentPaths));
-  if (filteredContentSet.size === 0) {
+  // 4. Optimize paths for deployment (strip common root, flatten)
+  const deployFiles = optimizeDeployPaths(contentPaths, {
+    flatten: options.pathDetect !== false
+  });
+  const deployPaths = deployFiles.map(f => f.path);
+
+  // 5. Filter junk from deploy paths
+  const filteredSet = new Set(filterJunk(deployPaths));
+  if (filteredSet.size === 0) {
     return [];
   }
 
-  // 5. Collect valid file pairs (absolute path for reading, content path for deploy)
+  // 6. Collect valid file pairs (absolute path for reading, deploy path for output)
   const validAbsPaths: string[] = [];
-  const validContentPaths: string[] = [];
+  const validDeployPaths: string[] = [];
   for (let i = 0; i < uniquePaths.length; i++) {
-    if (filteredContentSet.has(contentPaths[i])) {
+    if (filteredSet.has(deployPaths[i])) {
       validAbsPaths.push(uniquePaths[i]);
-      validContentPaths.push(contentPaths[i]);
+      validDeployPaths.push(deployPaths[i]);
     }
   }
-
-  // 6. Optimize paths for deployment (flattening)
-  const deployFiles = optimizeDeployPaths(validContentPaths, {
-    flatten: options.pathDetect !== false
-  });
 
   // 7. Process files into StaticFile objects
   const results: StaticFile[] = [];
@@ -147,7 +148,7 @@ export async function processFilesForNode(
 
   for (let i = 0; i < validAbsPaths.length; i++) {
     const filePath = validAbsPaths[i];
-    const deployPath = deployFiles[i].path;
+    const deployPath = validDeployPaths[i];
     
     try {
       // Security validation (shared with browser) — fail fast before any I/O
