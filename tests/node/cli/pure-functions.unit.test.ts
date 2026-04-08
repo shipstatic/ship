@@ -138,24 +138,24 @@ describe('CLI Pure Functions', () => {
 
     it('should format simple table with string values', async () => {
       const data = [
-        { name: 'app1', url: 'https://app1.example.com' },
-        { name: 'app2', url: 'https://app2.example.com' }
+        { name: 'app1', endpoint: 'https://app1.example.com' },
+        { name: 'app2', endpoint: 'https://app2.example.com' }
       ];
-      
+
       const result = formatTable(data);
-      
+
       // Should contain headers
       expect(result).toContain('name');
-      expect(result).toContain('url');
-      
+      expect(result).toContain('endpoint');
+
       // Should contain data
       expect(result).toContain('app1');
       expect(result).toContain('app2');
       expect(result).toContain('https://app1.example.com');
       expect(result).toContain('https://app2.example.com');
-      
+
       // Should have proper column separation (3 spaces) - account for ANSI codes
-      expect(result).toMatch(/name.*url/);
+      expect(result).toMatch(/name.*endpoint/);
     });
 
     it('should handle mixed data types correctly', async () => {
@@ -224,15 +224,15 @@ describe('CLI Pure Functions', () => {
 
     it('should handle empty values gracefully', async () => {
       const data = [
-        { name: '', url: 'test.com', count: 0 },
-        { name: 'app', url: '', count: null }
+        { name: '', site: 'test.com', count: 0 },
+        { name: 'app', site: '', count: null }
       ];
-      
+
       const result = formatTable(data);
-      
+
       // Should not break on empty strings or null values
       expect(result).toContain('name');
-      expect(result).toContain('url');
+      expect(result).toContain('site');
       expect(result).toContain('count');
       expect(result).toContain('app');
       expect(result).toContain('test.com');
