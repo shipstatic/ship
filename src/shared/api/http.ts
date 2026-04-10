@@ -260,8 +260,8 @@ export class ApiHttp extends SimpleEvents {
       }
     }
 
-    const flags = (options.build || options.prerender)
-      ? { build: options.build, prerender: options.prerender }
+    const flags = (options.build || options.prerender || options.spa)
+      ? { build: options.build, prerender: options.prerender, spa: options.spa }
       : undefined;
     const { body, headers: bodyHeaders } = await this.createDeployBody(files, options.labels, options.via, flags);
 

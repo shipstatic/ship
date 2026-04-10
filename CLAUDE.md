@@ -104,18 +104,18 @@ ship.deploy(fileInput.files);
 ship.deploy([{ path: 'index.html', content: new Blob(['...']) }]);
 ```
 
-### Server-Processed Uploads (Build/Prerender)
+### Server-Processed Uploads (Build/Prerender/SPA)
 
-When `build` or `prerender` options are set on `DeploymentUploadOptions`, the SDK enters a pass-through mode:
+When `build`, `prerender`, or `spa` options are set on `DeploymentUploadOptions`, the SDK delegates processing to the server:
 
 - **`filterJunk`** accepts `{ allowUnbuilt: true }` — skips the unbuilt project marker check (source files have `package.json`, `node_modules`)
 - **`processFilesForBrowser`** has two modes (early return pattern in `browser-files.ts`):
   - **Deploy** (default): full validation pipeline (security, extensions, sizes, counts)
   - **Server-processed** (`build`/`prerender`): junk filtering + MD5 checksums only
-- **`detectAndConfigureSPA`** skips when `build` or `prerender` is set — the build service handles SPA detection on its output
-- **`createDeployBody`** appends `build=true` / `prerender=true` to the FormData
+- **`detectAndConfigureSPA`** skips when `spa`, `build`, or `prerender` is set — the server handles SPA detection via the `/upload` endpoint
+- **`createDeployBody`** appends `build=true` / `prerender=true` / `spa=true` to the FormData
 
-These are `@internal` flags — only used by the web app (`web/my`) via the `/upload` endpoint. CLI users build locally and deploy the output.
+These are `@internal` flags — only used by `web/my` and `web/www` via the `/upload` endpoint. External clients (SDK, CLI, integrations) never set them. They use the `/deployments` pure pipe, where clients prepare files themselves — SPA detection runs client-side via `/spa-check`, builds happen locally before upload.
 
 ## CLI Patterns
 

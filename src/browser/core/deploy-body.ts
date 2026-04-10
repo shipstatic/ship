@@ -8,7 +8,7 @@ export async function createDeployBody(
   files: StaticFile[],
   labels?: string[],
   via?: string,
-  flags?: { build?: boolean; prerender?: boolean }
+  flags?: { build?: boolean; prerender?: boolean; spa?: boolean }
 ): Promise<DeployBody> {
   const formData = new FormData();
   const checksums: string[] = [];
@@ -42,6 +42,7 @@ export async function createDeployBody(
 
   if (flags?.build) formData.append('build', 'true');
   if (flags?.prerender) formData.append('prerender', 'true');
+  if (flags?.spa) formData.append('spa', 'true');
 
   return { body: formData, headers: {} };
 }
