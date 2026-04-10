@@ -5,7 +5,7 @@
  * that can be used by both Node.js and browser environments.
  */
 
-import { DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
+import { DEPLOYMENT_CONFIG_FILENAME, SPA_DEFAULT_CONFIG } from '@shipstatic/types';
 import { calculateMD5 } from './md5.js';
 import type { StaticFile, DeploymentOptions } from '../types.js';
 import type { ApiHttp } from '../api/http.js';
@@ -15,14 +15,7 @@ import type { ApiHttp } from '../api/http.js';
  * @returns Promise resolving to StaticFile with SPA configuration
  */
 export async function createSPAConfig(): Promise<StaticFile> {
-  const config = {
-    "rewrites": [{
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }]
-  };
-
-  const configString = JSON.stringify(config, null, 2);
+  const configString = JSON.stringify(SPA_DEFAULT_CONFIG, null, 2);
 
   // Create content that works in both browser and Node.js environments
   let content: Buffer | Blob;
@@ -58,8 +51,8 @@ export async function detectAndConfigureSPA(
   apiClient: ApiHttp,
   options: DeploymentOptions
 ): Promise<StaticFile[]> {
-  // Skip if disabled, config already exists, or server will process the files
-  if (options.spaDetect === false || options.build || options.prerender || files.some(f => f.path === DEPLOYMENT_CONFIG_FILENAME)) {
+  // Skip if disabled, config already exists, or server will handle detection
+  if (options.spaDetect === false || options.spa || options.build || options.prerender || files.some(f => f.path === DEPLOYMENT_CONFIG_FILENAME)) {
     return files;
   }
 
