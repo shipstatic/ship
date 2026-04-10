@@ -72,7 +72,7 @@ export type DeployBodyCreator = (
   files: StaticFile[],
   labels?: string[],
   via?: string,
-  flags?: { build?: boolean; prerender?: boolean }
+  flags?: { build?: boolean; prerender?: boolean; spa?: boolean }
 ) => Promise<DeployBody>;
 
 // =============================================================================
