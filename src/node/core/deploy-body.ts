@@ -8,7 +8,7 @@ export async function createDeployBody(
   files: StaticFile[],
   labels?: string[],
   via?: string,
-  flags?: { build?: boolean; prerender?: boolean }
+  flags?: { build?: boolean; prerender?: boolean; spa?: boolean }
 ): Promise<DeployBody> {
   const { FormData, File } = await import('formdata-node');
   const { FormDataEncoder } = await import('form-data-encoder');
@@ -45,6 +45,7 @@ export async function createDeployBody(
 
   if (flags?.build) formData.append('build', 'true');
   if (flags?.prerender) formData.append('prerender', 'true');
+  if (flags?.spa) formData.append('spa', 'true');
 
   const encoder = new FormDataEncoder(formData);
   const chunks = [];
