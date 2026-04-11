@@ -25,6 +25,7 @@ describe('Node.js Config Loading', () => {
     // Clear env vars
     delete process.env.SHIP_API_URL;
     delete process.env.SHIP_API_KEY;
+    delete process.env.SHIP_DEPLOY_TOKEN;
     
     // Setup getENV mock to return 'node' by default
     const { getENV } = await import('../../../src/shared/lib/env');
@@ -48,15 +49,16 @@ describe('Node.js Config Loading', () => {
     });
 
     it('should load config from environment variables', async () => {
-      // Set environment variables
       process.env.SHIP_API_URL = 'https://api.example.com';
       process.env.SHIP_API_KEY = 'test-key';
-      
+      process.env.SHIP_DEPLOY_TOKEN = 'test-token';
+
       const result = await config.loadConfig();
-      
+
       expect(result).toEqual({
         apiUrl: 'https://api.example.com',
-        apiKey: 'test-key'
+        apiKey: 'test-key',
+        deployToken: 'test-token'
       });
     });
 
@@ -66,40 +68,110 @@ describe('Node.js Config Loading', () => {
           isEmpty: false,
           config: {
             apiUrl: 'https://file.example.com',
-            apiKey: 'file-key'
+            apiKey: 'file-key',
+            deployToken: 'file-token'
           }
         })
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
-      
+
       const result = await config.loadConfig();
-      
+
       expect(result).toEqual({
         apiUrl: 'https://file.example.com',
-        apiKey: 'file-key'
+        apiKey: 'file-key',
+        deployToken: 'file-token'
       });
     });
 
     it('should prioritize env vars over file config', async () => {
       process.env.SHIP_API_URL = 'https://env.example.com';
-      
+      process.env.SHIP_DEPLOY_TOKEN = 'env-token';
+
       const mockExplorer = {
         search: vi.fn().mockReturnValue({
           isEmpty: false,
           config: {
             apiUrl: 'https://file.example.com',
-            apiKey: 'file-key'
+            apiKey: 'file-key',
+            deployToken: 'file-token'
           }
         })
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
-      
+
       const result = await config.loadConfig();
-      
+
       expect(result).toEqual({
         apiUrl: 'https://env.example.com',
-        apiKey: 'file-key'
+        apiKey: 'file-key',
+        deployToken: 'env-token'
       });
+    });
+
+    it('should treat empty string env vars as unset', async () => {
+      process.env.SHIP_API_KEY = '';
+      process.env.SHIP_API_URL = '';
+      process.env.SHIP_DEPLOY_TOKEN = '';
+
+      const mockExplorer = {
+        search: vi.fn().mockReturnValue({
+          isEmpty: false,
+          config: {
+            apiUrl: 'https://file.example.com',
+            apiKey: 'file-key',
+            deployToken: 'file-token'
+          }
+        })
+      };
+      mockCosmiconfigSync.mockReturnValue(mockExplorer);
+
+      const result = await config.loadConfig();
+
+      expect(result).toEqual({
+        apiUrl: 'https://file.example.com',
+        apiKey: 'file-key',
+        deployToken: 'file-token'
+      });
+    });
+
+    it('should allow env vars and file config to mix when some env vars are empty', async () => {
+      process.env.SHIP_API_KEY = 'env-key';
+      process.env.SHIP_API_URL = '';
+      process.env.SHIP_DEPLOY_TOKEN = '';
+
+      const mockExplorer = {
+        search: vi.fn().mockReturnValue({
+          isEmpty: false,
+          config: {
+            apiUrl: 'https://file.example.com',
+            deployToken: 'file-token'
+          }
+        })
+      };
+      mockCosmiconfigSync.mockReturnValue(mockExplorer);
+
+      const result = await config.loadConfig();
+
+      expect(result).toEqual({
+        apiUrl: 'https://file.example.com',
+        apiKey: 'env-key',
+        deployToken: 'file-token'
+      });
+    });
+
+    it('should reject empty string values from file config', async () => {
+      const mockExplorer = {
+        search: vi.fn().mockReturnValue({
+          isEmpty: false,
+          config: {
+            apiKey: ''
+          }
+        })
+      };
+      mockCosmiconfigSync.mockReturnValue(mockExplorer);
+
+      await expect(config.loadConfig()).rejects.toThrow('Configuration validation failed');
     });
 
     it('should handle missing config file gracefully', async () => {
@@ -107,13 +179,10 @@ describe('Node.js Config Loading', () => {
         search: vi.fn().mockReturnValue(null)
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
-      
+
       const result = await config.loadConfig();
-      
-      expect(result).toEqual({
-        apiUrl: undefined,
-        apiKey: undefined
-      });
+
+      expect(result).toEqual({});
     });
 
     it('should handle empty config file', async () => {
@@ -124,13 +193,10 @@ describe('Node.js Config Loading', () => {
         })
       };
       mockCosmiconfigSync.mockReturnValue(mockExplorer);
-      
+
       const result = await config.loadConfig();
-      
-      expect(result).toEqual({
-        apiUrl: undefined,
-        apiKey: undefined
-      });
+
+      expect(result).toEqual({});
     });
 
     it('should validate config and throw on invalid data', async () => {
