@@ -22,8 +22,8 @@ const MODULE_NAME = 'ship';
  */
 const ConfigSchema = z.object({
   apiUrl: z.string().url().optional(),
-  apiKey: z.string().optional(),
-  deployToken: z.string().optional()
+  apiKey: z.string().min(1).optional(),
+  deployToken: z.string().min(1).optional()
 }).strict();
 
 /**
@@ -107,10 +107,11 @@ export async function loadConfig(configFile?: string): Promise<Partial<ShipClien
   if (getENV() !== 'node') return {};
 
   // Start with environment variables (highest priority)
+  // CI/Docker often sets env vars to "" instead of unsetting — normalize to undefined
   const envConfig = {
-    apiUrl: process.env.SHIP_API_URL,
-    apiKey: process.env.SHIP_API_KEY,
-    deployToken: process.env.SHIP_DEPLOY_TOKEN,
+    apiUrl: process.env.SHIP_API_URL || undefined,
+    apiKey: process.env.SHIP_API_KEY || undefined,
+    deployToken: process.env.SHIP_DEPLOY_TOKEN || undefined,
   };
 
   // Always try to load file config for fallback values
