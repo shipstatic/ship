@@ -3,6 +3,8 @@
  */
 import {
   ShipError,
+  isShipError,
+  ErrorType,
   type StaticFile,
   type DeployInput,
   type DeploymentResource,
@@ -62,9 +64,12 @@ export function createDeploymentResource(ctx: DeploymentResourceContext): Deploy
           const { secret } = await api.fetchAgentToken();
           mergedOptions.deployToken = secret;
         } catch (err) {
-          throw ShipError.authentication(
-            'Too many requests; try again later or configure a free API key with \'ship config\''
-          );
+          if (isShipError(err) && err.type === ErrorType.RateLimit) {
+            throw ShipError.rateLimit(
+              'public deploy rate limit exceeded, try again later or run \'ship config\' for a free account with higher limits'
+            );
+          }
+          throw err;
         }
       }
 
