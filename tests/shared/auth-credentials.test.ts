@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
+import { ShipError } from '@shipstatic/types';
 import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
 
 const mockDeployBodyCreator: DeployBodyCreator = async () => ({
@@ -79,6 +80,33 @@ describe('Authentication with useCredentials', () => {
         const authHeaders = (ship as any).getAuthHeaders();
 
         expect(authHeaders).toEqual({});
+    });
+
+    it('should throw rate limit error when agent token fetch is rate-limited', async () => {
+        const ship = new TestShip({ apiUrl: 'https://test-api.com' });
+
+        (ship as any).http = {
+            deploy: mockApiDeploy,
+            fetchAgentToken: vi.fn().mockRejectedValue(ShipError.rateLimit('Too many requests'))
+        };
+
+        await expect(ship.deploy(['test'] as any)).rejects.toMatchObject({
+            type: 'rate_limit_exceeded',
+            message: expect.stringContaining('public deploy rate limit exceeded')
+        });
+    });
+
+    it('should propagate non-rate-limit errors from agent token fetch', async () => {
+        const ship = new TestShip({ apiUrl: 'https://test-api.com' });
+
+        (ship as any).http = {
+            deploy: mockApiDeploy,
+            fetchAgentToken: vi.fn().mockRejectedValue(ShipError.network('Connection refused'))
+        };
+
+        await expect(ship.deploy(['test'] as any)).rejects.toMatchObject({
+            message: 'Connection refused'
+        });
     });
 
     it('should still support apiKey even if useCredentials is true (though unlikely usage)', async () => {
