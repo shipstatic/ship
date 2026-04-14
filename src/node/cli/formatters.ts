@@ -114,7 +114,8 @@ export function formatDeployment(result: Deployment | DeploymentCreateResponse, 
   // Public deployment — claim URL + CTA after details
   const claim = (result as DeploymentCreateResponse).claim;
   if (claim) {
-    console.log(`claim to keep permanently:\n${claim}\n`);
+    const days = result.expires ? Math.round((result.expires - result.created) / 86400) : null;
+    console.log(`IMPORTANT: this deployment${days ? ` expires in ${days} day${days !== 1 ? 's' : ''}` : ' will expire'}, claim it to keep permanently:\n${claim}\n`);
     info(`configure a free API key with 'ship config' to deploy to your own account`, false, noColor);
   }
 }
