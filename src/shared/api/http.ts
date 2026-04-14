@@ -222,6 +222,9 @@ export class ApiHttp extends SimpleEvents {
     if (response.status === 401) {
       throw ShipError.authentication(message);
     }
+    if (response.status === 429) {
+      throw ShipError.rateLimit(message);
+    }
     throw ShipError.api(message, response.status);
   }
 
