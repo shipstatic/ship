@@ -70,6 +70,15 @@ ship ./dist --label v1.0 --label production
 
 Labels **replace all existing**, not append. Include current labels to keep them.
 
+### Password protection
+
+```bash
+ship ./dist --password "hunter22"          # protect deployment
+SHIP_PASSWORD="hunter22" ship ./dist        # via env var
+```
+
+Visitors get an unlock page until they enter the password. Length: 6–128 characters. Set per-deployment at upload time — cannot be added or changed later (deploy a new version to rotate). Works on both internal (`*.shipstatic.com`) and custom domains.
+
 ### SPA routing
 
 Ship auto-detects single-page apps from `index.html` content and configures client-side routing rewrites — all paths serve `index.html`. No action needed. Skipped if a `ship.json` config is already included in the deployment. Disable with `--no-spa-detect`.
@@ -250,6 +259,7 @@ ship tokens remove <token>            # Revoke
 | `--api-key <key>` | API key for this command |
 | `--deploy-token <token>` | Single-use deploy token |
 | `--label <label>` | Set label (repeatable, replaces all) |
+| `--password <pwd>` | Password-protect deployment (6–128 chars) |
 | `--no-path-detect` | Skip build output auto-detection |
 | `--no-spa-detect` | Skip SPA rewrite auto-configuration |
 | `--no-color` | Disable colors |
