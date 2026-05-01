@@ -59,6 +59,7 @@ FLAGS
   --deploy-token <token>    Deploy token for single-use deployments
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
+  --password <password>     Password-protect this deployment
   --no-path-detect          Disable automatic path optimization and flattening
   --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
@@ -117,6 +118,7 @@ FLAGS
   --deploy-token <token>    Deploy token for single-use deployments
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
+  --password <password>     Password-protect this deployment
   --no-path-detect          Disable automatic path optimization and flattening
   --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
@@ -175,6 +177,7 @@ FLAGS
   --deploy-token <token>    Deploy token for single-use deployments
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
+  --password <password>     Password-protect this deployment
   --no-path-detect          Disable automatic path optimization and flattening
   --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
