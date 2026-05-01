@@ -165,6 +165,19 @@ function mergeLabelOption(cmdOptions: LabelOptions | undefined, programOpts: Lab
 }
 
 /**
+ * Merge password options from command and program levels.
+ * Mirrors mergeLabelOption — passThroughOptions() can route flags after
+ * the positional path to the parent. Empty strings are forwarded to the
+ * SDK validator (which surfaces a clear length error) rather than dropped.
+ */
+function mergePasswordOption(
+  cmdOptions: { password?: string } | undefined,
+  programOpts: { password?: string } | undefined,
+): string | undefined {
+  return cmdOptions?.password ?? programOpts?.password ?? process.env.SHIP_PASSWORD;
+}
+
+/**
  * Handle unknown or missing subcommand for parent commands.
  * Shows scoped usage instead of full help — the user already knows the group.
  */
@@ -296,6 +309,7 @@ async function performDeploy(
   client: Ship,
   deployPath: string,
   labels: string[] | undefined,
+  password: string | undefined,
   cmdOptions: DeployCommandOptions | undefined,
   globalOptions: GlobalOptions
 ): Promise<Deployment> {
@@ -320,9 +334,9 @@ async function performDeploy(
   // Handle labels
   if (labels !== undefined) deployOptions.labels = labels;
 
-  // Password: --password wins, then SHIP_PASSWORD env var.
-  const password = cmdOptions?.password ?? process.env.SHIP_PASSWORD;
-  if (password) deployOptions.password = password;
+  // Empty password strings flow through to the SDK validator (clear length
+  // error) instead of being silently dropped — mirrors label handling.
+  if (password !== undefined) deployOptions.password = password;
 
   // Handle detection flags
   if (cmdOptions?.noPathDetect !== undefined) {
@@ -445,7 +459,14 @@ deploymentsCmd
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(
     (client: Ship, options: GlobalOptions, deployPath: string, cmdOptions: DeployCommandOptions) =>
-      performDeploy(client, deployPath, mergeLabelOption(cmdOptions, program.opts() as LabelOptions), cmdOptions, options),
+      performDeploy(
+        client,
+        deployPath,
+        mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
+        mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
+        cmdOptions,
+        options,
+      ),
     { operation: 'upload' }
   ));
 
@@ -710,7 +731,14 @@ program
         // Otherwise let performDeploy handle the "path does not exist" error
       }
 
-      return performDeploy(client, deployPath, mergeLabelOption(cmdOptions, program.opts() as LabelOptions), cmdOptions, options);
+      return performDeploy(
+        client,
+        deployPath,
+        mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
+        mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
+        cmdOptions,
+        options,
+      );
     },
     { operation: 'upload' }
   ));
