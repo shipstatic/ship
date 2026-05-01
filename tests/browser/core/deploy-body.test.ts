@@ -55,7 +55,7 @@ describe('createDeployBody (browser)', () => {
     it('should add labels when provided', async () => {
       const files: StaticFile[] = [createMockFile('index.html', '<html></html>', 'abc123')];
 
-      const result = await createDeployBody(files, ['production', 'v1.0.0']);
+      const result = await createDeployBody(files, { labels: ['production', 'v1.0.0'] });
 
       const formData = result.body as FormData;
       const labels = formData.get('labels');
@@ -65,7 +65,7 @@ describe('createDeployBody (browser)', () => {
     it('should not add labels field when labels array is empty', async () => {
       const files: StaticFile[] = [createMockFile('index.html', '<html></html>', 'abc123')];
 
-      const result = await createDeployBody(files, []);
+      const result = await createDeployBody(files, { labels: [] });
 
       const formData = result.body as FormData;
       expect(formData.get('labels')).toBeNull();
@@ -85,7 +85,7 @@ describe('createDeployBody (browser)', () => {
     it('should add via when provided', async () => {
       const files: StaticFile[] = [createMockFile('index.html', '<html></html>', 'abc123')];
 
-      const result = await createDeployBody(files, undefined, 'sdk');
+      const result = await createDeployBody(files, { via: 'sdk' });
 
       const formData = result.body as FormData;
       expect(formData.get('via')).toBe('sdk');
@@ -98,6 +98,24 @@ describe('createDeployBody (browser)', () => {
 
       const formData = result.body as FormData;
       expect(formData.get('via')).toBeNull();
+    });
+  });
+
+  describe('password handling', () => {
+    it('should add password when provided', async () => {
+      const files: StaticFile[] = [createMockFile('index.html', '<html></html>', 'abc123')];
+
+      const result = await createDeployBody(files, { password: 'secret123' });
+
+      expect((result.body as FormData).get('password')).toBe('secret123');
+    });
+
+    it('should not add password when undefined', async () => {
+      const files: StaticFile[] = [createMockFile('index.html', '<html></html>', 'abc123')];
+
+      const result = await createDeployBody(files);
+
+      expect((result.body as FormData).get('password')).toBeNull();
     });
   });
 

@@ -334,9 +334,9 @@ describe('CLI with Mock API', () => {
     });
 
     it('should handle labels with special characters', async () => {
-      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'release-2024', '--label', 'version_1.0.0', '--label', 'env:prod'], testEnv());
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--label', 'release-2024', '--label', 'version_1.0.0', '--label', 'env.prod'], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).labels).toEqual(['release-2024', 'version_1.0.0', 'env:prod']);
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual(['release-2024', 'version_1.0.0', 'env.prod']);
     });
 
     it('should work without --label flag', async () => {
@@ -419,9 +419,9 @@ describe('CLI with Mock API', () => {
     });
 
     it('should handle labels with special characters', async () => {
-      const result = await runCli(['--json', 'tokens', 'create', '--label', 'ci-cd', '--label', 'version_2.0', '--label', 'env:staging'], testEnv());
+      const result = await runCli(['--json', 'tokens', 'create', '--label', 'ci-cd', '--label', 'version_2.0', '--label', 'env.staging'], testEnv());
       expect(result.exitCode).toBe(0);
-      expect(JSON.parse(result.stdout.trim()).labels).toEqual(['ci-cd', 'version_2.0', 'env:staging']);
+      expect(JSON.parse(result.stdout.trim()).labels).toEqual(['ci-cd', 'version_2.0', 'env.staging']);
     });
   });
 

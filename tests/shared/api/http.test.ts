@@ -831,16 +831,16 @@ describe('ApiHttp', () => {
     });
 
     it('should create token with labels', async () => {
-      const mockResponse = { token: 'd3f4567', secret: 'token-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', expires: 1234567890, labels: ['ci', 'deploy'] };
+      const mockResponse = { token: 'd3f4567', secret: 'token-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', expires: 1234567890, labels: ['cicd', 'deploy'] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
-      const result = await apiHttp.createToken(undefined, ['ci', 'deploy']);
+      const result = await apiHttp.createToken(undefined, ['cicd', 'deploy']);
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/tokens',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ labels: ['ci', 'deploy'] })
+          body: JSON.stringify({ labels: ['cicd', 'deploy'] })
         })
       );
       expect(result).toEqual(mockResponse);

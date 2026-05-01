@@ -97,7 +97,7 @@ _ship_completions() {
 
   # Flag completion
   if [[ "$current_word" == --* ]]; then
-    completions="--api-key --deploy-token --config --api-url --label --no-path-detect --no-spa-detect --json --no-color --version --help"
+    completions="--api-key --deploy-token --config --api-url --label --password --no-path-detect --no-spa-detect --json --no-color --version --help"
     COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
     return
   fi

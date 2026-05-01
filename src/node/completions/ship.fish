@@ -46,6 +46,7 @@ complete -c ship -l deploy-token -d 'Deploy token for single-use deployments' -x
 complete -c ship -l config -d 'Custom config file path' -r
 complete -c ship -l api-url -d 'API URL (for development)' -x
 complete -c ship -l label -d 'Label (can be repeated)' -x
+complete -c ship -l password -d 'Password-protect this deployment' -x
 complete -c ship -l json -d 'Output results in JSON format'
 complete -c ship -l no-color -d 'Disable colored output'
 complete -c ship -l no-path-detect -d 'Disable automatic path optimization and flattening'

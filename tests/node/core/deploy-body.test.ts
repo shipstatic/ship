@@ -119,7 +119,7 @@ describe('Node.js Deploy Body Creation', () => {
       ];
       const labels = ['production', 'v1.0.0', 'release'];
 
-      await createDeployBody(files, labels);
+      await createDeployBody(files, { labels });
 
       expect(mockFormDataAppend).toHaveBeenCalledWith(
         'labels',
@@ -132,7 +132,7 @@ describe('Node.js Deploy Body Creation', () => {
         { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
       ];
 
-      await createDeployBody(files, []);
+      await createDeployBody(files, { labels: [] });
 
       const tagsCall = mockFormDataAppend.mock.calls.find(
         (call: any[]) => call[0] === 'labels'
@@ -160,7 +160,7 @@ describe('Node.js Deploy Body Creation', () => {
         { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
       ];
 
-      await createDeployBody(files, undefined, 'cli');
+      await createDeployBody(files, { via: 'cli' });
 
       expect(mockFormDataAppend).toHaveBeenCalledWith('via', 'cli');
     });
@@ -170,7 +170,7 @@ describe('Node.js Deploy Body Creation', () => {
         { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
       ];
 
-      await createDeployBody(files, ['tag1'], 'sdk');
+      await createDeployBody(files, { labels: ['tag1'], via: 'sdk' });
 
       expect(mockFormDataAppend).toHaveBeenCalledWith('via', 'sdk');
       expect(mockFormDataAppend).toHaveBeenCalledWith(
@@ -190,6 +190,31 @@ describe('Node.js Deploy Body Creation', () => {
         (call: any[]) => call[0] === 'via'
       );
       expect(viaCall).toBeUndefined();
+    });
+  });
+
+  describe('password handling', () => {
+    it('should append password when provided', async () => {
+      const files: StaticFile[] = [
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
+      ];
+
+      await createDeployBody(files, { password: 'secret123' });
+
+      expect(mockFormDataAppend).toHaveBeenCalledWith('password', 'secret123');
+    });
+
+    it('should not append password when undefined', async () => {
+      const files: StaticFile[] = [
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
+      ];
+
+      await createDeployBody(files);
+
+      const passwordCall = mockFormDataAppend.mock.calls.find(
+        (call: any[]) => call[0] === 'password'
+      );
+      expect(passwordCall).toBeUndefined();
     });
   });
 
@@ -293,7 +318,7 @@ describe('Node.js Deploy Body Creation', () => {
         { path: 'dir/file3.css', content: Buffer.from('content3'), size: 8, md5: 'md5-3' }
       ];
 
-      await createDeployBody(files, ['tag1', 'tag2'], 'cli');
+      await createDeployBody(files, { labels: ['tag1', 'tag2'], via: 'cli' });
 
       // Should have 3 files[] appends, 1 checksums, 1 labels, 1 via
       const filesAppends = mockFormDataAppend.mock.calls.filter(
