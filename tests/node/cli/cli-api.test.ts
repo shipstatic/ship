@@ -478,6 +478,35 @@ describe('CLI with Mock API', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // Password Validation
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  describe('password validation', () => {
+    it('forwards an empty --password to the validator (no silent drop)', async () => {
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--password', ''], testEnv());
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stderr.trim()).error).toContain('between 6 and 128 characters');
+    });
+
+    it('rejects --password shorter than 6 characters', async () => {
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--password', 'short'], testEnv());
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stderr.trim()).error).toContain('between 6 and 128 characters');
+    });
+
+    it('accepts --password at the minimum length (6 chars)', async () => {
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--password', 'abcdef'], testEnv());
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('rejects --password longer than 128 characters', async () => {
+      const result = await runCli(['--json', 'deployments', 'upload', DEMO_SITE_PATH, '--password', 'a'.repeat(129)], testEnv());
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stderr.trim()).error).toContain('between 6 and 128 characters');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // Quiet Mode (-q / --quiet)
   // ─────────────────────────────────────────────────────────────────────────────
 
