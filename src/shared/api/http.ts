@@ -22,6 +22,7 @@ import type {
 import type { ApiDeployOptions, DeployBodyCreator, DomainSetResult, ShipClientOptions } from '../types.js';
 import { ShipError, isShipError, DEFAULT_API } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
+import { validateLabels, validatePassword } from '../lib/validation.js';
 
 // =============================================================================
 // CONSTANTS
@@ -263,10 +264,19 @@ export class ApiHttp extends SimpleEvents {
       }
     }
 
+    // Fast-fail on definitely-invalid input before constructing a multipart body.
+    validatePassword(options.password);
+    const labels = validateLabels(options.labels);
+
     const flags = (options.build || options.prerender || options.spa)
       ? { build: options.build, prerender: options.prerender, spa: options.spa }
       : undefined;
-    const { body, headers: bodyHeaders } = await this.createDeployBody(files, options.labels, options.via, flags);
+    const { body, headers: bodyHeaders } = await this.createDeployBody(files, {
+      labels,
+      via: options.via,
+      password: options.password,
+      flags,
+    });
 
     const authHeaders: Record<string, string> = {};
     if (options.deployToken) {
@@ -294,9 +304,10 @@ export class ApiHttp extends SimpleEvents {
   }
 
   async updateDeploymentLabels(id: string, labels: string[]): Promise<Deployment> {
+    const normalized = validateLabels(labels);
     return this.request(
       `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels }) },
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels: normalized }) },
       'Update deployment labels'
     );
   }
@@ -316,9 +327,10 @@ export class ApiHttp extends SimpleEvents {
   // The SDK does not validate or normalize - the API handles all domain semantics.
 
   async setDomain(name: string, deployment?: string, labels?: string[]): Promise<DomainSetResult> {
+    const normalized = validateLabels(labels);
     const body: { deployment?: string; labels?: string[] } = {};
     if (deployment) body.deployment = deployment;
-    if (labels !== undefined) body.labels = labels;
+    if (normalized !== undefined) body.labels = normalized;
 
     const { data, status } = await this.requestWithStatus<Domain>(
       `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
@@ -370,9 +382,10 @@ export class ApiHttp extends SimpleEvents {
   // ===========================================================================
 
   async createToken(ttl?: number, labels?: string[]): Promise<TokenCreateResponse> {
+    const normalized = validateLabels(labels);
     const body: { ttl?: number; labels?: string[] } = {};
     if (ttl !== undefined) body.ttl = ttl;
-    if (labels !== undefined) body.labels = labels;
+    if (normalized !== undefined) body.labels = normalized;
 
     return this.request(
       `${this.apiUrl}${ENDPOINTS.TOKENS}`,

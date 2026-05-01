@@ -540,21 +540,21 @@ describe('Browser File Processing', () => {
 describe('createDeployBody — build/prerender flags', () => {
   it('should append build=true to FormData when flag is set', async () => {
     const files = [{ path: 'index.html', content: new File(['<html>'], 'index.html'), size: 6, md5: 'abc' }];
-    const { body } = await createDeployBody(files, undefined, undefined, { build: true });
+    const { body } = await createDeployBody(files, { flags: { build: true } });
     expect((body as FormData).get('build')).toBe('true');
     expect((body as FormData).get('prerender')).toBeNull();
   });
 
   it('should append prerender=true to FormData when flag is set', async () => {
     const files = [{ path: 'index.html', content: new File(['<html>'], 'index.html'), size: 6, md5: 'abc' }];
-    const { body } = await createDeployBody(files, undefined, undefined, { prerender: true });
+    const { body } = await createDeployBody(files, { flags: { prerender: true } });
     expect((body as FormData).get('prerender')).toBe('true');
     expect((body as FormData).get('build')).toBeNull();
   });
 
   it('should append both flags when both are set', async () => {
     const files = [{ path: 'index.html', content: new File(['<html>'], 'index.html'), size: 6, md5: 'abc' }];
-    const { body } = await createDeployBody(files, undefined, undefined, { build: true, prerender: true });
+    const { body } = await createDeployBody(files, { flags: { build: true, prerender: true } });
     expect((body as FormData).get('build')).toBe('true');
     expect((body as FormData).get('prerender')).toBe('true');
   });

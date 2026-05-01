@@ -158,6 +158,7 @@ ship completion uninstall
 | `--deploy-token <token>` | Deploy token for single-use deployments |
 | `--config <file>` | Custom config file path |
 | `--label <label>` | Add label (repeatable) |
+| `--password <password>` | Password-protect this deployment |
 | `--no-path-detect` | Disable automatic path optimization |
 | `--no-spa-detect` | Disable automatic SPA detection |
 | `--no-color` | Disable colored output |
@@ -189,6 +190,7 @@ ship.setDeployToken('token-...');
 ```typescript
 ship.deploy(input, {
   labels?: string[],
+  password?: string,          // Password-protect the deployment (6–128 chars)
   onProgress?: ({ percent }) => void,
   signal?: AbortSignal,
   pathDetect?: boolean,       // Auto-optimize paths (default: true)
@@ -200,6 +202,20 @@ ship.deploy(input, {
   deployToken?: string,       // Per-request deploy token override
 });
 ```
+
+#### Password protection
+
+Pass `password` (6–128 characters; whitespace significant) to gate the deployment behind a prompt. Visitors are asked for the password before they can view the site, including on any custom domains pointing at it. To remove protection, redeploy without a password.
+
+```bash
+ship --password 'your-passphrase' ./dist
+```
+
+```javascript
+await ship.deploy('./dist', { password: 'your-passphrase' });
+```
+
+The CLI also reads `SHIP_PASSWORD` from the environment when `--password` is not given.
 
 ### Browser Usage
 

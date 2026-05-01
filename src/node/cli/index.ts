@@ -125,6 +125,7 @@ ${applyBold('FLAGS')}
   --deploy-token <token>    Deploy token for single-use deployments
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
+  --password <password>     Password-protect this deployment
   --no-path-detect          Disable automatic path optimization and flattening
   --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
@@ -310,6 +311,7 @@ async function performDeploy(
   const deployOptions: {
     via: string;
     labels?: string[];
+    password?: string;
     pathDetect?: boolean;
     spaDetect?: boolean;
     signal?: AbortSignal;
@@ -317,6 +319,10 @@ async function performDeploy(
 
   // Handle labels
   if (labels !== undefined) deployOptions.labels = labels;
+
+  // Password: --password wins, then SHIP_PASSWORD env var.
+  const password = cmdOptions?.password ?? process.env.SHIP_PASSWORD;
+  if (password) deployOptions.password = password;
 
   // Handle detection flags
   if (cmdOptions?.noPathDetect !== undefined) {
@@ -434,6 +440,7 @@ deploymentsCmd
   .description('Upload deployment from file or directory')
   .passThroughOptions()
   .option('--label <label>', 'Label to add (can be repeated)', collect, [])
+  .option('--password <password>', 'Password-protect this deployment')
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(
@@ -680,6 +687,7 @@ program
 program
   .argument('[path]', 'Path to deploy')
   .option('--label <label>', 'Label to add (can be repeated)', collect, [])
+  .option('--password <password>', 'Password-protect this deployment')
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
   .action(withErrorHandling(

@@ -2,17 +2,16 @@
  * Node.js-specific deploy body creation.
  */
 import { ShipError } from '@shipstatic/types';
-import type { StaticFile, DeployBody } from '../../shared/types.js';
+import type { StaticFile, DeployBody, DeployBodyContext } from '../../shared/types.js';
 
 export async function createDeployBody(
   files: StaticFile[],
-  labels?: string[],
-  via?: string,
-  flags?: { build?: boolean; prerender?: boolean; spa?: boolean }
+  context: DeployBodyContext = {},
 ): Promise<DeployBody> {
   const { FormData, File } = await import('formdata-node');
   const { FormDataEncoder } = await import('form-data-encoder');
 
+  const { labels, via, password, flags } = context;
   const formData = new FormData();
   const checksums: string[] = [];
 
@@ -35,14 +34,9 @@ export async function createDeployBody(
 
   formData.append('checksums', JSON.stringify(checksums));
 
-  if (labels && labels.length > 0) {
-    formData.append('labels', JSON.stringify(labels));
-  }
-
-  if (via) {
-    formData.append('via', via);
-  }
-
+  if (labels && labels.length > 0) formData.append('labels', JSON.stringify(labels));
+  if (via) formData.append('via', via);
+  if (password) formData.append('password', password);
   if (flags?.build) formData.append('build', 'true');
   if (flags?.prerender) formData.append('prerender', 'true');
   if (flags?.spa) formData.append('spa', 'true');
