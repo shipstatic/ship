@@ -154,10 +154,10 @@ describe('Advanced Domain Operations', () => {
       await ship.domains.set('update-external.com', { deployment: 'test-deployment-1' });
 
       // Update its labels
-      const updated = await ship.domains.set('update-external.com', { labels: ['production', 'v2'] });
+      const updated = await ship.domains.set('update-external.com', { labels: ['production', 'v2-beta'] });
 
       expect(updated.domain).toBe('update-external.com');
-      expect(updated.labels).toEqual(['production', 'v2']);
+      expect(updated.labels).toEqual(['production', 'v2-beta']);
     });
 
     it('should clear labels when deployment is provided with empty array', async () => {

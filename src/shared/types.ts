@@ -65,14 +65,34 @@ export interface DeployBody {
 }
 
 /**
+ * Context passed to the deploy body creator — everything that becomes a
+ * form field alongside the files themselves.
+ */
+export interface DeployBodyContext {
+  /**
+   * Deployment labels for categorization. Each label must satisfy
+   * `LABEL_CONSTRAINTS` (length and pattern, lowercased+trimmed).
+   */
+  labels?: string[];
+  /** Client identifier (`cli`, `sdk`, `web`). */
+  via?: string;
+  /**
+   * Optional plaintext password to protect the deployment.
+   * Length: `PASSWORD_CONSTRAINTS.MIN_LENGTH` to `PASSWORD_CONSTRAINTS.MAX_LENGTH`
+   * characters. Whitespace is preserved verbatim — significant.
+   */
+  password?: string;
+  /** @internal Server-side processing flags. */
+  flags?: { build?: boolean; prerender?: boolean; spa?: boolean };
+}
+
+/**
  * Function that creates a deploy request body from files.
  * Implemented differently for Node.js and Browser.
  */
 export type DeployBodyCreator = (
   files: StaticFile[],
-  labels?: string[],
-  via?: string,
-  flags?: { build?: boolean; prerender?: boolean; spa?: boolean }
+  context?: DeployBodyContext,
 ) => Promise<DeployBody>;
 
 // =============================================================================

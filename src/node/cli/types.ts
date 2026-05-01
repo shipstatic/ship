@@ -51,6 +51,7 @@ export interface LabelOptions {
 export interface DeployCommandOptions extends LabelOptions {
   noPathDetect?: boolean;
   noSpaDetect?: boolean;
+  password?: string;
 }
 
 /**
