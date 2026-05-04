@@ -102,21 +102,17 @@ describe('Ship Error System', () => {
   });
   
   describe('Error Conversion', () => {
-    it('should convert to and from response format', () => {
+    it('toResponse() serializes to wire format', () => {
       const original = ShipError.validation('Invalid input', { field: 'email' });
       const response = original.toResponse();
-      
+
       expect(response.error).toBe(ErrorType.Validation);
       expect(response.message).toBe('Invalid input');
       expect(response.status).toBe(400);
       expect(response.details).toEqual({ field: 'email' });
-      
-      const restored = ShipError.fromResponse(response);
-      expect(restored.type).toBe(original.type);
-      expect(restored.message).toBe(original.message);
-      expect(restored.status).toBe(original.status);
-      expect(restored.details).toEqual(original.details);
     });
+    // Inverse direction (HTTP response → ShipError) is covered by
+    // ShipError.fromHttpResponse tests in @shipstatic/types.
   });
   
   describe('Helper Methods', () => {

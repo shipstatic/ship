@@ -54,12 +54,6 @@ interface RequestResult<T> {
   status: number;
 }
 
-/** Shape of error response from API */
-interface ApiErrorData {
-  message?: string;
-  error?: string;
-}
-
 // =============================================================================
 // HTTP CLIENT
 // =============================================================================
@@ -193,33 +187,7 @@ export class ApiHttp extends SimpleEvents {
   // ===========================================================================
 
   private async handleResponseError(response: Response, operationName: string): Promise<never> {
-    let errorData: ApiErrorData = {};
-    try {
-      const contentType = response.headers.get('content-type');
-      if (contentType?.includes('application/json')) {
-        const json: unknown = await response.json();
-        // Safely extract known fields from response
-        if (json && typeof json === 'object') {
-          const obj = json as Record<string, unknown>;
-          if (typeof obj.message === 'string') errorData.message = obj.message;
-          if (typeof obj.error === 'string') errorData.error = obj.error;
-        }
-      } else {
-        errorData = { message: await response.text() };
-      }
-    } catch {
-      errorData = { message: 'Failed to parse error response' };
-    }
-
-    const message = errorData.message || errorData.error || `${operationName} failed`;
-
-    if (response.status === 401) {
-      throw ShipError.authentication(message);
-    }
-    if (response.status === 429) {
-      throw ShipError.rateLimit(message);
-    }
-    throw ShipError.api(message, response.status);
+    throw await ShipError.fromHttpResponse(response, `${operationName} failed`);
   }
 
   private handleFetchError(error: unknown, operationName: string): never {
