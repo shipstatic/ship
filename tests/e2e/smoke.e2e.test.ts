@@ -70,14 +70,14 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
       expect(result).toBe(true);
     });
 
-    it('should retrieve platform configuration', async () => {
-      const config = await ship.getConfig();
+    it('should retrieve platform limits', async () => {
+      const limits = await ship.getLimits();
 
-      expect(config).toBeDefined();
-      expect(config.maxFileSize).toBeGreaterThan(0);
-      expect(config.maxFilesCount).toBeGreaterThan(0);
-      expect(config.maxTotalSize).toBeGreaterThan(0);
-      // ConfigResponse returns plan-based limits: maxFileSize, maxFilesCount, maxTotalSize
+      expect(limits).toBeDefined();
+      expect(limits.maxFileSize).toBeGreaterThan(0);
+      expect(limits.maxFilesCount).toBeGreaterThan(0);
+      expect(limits.maxTotalSize).toBeGreaterThan(0);
+      // PlatformLimits returns plan-based limits: maxFileSize, maxFilesCount, maxTotalSize
     });
   });
 

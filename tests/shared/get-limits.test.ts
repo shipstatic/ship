@@ -1,16 +1,16 @@
 /**
- * Comprehensive tests for ship.getConfig() method
+ * Comprehensive tests for ship.getLimits() method
  * Tests all execution branches for both Node.js and Browser environments
  */
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Ship as NodeShip } from '../../src/node/index';
 import { Ship as BrowserShip } from '../../src/browser/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
-import { setConfig, resetConfig } from '../../src/shared/core/platform-config';
-import type { ConfigResponse } from '@shipstatic/types';
+import type { PlatformLimits } from '@shipstatic/types';
 
-describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
-  const mockConfig: ConfigResponse = {
+describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
+  const mockLimits: PlatformLimits = {
     maxFileSize: 10 * 1024 * 1024,
     maxFilesCount: 1000,
     maxTotalSize: 100 * 1024 * 1024
@@ -18,27 +18,25 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetConfig(); // Clear platform config before each test
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    resetConfig(); // Clean up after each test
   });
 
   /**
    * Helper to create a properly mocked Ship instance for testing
    */
   function createMockedShip(ship: NodeShip | BrowserShip, httpMocks: any = {}) {
-    // Mock loadFullConfig to prevent actual initialization
-    // but simulate its side effect of setting platform config
-    vi.spyOn(ship as any, 'loadFullConfig').mockImplementation(async () => {
-      setConfig(mockConfig); // Simulate what loadFullConfig does
+    // Mock fetchPlatformLimits to prevent actual /limits HTTP fetch but
+    // simulate its side effect — hydrating the per-instance platform limits.
+    vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
+      (ship as any).platformLimits = mockLimits;
     });
 
     // Set up HTTP client with defaults + custom mocks
     const defaultMocks = {
-      getConfig: vi.fn().mockResolvedValue(mockConfig),
+      getLimits: vi.fn().mockResolvedValue(mockLimits),
       ping: vi.fn().mockResolvedValue(true),
       getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
     };
@@ -55,32 +53,32 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
     describe('Basic Functionality', () => {
       it('should fetch config from API on first call', async () => {
         const ship = new NodeShip({ apiKey: 'test-key' });
-        const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
-        createMockedShip(ship, { getConfig: getConfigSpy });
+        const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
+        createMockedShip(ship, { getLimits: getLimitsSpy });
 
-        const result = await ship.getConfig();
+        const result = await ship.getLimits();
 
-        expect(result).toEqual(mockConfig);
-        // Note: http.getConfig is NOT called by ship.getConfig() directly
-        // It's called by loadFullConfig() during initialization, and ship.getConfig() reuses that result
+        expect(result).toEqual(mockLimits);
+        // Note: http.getLimits is NOT called by ship.getLimits() directly
+        // It's called by fetchPlatformLimits() during initialization, and ship.getLimits() reuses that result
       });
 
       it('should return cached config on subsequent calls', async () => {
         const ship = new NodeShip({ apiKey: 'test-key' });
-        const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
-        createMockedShip(ship, { getConfig: getConfigSpy });
+        const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
+        createMockedShip(ship, { getLimits: getLimitsSpy });
 
-        // First call - reuses config set by loadFullConfig mock
-        const result1 = await ship.getConfig();
-        expect(result1).toEqual(mockConfig);
+        // First call - reuses config set by fetchPlatformLimits mock
+        const result1 = await ship.getLimits();
+        expect(result1).toEqual(mockLimits);
 
-        // Second call - returns cached value from this._config
-        const result2 = await ship.getConfig();
-        expect(result2).toEqual(mockConfig);
+        // Second call - returns cached value from this.platformLimits
+        const result2 = await ship.getLimits();
+        expect(result2).toEqual(mockLimits);
 
         // Third call - still cached
-        const result3 = await ship.getConfig();
-        expect(result3).toEqual(mockConfig);
+        const result3 = await ship.getLimits();
+        expect(result3).toEqual(mockLimits);
 
         // All results should be the same object (cached)
         expect(result1).toBe(result2);
@@ -90,11 +88,11 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       it('should trigger initialization on first call', async () => {
         const ship = new NodeShip({ apiKey: 'test-key' });
 
-        // Spy on ensureInitialized instead since loadFullConfig is mocked by helper
+        // Spy on ensureInitialized instead since fetchPlatformLimits is mocked by helper
         const ensureInitializedSpy = vi.spyOn(ship as any, 'ensureInitialized');
         createMockedShip(ship);
 
-        await ship.getConfig();
+        await ship.getLimits();
 
         expect(ensureInitializedSpy).toHaveBeenCalled();
       });
@@ -107,12 +105,12 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         createMockedShip(ship);
 
         // First call - triggers initialization
-        await ship.getConfig();
+        await ship.getLimits();
         const firstCallCount = ensureInitializedSpy.mock.calls.length;
         expect(firstCallCount).toBeGreaterThan(0);
 
         // Second call - ensureInitialized returns cached promise
-        await ship.getConfig();
+        await ship.getLimits();
         // Should return same promise (not call ensureInitialized again)
         expect(ensureInitializedSpy.mock.calls.length).toBe(firstCallCount);
       });
@@ -122,18 +120,18 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       it('should propagate API errors when fetching config', async () => {
         const ship = new NodeShip({ apiKey: 'test-key' });
         const apiError = new Error('Failed to fetch config from API');
-        const getConfigSpy = vi.fn().mockRejectedValue(apiError);
+        const getLimitsSpy = vi.fn().mockRejectedValue(apiError);
 
-        // Mock loadFullConfig to simulate failure (doesn't set platform config)
-        vi.spyOn(ship as any, 'loadFullConfig').mockRejectedValue(apiError);
+        // Mock fetchPlatformLimits to simulate failure (doesn't set platform config)
+        vi.spyOn(ship as any, 'fetchPlatformLimits').mockRejectedValue(apiError);
 
         (ship as any).http = {
-          getConfig: getConfigSpy,
+          getLimits: getLimitsSpy,
           ping: vi.fn().mockResolvedValue(true),
           getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
         };
 
-        await expect(ship.getConfig()).rejects.toThrow('Failed to fetch config from API');
+        await expect(ship.getLimits()).rejects.toThrow('Failed to fetch config from API');
       });
 
       // Note: Error retry testing is covered by base-ship initialization tests
@@ -142,79 +140,79 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         const ship = new NodeShip({ apiKey: 'invalid-key' });
         const authError = new Error('Invalid API key');
 
-        // Mock loadFullConfig to simulate auth failure
-        vi.spyOn(ship as any, 'loadFullConfig').mockRejectedValue(authError);
+        // Mock fetchPlatformLimits to simulate auth failure
+        vi.spyOn(ship as any, 'fetchPlatformLimits').mockRejectedValue(authError);
 
         (ship as any).http = {
-          getConfig: vi.fn().mockRejectedValue(authError),
+          getLimits: vi.fn().mockRejectedValue(authError),
           ping: vi.fn().mockResolvedValue(true),
           getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
         };
 
-        await expect(ship.getConfig()).rejects.toThrow('Invalid API key');
+        await expect(ship.getLimits()).rejects.toThrow('Invalid API key');
       });
 
       it('should handle network errors gracefully', async () => {
         const ship = new NodeShip({ apiKey: 'test-key' });
         const networkError = new Error('ECONNREFUSED: Connection refused');
 
-        // Mock loadFullConfig to simulate network failure
-        vi.spyOn(ship as any, 'loadFullConfig').mockRejectedValue(networkError);
+        // Mock fetchPlatformLimits to simulate network failure
+        vi.spyOn(ship as any, 'fetchPlatformLimits').mockRejectedValue(networkError);
 
         (ship as any).http = {
-          getConfig: vi.fn().mockRejectedValue(networkError),
+          getLimits: vi.fn().mockRejectedValue(networkError),
           ping: vi.fn().mockResolvedValue(true),
           getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
         };
 
-        await expect(ship.getConfig()).rejects.toThrow('ECONNREFUSED: Connection refused');
+        await expect(ship.getLimits()).rejects.toThrow('ECONNREFUSED: Connection refused');
       });
     });
 
     describe('Concurrent Calls', () => {
-      it('should handle concurrent getConfig calls and cache result', async () => {
+      it('should handle concurrent getLimits calls and cache result', async () => {
         const ship = new NodeShip({ apiKey: 'test-key' });
-        const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
-        createMockedShip(ship, { getConfig: getConfigSpy });
+        const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
+        createMockedShip(ship, { getLimits: getLimitsSpy });
 
         // Make 5 concurrent calls - these will race and may all call API
         const results = await Promise.all([
-          ship.getConfig(),
-          ship.getConfig(),
-          ship.getConfig(),
-          ship.getConfig(),
-          ship.getConfig()
+          ship.getLimits(),
+          ship.getLimits(),
+          ship.getLimits(),
+          ship.getLimits(),
+          ship.getLimits()
         ]);
 
         // All should return the same config values
         results.forEach(result => {
-          expect(result).toEqual(mockConfig);
+          expect(result).toEqual(mockLimits);
         });
 
         // After concurrent calls complete, subsequent call uses cache
-        const cachedResult = await ship.getConfig();
-        expect(cachedResult).toEqual(mockConfig);
+        const cachedResult = await ship.getLimits();
+        expect(cachedResult).toEqual(mockLimits);
 
         // Verify the config is cached and referenced correctly
-        expect((ship as any)._config).toEqual(mockConfig);
+        expect((ship as any).platformLimits).toEqual(mockLimits);
       });
 
-      it('should handle mixed concurrent getConfig and other method calls', async () => {
+      it('should handle mixed concurrent getLimits and other method calls', async () => {
         const ship = new NodeShip({ apiKey: 'test-key' });
-        const getConfigSpy = vi.fn().mockImplementation(async () => {
+        const getLimitsSpy = vi.fn().mockImplementation(async () => {
           await new Promise(resolve => setTimeout(resolve, 50));
-          return mockConfig;
+          return mockLimits;
         });
-        createMockedShip(ship, { getConfig: getConfigSpy });
+        createMockedShip(ship, { getLimits: getLimitsSpy });
 
-        // Mix getConfig with other calls
+        // Mix getLimits with other calls
         const [configResult, pingResult, whoamiResult] = await Promise.all([
-          ship.getConfig(),
+          ship.getLimits(),
           ship.ping(),
           ship.whoami()
         ]);
 
-        expect(configResult).toEqual(mockConfig);
+        expect(configResult).toEqual(mockLimits);
         expect(pingResult).toBe(true);
         expect(whoamiResult).toEqual({ email: 'test@example.com' });
       });
@@ -225,10 +223,10 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         const ship = new NodeShip({ apiKey: 'test-key' });
         createMockedShip(ship);
 
-        // getConfig is the first method called
-        const result = await ship.getConfig();
+        // getLimits is the first method called
+        const result = await ship.getLimits();
 
-        expect(result).toEqual(mockConfig);
+        expect(result).toEqual(mockLimits);
         expect((ship as any).initPromise).toBeTruthy(); // Initialization completed
       });
 
@@ -241,9 +239,9 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         await ship.ping();
         expect(pingSpy).toHaveBeenCalledTimes(1);
 
-        // Then call getConfig
-        const result = await ship.getConfig();
-        expect(result).toEqual(mockConfig);
+        // Then call getLimits
+        const result = await ship.getLimits();
+        expect(result).toEqual(mockLimits);
       });
 
       it('should share initialization state with resource methods', async () => {
@@ -253,11 +251,11 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         // Call whoami (triggers initialization)
         await ship.whoami();
 
-        // Call getConfig - both use the same initialization system
-        const result = await ship.getConfig();
+        // Call getLimits - both use the same initialization system
+        const result = await ship.getLimits();
 
         // Verify both methods work and return expected results
-        expect(result).toEqual(mockConfig);
+        expect(result).toEqual(mockLimits);
         // The initialization promise should be set after either call
         expect((ship as any).initPromise).toBeTruthy();
       });
@@ -272,18 +270,18 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
           maxTotalSize: 52428800
         };
 
-        // Mock loadFullConfig to set custom config
-        vi.spyOn(ship as any, 'loadFullConfig').mockImplementation(async () => {
-          setConfig(customConfig);
+        // Mock fetchPlatformLimits to set custom config
+        vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
+          (ship as any).platformLimits = customConfig;
         });
 
         (ship as any).http = {
-          getConfig: vi.fn().mockResolvedValue(customConfig),
+          getLimits: vi.fn().mockResolvedValue(customConfig),
           ping: vi.fn().mockResolvedValue(true),
           getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
         };
 
-        const result = await ship.getConfig();
+        const result = await ship.getLimits();
         expect(result.maxFileSize).toBe(5242880);
       });
 
@@ -295,17 +293,17 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
           maxTotalSize: 104857600
         };
 
-        vi.spyOn(ship as any, 'loadFullConfig').mockImplementation(async () => {
-          setConfig(customConfig);
+        vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
+          (ship as any).platformLimits = customConfig;
         });
 
         (ship as any).http = {
-          getConfig: vi.fn().mockResolvedValue(customConfig),
+          getLimits: vi.fn().mockResolvedValue(customConfig),
           ping: vi.fn().mockResolvedValue(true),
           getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
         };
 
-        const result = await ship.getConfig();
+        const result = await ship.getLimits();
         expect(result.maxFilesCount).toBe(2000);
       });
 
@@ -317,17 +315,17 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
           maxTotalSize: 209715200
         };
 
-        vi.spyOn(ship as any, 'loadFullConfig').mockImplementation(async () => {
-          setConfig(customConfig);
+        vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
+          (ship as any).platformLimits = customConfig;
         });
 
         (ship as any).http = {
-          getConfig: vi.fn().mockResolvedValue(customConfig),
+          getLimits: vi.fn().mockResolvedValue(customConfig),
           ping: vi.fn().mockResolvedValue(true),
           getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
         };
 
-        const result = await ship.getConfig();
+        const result = await ship.getLimits();
         expect(result.maxTotalSize).toBe(209715200);
       });
 
@@ -339,17 +337,17 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
           maxTotalSize: 104857600
         };
 
-        vi.spyOn(ship as any, 'loadFullConfig').mockImplementation(async () => {
-          setConfig(fullConfig);
+        vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
+          (ship as any).platformLimits = fullConfig;
         });
 
         (ship as any).http = {
-          getConfig: vi.fn().mockResolvedValue(fullConfig),
+          getLimits: vi.fn().mockResolvedValue(fullConfig),
           ping: vi.fn().mockResolvedValue(true),
           getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
         };
 
-        const result = await ship.getConfig();
+        const result = await ship.getLimits();
         expect(result).toEqual(fullConfig);
         expect(Object.keys(result)).toEqual(['maxFileSize', 'maxFilesCount', 'maxTotalSize']);
       });
@@ -367,12 +365,12 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
           deployToken: 'token-xxxx',
           apiUrl: 'https://api.shipstatic.com'
         });
-        const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
-        createMockedShip(ship, { getConfig: getConfigSpy });
+        const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
+        createMockedShip(ship, { getLimits: getLimitsSpy });
 
-        const result = await ship.getConfig();
+        const result = await ship.getLimits();
 
-        expect(result).toEqual(mockConfig);
+        expect(result).toEqual(mockLimits);
       });
 
       it('should return cached config on subsequent calls', async () => {
@@ -380,16 +378,16 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
           deployToken: 'token-xxxx',
           apiUrl: 'https://api.shipstatic.com'
         });
-        const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
-        createMockedShip(ship, { getConfig: getConfigSpy });
+        const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
+        createMockedShip(ship, { getLimits: getLimitsSpy });
 
         // First call
-        const result1 = await ship.getConfig();
-        expect(result1).toEqual(mockConfig);
+        const result1 = await ship.getLimits();
+        expect(result1).toEqual(mockLimits);
 
         // Second call - cached
-        const result2 = await ship.getConfig();
-        expect(result2).toEqual(mockConfig);
+        const result2 = await ship.getLimits();
+        expect(result2).toEqual(mockLimits);
       });
 
       it('should trigger initialization on first call', async () => {
@@ -398,11 +396,11 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
           apiUrl: 'https://api.shipstatic.com'
         });
 
-        // Spy on ensureInitialized instead since loadFullConfig is mocked by helper
+        // Spy on ensureInitialized instead since fetchPlatformLimits is mocked by helper
         const ensureInitializedSpy = vi.spyOn(ship as any, 'ensureInitialized');
         createMockedShip(ship);
 
-        await ship.getConfig();
+        await ship.getLimits();
 
         expect(ensureInitializedSpy).toHaveBeenCalled();
       });
@@ -416,16 +414,16 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         });
         const apiError = new Error('Failed to fetch config from API');
 
-        // Mock loadFullConfig to simulate failure
-        vi.spyOn(ship as any, 'loadFullConfig').mockRejectedValue(apiError);
+        // Mock fetchPlatformLimits to simulate failure
+        vi.spyOn(ship as any, 'fetchPlatformLimits').mockRejectedValue(apiError);
 
         (ship as any).http = {
-          getConfig: vi.fn().mockRejectedValue(apiError),
+          getLimits: vi.fn().mockRejectedValue(apiError),
           ping: vi.fn().mockResolvedValue(true),
           getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
         };
 
-        await expect(ship.getConfig()).rejects.toThrow('Failed to fetch config from API');
+        await expect(ship.getLimits()).rejects.toThrow('Failed to fetch config from API');
       });
 
       // Note: Error retry testing is covered by base-ship initialization tests
@@ -437,45 +435,45 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         });
         const corsError = new Error('CORS policy blocked the request');
 
-        // Mock loadFullConfig to simulate CORS failure
-        vi.spyOn(ship as any, 'loadFullConfig').mockRejectedValue(corsError);
+        // Mock fetchPlatformLimits to simulate CORS failure
+        vi.spyOn(ship as any, 'fetchPlatformLimits').mockRejectedValue(corsError);
 
         (ship as any).http = {
-          getConfig: vi.fn().mockRejectedValue(corsError),
+          getLimits: vi.fn().mockRejectedValue(corsError),
           ping: vi.fn().mockResolvedValue(true),
           getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
         };
 
-        await expect(ship.getConfig()).rejects.toThrow('CORS policy blocked the request');
+        await expect(ship.getLimits()).rejects.toThrow('CORS policy blocked the request');
       });
     });
 
     describe('Concurrent Calls', () => {
-      it('should handle concurrent getConfig calls and cache result', async () => {
+      it('should handle concurrent getLimits calls and cache result', async () => {
         const ship = new BrowserShip({
           deployToken: 'token-xxxx',
           apiUrl: 'https://api.shipstatic.com'
         });
-        const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
-        createMockedShip(ship, { getConfig: getConfigSpy });
+        const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
+        createMockedShip(ship, { getLimits: getLimitsSpy });
 
         // Make concurrent calls - these will race and may all call API
         const results = await Promise.all([
-          ship.getConfig(),
-          ship.getConfig(),
-          ship.getConfig()
+          ship.getLimits(),
+          ship.getLimits(),
+          ship.getLimits()
         ]);
 
         results.forEach(result => {
-          expect(result).toEqual(mockConfig);
+          expect(result).toEqual(mockLimits);
         });
 
         // After concurrent calls complete, subsequent call uses cache
-        const cachedResult = await ship.getConfig();
-        expect(cachedResult).toEqual(mockConfig);
+        const cachedResult = await ship.getLimits();
+        expect(cachedResult).toEqual(mockLimits);
 
         // Verify the config is cached
-        expect((ship as any)._config).toEqual(mockConfig);
+        expect((ship as any).platformLimits).toEqual(mockLimits);
       });
     });
 
@@ -487,8 +485,8 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         });
         createMockedShip(ship);
 
-        const result = await ship.getConfig();
-        expect(result).toEqual(mockConfig);
+        const result = await ship.getLimits();
+        expect(result).toEqual(mockLimits);
       });
 
       it('should work with custom API URL', async () => {
@@ -498,8 +496,8 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         });
         createMockedShip(ship);
 
-        const result = await ship.getConfig();
-        expect(result).toEqual(mockConfig);
+        const result = await ship.getLimits();
+        expect(result).toEqual(mockLimits);
       });
     });
   });
@@ -517,8 +515,8 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       });
       createMockedShip(browserShip);
 
-      const nodeResult = await nodeShip.getConfig();
-      const browserResult = await browserShip.getConfig();
+      const nodeResult = await nodeShip.getLimits();
+      const browserResult = await browserShip.getLimits();
 
       expect(nodeResult).toEqual(browserResult);
       expect(Object.keys(nodeResult).sort()).toEqual(Object.keys(browserResult).sort());
@@ -527,22 +525,22 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
     it('should cache config identically in both environments', async () => {
       __setTestEnvironment('node');
       const nodeShip = new NodeShip({ apiKey: 'test-key' });
-      const nodeGetConfigSpy = vi.fn().mockResolvedValue(mockConfig);
-      createMockedShip(nodeShip, { getConfig: nodeGetConfigSpy });
+      const nodeGetConfigSpy = vi.fn().mockResolvedValue(mockLimits);
+      createMockedShip(nodeShip, { getLimits: nodeGetConfigSpy });
 
       __setTestEnvironment('browser');
       const browserShip = new BrowserShip({
         deployToken: 'token-xxxx',
         apiUrl: 'https://api.shipstatic.com'
       });
-      const browserGetConfigSpy = vi.fn().mockResolvedValue(mockConfig);
-      createMockedShip(browserShip, { getConfig: browserGetConfigSpy });
+      const browserGetConfigSpy = vi.fn().mockResolvedValue(mockLimits);
+      createMockedShip(browserShip, { getLimits: browserGetConfigSpy });
 
       // Multiple calls in each environment
-      await nodeShip.getConfig();
-      await nodeShip.getConfig();
-      await browserShip.getConfig();
-      await browserShip.getConfig();
+      await nodeShip.getLimits();
+      await nodeShip.getLimits();
+      await browserShip.getLimits();
+      await browserShip.getLimits();
 
       // Both should only call API once
     });
@@ -552,17 +550,17 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
     it('should not provide a way to invalidate cache (by design)', async () => {
       __setTestEnvironment('node');
       const ship = new NodeShip({ apiKey: 'test-key' });
-      const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
-      createMockedShip(ship, { getConfig: getConfigSpy });
+      const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
+      createMockedShip(ship, { getLimits: getLimitsSpy });
 
       // Get config
-      await ship.getConfig();
+      await ship.getLimits();
 
       // No public API to clear cache - this is intentional
       // Config is immutable per SDK instance lifetime
 
       // Subsequent calls still use cache
-      await ship.getConfig();
+      await ship.getLimits();
     });
 
     it('should require new SDK instance to fetch fresh config', async () => {
@@ -572,16 +570,16 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       const ship1 = new NodeShip({ apiKey: 'test-key' });
       createMockedShip(ship1);
 
-      await ship1.getConfig();
-      const result1 = await ship1.getConfig();
-      expect(result1).toEqual(mockConfig);
+      await ship1.getLimits();
+      const result1 = await ship1.getLimits();
+      expect(result1).toEqual(mockLimits);
 
       // Second instance - fresh fetch (each instance has its own cache)
       const ship2 = new NodeShip({ apiKey: 'test-key' });
       createMockedShip(ship2);
 
-      const result2 = await ship2.getConfig();
-      expect(result2).toEqual(mockConfig);
+      const result2 = await ship2.getLimits();
+      expect(result2).toEqual(mockLimits);
 
       // Both instances should work correctly
       expect(result1).toEqual(result2); // Same values
@@ -599,17 +597,17 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         maxTotalSize: 0
       };
 
-      vi.spyOn(ship as any, 'loadFullConfig').mockImplementation(async () => {
-        setConfig(zeroConfig);
-      });
+      vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
+          (ship as any).platformLimits = zeroConfig;
+        });
 
       (ship as any).http = {
-        getConfig: vi.fn().mockResolvedValue(zeroConfig),
+        getLimits: vi.fn().mockResolvedValue(zeroConfig),
         ping: vi.fn().mockResolvedValue(true),
         getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
       };
 
-      const result = await ship.getConfig();
+      const result = await ship.getLimits();
       expect(result).toEqual(zeroConfig);
     });
 
@@ -622,17 +620,17 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         maxTotalSize: Number.MAX_SAFE_INTEGER
       };
 
-      vi.spyOn(ship as any, 'loadFullConfig').mockImplementation(async () => {
-        setConfig(largeConfig);
-      });
+      vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
+          (ship as any).platformLimits = largeConfig;
+        });
 
       (ship as any).http = {
-        getConfig: vi.fn().mockResolvedValue(largeConfig),
+        getLimits: vi.fn().mockResolvedValue(largeConfig),
         ping: vi.fn().mockResolvedValue(true),
         getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
       };
 
-      const result = await ship.getConfig();
+      const result = await ship.getLimits();
       expect(result).toEqual(largeConfig);
     });
 
@@ -641,8 +639,8 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
       const ship = new NodeShip({ apiKey: 'test-key' });
       createMockedShip(ship);
 
-      const result1 = await ship.getConfig();
-      const result2 = await ship.getConfig();
+      const result1 = await ship.getLimits();
+      const result2 = await ship.getLimits();
 
       // Same object reference (cached)
       expect(result1).toBe(result2);
@@ -653,26 +651,26 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
     // Note: Node.js integration test removed - too complex to mock ApiHttp constructor properly.
     // The Browser integration test below validates the fix works across environments.
 
-    it('should only call /config API once during cold start in Browser', async () => {
+    it('should only call /limits API once during cold start in Browser', async () => {
       __setTestEnvironment('browser');
       const ship = new BrowserShip({
         deployToken: 'token-xxxx',
         apiUrl: 'https://api.shipstatic.com'
       });
 
-      // DO NOT mock loadFullConfig - let it run to verify real integration
-      const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
+      // DO NOT mock fetchPlatformLimits - let it run to verify real integration
+      const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
       (ship as any).http = {
-        getConfig: getConfigSpy,
+        getLimits: getLimitsSpy,
         ping: vi.fn().mockResolvedValue(true),
         getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
       };
 
-      // First call to getConfig() triggers initialization
-      await ship.getConfig();
+      // First call to getLimits() triggers initialization
+      await ship.getLimits();
 
-      // Verify http.getConfig was only called once
-      expect(getConfigSpy).toHaveBeenCalledTimes(1);
+      // Verify http.getLimits was only called once
+      expect(getLimitsSpy).toHaveBeenCalledTimes(1);
     });
 
     // Note: Node.js integration test removed - too complex to mock ApiHttp constructor properly.
@@ -685,24 +683,24 @@ describe('ship.getConfig() - Cross-Environment Config Retrieval', () => {
         apiUrl: 'https://api.shipstatic.com'
       });
 
-      const getConfigSpy = vi.fn().mockResolvedValue(mockConfig);
+      const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
       (ship as any).http = {
-        getConfig: getConfigSpy,
+        getLimits: getLimitsSpy,
         ping: vi.fn().mockResolvedValue(true),
         getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
       };
 
       // Call ping first
       await ship.ping();
-      expect(getConfigSpy).toHaveBeenCalledTimes(1);
+      expect(getLimitsSpy).toHaveBeenCalledTimes(1);
 
-      // Call getConfig - should reuse already-fetched platform config
-      await ship.getConfig();
-      expect(getConfigSpy).toHaveBeenCalledTimes(1); // Still only 1 call
+      // Call getLimits - should reuse already-fetched platform config
+      await ship.getLimits();
+      expect(getLimitsSpy).toHaveBeenCalledTimes(1); // Still only 1 call
 
       // Call whoami
       await ship.whoami();
-      expect(getConfigSpy).toHaveBeenCalledTimes(1); // Still only 1 call
+      expect(getLimitsSpy).toHaveBeenCalledTimes(1); // Still only 1 call
     });
   });
 });

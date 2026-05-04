@@ -1,18 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ShipError } from '@shipstatic/types';
 
 // Mock dependencies
 vi.mock('../../../src/shared/lib/env', () => ({
-  getENV: vi.fn()
+  getENV: vi.fn(() => 'node'),
 }));
 
-// Mock cosmiconfig
-const mockCosmiconfigSync = vi.fn();
-vi.mock('cosmiconfig', () => ({
-  cosmiconfigSync: mockCosmiconfigSync
-}));
-
-describe('Node.js Config Loading', () => {
+describe('Node.js SDK env-var resolution', () => {
   let config: typeof import('../../../src/node/core/config');
   let sharedConfig: typeof import('../../../src/shared/core/config');
   let originalEnv: NodeJS.ProcessEnv;
@@ -21,16 +14,14 @@ describe('Node.js Config Loading', () => {
     vi.clearAllMocks();
     vi.resetModules();
     originalEnv = { ...process.env };
-    
-    // Clear env vars
+
     delete process.env.SHIP_API_URL;
     delete process.env.SHIP_API_KEY;
     delete process.env.SHIP_DEPLOY_TOKEN;
-    
-    // Setup getENV mock to return 'node' by default
+
     const { getENV } = await import('../../../src/shared/lib/env');
     (getENV as any).mockReturnValue('node');
-    
+
     config = await import('../../../src/node/core/config');
     sharedConfig = await import('../../../src/shared/core/config');
   });
@@ -39,329 +30,104 @@ describe('Node.js Config Loading', () => {
     process.env = originalEnv;
   });
 
-  describe('loadConfig', () => {
-    it('should return empty object in browser environment', async () => {
+  describe('readEnvConfig', () => {
+    it('returns empty object outside Node.js', async () => {
       const { getENV } = await import('../../../src/shared/lib/env');
       (getENV as any).mockReturnValue('browser');
-      
-      const result = await config.loadConfig();
-      expect(result).toEqual({});
+
+      expect(config.readEnvConfig()).toEqual({});
     });
 
-    it('should load config from environment variables', async () => {
+    it('reads SHIP_* env vars', () => {
       process.env.SHIP_API_URL = 'https://api.example.com';
-      process.env.SHIP_API_KEY = 'test-key';
-      process.env.SHIP_DEPLOY_TOKEN = 'test-token';
+      process.env.SHIP_API_KEY = 'ship-key';
+      process.env.SHIP_DEPLOY_TOKEN = 'token-token';
 
-      const result = await config.loadConfig();
-
-      expect(result).toEqual({
+      expect(config.readEnvConfig()).toEqual({
         apiUrl: 'https://api.example.com',
-        apiKey: 'test-key',
-        deployToken: 'test-token'
+        apiKey: 'ship-key',
+        deployToken: 'token-token',
       });
     });
 
-    it('should load config from file when env vars not set', async () => {
-      const mockExplorer = {
-        search: vi.fn().mockReturnValue({
-          isEmpty: false,
-          config: {
-            apiUrl: 'https://file.example.com',
-            apiKey: 'file-key',
-            deployToken: 'file-token'
-          }
-        })
-      };
-      mockCosmiconfigSync.mockReturnValue(mockExplorer);
-
-      const result = await config.loadConfig();
-
-      expect(result).toEqual({
-        apiUrl: 'https://file.example.com',
-        apiKey: 'file-key',
-        deployToken: 'file-token'
-      });
-    });
-
-    it('should prioritize env vars over file config', async () => {
-      process.env.SHIP_API_URL = 'https://env.example.com';
-      process.env.SHIP_DEPLOY_TOKEN = 'env-token';
-
-      const mockExplorer = {
-        search: vi.fn().mockReturnValue({
-          isEmpty: false,
-          config: {
-            apiUrl: 'https://file.example.com',
-            apiKey: 'file-key',
-            deployToken: 'file-token'
-          }
-        })
-      };
-      mockCosmiconfigSync.mockReturnValue(mockExplorer);
-
-      const result = await config.loadConfig();
-
-      expect(result).toEqual({
-        apiUrl: 'https://env.example.com',
-        apiKey: 'file-key',
-        deployToken: 'env-token'
-      });
-    });
-
-    it('should treat empty string env vars as unset', async () => {
+    it('treats empty-string env vars as unset (CI/Docker quirk)', () => {
+      // Some CI runners and Docker setups initialize env vars to "" rather than
+      // unsetting them. Without this normalization, an empty string would either
+      // fail zod's "min length 1" check or override a legitimate constructor arg.
+      process.env.SHIP_API_URL = '';
       process.env.SHIP_API_KEY = '';
-      process.env.SHIP_API_URL = '';
       process.env.SHIP_DEPLOY_TOKEN = '';
 
-      const mockExplorer = {
-        search: vi.fn().mockReturnValue({
-          isEmpty: false,
-          config: {
-            apiUrl: 'https://file.example.com',
-            apiKey: 'file-key',
-            deployToken: 'file-token'
-          }
-        })
-      };
-      mockCosmiconfigSync.mockReturnValue(mockExplorer);
-
-      const result = await config.loadConfig();
-
-      expect(result).toEqual({
-        apiUrl: 'https://file.example.com',
-        apiKey: 'file-key',
-        deployToken: 'file-token'
-      });
+      expect(config.readEnvConfig()).toEqual({});
     });
 
-    it('should allow env vars and file config to mix when some env vars are empty', async () => {
-      process.env.SHIP_API_KEY = 'env-key';
-      process.env.SHIP_API_URL = '';
-      process.env.SHIP_DEPLOY_TOKEN = '';
-
-      const mockExplorer = {
-        search: vi.fn().mockReturnValue({
-          isEmpty: false,
-          config: {
-            apiUrl: 'https://file.example.com',
-            deployToken: 'file-token'
-          }
-        })
-      };
-      mockCosmiconfigSync.mockReturnValue(mockExplorer);
-
-      const result = await config.loadConfig();
-
-      expect(result).toEqual({
-        apiUrl: 'https://file.example.com',
-        apiKey: 'env-key',
-        deployToken: 'file-token'
-      });
+    it('does not touch the filesystem (no .shiprc lookup)', () => {
+      // Regression: the SDK must not read files. Embedded consumers like MCP
+      // rely on this — a host's ~/.shiprc must never leak into a `new Ship({})`.
+      // We assert by environment-variable behavior: no env, no result. If file
+      // resolution ever crept back in, this could return file-derived creds.
+      expect(config.readEnvConfig()).toEqual({});
     });
 
-    it('should reject empty string values from file config', async () => {
-      const mockExplorer = {
-        search: vi.fn().mockReturnValue({
-          isEmpty: false,
-          config: {
-            apiKey: ''
-          }
-        })
-      };
-      mockCosmiconfigSync.mockReturnValue(mockExplorer);
-
-      await expect(config.loadConfig()).rejects.toThrow('Configuration validation failed');
-    });
-
-    it('should handle missing config file gracefully', async () => {
-      const mockExplorer = {
-        search: vi.fn().mockReturnValue(null)
-      };
-      mockCosmiconfigSync.mockReturnValue(mockExplorer);
-
-      const result = await config.loadConfig();
-
-      expect(result).toEqual({});
-    });
-
-    it('should handle empty config file', async () => {
-      const mockExplorer = {
-        search: vi.fn().mockReturnValue({
-          isEmpty: true,
-          config: null
-        })
-      };
-      mockCosmiconfigSync.mockReturnValue(mockExplorer);
-
-      const result = await config.loadConfig();
-
-      expect(result).toEqual({});
-    });
-
-    it('should validate config and throw on invalid data', async () => {
-      const mockExplorer = {
-        search: vi.fn().mockReturnValue({
-          isEmpty: false,
-          config: {
-            apiUrl: 'invalid-url', // Invalid URL
-            apiKey: 'valid-key'
-          }
-        })
-      };
-      mockCosmiconfigSync.mockReturnValue(mockExplorer);
-      
-      await expect(config.loadConfig()).rejects.toThrow('Configuration validation failed');
+    it('rejects malformed apiUrl with a message that names the actual env var', () => {
+      // Regression: an earlier version up-cased the camelCase field name and
+      // produced "SHIP_APIURL", which doesn't exist. The message has to point
+      // users at SHIP_API_URL or it's worse than no message at all.
+      process.env.SHIP_API_URL = 'not-a-url';
+      expect(() => config.readEnvConfig()).toThrow(/SHIP_API_URL/);
     });
   });
 
   describe('resolveConfig', () => {
-    it('should resolve config with default values', () => {
-      const result = sharedConfig.resolveConfig();
-      
-      expect(result).toEqual({
-        apiUrl: 'https://api.shipstatic.com'
+    it('uses the default API URL when none is provided', () => {
+      expect(sharedConfig.resolveConfig()).toEqual({
+        apiUrl: 'https://api.shipstatic.com',
       });
     });
 
-    it('should prioritize user options over loaded config', () => {
-      const userOptions = {
+    it('passes through a user-supplied apiUrl', () => {
+      expect(sharedConfig.resolveConfig({
         apiUrl: 'https://user.example.com',
-        apiKey: 'user-key'
-      };
-      
-      const loadedConfig = {
-        apiUrl: 'https://loaded.example.com',
-        apiKey: 'loaded-key'
-      };
-      
-      const result = sharedConfig.resolveConfig(userOptions, loadedConfig);
-      
-      expect(result).toEqual({
+        apiKey: 'ship-key',
+      })).toEqual({
         apiUrl: 'https://user.example.com',
-        apiKey: 'user-key'
+        apiKey: 'ship-key',
       });
     });
 
-    it('should fall back to loaded config when user options not provided', () => {
-      const loadedConfig = {
-        apiUrl: 'https://loaded.example.com',
-        apiKey: 'loaded-key'
-      };
-      
-      const result = sharedConfig.resolveConfig({}, loadedConfig);
-      
-      expect(result).toEqual({
-        apiUrl: 'https://loaded.example.com',
-        apiKey: 'loaded-key'
-      });
-    });
-
-    it('should handle undefined apiKey correctly', () => {
-      const userOptions = {
-        apiUrl: 'https://user.example.com',
-        apiKey: undefined
-      };
-      
-      const loadedConfig = {
-        apiUrl: 'https://loaded.example.com',
-        apiKey: 'loaded-key'
-      };
-      
-      const result = sharedConfig.resolveConfig(userOptions, loadedConfig);
-      
-      expect(result).toEqual({
-        apiUrl: 'https://user.example.com',
-        apiKey: 'loaded-key'
-      });
-    });
-
-    it('should return config without apiKey when not provided', () => {
-      const result = sharedConfig.resolveConfig();
-      
-      expect(result).toEqual({
-        apiUrl: 'https://api.shipstatic.com'
-      });
-      expect(result.apiKey).toBeUndefined();
+    it('omits apiKey and deployToken when undefined (rather than including them as undefined)', () => {
+      // Spread merges downstream rely on absent fields; an undefined value
+      // would shadow defaults from `clientDefaults` in `mergeDeployOptions`.
+      const result = sharedConfig.resolveConfig({ apiUrl: 'https://x.com' });
+      expect(result).toEqual({ apiUrl: 'https://x.com' });
+      expect('apiKey' in result).toBe(false);
+      expect('deployToken' in result).toBe(false);
     });
   });
 
   describe('mergeDeployOptions', () => {
-    it('should merge deployment options with client defaults', () => {
-      const userOptions = {
-        timeout: 5000
-      };
-      
-      const clientDefaults = {
-        apiUrl: 'https://api.example.com',
-        apiKey: 'default-key',
-        timeout: 10000,
-        maxConcurrency: 3
-      };
-      
-      const result = sharedConfig.mergeDeployOptions(userOptions, clientDefaults);
-      
+    it('merges per-deploy options with client defaults', () => {
+      const result = sharedConfig.mergeDeployOptions(
+        { timeout: 5000 },
+        { apiUrl: 'https://api.example.com', apiKey: 'default-key', timeout: 10000, maxConcurrency: 3 }
+      );
       expect(result).toEqual({
         timeout: 5000,
         maxConcurrency: 3,
         apiKey: 'default-key',
-        apiUrl: 'https://api.example.com'
-      });
-    });
-
-    it('should not override user options with defaults', () => {
-      const userOptions = {
-        timeout: 5000,
-        apiKey: 'user-key'
-      };
-      
-      const clientDefaults = {
-        timeout: 10000,
-        apiKey: 'default-key'
-      };
-      
-      const result = sharedConfig.mergeDeployOptions(userOptions, clientDefaults);
-      
-      expect(result).toEqual({
-        timeout: 5000,
-        apiKey: 'user-key'
-      });
-    });
-
-    it('should handle empty user options', () => {
-      const clientDefaults = {
         apiUrl: 'https://api.example.com',
-        apiKey: 'default-key',
-        timeout: 10000,
-        maxConcurrency: 3
-      };
-      
-      const result = sharedConfig.mergeDeployOptions({}, clientDefaults);
-      
-      expect(result).toEqual({
-        timeout: 10000,
-        maxConcurrency: 3,
-        apiKey: 'default-key',
-        apiUrl: 'https://api.example.com'
       });
     });
 
-    it('should handle undefined client defaults', () => {
-      const userOptions = {
-        timeout: 5000
-      };
-      
-      const clientDefaults = {
-        apiUrl: 'https://api.example.com'
-      };
-      
-      const result = sharedConfig.mergeDeployOptions(userOptions, clientDefaults);
-      
+    it('does not override user options with defaults', () => {
+      const result = sharedConfig.mergeDeployOptions(
+        { timeout: 5000, apiKey: 'user-key' },
+        { timeout: 10000, apiKey: 'default-key' }
+      );
       expect(result).toEqual({
         timeout: 5000,
-        apiUrl: 'https://api.example.com'
+        apiKey: 'user-key',
       });
     });
-
   });
 });

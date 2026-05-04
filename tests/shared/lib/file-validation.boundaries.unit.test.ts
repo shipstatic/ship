@@ -8,7 +8,7 @@ import {
   FILE_VALIDATION_STATUS,
   type ValidatableFile,
 } from '../../../src/shared/lib/file-validation.js';
-import type { ConfigResponse } from '@shipstatic/types';
+import type { PlatformLimits } from '@shipstatic/types';
 
 // Mock file helper
 function createMockFile(name: string, size: number): ValidatableFile {
@@ -20,7 +20,7 @@ function createMockFile(name: string, size: number): ValidatableFile {
 }
 
 describe('File Validation - Boundary Tests', () => {
-  const config: ConfigResponse = {
+  const config: PlatformLimits = {
     maxFileSize: 5 * 1024 * 1024, // 5MB
     maxTotalSize: 25 * 1024 * 1024, // 25MB
     maxFilesCount: 100,
@@ -67,7 +67,7 @@ describe('File Validation - Boundary Tests', () => {
   describe('Total Size Boundaries', () => {
     it('should accept files with total exactly at limit', () => {
       // Need files under individual maxFileSize (5MB) but total at 25MB
-      const largeConfig: ConfigResponse = {
+      const largeConfig: PlatformLimits = {
         ...config,
         maxFileSize: 10 * 1024 * 1024, // 10MB per file
       };
@@ -85,7 +85,7 @@ describe('File Validation - Boundary Tests', () => {
     });
 
     it('should reject when total exceeds by 1 byte (atomic)', () => {
-      const largeConfig: ConfigResponse = {
+      const largeConfig: PlatformLimits = {
         ...config,
         maxFileSize: 10 * 1024 * 1024, // 10MB per file
       };
@@ -112,7 +112,7 @@ describe('File Validation - Boundary Tests', () => {
     });
 
     it('should detect total size overflow mid-validation', () => {
-      const largeConfig: ConfigResponse = {
+      const largeConfig: PlatformLimits = {
         ...config,
         maxFileSize: 15 * 1024 * 1024, // 15MB per file
       };

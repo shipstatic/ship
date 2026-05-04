@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { __setTestEnvironment, getENV } from '../../src/shared/lib/env';
-import { setConfig } from '../../src/shared/core/platform-config';
+import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 
 /**
  * Environment Switching Validation Tests
@@ -88,13 +88,6 @@ describe('Environment Switching Cross-Platform Validation', () => {
     it('should enforce browser-only functionality in browser environment', async () => {
       __setTestEnvironment('browser');
 
-      // Initialize platform config (required by processFilesForBrowser)
-      setConfig({
-        maxFileSize: 10 * 1024 * 1024,
-        maxFilesCount: 1000,
-        maxTotalSize: 100 * 1024 * 1024,
-      });
-
       // Mock DOM APIs since we're running in Node.js
       global.Blob = class MockBlob {
         constructor(public bits: any[], public options: any = {}) {}
@@ -118,11 +111,11 @@ describe('Environment Switching Cross-Platform Validation', () => {
       } as any;
 
       // Import browser-specific functionality
-      const { processFilesForBrowser } = await import('../../src/browser/lib/browser-files');
+      const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
 
       // Should work in browser environment with mocked APIs
       const mockFile = new File(['test'], 'test.txt');
-      await expect(processFilesForBrowser([mockFile], {})).resolves.toBeDefined();
+      await expect(processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS)).resolves.toBeDefined();
     });
 
     it('should enforce node-only functionality in node environment', async () => {
@@ -140,10 +133,10 @@ describe('Environment Switching Cross-Platform Validation', () => {
     it('should prevent cross-environment functionality usage', async () => {
       // Test browser functions in node environment
       __setTestEnvironment('node');
-      const { processFilesForBrowser } = await import('../../src/browser/lib/browser-files');
+      const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
       
       const mockFile = new File(['test'], 'test.txt');
-      await expect(processFilesForBrowser([mockFile], {}))
+      await expect(processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('processFilesForBrowser can only be called in a browser environment.');
 
       // Test node functions in browser environment  
@@ -195,35 +188,10 @@ describe('Environment Switching Cross-Platform Validation', () => {
   });
 
   describe('Configuration Environment Isolation', () => {
-    it('should use shared platform configuration across environments', async () => {
-      // Both browser and node now use the same shared platform-config module
-      __setTestEnvironment('browser');
-      const { setConfig: setPlatformConfig } = await import('../../src/shared/core/platform-config');
-
-      const testConfig = {
-        maxFileSize: 10 * 1024 * 1024,
-        maxFilesCount: 1000,
-        maxTotalSize: 100 * 1024 * 1024,
-      };
-
-      setPlatformConfig(testConfig);
-
-      // Switch to node environment - should still access the same shared config
+    it('should handle env-var resolution consistently across environment switches', async () => {
       __setTestEnvironment('node');
-      const { getCurrentConfig } = await import('../../src/shared/core/platform-config');
-
-      // Platform config is shared across environments
-      expect(getCurrentConfig()).toEqual(testConfig);
-    });
-
-    it('should handle config loading consistently across environment switches', async () => {
-      // Node loads config from env/files; browser receives config via constructor (no file loading)
-      __setTestEnvironment('node');
-      const { loadConfig: loadNodeConfig } = await import('../../src/node/core/config');
-      const nodeConfig = await loadNodeConfig();
-
-      // Node config behavior depends on environment — should not throw
-      expect(nodeConfig).toBeDefined();
+      const { readEnvConfig } = await import('../../src/node/core/config');
+      expect(readEnvConfig()).toBeDefined();
     });
   });
 
@@ -282,9 +250,9 @@ describe('Environment Switching Cross-Platform Validation', () => {
       __setTestEnvironment('node');
       
       try {
-        const { processFilesForBrowser } = await import('../../src/browser/lib/browser-files');
+        const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
         const mockFile = new File(['test'], 'test.txt');
-        await processFilesForBrowser([mockFile], {});
+        await processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS);
       } catch (error) {
         errors.push(error);
       }
@@ -305,10 +273,10 @@ describe('Environment Switching Cross-Platform Validation', () => {
       
       __setTestEnvironment('node');
       
-      const { processFilesForBrowser } = await import('../../src/browser/lib/browser-files');
+      const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
       const mockFile = new File(['test'], 'test.txt');
       
-      await expect(processFilesForBrowser([mockFile], {}))
+      await expect(processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow(/can only be called in a browser environment/);
     });
   });

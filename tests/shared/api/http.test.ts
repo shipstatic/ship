@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http';
-import { ShipError } from '@shipstatic/types';
+import { ShipError, ErrorType } from '@shipstatic/types';
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -86,21 +86,55 @@ describe('ApiHttp', () => {
 
       await expect(apiHttp.ping()).rejects.toThrow();
     });
+
+    it('should map HTTP 429 to ShipError with ErrorType.RateLimit', async () => {
+      // Regression: rate-limit responses must classify as RateLimit, not Authentication.
+      // Embedded consumers (MCP) rely on the type to render the right hint —
+      // string-matching the message is fragile and was removed in favor of trusting the type.
+      (global.fetch as any).mockResolvedValue({
+        ok: false,
+        status: 429,
+        headers: { get: (h: string) => h === 'content-type' ? 'application/json' : null },
+        json: async () => ({ error: ErrorType.RateLimit, message: 'Too many requests', status: 429 }),
+        clone() { return this; },
+      });
+
+      await expect(apiHttp.ping()).rejects.toMatchObject({
+        type: ErrorType.RateLimit,
+        status: 429,
+      });
+    });
+
+    it('should map HTTP 401 to ShipError with ErrorType.Authentication', async () => {
+      // Companion check: 401 must classify as Authentication so MCP shows the SHIP_API_KEY hint.
+      (global.fetch as any).mockResolvedValue({
+        ok: false,
+        status: 401,
+        headers: { get: (h: string) => h === 'content-type' ? 'application/json' : null },
+        json: async () => ({ error: ErrorType.Authentication, message: 'Authentication required', status: 401 }),
+        clone() { return this; },
+      });
+
+      await expect(apiHttp.ping()).rejects.toMatchObject({
+        type: ErrorType.Authentication,
+        status: 401,
+      });
+    });
   });
 
-  describe('getConfig', () => {
-    it('should fetch platform configuration', async () => {
-      const mockConfig = {
+  describe('getLimits', () => {
+    it('should fetch platform limits', async () => {
+      const mockLimits = {
         maxFileSize: 10 * 1024 * 1024,
         maxFilesCount: 1000,
         maxTotalSize: 100 * 1024 * 1024
       };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockConfig));
+      (global.fetch as any).mockResolvedValue(createMockResponse(mockLimits));
 
-      const result = await apiHttp.getConfig();
+      const result = await apiHttp.getLimits();
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/config',
+        'https://api.test.com/limits',
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
@@ -108,7 +142,7 @@ describe('ApiHttp', () => {
           })
         })
       );
-      expect(result).toEqual(mockConfig);
+      expect(result).toEqual(mockLimits);
     });
   });
 

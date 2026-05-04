@@ -37,8 +37,8 @@ describe('CLI with Mock API', () => {
           return;
         }
 
-        // Config endpoint
-        if (req.method === 'GET' && url === '/config') {
+        // Limits endpoint
+        if (req.method === 'GET' && url === '/limits') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             maxFileSize: 10485760,

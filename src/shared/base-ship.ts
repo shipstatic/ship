@@ -1,35 +1,49 @@
 /**
- * @file Base Ship SDK class - provides shared functionality across environments.
+ * @file Base Ship SDK class — shared functionality across environments.
+ *
+ * The constructor is fully synchronous: an `ApiHttp` instance is built immediately
+ * with whatever credentials the caller supplied (and, in Node, env vars merged in
+ * by the subclass before `super()`). The only deferred work is the one-shot
+ * `GET /config` fetch that hydrates platform limits — that's lazy and runs on
+ * first API call via `ensureInitialized()`.
+ *
+ * Subclasses only override what genuinely differs per environment:
+ *   - `processInput()` — Node reads paths from disk; Browser handles `File[]`
+ *   - `getDeployBodyCreator()` — Node streams Buffers; Browser builds Blobs
+ *
+ * Everything else (auth state, resources, events, lazy platform-limits) lives here.
  */
 
-import { ApiHttp } from './api/http.js';
 import { ShipError } from '@shipstatic/types';
-import type { ShipClientOptions, ShipEvents } from './types.js';
-import type { Deployment, ConfigResponse } from '@shipstatic/types';
-import { getCurrentConfig } from './core/platform-config.js';
-import type { ResolvedConfig } from './core/config.js';
+import type {
+  Deployment,
+  PlatformLimits,
+  DeploymentResource,
+  DomainResource,
+  AccountResource,
+  TokenResource,
+  StaticFile,
+} from '@shipstatic/types';
 
-// Resource imports
+import { ApiHttp } from './api/http.js';
+import { resolveConfig } from './core/config.js';
 import {
   createDeploymentResource,
   createDomainResource,
   createAccountResource,
   createTokenResource,
-  type DeployInput
+  type DeployInput,
 } from './resources.js';
 import type {
-  DeploymentResource,
-  DomainResource,
-  AccountResource,
-  TokenResource
-} from '@shipstatic/types';
-
-import type { StaticFile } from '@shipstatic/types';
-import type { DeploymentOptions, DeployBodyCreator } from './types.js';
+  ShipClientOptions,
+  ShipEvents,
+  DeploymentOptions,
+  DeployBodyCreator,
+} from './types.js';
 
 /**
- * Authentication state for the Ship instance
- * Discriminated union ensures only one auth method is active at a time
+ * Authentication state for the Ship instance.
+ * Discriminated union ensures only one auth method is active at a time.
  */
 type AuthState =
   | { type: 'token'; value: string }
@@ -38,88 +52,115 @@ type AuthState =
 
 /**
  * Abstract base class for Ship SDK implementations.
- *
- * Provides shared functionality while allowing environment-specific
- * implementations to handle configuration loading and deployment processing.
  */
 export abstract class Ship {
-  protected http: ApiHttp;
-  protected readonly clientOptions: ShipClientOptions;
-  protected initPromise: Promise<void> | null = null;
-  protected _config: ConfigResponse | null = null;
+  // Resource handles, created once at construction. Each is a thin facade
+  // bound to `this.http` plus the lazy-init callback.
+  public readonly deployments: DeploymentResource;
+  public readonly domains: DomainResource;
+  public readonly account: AccountResource;
+  public readonly tokens: TokenResource;
 
-  // Authentication state management
+  // The HTTP client and merged options are private — subclasses interact
+  // with the base class through the abstract methods below, never by
+  // reaching into these fields. Tests bypass via `(ship as any).http = ...`.
+  private readonly http: ApiHttp;
+  private readonly clientOptions: ShipClientOptions;
+
+  // Lazy-init plumbing for the one-shot `GET /config` fetch.
+  // `platformLimits` is INSTANCE state (not a module-level singleton): two
+  // Ships against different `apiUrl`s — staging + prod, multi-tenant
+  // orchestrators, n8n with multiple credentials — must not clobber each
+  // other's limits. Each instance owns its hydrated copy.
+  // `protected` so subclasses' `processInput` can pass it down to the
+  // platform-specific file-validation utilities.
+  private initPromise: Promise<void> | null = null;
+  protected platformLimits: PlatformLimits | null = null;
+
+  // Auth state — consulted dynamically on every request through `getAuthHeaders`.
   private auth: AuthState = null;
 
-  // Custom headers (survives client replacement during initialization)
-  private customHeaders: Record<string, string> = {};
-
-  // Store the auth headers callback to reuse when replacing HTTP client
-  protected readonly authHeadersCallback: () => Record<string, string>;
-
-  // Resource instances (initialized during creation)
-  protected _deployments: DeploymentResource;
-  protected _domains: DomainResource;
-  protected _account: AccountResource;
-  protected _tokens: TokenResource;
-
   constructor(options: ShipClientOptions = {}) {
+    // SDK-boundary normalization: empty-string credentials are never valid,
+    // and storing them would pollute `mergeDeployOptions` (which checks
+    // `=== undefined`, not falsy) and silently suppress per-call defaults
+    // — turning what should have been an authenticated deploy into an
+    // anonymous PUBLIC_ACCOUNT deploy via the agent-token fallback.
+    //
+    // Empty strings reach here from shell-expansion of unset CI variables,
+    // empty form fields in browser apps, and any other path that produces
+    // `''` instead of `undefined`. Normalizing once at the SDK boundary
+    // covers every entry point: CLI, Browser SDK, Node SDK, embedded
+    // consumers, and direct base-class use in tests.
+    options = {
+      ...options,
+      apiUrl: options.apiUrl || undefined,
+      apiKey: options.apiKey || undefined,
+      deployToken: options.deployToken || undefined,
+    };
     this.clientOptions = options;
 
-    // Initialize auth state from constructor options
-    // Prioritize deployToken over apiKey if both are provided
+    // Initialize auth state from constructor options.
+    // Deploy token outranks API key when both are provided.
     if (options.deployToken) {
       this.auth = { type: 'token', value: options.deployToken };
     } else if (options.apiKey) {
       this.auth = { type: 'apiKey', value: options.apiKey };
     }
 
-    // Create the auth headers callback once and reuse it
-    this.authHeadersCallback = () => this.getAuthHeaders();
-
-    // Initialize HTTP client with constructor options for immediate use
-    const config = this.resolveInitialConfig(options);
+    // Build the HTTP client once. The `getAuthHeaders` callback reads `this.auth`
+    // dynamically on every request, so `setApiKey()` / `setDeployToken()` take
+    // effect immediately without needing to rebuild the client.
     this.http = new ApiHttp({
       ...options,
-      ...config,
-      getAuthHeaders: this.authHeadersCallback,
-      createDeployBody: this.getDeployBodyCreator()
+      ...resolveConfig(options),
+      getAuthHeaders: () => this.getAuthHeaders(),
+      createDeployBody: this.getDeployBodyCreator(),
     });
 
     const ctx = {
       getApi: () => this.http,
-      ensureInit: () => this.ensureInitialized()
+      ensureInit: () => this.ensureInitialized(),
     };
 
-    this._deployments = createDeploymentResource({
+    this.deployments = createDeploymentResource({
       ...ctx,
-      processInput: (input, options) => this.processInput(input, options),
+      processInput: (input, opts) => this.processInput(input, opts),
       clientDefaults: this.clientOptions,
-      hasAuth: () => this.hasAuth()
+      hasAuth: () => this.hasAuth(),
     });
-    this._domains = createDomainResource(ctx);
-    this._account = createAccountResource(ctx);
-    this._tokens = createTokenResource(ctx);
+    this.domains = createDomainResource(ctx);
+    this.account = createAccountResource(ctx);
+    this.tokens = createTokenResource(ctx);
   }
 
-  // Abstract methods that environments must implement
-  protected abstract resolveInitialConfig(options: ShipClientOptions): ResolvedConfig;
-  protected abstract loadFullConfig(): Promise<void>;
+  // Environment-specific behavior.
   protected abstract processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]>;
   protected abstract getDeployBodyCreator(): DeployBodyCreator;
 
   /**
-   * Ensure full initialization is complete - called lazily by resources
+   * Lazy initialization — fetches platform limits (file size / count caps) once,
+   * on the first API call. Subsequent calls reuse the resolved promise.
    */
   protected async ensureInitialized(): Promise<void> {
     if (!this.initPromise) {
-      this.initPromise = this.loadFullConfig();
+      this.initPromise = this.fetchPlatformLimits();
     }
     return this.initPromise;
   }
 
+  private async fetchPlatformLimits(): Promise<void> {
+    try {
+      this.platformLimits = await this.http.getLimits();
+    } catch (error) {
+      // Reset so the next API call can retry initialization.
+      this.initPromise = null;
+      throw error;
+    }
+  }
+
   /**
-   * Ping the API server to check connectivity
+   * Ping the API server to check connectivity.
    */
   async ping(): Promise<boolean> {
     await this.ensureInitialized();
@@ -127,76 +168,34 @@ export abstract class Ship {
   }
 
   /**
-   * Deploy project (convenience shortcut to ship.deployments.upload())
+   * Deploy project (convenience shortcut to `ship.deployments.upload()`).
    */
   async deploy(input: DeployInput, options?: DeploymentOptions): Promise<Deployment> {
     return this.deployments.upload(input, options);
   }
 
   /**
-   * Get current account information (convenience shortcut to ship.account.get())
+   * Get current account information (convenience shortcut to `ship.account.get()`).
    */
   async whoami() {
     return this.account.get();
   }
 
   /**
-   * Get deployments resource (environment-specific)
+   * Get platform limits (max file size, file count, total size).
+   * Reuses the response fetched during initialization. Per-instance state —
+   * does not leak between concurrent Ships against different API URLs.
    */
-  get deployments(): DeploymentResource {
-    return this._deployments;
-  }
-
-  /**
-   * Get domains resource
-   */
-  get domains(): DomainResource {
-    return this._domains;
-  }
-
-  /**
-   * Get account resource
-   */
-  get account(): AccountResource {
-    return this._account;
-  }
-
-  /**
-   * Get tokens resource
-   */
-  get tokens(): TokenResource {
-    return this._tokens;
-  }
-
-  /**
-   * Get API configuration (file upload limits, etc.)
-   * Reuses platform config fetched during initialization, then caches the result
-   */
-  async getConfig(): Promise<ConfigResponse> {
-    if (this._config) {
-      return this._config;
-    }
-
+  async getLimits(): Promise<PlatformLimits> {
+    if (this.platformLimits) return this.platformLimits;
     await this.ensureInitialized();
-    // After initialization, platform config is already fetched - reuse it instead of making another API call
-    this._config = getCurrentConfig();
-    return this._config;
+    return this.platformLimits!;
   }
 
-  /**
-   * Add event listener
-   * @param event - Event name
-   * @param handler - Event handler function
-   */
   on<K extends keyof ShipEvents>(event: K, handler: (...args: ShipEvents[K]) => void): void {
     this.http.on(event, handler);
   }
 
-  /**
-   * Remove event listener
-   * @param event - Event name
-   * @param handler - Event handler function
-   */
   off<K extends keyof ShipEvents>(event: K, handler: (...args: ShipEvents[K]) => void): void {
     this.http.off(event, handler);
   }
@@ -206,7 +205,6 @@ export abstract class Ship {
    * Useful for injecting custom headers (e.g. for admin impersonation).
    */
   setHeaders(headers: Record<string, string>): void {
-    this.customHeaders = headers;
     this.http.setGlobalHeaders(headers);
   }
 
@@ -214,35 +212,13 @@ export abstract class Ship {
    * Clear all custom global headers.
    */
   clearHeaders(): void {
-    this.customHeaders = {};
     this.http.setGlobalHeaders({});
   }
 
   /**
-   * Replace HTTP client while preserving event listeners
-   * Used during initialization to maintain user event subscriptions
-   * @protected
-   */
-  protected replaceHttpClient(newClient: ApiHttp): void {
-    if (this.http?.transferEventsTo) {
-      try {
-        this.http.transferEventsTo(newClient);
-      } catch (error) {
-        // Event transfer failed - log but continue (better than crashing initialization)
-        console.warn('Event transfer failed during client replacement:', error);
-      }
-    }
-    this.http = newClient;
-    // Preserve custom headers across client replacement
-    if (Object.keys(this.customHeaders).length > 0) {
-      this.http.setGlobalHeaders(this.customHeaders);
-    }
-  }
-
-  /**
    * Sets the deploy token for authentication.
-   * This will override any previously set API key or deploy token.
-   * @param token The deploy token (format: token-<64-char-hex>)
+   * Overrides any previously set API key or deploy token.
+   * @param token Deploy token (format: `token-<64-char-hex>`)
    */
   public setDeployToken(token: string): void {
     if (!token || typeof token !== 'string') {
@@ -253,8 +229,8 @@ export abstract class Ship {
 
   /**
    * Sets the API key for authentication.
-   * This will override any previously set API key or deploy token.
-   * @param key The API key (format: ship-<64-char-hex>)
+   * Overrides any previously set API key or deploy token.
+   * @param key API key (format: `ship-<64-char-hex>`)
    */
   public setApiKey(key: string): void {
     if (!key || typeof key !== 'string') {
@@ -263,29 +239,19 @@ export abstract class Ship {
     this.auth = { type: 'apiKey', value: key };
   }
 
-  /**
-   * Generate authorization headers based on current auth state
-   * Called dynamically on each request to ensure latest credentials are used
-   * @private
-   */
   private getAuthHeaders(): Record<string, string> {
-    if (!this.auth) {
-      return {};
-    }
-    return { 'Authorization': `Bearer ${this.auth.value}` };
+    if (!this.auth) return {};
+    return { Authorization: `Bearer ${this.auth.value}` };
   }
 
   /**
-   * Check if authentication credentials are configured
-   * Used by resources to fail fast if auth is required
-   * @private
+   * Check whether authentication credentials are configured.
+   * Used by resources to fail fast (or trigger the agent-token fallback) when
+   * auth is required.
    */
   private hasAuth(): boolean {
-    // useCredentials means cookies are used for auth - no explicit token needed
-    if (this.clientOptions.useCredentials) {
-      return true;
-    }
+    // useCredentials means cookies are used for auth — no explicit token needed.
+    if (this.clientOptions.useCredentials) return true;
     return this.auth !== null;
   }
-
 }

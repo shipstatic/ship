@@ -30,7 +30,7 @@ describe('SDK Initialization Order', () => {
       apiCalls.push(urlObj.pathname);
       
       // Mock responses
-      if (urlObj.pathname === '/config') {
+      if (urlObj.pathname === '/limits') {
         return new Response(JSON.stringify({ 
           maxFileSize: 10485760, 
           maxFilesCount: 1000, 
@@ -81,16 +81,16 @@ describe('SDK Initialization Order', () => {
       // Deploy - this should trigger initialization and SPA detection
       await ship.deployments.upload(files);
       
-      // Verify that /config was called before /spa-check
-      expect(apiCalls).toContain('/config');
+      // Verify that /limits was called before /spa-check
+      expect(apiCalls).toContain('/limits');
       expect(apiCalls).toContain('/spa-check');
       expect(apiCalls).toContain('/deployments');
-      
-      const configIndex = apiCalls.indexOf('/config');
+
+      const limitsIndex = apiCalls.indexOf('/limits');
       const spaCheckIndex = apiCalls.indexOf('/spa-check');
-      
-      // Config should be called before SPA check (initialization order)
-      expect(configIndex).toBeLessThan(spaCheckIndex);
+
+      // Limits should be called before SPA check (initialization order)
+      expect(limitsIndex).toBeLessThan(spaCheckIndex);
       
     } finally {
       global.fetch = originalFetch;
@@ -107,7 +107,7 @@ describe('SDK Initialization Order', () => {
       apiUrls.push(url);
       
       // Mock responses with correct host
-      if (url.includes('/config')) {
+      if (url.includes('/limits')) {
         return new Response(JSON.stringify({ 
           maxFileSize: 10485760, 
           maxFilesCount: 1000, 

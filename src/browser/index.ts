@@ -1,12 +1,20 @@
 /**
- * @file Ship SDK for browser environments with streamlined configuration.
+ * @file Ship SDK for browser environments.
+ *
+ * Configuration is fully explicit — the browser has no env vars or config files
+ * to inherit. All credentials are supplied via constructor options (or, for
+ * first-party browser apps, an HTTP-only cookie via `useCredentials: true`).
  */
 
 import { Ship as BaseShip } from '../shared/base-ship.js';
-import { setConfig as setPlatformConfig } from '../shared/core/platform-config.js';
-import { resolveConfig, type ResolvedConfig } from '../shared/core/config.js';
 import { ShipError } from '@shipstatic/types';
-import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../shared/types.js';
+import type {
+  Deployment,
+  DeployInput,
+  DeploymentOptions,
+  StaticFile,
+  DeployBodyCreator,
+} from '../shared/types.js';
 import { createDeployBody } from './core/deploy-body.js';
 
 // Export all shared functionality
@@ -14,48 +22,39 @@ export * from '../shared/index.js';
 
 /**
  * Ship SDK Client for browser environments.
- * 
- * Optimized for browser compatibility with no Node.js dependencies.
- * Configuration is provided explicitly through constructor options.
- * 
+ *
  * @example
  * ```typescript
- * // Deploy with token obtained from server
+ * // Deploy with a token obtained from your server
  * const ship = new Ship({
- *   deployToken: "token-xxxx",
- *   apiUrl: "https://api.shipstatic.com"
+ *   deployToken: 'token-xxxx',
+ *   apiUrl: 'https://api.shipstatic.com',
  * });
  *
- * // Deploy files from input element
  * const files = Array.from(fileInput.files);
  * await ship.deploy(files);
  * ```
  */
 export class Ship extends BaseShip {
-  constructor(options: ShipClientOptions = {}) {
-    super(options);
-  }
+  // No constructor override — the base class accepts `ShipClientOptions` and
+  // browsers have no ambient credential source (no env vars, no filesystem).
 
-  protected resolveInitialConfig(options: ShipClientOptions): ResolvedConfig {
-    return resolveConfig(options, {});
-  }
-
-  protected async loadFullConfig(): Promise<void> {
-    try {
-      // Browser receives all client config through constructor options (no file loading needed)
-      // Fetch platform configuration from API
-      const platformConfig = await this.http.getConfig();
-      setPlatformConfig(platformConfig);
-    } catch (error) {
-      // Reset initialization promise so it can be retried
-      this.initPromise = null;
-      throw error;
-    }
+  /**
+   * Deploy `File[]` (typically from `<input type="file">` or drag-and-drop)
+   * to ShipStatic. Convenience shortcut for `ship.deployments.upload()`.
+   *
+   * Wrong-platform inputs (e.g. string paths) fail at compile time. For
+   * platform-neutral code, use `ship.deployments.upload()`, which accepts
+   * the wider `DeployInput` and validates at runtime — that asymmetry is
+   * intentional: the convenience shortcut narrows; the resource-layer
+   * contract stays platform-neutral.
+   */
+  async deploy(input: File[], options?: DeploymentOptions): Promise<Deployment> {
+    return super.deploy(input, options);
   }
 
   protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
-    // Validate input - must be File[]
-    if (!this.isFileArray(input)) {
+    if (!Array.isArray(input) || !input.every(item => item instanceof File)) {
       throw ShipError.business('Invalid input type for browser environment. Expected File[].');
     }
 
@@ -63,14 +62,8 @@ export class Ship extends BaseShip {
       throw ShipError.business('No files to deploy.');
     }
 
-    // Process files directly
-    const { processFilesForBrowser } = await import('./lib/browser-files.js');
-    return processFilesForBrowser(input, options);
-  }
-
-  /** Type guard that validates all elements are File objects */
-  private isFileArray(input: DeployInput): input is File[] {
-    return Array.isArray(input) && input.every(item => item instanceof File);
+    const { processFilesForBrowser } = await import('./core/browser-files.js');
+    return processFilesForBrowser(input, options, this.platformLimits ?? undefined);
   }
 
   protected getDeployBodyCreator(): DeployBodyCreator {
@@ -78,11 +71,8 @@ export class Ship extends BaseShip {
   }
 }
 
-// Default export (for import Ship from 'ship')
+// Default export (for `import Ship from '@shipstatic/ship'`)
 export default Ship;
 
-// Browser specific exports
-export { setConfig as setPlatformConfig, getCurrentConfig } from '../shared/core/platform-config.js';
-
-// Browser utilities
-export { processFilesForBrowser } from './lib/browser-files.js';
+// Browser-only utilities (validation + MD5 over `File` / `Blob` inputs)
+export { processFilesForBrowser } from './core/browser-files.js';

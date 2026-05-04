@@ -8,7 +8,7 @@ const defaultMockApiClient = {
   ping: vi.fn().mockResolvedValue(true),
   deploy: vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://dep_123.shipstatic.com' }),
   getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
-  getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760 }),
+  getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760 }),
   checkSPA: vi.fn().mockResolvedValue(false),
   listDeployments: vi.fn().mockResolvedValue({ deployments: [], count: 0 })
 };
@@ -31,7 +31,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
     defaultMockApiClient.ping = vi.fn().mockResolvedValue(true);
     defaultMockApiClient.deploy = vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://dep_123.shipstatic.com' });
     defaultMockApiClient.getAccount = vi.fn().mockResolvedValue({ email: 'test@example.com' });
-    defaultMockApiClient.getConfig = vi.fn().mockResolvedValue({ maxFileSize: 10485760 });
+    defaultMockApiClient.getLimits = vi.fn().mockResolvedValue({ maxFileSize: 10485760 });
     defaultMockApiClient.checkSPA = vi.fn().mockResolvedValue(false);
     defaultMockApiClient.listDeployments = vi.fn().mockResolvedValue({ deployments: [], count: 0 });
     // Reset to default mock implementation

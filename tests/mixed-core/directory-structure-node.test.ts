@@ -5,8 +5,8 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 import { processFilesForNode } from '@/node/core/node-files';
-import { setConfig } from '@/shared/core/platform-config';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -15,13 +15,6 @@ describe('Node.js SDK Directory Structure Preservation', () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    // Setup platform config for tests
-    setConfig({
-      maxFileSize: 10 * 1024 * 1024, // 10MB
-      maxFilesCount: 1000,
-      maxTotalSize: 100 * 1024 * 1024, // 100MB
-    });
-    
     // Create temporary directory with nested structure
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-sdk-test-'));
     
@@ -56,7 +49,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
   });
 
   test('should preserve directory structure by default when processing directory path', async () => {
-    const files = await processFilesForNode([tempDir], { pathDetect: false });
+    const files = await processFilesForNode([tempDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
     const filePaths = files.map(f => f.path);
 
     // Verify nested paths are preserved
@@ -96,7 +89,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
     fs.writeFileSync(path.join(viteDir, 'assets', 'index-f1e2d3c4'), '// Vite JS bundle');
     fs.writeFileSync(path.join(viteDir, 'assets', 'vue-logo-a1b2c3d4.png'), 'png-data');
 
-    const files = await processFilesForNode([viteDir], { pathDetect: false });
+    const files = await processFilesForNode([viteDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
     const filePaths = files.map(f => f.path);
 
     // THE CRITICAL TEST: These must NOT be flattened
@@ -120,7 +113,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
       path.join(tempDir, 'components', 'ui', 'Button')
     ];
 
-    const files = await processFilesForNode(filePaths, { pathDetect: false });
+    const files = await processFilesForNode(filePaths, { pathDetect: false }, TEST_PLATFORM_LIMITS);
     const processedFilePaths = files.map(f => f.path);
 
     // When processing individual files, each gets its own commonParent (dirname),
@@ -142,7 +135,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
     fs.mkdirSync(deepPath2, { recursive: true });
     fs.writeFileSync(path.join(deepPath2, 'users.ts'), 'export const userAPI = {};');
 
-    const files = await processFilesForNode([tempDir], { pathDetect: false });
+    const files = await processFilesForNode([tempDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
     const filePaths = files.map(f => f.path);
 
     // Verify deep paths are preserved
@@ -172,7 +165,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
       fs.writeFileSync(fullPath, content);
     });
 
-    const files = await processFilesForNode([tempDir], { pathDetect: false });
+    const files = await processFilesForNode([tempDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
     const filePaths = files.map(f => f.path);
 
     // Verify all file types preserve their nested paths

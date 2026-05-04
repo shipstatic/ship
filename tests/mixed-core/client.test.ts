@@ -8,7 +8,7 @@ import type { ShipError as ShipErrorClassType } from '@shipstatic/types'; // Imp
 const mockApiHttpInstance = {
   ping: vi.fn(),
   deploy: vi.fn(),
-  getConfig: vi.fn().mockResolvedValue({
+  getLimits: vi.fn().mockResolvedValue({
     maxFileSize: 10 * 1024 * 1024,
     maxFilesCount: 1000,
     maxTotalSize: 100 * 1024 * 1024,
@@ -32,24 +32,21 @@ const { NODE_FILE_UTILS_MOCK } = vi.hoisted(() => ({
   }
 }));
 
-const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => {
-  return {
-    CONFIG_LOADER_MOCK_IMPLEMENTATION: {
-      loadConfig: vi.fn(),
-      DEFAULT_API: 'https://loaded.config.host',
-      resolveConfig: vi.fn((userDeployOptions: Record<string, any> = {}, loadedConfig: Record<string, any> = {}) => ({ // Added basic types
-        apiUrl: userDeployOptions.apiUrl || loadedConfig.apiUrl || 'https://api.shipstatic.com',
-        apiKey: userDeployOptions.apiKey !== undefined ? userDeployOptions.apiKey : loadedConfig.apiKey
-      })),
-      mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
-        ...clientDefaults,
-        ...userOptions
-      }))
-    }
-  };
-});
+const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
+  CONFIG_LOADER_MOCK_IMPLEMENTATION: {
+    DEFAULT_API: 'https://loaded.config.host',
+    resolveConfig: vi.fn((userDeployOptions: Record<string, any> = {}) => ({
+      apiUrl: userDeployOptions.apiUrl || 'https://api.shipstatic.com',
+      ...(userDeployOptions.apiKey !== undefined ? { apiKey: userDeployOptions.apiKey } : {}),
+    })),
+    mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
+      ...clientDefaults,
+      ...userOptions,
+    })),
+  },
+}));
 
-// 2. Mock modules using the predefined implementations
+// Mock modules using the predefined implementations
 vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
 vi.mock('../../src/node/core/node-files', () => NODE_FILE_UTILS_MOCK);
 vi.mock('../../src/shared/core/config', () => CONFIG_LOADER_MOCK_IMPLEMENTATION);
@@ -57,7 +54,6 @@ vi.mock('../../src/shared/core/config', () => CONFIG_LOADER_MOCK_IMPLEMENTATION)
 // Aliases to the mocked implementations
 const apiClientMock = mockApiHttpInstance;
 const nodeFileUtilsMock = NODE_FILE_UTILS_MOCK;
-const configLoaderMock = CONFIG_LOADER_MOCK_IMPLEMENTATION.loadConfig; // Direct reference to the mock function
 
 describe('BaseShipClient', () => {
   let client: ShipClass; // Typed client
@@ -86,24 +82,23 @@ describe('BaseShipClient', () => {
       );
     });
 
-    it('should use loaded config for API operations', async () => {
+    it('reads SHIP_* env vars at construction time', async () => {
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
       await __setTestEnvironment('node');
 
-      // Override config via environment variables (highest priority)
+      // SDK's only ambient credential source — the "process boundary".
       process.env.SHIP_API_KEY = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
       process.env.SHIP_API_URL = 'https://test.api.shipstatic.com';
 
-      const { Ship } = await import('../../src/index');
-      const shipInstance = new Ship();
-
       MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
-      await shipInstance.ping();
+
+      const { Ship } = await import('../../src/index');
+      new Ship();
 
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
           apiUrl: 'https://test.api.shipstatic.com',
-          apiKey: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+          apiKey: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         })
       );
 
@@ -111,24 +106,21 @@ describe('BaseShipClient', () => {
       delete process.env.SHIP_API_URL;
     });
 
-    it('should use default API host when loaded config provides no host', async () => {
+    it('falls back to the default API host when env supplies only an apiKey', async () => {
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
       await __setTestEnvironment('node');
 
-      // Only set API key, not URL - should use default
       process.env.SHIP_API_KEY = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
       delete process.env.SHIP_API_URL;
 
-      const { Ship } = await import('../../src/index');
-      const shipInstance = new Ship({});
-
       MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
-      await shipInstance.ping();
 
-      // Should use default API URL when not specified
+      const { Ship } = await import('../../src/index');
+      new Ship({});
+
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
-          apiKey: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+          apiKey: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         })
       );
 
@@ -205,39 +197,25 @@ describe('BaseShipClient', () => {
   });
 
   describe('Configuration Loading Integration', () => {
-    it('should load configuration from environment variables when none provided to constructor', async () => {
-      // Set up environment variables
+    it('loads SHIP_* env vars when no constructor options are supplied', async () => {
       process.env.SHIP_API_KEY = 'env-test-key';
-      process.env.SHIP_API_URL = 'https://env-test-api.com';  
-      
-      // Set Node.js environment
+      process.env.SHIP_API_URL = 'https://env-test-api.com';
+
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
       await __setTestEnvironment('node');
-      
-      // Clear existing mocks for the config loader
-      configLoaderMock.mockReturnValueOnce({
-        apiKey: 'env-test-key',
-        apiUrl: 'https://env-test-api.com'
-      });
-      
-      // Reset the ApiHttp mock to track calls
+
       MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
-      
+
       const { Ship } = await import('../../src/index');
-      const ship = new Ship(); // No options provided - should load from env/config
-      
-      // Test actual behavior: make an API call and verify env config was loaded
-      await ship.ping();
-      
-      // Verify that the ApiHttp instance was eventually created with the env config
+      new Ship();
+
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
           apiKey: 'env-test-key',
-          apiUrl: 'https://env-test-api.com'
+          apiUrl: 'https://env-test-api.com',
         })
       );
-      
-      // Clean up
+
       delete process.env.SHIP_API_KEY;
       delete process.env.SHIP_API_URL;
     });
