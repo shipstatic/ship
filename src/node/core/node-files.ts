@@ -97,7 +97,7 @@ export async function processFilesForNode(
       const stats = fs.statSync(absPath);
       return stats.isDirectory() ? findAllFilePaths(absPath) : [absPath];
     } catch (error) {
-      throw ShipError.file(`Path does not exist: ${p}`, p);
+      throw ShipError.file(`Path does not exist: ${p}`, { filePath: p });
     }
   });
   const uniquePaths = [...new Set(absolutePaths)];
@@ -199,7 +199,7 @@ export async function processFilesForNode(
       }
       // Convert file system errors to ShipError with clear message
       const errorMessage = error instanceof Error ? error.message : String(error);
-      throw ShipError.file(`Failed to read file "${filePath}": ${errorMessage}`, filePath);
+      throw ShipError.file(`Failed to read file "${filePath}": ${errorMessage}`, { filePath });
     }
   }
 

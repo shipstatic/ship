@@ -60,8 +60,10 @@ export function getUserMessage(
     return 'network error: could not reach the API. check your internet connection';
   }
 
-  // File, validation, config errors - trust the original message (we wrote it)
-  if (err.isFileError() || err.isValidationError() || err.isClientError()) {
+  // Client errors (Business | Config | File | Validation) — trust the
+  // original message (we wrote it). isClientError covers File and Validation
+  // too — no need for separate per-type checks.
+  if (err.isClientError()) {
     return err.message;
   }
 
