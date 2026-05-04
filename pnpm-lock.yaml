@@ -40,8 +40,8 @@ importers:
         version: 4.4.2
     devDependencies:
       '@shipstatic/types':
-        specifier: ^0.9.6
-        version: 0.9.6
+        specifier: ^0.9.8
+        version: 0.9.8
       '@types/columnify':
         specifier: ^1.5.4
         version: 1.5.4
@@ -691,8 +691,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shipstatic/types@0.9.6':
-    resolution: {integrity: sha512-98pGA56n/vwjnOS3O5fiDshxlbxgdko6SCDwwwxgh8aAa7J9Y0G7UUo23pFWgZHuFo2T8j2AGhZbITeB51Kn4g==}
+  '@shipstatic/types@0.9.8':
+    resolution: {integrity: sha512-LyNUM0RysWyxtzYfIGpjWRJwM1zY5P+zvnPsOWIhdoZoqvDDtFj7l2JkIW+6bf+oPiIs38kVAMYatYZh/WyynA==}
     engines: {node: '>=20.0.0'}
 
   '@tsconfig/node10@1.0.12':
@@ -2230,7 +2230,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.60.2':
     optional: true
 
-  '@shipstatic/types@0.9.6': {}
+  '@shipstatic/types@0.9.8': {}
 
   '@tsconfig/node10@1.0.12': {}
 
