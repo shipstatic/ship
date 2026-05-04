@@ -152,19 +152,40 @@ ship completion uninstall
 
 ### Global Flags
 
+Available on every command:
+
 | Flag | Description |
 |------|-------------|
 | `--api-key <key>` | API key for authenticated requests |
 | `--deploy-token <token>` | Deploy token for single-use deployments |
+| `--api-url <url>` | API URL override (for development) |
 | `--config <file>` | Custom config file path |
-| `--label <label>` | Add label (repeatable) |
-| `--password <password>` | Password-protect this deployment |
-| `--no-path-detect` | Disable automatic path optimization |
-| `--no-spa-detect` | Disable automatic SPA detection |
-| `--no-color` | Disable colored output |
 | `--json` | Output results in JSON format |
 | `-q, --quiet` | Output only the resource identifier |
+| `--no-color` | Disable colored output |
+| `--help` | Display help for command |
 | `--version` | Show version information |
+
+### Deploy Flags
+
+Available on `ship <path>` and `ship deployments upload`:
+
+| Flag | Description |
+|------|-------------|
+| `--label <label>` | Add label (repeatable) |
+| `--password <password>` | Password-protect this deployment (6–128 chars) |
+| `--no-path-detect` | Disable automatic path optimization |
+| `--no-spa-detect` | Disable automatic SPA detection |
+
+### CLI Environment Variables
+
+| Var | Purpose |
+|---|---|
+| `SHIP_API_KEY` | Default for `--api-key` |
+| `SHIP_DEPLOY_TOKEN` | Default for `--deploy-token` |
+| `SHIP_API_URL` | Default for `--api-url` |
+| `SHIP_PASSWORD` | Default for `--password` (empty string normalized to absence) |
+| `SHIP_VIA` | Override the deploy `via` field (default `'cli'`). Used by integrations that wrap the CLI for origin tracking — the GitHub Action sets `SHIP_VIA=git`, the MCP server sets `SHIP_VIA=mcp`. |
 
 ## SDK Reference
 
@@ -193,15 +214,20 @@ ship.deploy(input, {
   password?: string,          // Password-protect the deployment (6–128 chars)
   onProgress?: ({ percent }) => void,
   signal?: AbortSignal,
+  onCancel?: () => void,      // Called if signal aborts
   pathDetect?: boolean,       // Auto-optimize paths (default: true)
   spaDetect?: boolean,        // Auto-detect SPA (default: true)
   maxConcurrency?: number,    // Concurrent uploads (default: 4)
   timeout?: number,           // Request timeout in ms
-  via?: string,               // Client identifier
+  via?: string,               // Client identifier ('cli', 'sdk', 'web', 'git', ...)
+  caller?: string,            // Multi-tenant rate-limit bucket key (n8n, MCP, orchestrators)
+  apiUrl?: string,            // Per-request API URL override
   apiKey?: string,            // Per-request API key override
   deployToken?: string,       // Per-request deploy token override
 });
 ```
+
+**`caller` vs `via`.** `via` is the *client family* (`'cli'`, `'sdk'`, `'web'`); `caller` is the *tenant* within an orchestrator (e.g. n8n routing many customers through one worker). `caller` keys the API's rate-limit bucket per tenant rather than per shared IP — programmatic-only by design.
 
 #### Password protection
 
