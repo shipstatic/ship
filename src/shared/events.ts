@@ -6,12 +6,11 @@
 import type { ShipEvents } from './types.js';
 
 /**
- * Lightweight event system
- * - Add handler: on() 
- * - Remove handler: off()
- * - Emit events: emit() [internal]
- * - Transfer events: transfer() [internal]
- * - Reliable error handling and cleanup
+ * Lightweight typed event emitter.
+ *
+ * Public API: `on()` / `off()`. `emit()` is internal — only the SDK
+ * publishes events. Throwing handlers are evicted automatically and
+ * surfaced as `error` events on the next tick.
  */
 export class SimpleEvents {
   private handlers = new Map<string, Set<Function>>();
@@ -47,49 +46,27 @@ export class SimpleEvents {
     const eventHandlers = this.handlers.get(event as string);
     if (!eventHandlers) return;
 
-    // Create array to prevent modification during iteration
+    // Snapshot handlers so a handler that mutates the set during iteration
+    // (e.g. by removing itself) doesn't skip or duplicate calls.
     const handlerArray = Array.from(eventHandlers);
-    
+
     for (const handler of handlerArray) {
       try {
         handler(...args);
       } catch (error) {
-        // Remove failing handlers to prevent repeated failures
+        // A throwing handler is treated as broken — drop it so we don't
+        // repeatedly invoke it and re-emit the failure as an `error` event
+        // for observability. Defer the re-emit so the next tick has a clean
+        // call stack and we can't recurse if the error handler also throws.
         eventHandlers.delete(handler);
-        
-        // Re-emit as error event (only if not already error to prevent loops)
+
         if (event !== 'error') {
-          // Use setTimeout to break out of current call stack and prevent infinite recursion
           setTimeout(() => {
-            if (error instanceof Error) {
-              this.emit('error', error, String(event));
-            } else {
-              this.emit('error', new Error(String(error)), String(event));
-            }
+            const err = error instanceof Error ? error : new Error(String(error));
+            this.emit('error', err, String(event));
           }, 0);
         }
       }
     }
-  }
-
-  /**
-   * Transfer all handlers to another events instance
-   * @internal
-   */
-  transfer(target: SimpleEvents): void {
-    this.handlers.forEach((handlers, event) => {
-      handlers.forEach(handler => {
-        // any[] required: handler type info is erased when stored in Map<string, Set<Function>>
-        target.on(event as keyof ShipEvents, handler as (...args: any[]) => void);
-      });
-    });
-  }
-
-  /**
-   * Clear all handlers (for cleanup)
-   * @internal  
-   */
-  clear(): void {
-    this.handlers.clear();
   }
 }

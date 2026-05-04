@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 import type { Ship as ShipClass } from '../../src/browser/index'; // Import type for client
 
 // 1. Use vi.hoisted() for variables used in vi.mock factories
@@ -12,7 +13,7 @@ const mockApiHttpInstance = {
     expires: 1234567890
   }),
   ping: vi.fn(),
-  getConfig: vi.fn().mockResolvedValue({
+  getLimits: vi.fn().mockResolvedValue({
     maxFileSize: 10 * 1024 * 1024,
     maxFilesCount: 1000,
     maxTotalSize: 100 * 1024 * 1024,
@@ -38,26 +39,23 @@ const { BROWSER_FILE_UTILS_MOCK } = vi.hoisted(() => ({
   }
 }));
 
-const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => {
-  return {
-    CONFIG_LOADER_MOCK_IMPLEMENTATION: {
-      loadConfig: vi.fn(),
-      DEFAULT_API_HOST: 'https://loaded.config.host',
-      resolveConfig: vi.fn((userDeployOptions: Record<string, any> = {}, loadedConfig: Record<string, any> = {}) => ({ // Added basic types
-        apiUrl: userDeployOptions.apiUrl || loadedConfig.apiUrl || 'https://api.shipstatic.com',
-        apiKey: userDeployOptions.apiKey !== undefined ? userDeployOptions.apiKey : loadedConfig.apiKey
-      })),
-      mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
-        ...clientDefaults,
-        ...userOptions
-      }))
-    }
-  };
-});
+const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
+  CONFIG_LOADER_MOCK_IMPLEMENTATION: {
+    DEFAULT_API_HOST: 'https://loaded.config.host',
+    resolveConfig: vi.fn((userDeployOptions: Record<string, any> = {}) => ({
+      apiUrl: userDeployOptions.apiUrl || 'https://api.shipstatic.com',
+      ...(userDeployOptions.apiKey !== undefined ? { apiKey: userDeployOptions.apiKey } : {}),
+    })),
+    mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
+      ...clientDefaults,
+      ...userOptions,
+    })),
+  },
+}));
 
 // 2. Mock modules using the predefined implementations
 vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
-vi.mock('../../src/browser/lib/browser-files', () => BROWSER_FILE_UTILS_MOCK);
+vi.mock('../../src/browser/core/browser-files', () => BROWSER_FILE_UTILS_MOCK);
 vi.mock('../../src/shared/core/config', () => CONFIG_LOADER_MOCK_IMPLEMENTATION);
 
 // Helper to create a mock File object for browser tests
@@ -74,7 +72,6 @@ function mockF(name: string, content: string = '', path?: string): File {
 // Aliases to the mocked implementations
 const apiClientMock = mockApiHttpInstance;
 const fileUtilsMock = BROWSER_FILE_UTILS_MOCK;
-const configLoaderMock = CONFIG_LOADER_MOCK_IMPLEMENTATION.loadConfig;
 
 describe('BrowserShipClient', () => {
   let client: ShipClass; // Typed client
@@ -122,8 +119,10 @@ describe('BrowserShipClient', () => {
         [expect.any(File)],
         expect.objectContaining({
           apiKey: 'custom_test_key',
-          apiUrl: 'https://custom.example.com'
-        })
+          apiUrl: 'https://custom.example.com',
+        }),
+        // Platform limits — hydrated from the mocked /config fetch.
+        expect.objectContaining({ maxFileSize: expect.any(Number) }),
       );
     });
 
@@ -153,7 +152,8 @@ describe('BrowserShipClient', () => {
       // Verify we're passing the options through correctly to processFiles
       expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
         expect.any(Array),
-        expect.objectContaining({ stripCommonPrefix: false })
+        expect.objectContaining({ stripCommonPrefix: false }),
+        expect.objectContaining({ maxFileSize: expect.any(Number) }),
       );
 
       // uploadFiles is called internally by client.deploy after processing input

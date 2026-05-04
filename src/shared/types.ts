@@ -4,21 +4,10 @@
  * Core types come from @shipstatic/types, while SDK-specific types are defined here.
  */
 
-import type { ProgressInfo, StaticFile, Domain, DeploymentUploadOptions } from '@shipstatic/types';
+import type { ProgressInfo, StaticFile, DeploymentUploadOptions } from '@shipstatic/types';
 
-// Re-export all types from @shipstatic/types for convenience
+// Re-export all types from @shipstatic/types for convenience.
 export * from '@shipstatic/types';
-
-// =============================================================================
-// SDK-LOCAL TYPES
-// =============================================================================
-
-/**
- * Domain set result with SDK-injected isCreate flag.
- * isCreate is derived from HTTP status code (201 = create, 200 = update)
- * and is not part of the Domain entity contract.
- */
-export type DomainSetResult = Domain & { isCreate: boolean };
 
 // =============================================================================
 // DEPLOYMENT OPTIONS
@@ -110,8 +99,6 @@ export interface ShipClientOptions {
   apiKey?: string | undefined;
   /** Deploy token for single-use deployments (format: token-<64-char-hex>, total 70 chars). */
   deployToken?: string | undefined;
-  /** Path to custom config file. */
-  configFile?: string | undefined;
   /**
    * Default callback for deploy progress for deploys made with this client.
    * @param info - Progress information including percentage and byte counts.
@@ -140,11 +127,23 @@ export interface ShipClientOptions {
   /**
    * Default caller identifier for multi-tenant deployments.
    * Alphanumeric characters, dots, underscores, and hyphens allowed (max 128 chars).
+   *
+   * Used by orchestrators (e.g. n8n nodes processing many tenants from one
+   * worker) so the API's rate-limit bucket keys per caller rather than per
+   * shared IP. **Programmatic-only by design** — there is no `--caller`
+   * CLI flag because the CLI is a single-user tool (`via: 'cli'` is hardcoded
+   * in `performDeploy`); every CLI invocation belongs to one human, and
+   * a per-tenant rate-limit bucket would defeat the purpose.
    */
   caller?: string | undefined;
   /**
-   * Override the deploy endpoint path. Defaults to '/deployments'.
-   * Used by first-party clients to target alternative upload routes (e.g., '/upload').
+   * Override the deploy endpoint path. Defaults to `/deployments`.
+   *
+   * @internal First-party hook used by `web/my` and `web/www` to target the
+   * `/upload` route (which runs server-side build / SPA detection). External
+   * SDK consumers must not set this — the `/deployments` endpoint is the
+   * stable public contract. See `cloudflare/api/CLAUDE.md` for why the two
+   * endpoints exist and what `/upload` does that `/deployments` doesn't.
    */
   deployEndpoint?: string | undefined;
 }

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 import * as path from 'path';
 import type { Ship as ShipClass } from '../../src/index'; // Import type for client
 
@@ -13,7 +14,7 @@ const mockApiHttpInstance = {
     size: 1024,
     expires: 1234567890
   }),
-  getConfig: vi.fn().mockResolvedValue({
+  getLimits: vi.fn().mockResolvedValue({
     maxFileSize: 10 * 1024 * 1024,
     maxFilesCount: 1000,
     maxTotalSize: 100 * 1024 * 1024,
@@ -47,36 +48,29 @@ const { PATH_HELPERS_MOCK } = vi.hoisted(() => ({
   }
 }));
 
-const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => {
-  return {
-    CONFIG_LOADER_MOCK_IMPLEMENTATION: {
-      loadConfig: vi.fn(),
-      DEFAULT_API_HOST: 'https://loaded.config.host',
-      resolveConfig: vi.fn((userDeployOptions: Record<string, any> = {}, loadedConfig: Record<string, any> = {}) => ({ // Added basic types
-        apiUrl: userDeployOptions.apiUrl || loadedConfig.apiUrl || 'https://api.shipstatic.com',
-        apiKey: userDeployOptions.apiKey !== undefined ? userDeployOptions.apiKey : loadedConfig.apiKey
-      })),
-      mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
-        ...clientDefaults,
-        ...userOptions
-      }))
-    }
-  };
-});
+const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
+  CONFIG_LOADER_MOCK_IMPLEMENTATION: {
+    DEFAULT_API_HOST: 'https://loaded.config.host',
+    resolveConfig: vi.fn((userDeployOptions: Record<string, any> = {}) => ({
+      apiUrl: userDeployOptions.apiUrl || 'https://api.shipstatic.com',
+      ...(userDeployOptions.apiKey !== undefined ? { apiKey: userDeployOptions.apiKey } : {}),
+    })),
+    mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
+      ...clientDefaults,
+      ...userOptions,
+    })),
+  },
+}));
 
-// 2. Mock modules using the predefined implementations
+// Mock modules using the predefined implementations
 vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
 vi.mock('../../src/node/core/node-files', () => NODE_FILE_UTILS_MOCK);
 vi.mock('../../src/shared/lib/path', () => PATH_HELPERS_MOCK);
 vi.mock('../../src/shared/core/config', () => CONFIG_LOADER_MOCK_IMPLEMENTATION);
-vi.mock('../../src/node/core/config', () => ({
-  loadConfig: CONFIG_LOADER_MOCK_IMPLEMENTATION.loadConfig
-}));
 
 // Aliases to the mocked implementations
 const apiClientMock = mockApiHttpInstance;
 const fileUtilsMock = NODE_FILE_UTILS_MOCK;
-const configLoaderMock = CONFIG_LOADER_MOCK_IMPLEMENTATION.loadConfig;
 
 // Constants for testing file size validation
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -110,83 +104,45 @@ describe('NodeShipClient', () => {
     client = new Ship({ apiUrl: MOCK_API_HOST, apiKey: MOCK_API_KEY });
   });
   
-  it('should prioritize direct options over environment variables', async () => {
-    // Setup environment variables
-    process.env.SHIP_API_KEY = 'env_api_key';
+  it('prioritizes direct options over environment variables', async () => {
+    // Env vars are the SDK's "process boundary" credential source. Constructor
+    // args always win — explicit beats ambient.
+    process.env.SHIP_API_KEY = 'ship-from-env';
     process.env.SHIP_API_URL = 'https://env.api.host';
-    
-    // Mock loadConfig to return environment values to ensure we're testing correctly
-    configLoaderMock.mockResolvedValueOnce({
-      apiKey: 'env_api_key',
-      apiUrl: 'https://env.api.host'
-    });
-    
-    // Import the SDK with a fresh module
-    vi.resetModules(); // Reset to ensure mocks and env vars are correctly applied for this test
-    const { Ship } = await import('../../src/index'); // Re-import after reset
-    
-    // Create client with direct options that should override env vars
-    const directClient = new Ship({
+
+    vi.resetModules();
+    const { Ship } = await import('../../src/index');
+
+    new Ship({
       apiUrl: 'https://direct.option.host',
-      apiKey: 'direct_option_key'
+      apiKey: 'ship-direct-option',
     });
-    await directClient.ping(); // This will trigger config loading and client initialization
-    
-    // Verify the client was initialized with direct options, not env vars
+
     expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenLastCalledWith(
       expect.objectContaining({
         apiUrl: 'https://direct.option.host',
-        apiKey: 'direct_option_key',
+        apiKey: 'ship-direct-option',
       })
     );
   });
-  
-  it('should correctly combine multiple configuration sources with proper precedence', async () => {
-    // 1. Setup file config (lowest priority) - simulated by initial loadConfig mock
-    const fileConfigValues = {
-      apiKey: 'file_api_key',
-      apiUrl: 'https://file.api.host',
-      timeout: 60000
-    };
-    
-    // 2. Setup environment variables (medium priority)
-    process.env.SHIPSTATIC_API_KEY = 'env_api_key'; // Overrides file apiKey
-    process.env.SHIPSTATIC_API_URL = 'https://env.api.host'; // Overrides file apiUrl
-    // No SHIPSTATIC_TIMEOUT in env, so file timeout should persist through env
-    
-    // 3. Setup direct options (highest priority)
-    const directDeployOptions = {
-      apiKey: 'direct_api_key', // Overrides env apiKey
-      // No apiUrl in direct options, so env apiUrl should be used
-      timeout: 10000 // Overrides file/env timeout
-    };
-    
-    // Import the SDK with a fresh module
-    vi.resetModules(); // Ensure clean state for module imports and config loading
-    const { Ship } = await import('../../src/index'); // Re-import after reset
 
-    // Mock loadConfig to simulate the combined result of file config overridden by environment variables
-    configLoaderMock.mockReturnValueOnce({
-      apiKey: process.env.SHIPSTATIC_API_KEY, // Value from env
-      apiUrl: process.env.SHIPSTATIC_API_URL, // Value from env
-      timeout: fileConfigValues.timeout    // Value from file (as no env override)
-    });
+  it('falls back to env vars for credentials not provided in constructor', async () => {
+    // The SDK fills in missing fields from SHIP_* env vars. This is the
+    // "process boundary" — how containers, CI, and embedded consumers
+    // (MCP, n8n, Action) deliver credentials without code changes.
+    process.env.SHIP_API_KEY = 'ship-env-key';
+    process.env.SHIP_API_URL = 'https://env.api.host';
 
-    // Create client with direct options using constructor
-    const combinedClient = new Ship(directDeployOptions);
+    vi.resetModules();
+    const { Ship } = await import('../../src/index');
 
-    // Clear the mock history to ignore the first call
-    MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
+    // Constructor sets apiUrl explicitly but leaves apiKey to env.
+    new Ship({ apiUrl: 'https://direct.option.host' });
 
-    // NOW, trigger the async initialization that makes the SECOND, correct call
-    await combinedClient.ping();
-
-    // Assert against the most recent call, which has the working config
-    expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
+    expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        apiKey: 'direct_api_key',        // Direct option takes precedence
-        apiUrl: 'https://env.api.host', // Env overrides file, direct didn't specify
-        timeout: 10000                   // Direct option takes precedence
+        apiUrl: 'https://direct.option.host', // direct wins
+        apiKey: 'ship-env-key',                // env fills the gap
       })
     );
   });
@@ -196,10 +152,15 @@ describe('NodeShipClient', () => {
       // Mock scanNodePaths to return some files
       fileUtilsMock.processFilesForNode.mockResolvedValueOnce([{ path: 'file.txt', content: Buffer.from("content"), md5:'m', size:1 }]);
       await client.deployments.upload(['/path/to/file'], {});
-      expect(fileUtilsMock.processFilesForNode).toHaveBeenCalledWith(['/path/to/file'], expect.objectContaining({
-        apiKey: 'custom_test_key',
-        apiUrl: 'https://custom.example.com'
-      }));
+      expect(fileUtilsMock.processFilesForNode).toHaveBeenCalledWith(
+        ['/path/to/file'],
+        expect.objectContaining({
+          apiKey: 'custom_test_key',
+          apiUrl: 'https://custom.example.com',
+        }),
+        // Platform limits — hydrated from the mocked /config fetch.
+        expect.objectContaining({ maxFileSize: expect.any(Number) }),
+      );
     });
 
 
