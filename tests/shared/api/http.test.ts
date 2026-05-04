@@ -1018,6 +1018,36 @@ describe('ApiHttp', () => {
       }
     });
 
+    it('should handle 429 rate-limit errors with body message preserved', async () => {
+      // Custom mock — the shared createMockResponse returns "15" for every
+      // header, which defeats content-type sniffing in the new fromHttpResponse
+      // path. Build a real Response-shaped mock here.
+      (global.fetch as any).mockResolvedValue({
+        ok: false,
+        status: 429,
+        headers: {
+          get: vi.fn().mockImplementation((header: string) =>
+            header === 'content-type' ? 'application/json' : null,
+          ),
+        },
+        json: async () => ({
+          error: 'rate_limit_exceeded',
+          message: 'Slow down',
+          status: 429,
+        }),
+      });
+
+      try {
+        await apiHttp.ping();
+        expect.fail('Should have thrown');
+      } catch (e: any) {
+        expect(e).toBeInstanceOf(ShipError);
+        expect(e.type).toBe(ErrorType.RateLimit);
+        expect(e.status).toBe(429);
+        expect(e.message).toBe('Slow down');
+      }
+    });
+
     it('should handle non-JSON error responses', async () => {
       (global.fetch as any).mockResolvedValue({
         ok: false,
@@ -1034,7 +1064,7 @@ describe('ApiHttp', () => {
       await expect(apiHttp.ping()).rejects.toThrow('Internal Server Error');
     });
 
-    it('should handle error response parsing failure', async () => {
+    it('should fall back to operation-name message when error body fails to parse', async () => {
       (global.fetch as any).mockResolvedValue({
         ok: false,
         status: 500,
@@ -1047,7 +1077,7 @@ describe('ApiHttp', () => {
         json: async () => { throw new Error('JSON parse error'); }
       });
 
-      await expect(apiHttp.ping()).rejects.toThrow('Failed to parse error response');
+      await expect(apiHttp.ping()).rejects.toThrow('Ping failed');
     });
 
     it('should handle AbortError', async () => {
