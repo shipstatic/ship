@@ -185,7 +185,6 @@ Available on `ship <path>` and `ship deployments upload`:
 | `SHIP_DEPLOY_TOKEN` | Default for `--deploy-token` |
 | `SHIP_API_URL` | Default for `--api-url` |
 | `SHIP_PASSWORD` | Default for `--password` (empty string normalized to absence) |
-| `SHIP_VIA` | Override the deploy `via` field (default `'cli'`). Used by integrations that wrap the CLI for origin tracking — the GitHub Action sets `SHIP_VIA=git`, the MCP server sets `SHIP_VIA=mcp`. |
 
 ## SDK Reference
 
@@ -219,15 +218,12 @@ ship.deploy(input, {
   spaDetect?: boolean,        // Auto-detect SPA (default: true)
   maxConcurrency?: number,    // Concurrent uploads (default: 4)
   timeout?: number,           // Request timeout in ms
-  via?: string,               // Client identifier ('cli', 'sdk', 'web', 'git', ...)
-  caller?: string,            // Multi-tenant rate-limit bucket key (n8n, MCP, orchestrators)
+  via?: string,               // Client identifier
   apiUrl?: string,            // Per-request API URL override
   apiKey?: string,            // Per-request API key override
   deployToken?: string,       // Per-request deploy token override
 });
 ```
-
-**`caller` vs `via`.** `via` is the *client family* (`'cli'`, `'sdk'`, `'web'`); `caller` is the *tenant* within an orchestrator (e.g. n8n routing many customers through one worker). `caller` keys the API's rate-limit bucket per tenant rather than per shared IP — programmatic-only by design.
 
 #### Password protection
 
