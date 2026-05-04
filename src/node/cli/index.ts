@@ -3,7 +3,7 @@
  */
 import { Command } from 'commander';
 import { Ship } from '../index.js';
-import { ShipError, validateApiKey, validateDeployToken, validateApiUrl, isShipError, type Deployment } from '@shipstatic/types';
+import { ShipError, ErrorType, validateApiKey, validateDeployToken, validateApiUrl, isShipError, type Deployment } from '@shipstatic/types';
 import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
 import { success, error } from './utils.js';
@@ -256,7 +256,7 @@ function handleError(
   } else {
     error(message, false, opts.noColor);
     // Show help only for unknown command errors (user CLI mistake)
-    if (shipError.isValidationError() && message.includes('unknown command')) {
+    if (shipError.type === ErrorType.Validation && message.includes('unknown command')) {
       displayHelp(opts.noColor);
     }
   }
@@ -311,12 +311,12 @@ async function performDeploy(
   globalOptions: GlobalOptions
 ): Promise<Deployment> {
   if (!existsSync(deployPath)) {
-    throw ShipError.file(`${deployPath} path does not exist`, deployPath);
+    throw ShipError.file(`${deployPath} path does not exist`, { filePath: deployPath });
   }
 
   const stats = statSync(deployPath);
   if (!stats.isDirectory() && !stats.isFile()) {
-    throw ShipError.file(`${deployPath} path must be a file or directory`, deployPath);
+    throw ShipError.file(`${deployPath} path must be a file or directory`, { filePath: deployPath });
   }
 
   const deployOptions: {
