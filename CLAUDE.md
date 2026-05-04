@@ -327,6 +327,8 @@ For a CLI user who has all three: `--api-key` flag → env → file. For an embe
 | `SHIP_PASSWORD` | Default for `--password <password>` on `ship deploy` / `ship deployments upload`. Empty string is normalized to absence (so unset CI variables don't accidentally protect a deploy). |
 | `SHIP_VIA` | Overrides the deploy `via` field (default `'cli'`). Used by integrations that wrap the CLI for origin tracking — the GitHub Action sets `SHIP_VIA=git`, the MCP server sets `SHIP_VIA=mcp`. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
 
+> **Doc placement note:** `SHIP_VIA` and `caller` are intentionally *not* in the public README's CLI Reference / SDK Deploy Options. They serve first-party integration code paths and are kept to internal/integration-tier surfaces (this file + JSDoc + the integrations submodules). Keep new mechanisms of the same shape (override hooks for first-party orchestrators, anything tied to platform-tier behavior shaping) in the same tier — don't promote them to the public README.
+
 **`getLimits()` is cached** — reuses the `PlatformLimits` fetched during initialization; no extra API call.
 
 ## Backend Integration
