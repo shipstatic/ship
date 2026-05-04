@@ -166,12 +166,13 @@ function mergeLabelOption(cmdOptions: LabelOptions | undefined, programOpts: Lab
 
 /**
  * Merge password options from command and program levels.
- * Mirrors mergeLabelOption — passThroughOptions() can route flags after
- * the positional path to the parent. An empty `--password ''` is forwarded
- * to the SDK validator so the user sees a clear length error rather than a
- * silent drop. An empty `SHIP_PASSWORD` is coerced to undefined, matching
- * how SHIP_API_KEY, SHIP_DEPLOY_TOKEN, and SHIP_API_URL treat empty env
- * vars (CI/Docker often sets unset vars to "" — see core/config.ts).
+ * Commander.js sometimes routes --password to program level instead of command level.
+ *
+ * An empty `--password ''` is forwarded to the SDK validator so the user
+ * sees a clear length error rather than a silent drop. An empty
+ * `SHIP_PASSWORD` is coerced to undefined, matching how SHIP_API_KEY,
+ * SHIP_DEPLOY_TOKEN, and SHIP_API_URL treat empty env vars (CI/Docker
+ * often sets unset vars to "" — see core/config.ts).
  */
 function mergePasswordOption(
   cmdOptions: { password?: string } | undefined,
@@ -338,7 +339,7 @@ async function performDeploy(
   if (labels !== undefined) deployOptions.labels = labels;
 
   // Empty password strings flow through to the SDK validator (clear length
-  // error) instead of being silently dropped — mirrors label handling.
+  // error) instead of being silently dropped.
   if (password !== undefined) deployOptions.password = password;
 
   // Handle detection flags
