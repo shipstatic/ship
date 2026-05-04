@@ -98,7 +98,7 @@ describe('CLI Error Handling', () => {
 
     describe('file errors', () => {
       it('should pass through file error message', () => {
-        const err = ShipError.file('dist/index.html path does not exist', 'dist/index.html');
+        const err = ShipError.file('dist/index.html path does not exist', { filePath: 'dist/index.html' });
 
         const message = getUserMessage(err);
 
@@ -124,6 +124,15 @@ describe('CLI Error Handling', () => {
 
         // Business errors are client errors and pass through
         expect(message).toBe('Invalid configuration');
+      });
+
+      it('should pass through forbidden error message', () => {
+        const err = ShipError.forbidden('Account terminated');
+
+        const message = getUserMessage(err);
+
+        // Forbidden is a client error and passes through
+        expect(message).toBe('Account terminated');
       });
 
       it('should pass through config error message', () => {
