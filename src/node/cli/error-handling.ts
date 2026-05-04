@@ -53,7 +53,7 @@ export function getUserMessage(
 
   // Network errors - include context about what failed
   if (err.isNetworkError()) {
-    const url = err.details?.url;
+    const url = (err.details as { url?: string } | undefined)?.url;
     if (url) {
       return `network error: could not reach ${url}`;
     }
