@@ -2,23 +2,15 @@
 
 CLI and SDK for [ShipStatic](https://shipstatic.com) — deploy static websites, landing pages, and prototypes instantly from the terminal or code.
 
-## Install
+## Deploy in seconds — no install, no account
 
 ```bash
-npm install -g @shipstatic/ship
+npx @shipstatic/ship ./dist
 ```
 
-> As a project dependency: `npm install @shipstatic/ship`
+That's it. Your site is live on `*.shipstatic.com`. No sign-up, no config, no global install. Got Node? You're ready.
 
-## Deploy — Free, No Account Needed
-
-```bash
-ship ./dist
-```
-
-Your site is live instantly on `*.shipstatic.com`. No API key, no sign-up, no configuration.
-
-Deployments without an API key are public and expire in 3 days. The output includes a **claim URL** — visit it to keep the site permanently.
+The output includes a **claim URL** — visit it to keep the site permanently. Anonymous deployments are public and expire in 3 days.
 
 ```javascript
 import Ship from '@shipstatic/ship';
@@ -28,6 +20,16 @@ const result = await ship.deploy('./dist');
 // result.deployment → live URL (happy-cat-abc1234.shipstatic.com)
 // result.claim      → visit to keep permanently
 ```
+
+## Install (optional, for repeat use)
+
+```bash
+npm install -g @shipstatic/ship   # global CLI — drop the `npx @shipstatic/ship` prefix
+```
+
+> As a project dependency: `npm install @shipstatic/ship`
+>
+> Every example in this README uses the bare `ship` command. If you haven't installed it globally, prefix any of them with `npx @shipstatic/ship` (or `npx -y @shipstatic/ship` in non-interactive environments).
 
 ## All Commands — Free API Key
 
