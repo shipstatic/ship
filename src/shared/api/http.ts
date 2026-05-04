@@ -20,7 +20,7 @@ import type {
   TokenListResponse
 } from '@shipstatic/types';
 import type { ApiDeployOptions, DeployBodyCreator, DomainSetResult, ShipClientOptions } from '../types.js';
-import { ShipError, isShipError, DEFAULT_API } from '@shipstatic/types';
+import { ShipError, DEFAULT_API } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 import { validateLabels, validatePassword } from '../lib/validation.js';
 
@@ -114,7 +114,7 @@ export class ApiHttp extends SimpleEvents {
       cleanup();
 
       if (!response.ok) {
-        await this.handleResponseError(response, operationName);
+        throw await ShipError.fromHttpResponse(response, `${operationName} failed`);
       }
 
       this.emit('response', this.safeClone(response), url);
@@ -122,9 +122,11 @@ export class ApiHttp extends SimpleEvents {
       return { data, status: response.status };
     } catch (error) {
       cleanup();
-      const err = error instanceof Error ? error : new Error(String(error));
-      this.emit('error', err, url);
-      this.handleFetchError(error, operationName);
+      // Normalize anything thrown above (fetch failure, abort, response error) into a ShipError.
+      // fromFetchError passes existing ShipErrors through unchanged.
+      const shipError = ShipError.fromFetchError(error, operationName);
+      this.emit('error', shipError, url);
+      throw shipError;
     }
   }
 
@@ -180,35 +182,6 @@ export class ApiHttp extends SimpleEvents {
       return undefined as T;
     }
     return response.json() as Promise<T>;
-  }
-
-  // ===========================================================================
-  // ERROR HANDLING
-  // ===========================================================================
-
-  private async handleResponseError(response: Response, operationName: string): Promise<never> {
-    throw await ShipError.fromHttpResponse(response, `${operationName} failed`);
-  }
-
-  private handleFetchError(error: unknown, operationName: string): never {
-    // Re-throw ShipErrors as-is
-    if (isShipError(error)) {
-      throw error;
-    }
-    // Handle abort errors
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw ShipError.cancelled(`${operationName} was cancelled`);
-    }
-    // Handle network errors (fetch failures)
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw ShipError.network(`${operationName} failed: ${error.message}`, error);
-    }
-    // Handle other Error instances
-    if (error instanceof Error) {
-      throw ShipError.business(`${operationName} failed: ${error.message}`);
-    }
-    // Handle non-Error throws
-    throw ShipError.business(`${operationName} failed: Unknown error`);
   }
 
   // ===========================================================================
