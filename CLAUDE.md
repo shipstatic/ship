@@ -17,12 +17,18 @@ src/
 │   └── lib/             # Utilities (validation, junk filtering, MD5, SPA detection)
 ├── browser/             # Browser Ship class + file handling
 └── node/
-    ├── core/config.ts   # readEnvConfig — SHIP_* env-var resolution (no filesystem)
-    ├── core/...         # node-files, deploy-body
+    ├── core/config.ts       # readEnvConfig — SHIP_* env-var resolution (no filesystem)
+    ├── core/...             # node-files, deploy-body
     └── cli/
-        ├── shiprc.ts    # cosmiconfig loader for .shiprc / package.json — CLI ONLY
-        ├── config.ts    # Interactive `ship config` wizard
-        └── index.ts     # Commander.js commands, createClient
+        ├── index.ts         # Commander.js command tree + withErrorHandling + performDeploy
+        ├── create-client.ts # Credential precedence (flag → env → file) → Ship instance
+        ├── shiprc.ts        # cosmiconfig loader for .shiprc / package.json — CLI ONLY
+        ├── config.ts        # Interactive `ship config` wizard
+        ├── error-handling.ts # toShipError + getUserMessage + formatErrorJson
+        ├── formatters.ts    # Resource-specific output (formatOutput router)
+        ├── utils.ts         # Output primitives (success/error/info, table, details)
+        ├── types.ts         # CLI option + result types
+        └── completion.ts    # Shell completion install/uninstall
 ```
 
 The SDK proper has no filesystem dependency — the only ambient credential source is `SHIP_*` env vars. File-based config (`.shiprc`, `package.json` `"ship"` key) lives entirely in `cli/shiprc.ts`. This is what makes `new Ship({})` safe to use in embedded contexts (MCP, n8n, GitHub Action) without leaking the host's `~/.shiprc` credentials.
@@ -45,12 +51,13 @@ pnpm build                   # Build all bundles
 | `src/shared/api/http.ts` | HTTP client (all API calls) |
 | `src/shared/base-ship.ts` | Base Ship class (auth, init, top-level methods) |
 | `src/node/core/config.ts` | `readEnvConfig` — SHIP_* env-var resolution (the SDK's only ambient source) |
-| `src/node/cli/index.ts` | CLI command definitions, `withErrorHandling`, `performDeploy`, `createClient` |
+| `src/node/cli/index.ts` | CLI command tree, `withErrorHandling`, `performDeploy` |
+| `src/node/cli/create-client.ts` | `createClient` + `mergeCliConfig` — credential precedence (flag > env > file) |
 | `src/node/cli/shiprc.ts` | `loadShipFile` — cosmiconfig-based loader for `.shiprc` / `package.json` (CLI only) |
 | `src/node/cli/utils.ts` | Output primitives (`success`, `error`, `warn`, `info`, `formatTable`, `formatDetails`) |
 | `src/node/cli/formatters.ts` | Resource-specific output formatters, `formatOutput` router |
 | `src/node/cli/types.ts` | CLI option and result types (`GlobalOptions`, `CLIResult`, `EnrichedDomain`) |
-| `src/node/cli/error-handling.ts` | Pure error formatting (`getUserMessage`, `toShipError`) |
+| `src/node/cli/error-handling.ts` | CLI error UX — `toShipError` (normalize), `getUserMessage` (translate), `formatErrorJson` (--json output) |
 | `src/node/cli/config.ts` | Interactive `ship config` wizard (writes `~/.shiprc`) |
 | `src/node/cli/completion.ts` | Shell completion install/uninstall |
 | `tests/fixtures/api-responses.ts` | Typed API response fixtures |
@@ -287,7 +294,7 @@ On upload, the SDK POSTs `index.html` content (must be < 100KB) to `/spa-check` 
 
 All errors use `ShipError` from `@shipstatic/types`. The class provides the full factory + type-guard API and the two HTTP-context constructors (`fromHttpResponse`, `fromFetchError`). See `@shipstatic/types/CLAUDE.md` "Error Flow" for the end-to-end lifecycle.
 
-**`ApiHttp` is pure transport.** `src/shared/api/http.ts` does not implement any error mapping of its own. `executeRequest` calls the two helpers directly — `ShipError.fromHttpResponse(response, operationName)` for non-OK responses and `ShipError.fromFetchError(error, operationName)` for thrown causes (including pass-through of existing `ShipError`s). There are no private `handleResponseError` / `handleFetchError` wrappers.
+**`ApiHttp` is pure transport.** `src/shared/api/http.ts` owns no error-mapping logic. `executeRequest` calls the two helpers directly — `ShipError.fromHttpResponse(response, operationName)` for non-OK responses and `ShipError.fromFetchError(error, operationName)` for thrown causes (which passes existing `ShipError`s through unchanged).
 
 **CLI error UX** (`src/node/cli/error-handling.ts`) — pure functions, fully unit-testable:
 - `toShipError(err)` — normalizes any thrown value to a `ShipError` (used by the CLI's global error handler for non-fetch errors like Commander parse failures).
@@ -307,11 +314,20 @@ All errors use `ShipError` from `@shipstatic/types`. The class provides the full
 | Layer | Where | Reads |
 |---|---|---|
 | **CLI** | `src/node/cli/shiprc.ts` | `.shiprc`, `package.json` `"ship"` (cosmiconfig) |
-| **CLI** | `src/node/cli/index.ts` `createClient()` | merges flag → env → file, hands result to `new Ship({...})` |
+| **CLI** | `src/node/cli/create-client.ts` `createClient()` | merges flag → env → file via `mergeCliConfig`, hands result to `new Ship({...})` |
 | **SDK (Node)** | `src/node/index.ts` constructor | `SHIP_API_KEY`, `SHIP_DEPLOY_TOKEN`, `SHIP_API_URL` (under any constructor arg) |
 | **SDK (Browser)** | `src/browser/index.ts` constructor | nothing — fully explicit |
 
 For a CLI user who has all three: `--api-key` flag → env → file. For an embedded SDK consumer: constructor arg → env. There's no path from the SDK to the filesystem.
+
+**CLI-only env vars** (read by the CLI but *not* by the SDK constructor):
+
+| Var | Purpose |
+|---|---|
+| `SHIP_PASSWORD` | Default for `--password <password>` on `ship deploy` / `ship deployments upload`. Empty string is normalized to absence (so unset CI variables don't accidentally protect a deploy). |
+| `SHIP_VIA` | Overrides the deploy `via` field (default `'cli'`). Used by integrations that wrap the CLI for origin tracking — the GitHub Action sets `SHIP_VIA=git`, the MCP server sets `SHIP_VIA=mcp`. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
+
+> **Doc placement note:** `SHIP_VIA` and `caller` are intentionally *not* in the public README's CLI Reference / SDK Deploy Options. They serve first-party integration code paths and are kept to internal/integration-tier surfaces (this file + JSDoc + the integrations submodules). Keep new mechanisms of the same shape (override hooks for first-party orchestrators, anything tied to platform-tier behavior shaping) in the same tier — don't promote them to the public README.
 
 **`getLimits()` is cached** — reuses the `PlatformLimits` fetched during initialization; no extra API call.
 

@@ -1,7 +1,7 @@
 ---
 name: ship
 description: "Deploy static websites to ShipStatic. Use when the user wants to deploy a site, publish a website, upload to hosting, go live, set up a custom domain, manage deployments, or share a site URL. No account required — instant deployment. CLI (`ship`) and Node.js/browser SDK."
-compatibility: "Node.js >= 20. Install globally via npm: npm install -g @shipstatic/ship"
+compatibility: "Node.js >= 20. Run via npx (no install) or install globally: npm install -g @shipstatic/ship"
 metadata:
   openclaw:
     requires:
@@ -16,6 +16,18 @@ metadata:
 ---
 
 Deploy static sites. No account, no config — just ship it.
+
+## No-install usage (recommended for agents)
+
+You don't need to install anything. Run any command via `npx`:
+
+```bash
+npx -y @shipstatic/ship ./dist                       # deploy (shortcut)
+npx -y @shipstatic/ship deployments list             # any subcommand works the same
+npx -y @shipstatic/ship domains set www.example.com  # ...
+```
+
+`-y` skips the install prompt — important for non-interactive runtimes (CI, sandboxes, agent containers). Every example below uses the bare `ship` command for readability; substitute `npx -y @shipstatic/ship` if it isn't installed globally.
 
 ## Deploy
 
@@ -40,10 +52,12 @@ ship ./dist --json
 ```json
 {
   "deployment": "happy-cat-abc1234.shipstatic.com",
+  "url": "https://happy-cat-abc1234.shipstatic.com",
   "files": 12,
   "size": 348160,
   "status": "success",
   "config": false,
+  "password": false,
   "labels": [],
   "via": "cli",
   "created": 1743552000,
@@ -52,7 +66,7 @@ ship ./dist --json
 }
 ```
 
-`claim` and `expires` only appear without credentials. With an API key, deployments are permanent.
+`claim` only appears on the initial deploy without credentials. `expires` is `null` for authenticated (permanent) deploys. `config: true` indicates a `ship.json` is present in the deployment; `password: true` indicates the deployment is password-protected.
 
 ### Piping
 
@@ -156,6 +170,7 @@ ship domains set www.example.com <dep> --json
 ```json
 {
   "domain": "www.example.com",
+  "url": "https://www.example.com",
   "deployment": "happy-cat-abc1234.shipstatic.com",
   "status": "pending",
   "labels": [],
@@ -274,5 +289,7 @@ ship tokens remove <token>            # Revoke
 | `not found` | No such resource | Verify the ID/name |
 | `path does not exist` | Bad deploy path | Check file/directory |
 | `invalid domain name` | Not a subdomain | Use `www.example.com`, not `example.com` |
+| `<resource> limit reached` | Plan caps hit (deployments, domains) | Suggest upgrading the plan; do not retry |
+| `Account has been deleted` / `Account terminated` | Account is gone | Stop; the account cannot deploy |
 | `DNS information is only available for external domains` | DNS op on internal domain | Only custom domains need DNS |
 | `DNS verification already requested recently` | Rate limited | Wait |
