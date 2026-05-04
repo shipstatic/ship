@@ -131,9 +131,14 @@ export interface ShipClientOptions {
    * Used by orchestrators (e.g. n8n nodes processing many tenants from one
    * worker) so the API's rate-limit bucket keys per caller rather than per
    * shared IP. **Programmatic-only by design** — there is no `--caller`
-   * CLI flag because the CLI is a single-user tool (`via: 'cli'` is hardcoded
-   * in `performDeploy`); every CLI invocation belongs to one human, and
-   * a per-tenant rate-limit bucket would defeat the purpose.
+   * CLI flag because every CLI invocation belongs to one human; a per-tenant
+   * rate-limit bucket would defeat the purpose.
+   *
+   * Distinct from `via` (the client identifier — `'cli'`, `'sdk'`, `'web'`,
+   * `'git'`, etc.). `via` is for analytics/origin tracking and is
+   * env-overridable via `SHIP_VIA` for integrations that wrap the CLI
+   * (GitHub Action, MCP). `caller` is for rate-limit isolation and stays
+   * programmatic-only.
    */
   caller?: string | undefined;
   /**
