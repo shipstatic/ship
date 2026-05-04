@@ -114,7 +114,7 @@ export class ApiHttp extends SimpleEvents {
       cleanup();
 
       if (!response.ok) {
-        throw await ShipError.fromHttpResponse(response, `${operationName} failed`);
+        throw await ShipError.fromHttpResponse(response, operationName);
       }
 
       this.emit('response', this.safeClone(response), url);
@@ -194,7 +194,7 @@ export class ApiHttp extends SimpleEvents {
     }
     for (const file of files) {
       if (!file.md5) {
-        throw ShipError.file(`MD5 checksum missing for file: ${file.path}`, file.path);
+        throw ShipError.file(`MD5 checksum missing for file: ${file.path}`, { filePath: file.path });
       }
     }
 

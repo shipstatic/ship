@@ -18,12 +18,12 @@ export async function createDeployBody(
   for (const file of files) {
     // 1. Validate content type
     if (!Buffer.isBuffer(file.content) && !(typeof Blob !== 'undefined' && file.content instanceof Blob)) {
-      throw ShipError.file(`Unsupported file.content type for Node.js: ${file.path}`, file.path);
+      throw ShipError.file(`Unsupported file.content type for Node.js: ${file.path}`, { filePath: file.path });
     }
 
     // 2. Validate md5
     if (!file.md5) {
-      throw ShipError.file(`File missing md5 checksum: ${file.path}`, file.path);
+      throw ShipError.file(`File missing md5 checksum: ${file.path}`, { filePath: file.path });
     }
 
     // 3. Create File and append — API derives Content-Type from extension

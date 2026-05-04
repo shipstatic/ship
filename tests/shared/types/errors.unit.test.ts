@@ -36,9 +36,9 @@ describe('Ship Error System', () => {
   });
 
   describe('Network Errors', () => {
-    it('should create network error and store cause', () => {
+    it('should create network error and store cause when passed in details', () => {
       const cause = new Error('Network down');
-      const err = ShipError.network('Connection failed', cause);
+      const err = ShipError.network('Connection failed', { cause });
       expect(err).toBeInstanceOf(ShipError);
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('Connection failed');
@@ -79,12 +79,12 @@ describe('Ship Error System', () => {
   });
 
   describe('File Errors', () => {
-    it('should create file error and store filePath', () => {
-      const err = ShipError.file('File not found', '/path/to/file');
+    it('should create file error and store filePath when passed in details', () => {
+      const err = ShipError.file('File not found', { filePath: '/path/to/file' });
       expect(err).toBeInstanceOf(ShipError);
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('File not found');
-      expect(err.filePath).toBe('/path/to/file');
+      expect(err.details?.filePath).toBe('/path/to/file');
       expect(err.type).toBe(ErrorType.File);
       expect(err.status).toBe(undefined);
     });
@@ -115,10 +115,4 @@ describe('Ship Error System', () => {
     // ShipError.fromHttpResponse tests in @shipstatic/types.
   });
   
-  describe('Helper Methods', () => {
-    it('should provide helper getters for common properties', () => {
-      const fileError = ShipError.file('File error', '/test/path');
-      expect(fileError.filePath).toBe('/test/path');
-    });
-  });
 });

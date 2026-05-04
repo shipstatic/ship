@@ -245,15 +245,17 @@ ship.off('request', handler);
 ### Error Handling
 
 ```javascript
-import { isShipError } from '@shipstatic/types';
+import { isShipError, ErrorType } from '@shipstatic/types';
 
 try {
   await ship.deploy('./dist');
 } catch (error) {
   if (isShipError(error)) {
-    error.isAuthError();
-    error.isValidationError();
-    error.isNetworkError();
+    error.isAuthError();        // semantic category
+    error.isNetworkError();     // semantic category
+    error.isClientError();      // semantic category (Business | Config | File | Validation)
+    error.type === ErrorType.Validation;  // specific-type check
+    error.status === 429;       // status check
   }
 }
 ```
