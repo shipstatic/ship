@@ -1,7 +1,7 @@
 ---
 name: ship
 description: "Deploy static websites to ShipStatic. Use when the user wants to deploy a site, publish a website, upload to hosting, go live, set up a custom domain, manage deployments, or share a site URL. No account required — instant deployment. CLI (`ship`) and Node.js/browser SDK."
-compatibility: "Node.js >= 20. Install globally via npm: npm install -g @shipstatic/ship"
+compatibility: "Node.js >= 20. Run via npx (no install) or install globally: npm install -g @shipstatic/ship"
 metadata:
   openclaw:
     requires:
@@ -16,6 +16,18 @@ metadata:
 ---
 
 Deploy static sites. No account, no config — just ship it.
+
+## No-install usage (recommended for agents)
+
+You don't need to install anything. Run any command via `npx`:
+
+```bash
+npx -y @shipstatic/ship ./dist                       # deploy (shortcut)
+npx -y @shipstatic/ship deployments list             # any subcommand works the same
+npx -y @shipstatic/ship domains set www.example.com  # ...
+```
+
+`-y` skips the install prompt — important for non-interactive runtimes (CI, sandboxes, agent containers). Every example below uses the bare `ship` command for readability; substitute `npx -y @shipstatic/ship` if it isn't installed globally.
 
 ## Deploy
 
