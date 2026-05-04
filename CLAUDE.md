@@ -285,12 +285,14 @@ On upload, the SDK POSTs `index.html` content (must be < 100KB) to `/spa-check` 
 
 ## Error Handling
 
-All errors use `ShipError` from `@shipstatic/types`. It provides factory methods (`ShipError.authentication()`, `ShipError.validation()`, etc.) and type guards (`isShipError()`, `error.isAuthError()`, etc.).
+All errors use `ShipError` from `@shipstatic/types`. The class provides the full factory + type-guard API and the two HTTP-context constructors (`fromHttpResponse`, `fromFetchError`). See `@shipstatic/types/CLAUDE.md` "Error Flow" for the end-to-end lifecycle.
 
-CLI error formatting (`src/node/cli/error-handling.ts`) — pure functions, fully unit-testable:
-- `toShipError(err)` — normalizes any thrown value to `ShipError`
-- `getUserMessage(err, context, options)` — maps error type to actionable user message
-- `formatErrorJson(message, details)` — serializes to `{ "error": "...", "details": ... }`
+**`ApiHttp` is pure transport.** `src/shared/api/http.ts` does not implement any error mapping of its own. `executeRequest` calls the two helpers directly — `ShipError.fromHttpResponse(response, operationName)` for non-OK responses and `ShipError.fromFetchError(error, operationName)` for thrown causes (including pass-through of existing `ShipError`s). There are no private `handleResponseError` / `handleFetchError` wrappers.
+
+**CLI error UX** (`src/node/cli/error-handling.ts`) — pure functions, fully unit-testable:
+- `toShipError(err)` — normalizes any thrown value to a `ShipError` (used by the CLI's global error handler for non-fetch errors like Commander parse failures).
+- `getUserMessage(err, context, options)` — maps a `ShipError` to an actionable user-facing CLI string (auth → credential hints, network → connectivity, client/4xx → trust the API message, 5xx → generic "try again").
+- `formatErrorJson(message, details)` — serializes `{ "error": "...", "details": ... }` for `--json` output.
 
 ## Known Gotchas
 
