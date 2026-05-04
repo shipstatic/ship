@@ -42,7 +42,7 @@ describe('Ship Error System', () => {
       expect(err).toBeInstanceOf(ShipError);
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('Connection failed');
-      expect(err.details?.cause).toBe(cause);
+      expect((err.details as { cause?: Error } | undefined)?.cause).toBe(cause);
       expect(err.type).toBe(ErrorType.Network);
       expect(err.status).toBe(undefined);
     });
@@ -84,7 +84,7 @@ describe('Ship Error System', () => {
       expect(err).toBeInstanceOf(ShipError);
       expect(err.name).toBe('ShipError');
       expect(err.message).toBe('File not found');
-      expect(err.details?.filePath).toBe('/path/to/file');
+      expect((err.details as { filePath?: string } | undefined)?.filePath).toBe('/path/to/file');
       expect(err.type).toBe(ErrorType.File);
       expect(err.status).toBe(undefined);
     });
