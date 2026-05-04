@@ -17,12 +17,18 @@ src/
 │   └── lib/             # Utilities (validation, junk filtering, MD5, SPA detection)
 ├── browser/             # Browser Ship class + file handling
 └── node/
-    ├── core/config.ts   # readEnvConfig — SHIP_* env-var resolution (no filesystem)
-    ├── core/...         # node-files, deploy-body
+    ├── core/config.ts       # readEnvConfig — SHIP_* env-var resolution (no filesystem)
+    ├── core/...             # node-files, deploy-body
     └── cli/
-        ├── shiprc.ts    # cosmiconfig loader for .shiprc / package.json — CLI ONLY
-        ├── config.ts    # Interactive `ship config` wizard
-        └── index.ts     # Commander.js commands, createClient
+        ├── index.ts         # Commander.js command tree + withErrorHandling + performDeploy
+        ├── create-client.ts # Credential precedence (flag → env → file) → Ship instance
+        ├── shiprc.ts        # cosmiconfig loader for .shiprc / package.json — CLI ONLY
+        ├── config.ts        # Interactive `ship config` wizard
+        ├── error-handling.ts # toShipError + getUserMessage + formatErrorJson
+        ├── formatters.ts    # Resource-specific output (formatOutput router)
+        ├── utils.ts         # Output primitives (success/error/info, table, details)
+        ├── types.ts         # CLI option + result types
+        └── completion.ts    # Shell completion install/uninstall
 ```
 
 The SDK proper has no filesystem dependency — the only ambient credential source is `SHIP_*` env vars. File-based config (`.shiprc`, `package.json` `"ship"` key) lives entirely in `cli/shiprc.ts`. This is what makes `new Ship({})` safe to use in embedded contexts (MCP, n8n, GitHub Action) without leaking the host's `~/.shiprc` credentials.
@@ -45,7 +51,8 @@ pnpm build                   # Build all bundles
 | `src/shared/api/http.ts` | HTTP client (all API calls) |
 | `src/shared/base-ship.ts` | Base Ship class (auth, init, top-level methods) |
 | `src/node/core/config.ts` | `readEnvConfig` — SHIP_* env-var resolution (the SDK's only ambient source) |
-| `src/node/cli/index.ts` | CLI command definitions, `withErrorHandling`, `performDeploy`, `createClient` |
+| `src/node/cli/index.ts` | CLI command tree, `withErrorHandling`, `performDeploy` |
+| `src/node/cli/create-client.ts` | `createClient` + `mergeCliConfig` — credential precedence (flag > env > file) |
 | `src/node/cli/shiprc.ts` | `loadShipFile` — cosmiconfig-based loader for `.shiprc` / `package.json` (CLI only) |
 | `src/node/cli/utils.ts` | Output primitives (`success`, `error`, `warn`, `info`, `formatTable`, `formatDetails`) |
 | `src/node/cli/formatters.ts` | Resource-specific output formatters, `formatOutput` router |
@@ -307,7 +314,7 @@ All errors use `ShipError` from `@shipstatic/types`. The class provides the full
 | Layer | Where | Reads |
 |---|---|---|
 | **CLI** | `src/node/cli/shiprc.ts` | `.shiprc`, `package.json` `"ship"` (cosmiconfig) |
-| **CLI** | `src/node/cli/index.ts` `createClient()` | merges flag → env → file, hands result to `new Ship({...})` |
+| **CLI** | `src/node/cli/create-client.ts` `createClient()` | merges flag → env → file via `mergeCliConfig`, hands result to `new Ship({...})` |
 | **SDK (Node)** | `src/node/index.ts` constructor | `SHIP_API_KEY`, `SHIP_DEPLOY_TOKEN`, `SHIP_API_URL` (under any constructor arg) |
 | **SDK (Browser)** | `src/browser/index.ts` constructor | nothing — fully explicit |
 
