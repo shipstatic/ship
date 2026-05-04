@@ -40,10 +40,12 @@ ship ./dist --json
 ```json
 {
   "deployment": "happy-cat-abc1234.shipstatic.com",
+  "url": "https://happy-cat-abc1234.shipstatic.com",
   "files": 12,
   "size": 348160,
   "status": "success",
   "config": false,
+  "password": false,
   "labels": [],
   "via": "cli",
   "created": 1743552000,
@@ -52,7 +54,7 @@ ship ./dist --json
 }
 ```
 
-`claim` and `expires` only appear without credentials. With an API key, deployments are permanent.
+`claim` only appears on the initial deploy without credentials. `expires` is `null` for authenticated (permanent) deploys. `config: true` indicates a `ship.json` is present in the deployment; `password: true` indicates the deployment is password-protected.
 
 ### Piping
 
@@ -156,6 +158,7 @@ ship domains set www.example.com <dep> --json
 ```json
 {
   "domain": "www.example.com",
+  "url": "https://www.example.com",
   "deployment": "happy-cat-abc1234.shipstatic.com",
   "status": "pending",
   "labels": [],
@@ -274,5 +277,7 @@ ship tokens remove <token>            # Revoke
 | `not found` | No such resource | Verify the ID/name |
 | `path does not exist` | Bad deploy path | Check file/directory |
 | `invalid domain name` | Not a subdomain | Use `www.example.com`, not `example.com` |
+| `<resource> limit reached` | Plan caps hit (deployments, domains) | Suggest upgrading the plan; do not retry |
+| `Account has been deleted` / `Account terminated` | Account is gone | Stop; the account cannot deploy |
 | `DNS information is only available for external domains` | DNS op on internal domain | Only custom domains need DNS |
 | `DNS verification already requested recently` | Rate limited | Wait |
