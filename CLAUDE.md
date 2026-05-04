@@ -50,7 +50,7 @@ pnpm build                   # Build all bundles
 | `src/node/cli/utils.ts` | Output primitives (`success`, `error`, `warn`, `info`, `formatTable`, `formatDetails`) |
 | `src/node/cli/formatters.ts` | Resource-specific output formatters, `formatOutput` router |
 | `src/node/cli/types.ts` | CLI option and result types (`GlobalOptions`, `CLIResult`, `EnrichedDomain`) |
-| `src/node/cli/error-handling.ts` | Pure error formatting (`getUserMessage`, `toShipError`) |
+| `src/node/cli/error-handling.ts` | CLI error UX — `toShipError` (normalize), `getUserMessage` (translate), `formatErrorJson` (--json output) |
 | `src/node/cli/config.ts` | Interactive `ship config` wizard (writes `~/.shiprc`) |
 | `src/node/cli/completion.ts` | Shell completion install/uninstall |
 | `tests/fixtures/api-responses.ts` | Typed API response fixtures |

@@ -1,14 +1,26 @@
 /**
- * @file Error handling utilities for the CLI.
- * Pure functions for error message formatting - fully unit testable.
+ * @file CLI-specific error UX utilities.
+ *
+ * Two pure functions: `toShipError` normalizes any thrown value into a typed
+ * `ShipError` for the CLI's global error boundary; `getUserMessage` translates
+ * a `ShipError` into the actionable string the CLI prints. Both are pure for
+ * easy unit testing.
+ *
+ * Distinct from `ShipError.fromFetchError` (in `@shipstatic/types`), which is
+ * for HTTP fetch failures. The CLI's global handler also catches things like
+ * Commander parse errors, runtime exceptions in user code, etc. — so it uses
+ * `toShipError` and intentionally normalizes unknowns to `Business` (a client
+ * error type) so `getUserMessage`'s `isClientError()` branch surfaces the
+ * original message rather than swallowing it as a generic "server error".
  */
 
 import { ShipError, isShipError } from '@shipstatic/types';
 import type { OutputContext } from './formatters.js';
 
 /**
- * Convert any error to a ShipError.
- * Used by the CLI's global error handler to normalize unknown errors.
+ * Normalize any thrown value to a `ShipError` for the CLI error boundary.
+ * Pass-through for existing `ShipError`s; wraps other Errors and unknowns
+ * as `Business` so their message is preserved through `getUserMessage`.
  */
 export function toShipError(err: unknown): ShipError {
   if (isShipError(err)) {
@@ -60,15 +72,14 @@ export function getUserMessage(
     return 'network error: could not reach the API. check your internet connection';
   }
 
-  // Client errors (Business | Config | File | Validation) — trust the
-  // original message (we wrote it). isClientError covers File and Validation
-  // too — no need for separate per-type checks.
+  // Client errors (Business | Config | File | Forbidden | Validation) —
+  // trust the original message; the API or local code authored it.
   if (err.isClientError()) {
     return err.message;
   }
 
-  // API errors with 4xx status - these have user-facing messages from the API
-  // Includes: 400 (validation), 404 (not found), 409 (conflict), etc.
+  // Other 4xx (NotFound, RateLimit, anything else with a 4xx status) —
+  // the API's message is user-facing; trust it.
   if (err.status && err.status >= 400 && err.status < 500) {
     return err.message;
   }
