@@ -15,6 +15,7 @@ const mockDeployments: Deployment[] = [
     size: 1024000,
     status: 'success',
     config: false,
+    password: false,
     labels: ['production', 'v1.0.0'],
     via: null,
     created: 1640995200, // 2022-01-01
@@ -27,6 +28,7 @@ const mockDeployments: Deployment[] = [
     size: 512000,
     status: 'success',
     config: false,
+    password: false,
     labels: [],
     via: null,
     created: 1640995100,
@@ -182,6 +184,7 @@ export const apiHandlers = [
       size: files.reduce((total, f) => total + (f.size || 0), 0),
       status: 'success',
       config: false,
+    password: false,
       labels: labels,
       via: null,
       created: Math.floor(Date.now() / 1000),

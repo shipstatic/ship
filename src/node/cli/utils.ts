@@ -83,14 +83,10 @@ const formatValue = (key: string, value: unknown, context: 'table' | 'details' =
     const mb = value / (1024 * 1024);
     return mb >= 1 ? `${mb.toFixed(1)}Mb` : `${(value / 1024).toFixed(1)}Kb`;
   }
-  if (key === 'config') {
-    // Handle both boolean and number (0/1) values
-    if (typeof value === 'boolean') {
-      return value ? 'yes' : 'no';
-    }
-    if (typeof value === 'number') {
-      return value === 1 ? 'yes' : 'no';
-    }
+  // Boolean signal columns (config, password) render as yes/no in details.
+  if (key === 'config' || key === 'password') {
+    if (typeof value === 'boolean') return value ? 'yes' : 'no';
+    if (typeof value === 'number') return value === 1 ? 'yes' : 'no';
   }
   return String(value);
 };
