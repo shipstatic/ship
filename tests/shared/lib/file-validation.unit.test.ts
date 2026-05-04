@@ -11,7 +11,7 @@ import {
   type ValidatableFile,
   type FileValidationResult,
 } from '../../../src/shared/lib/file-validation.js';
-import type { ConfigResponse } from '@shipstatic/types';
+import type { PlatformLimits } from '@shipstatic/types';
 
 // Mock file helper
 function createMockFile(name: string, size: number): ValidatableFile {
@@ -25,7 +25,7 @@ function createMockFile(name: string, size: number): ValidatableFile {
 describe('File Validation', () => {
   describe('validateFiles - At Least 1 File Required', () => {
     it('should reject empty file array', () => {
-      const config: ConfigResponse = {
+      const config: PlatformLimits = {
         maxFileSize: 5 * 1024 * 1024,
         maxTotalSize: 25 * 1024 * 1024,
         maxFilesCount: 100,
@@ -57,7 +57,7 @@ describe('File Validation', () => {
   });
 
   describe('validateFiles', () => {
-    const config: ConfigResponse = {
+    const config: PlatformLimits = {
       maxFileSize: 5 * 1024 * 1024, // 5MB
       maxTotalSize: 25 * 1024 * 1024, // 25MB
       maxFilesCount: 100,
@@ -149,7 +149,7 @@ describe('File Validation', () => {
     });
 
     it('should reject when total size exceeds limit (per-file validation)', () => {
-      const largeConfig: ConfigResponse = {
+      const largeConfig: PlatformLimits = {
         maxFileSize: 15 * 1024 * 1024, // 15MB per file
         maxTotalSize: 25 * 1024 * 1024, // 25MB total
         maxFilesCount: 100,
@@ -378,7 +378,7 @@ describe('File Validation', () => {
   });
 
   describe('File Name Validation', () => {
-    const config: ConfigResponse = {
+    const config: PlatformLimits = {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
@@ -434,7 +434,7 @@ describe('File Validation', () => {
   });
 
   describe('File Size Validation', () => {
-    const config: ConfigResponse = {
+    const config: PlatformLimits = {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
@@ -457,7 +457,7 @@ describe('File Validation', () => {
   });
 
   describe('Edge Case File Names', () => {
-    const config: ConfigResponse = {
+    const config: PlatformLimits = {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
@@ -530,7 +530,7 @@ describe('File Validation', () => {
   });
 
   describe('Uncommon but Valid File Types', () => {
-    const config: ConfigResponse = {
+    const config: PlatformLimits = {
       maxFileSize: 10 * 1024 * 1024,
       maxTotalSize: 50 * 1024 * 1024,
       maxFilesCount: 100,
@@ -651,7 +651,7 @@ describe('File Validation', () => {
   });
 
   describe('validateFiles - Filename Validation', () => {
-    const config: ConfigResponse = {
+    const config: PlatformLimits = {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,

@@ -8,31 +8,19 @@ const mockDeployBodyCreator: DeployBodyCreator = async () => ({
   headers: { 'Content-Type': 'multipart/form-data' }
 });
 
-// Create a concrete test implementation of the abstract Ship class
+// Concrete test implementation. The `ensureInitialized` no-op skips the
+// `GET /limits` fetch so these tests can focus on auth lifecycle without
+// needing to mock platform-limits wiring.
 class TestShip extends Ship {
-  protected resolveInitialConfig(options: ShipClientOptions): any {
-    return {
-      apiUrl: options.apiUrl || 'https://test-api.com',
-      apiKey: options.apiKey,
-      deployToken: options.deployToken
-    };
+  protected async ensureInitialized(): Promise<void> { /* no platform-limits fetch in tests */ }
+  protected async processInput(_input: DeployInput, _options: DeploymentOptions): Promise<StaticFile[]> {
+    return [{
+      path: 'test.html',
+      content: Buffer.from('<html>Test</html>'),
+      size: 18,
+      md5: 'test-hash',
+    }];
   }
-
-  protected async loadFullConfig(): Promise<void> {
-    return Promise.resolve();
-  }
-
-  protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
-    return Promise.resolve([
-      {
-        path: 'test.html',
-        content: Buffer.from('<html>Test</html>'),
-        size: 18,
-        md5: 'test-hash'
-      }
-    ]);
-  }
-
   protected getDeployBodyCreator(): DeployBodyCreator {
     return mockDeployBodyCreator;
   }
@@ -59,7 +47,7 @@ describe('Authentication Lifecycle', () => {
         deploy: mockApiDeploy,
         fetchAgentToken: vi.fn().mockResolvedValue({ secret: 'token-agent-auto', token: 'agt1d00', labels: [], expires: null }),
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({})
       };
 
       // Initially no auth - deploys via auto-fetched agent token
@@ -96,7 +84,7 @@ describe('Authentication Lifecycle', () => {
       (ship as any).http = {
         deploy: mockApiDeploy,
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({})
       };
 
       // Set deploy token - should override apiKey
@@ -116,7 +104,7 @@ describe('Authentication Lifecycle', () => {
         deploy: mockApiDeploy,
         fetchAgentToken: vi.fn().mockResolvedValue({ secret: 'token-agent-auto', token: 'agt1d00', labels: [], expires: null }),
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({})
       };
 
       // Initially no auth - deploys via auto-fetched agent token
@@ -153,7 +141,7 @@ describe('Authentication Lifecycle', () => {
       (ship as any).http = {
         deploy: mockApiDeploy,
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({})
       };
 
       // Set API key - should override deployToken
@@ -172,7 +160,7 @@ describe('Authentication Lifecycle', () => {
       (ship as any).http = {
         deploy: mockApiDeploy,
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({})
       };
 
       // Deployment with per-deploy token should succeed
@@ -194,7 +182,7 @@ describe('Authentication Lifecycle', () => {
       (ship as any).http = {
         deploy: mockApiDeploy,
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({})
       };
 
       // Deployment with per-deploy apiKey should succeed
@@ -221,7 +209,7 @@ describe('Authentication Lifecycle', () => {
       (ship as any).http = {
         deploy: mockApiDeploy,
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({})
       };
 
       // Should succeed with constructor auth
@@ -239,7 +227,7 @@ describe('Authentication Lifecycle', () => {
       (ship as any).http = {
         deploy: mockApiDeploy,
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({})
       };
 
       // Should succeed with constructor auth
@@ -258,7 +246,7 @@ describe('Authentication Lifecycle', () => {
       (ship as any).http = {
         deploy: mockApiDeploy,
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({})
       };
 
       // Should succeed with deployToken (higher priority)
@@ -272,7 +260,7 @@ describe('Authentication Lifecycle', () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
       // Access the private method through the callback
-      const headers = (ship as any).authHeadersCallback();
+      const headers = (ship as any).getAuthHeaders();
 
       expect(headers).toEqual({});
     });
@@ -283,7 +271,7 @@ describe('Authentication Lifecycle', () => {
         deployToken: 'token-test123'
       });
 
-      const headers = (ship as any).authHeadersCallback();
+      const headers = (ship as any).getAuthHeaders();
 
       expect(headers).toEqual({
         'Authorization': 'Bearer token-test123'
@@ -296,7 +284,7 @@ describe('Authentication Lifecycle', () => {
         apiKey: 'ship-test123'
       });
 
-      const headers = (ship as any).authHeadersCallback();
+      const headers = (ship as any).getAuthHeaders();
 
       expect(headers).toEqual({
         'Authorization': 'Bearer ship-test123'
@@ -307,13 +295,13 @@ describe('Authentication Lifecycle', () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
       // Initially empty
-      expect((ship as any).authHeadersCallback()).toEqual({});
+      expect((ship as any).getAuthHeaders()).toEqual({});
 
       // Set token
       ship.setDeployToken('token-new123');
 
       // Now has auth header
-      expect((ship as any).authHeadersCallback()).toEqual({
+      expect((ship as any).getAuthHeaders()).toEqual({
         'Authorization': 'Bearer token-new123'
       });
     });
@@ -322,13 +310,13 @@ describe('Authentication Lifecycle', () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
       // Initially empty
-      expect((ship as any).authHeadersCallback()).toEqual({});
+      expect((ship as any).getAuthHeaders()).toEqual({});
 
       // Set api key
       ship.setApiKey('ship-new123');
 
       // Now has auth header
-      expect((ship as any).authHeadersCallback()).toEqual({
+      expect((ship as any).getAuthHeaders()).toEqual({
         'Authorization': 'Bearer ship-new123'
       });
     });
@@ -340,7 +328,7 @@ describe('Authentication Lifecycle', () => {
       });
 
       // Initially has apiKey
-      expect((ship as any).authHeadersCallback()).toEqual({
+      expect((ship as any).getAuthHeaders()).toEqual({
         'Authorization': 'Bearer ship-initial123'
       });
 
@@ -348,7 +336,7 @@ describe('Authentication Lifecycle', () => {
       ship.setDeployToken('token-override123');
 
       // Now has deployToken
-      expect((ship as any).authHeadersCallback()).toEqual({
+      expect((ship as any).getAuthHeaders()).toEqual({
         'Authorization': 'Bearer token-override123'
       });
     });
@@ -360,7 +348,7 @@ describe('Authentication Lifecycle', () => {
       });
 
       // Initially has deployToken
-      expect((ship as any).authHeadersCallback()).toEqual({
+      expect((ship as any).getAuthHeaders()).toEqual({
         'Authorization': 'Bearer token-initial123'
       });
 
@@ -368,7 +356,7 @@ describe('Authentication Lifecycle', () => {
       ship.setApiKey('ship-override123');
 
       // Now has apiKey
-      expect((ship as any).authHeadersCallback()).toEqual({
+      expect((ship as any).getAuthHeaders()).toEqual({
         'Authorization': 'Bearer ship-override123'
       });
     });
@@ -398,39 +386,5 @@ describe('Authentication Lifecycle', () => {
       expect(mockSetGlobalHeaders).toHaveBeenLastCalledWith({});
     });
 
-    it('should preserve custom headers across client replacement', () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      ship.setHeaders({ 'X-Account': 'account-123' });
-
-      // Simulate client replacement (happens during initialization)
-      // ApiHttp imported at top of file
-      const newClient = new ApiHttp({
-        apiUrl: 'https://test-api.com',
-        getAuthHeaders: () => ({}),
-        createDeployBody: mockDeployBodyCreator,
-      });
-
-      const spySetGlobalHeaders = vi.spyOn(newClient, 'setGlobalHeaders');
-      (ship as any).replaceHttpClient(newClient);
-
-      expect(spySetGlobalHeaders).toHaveBeenCalledWith({ 'X-Account': 'account-123' });
-    });
-
-    it('should not call setGlobalHeaders on replacement when no custom headers', () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      // ApiHttp imported at top of file
-      const newClient = new ApiHttp({
-        apiUrl: 'https://test-api.com',
-        getAuthHeaders: () => ({}),
-        createDeployBody: mockDeployBodyCreator,
-      });
-
-      const spySetGlobalHeaders = vi.spyOn(newClient, 'setGlobalHeaders');
-      (ship as any).replaceHttpClient(newClient);
-
-      expect(spySetGlobalHeaders).not.toHaveBeenCalled();
-    });
   });
 });

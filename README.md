@@ -123,7 +123,7 @@ ship ping
 ```typescript
 ship.account.get()            // → whoami
 ship.ping()                   // → boolean
-ship.getConfig()              // → platform config and plan limits (cached)
+ship.getLimits()              // → platform plan limits (cached)
 ```
 
 ## CLI Reference
@@ -260,11 +260,18 @@ try {
 
 ## Configuration
 
-Resolved in order of precedence:
+The **CLI** (`ship`) resolves credentials in this order:
 
-1. **Constructor options**: `new Ship({ apiUrl, apiKey })`
-2. **Environment variables**: `SHIP_API_URL`, `SHIP_API_KEY`
-3. **Config files**: `.shiprc` or `package.json` `"ship"` key
+1. CLI flags: `--api-key`, `--api-url`, `--deploy-token`
+2. Environment variables: `SHIP_API_KEY`, `SHIP_API_URL`, `SHIP_DEPLOY_TOKEN`
+3. Config files: `.shiprc` or `package.json` `"ship"` key (run `ship config` to create one)
+
+The **SDK** (`new Ship(...)`) resolves credentials in this order:
+
+1. Constructor options: `new Ship({ apiUrl, apiKey })`
+2. Environment variables: `SHIP_API_KEY`, `SHIP_API_URL`, `SHIP_DEPLOY_TOKEN`
+
+The SDK never reads `.shiprc` or `package.json` — file resolution is a CLI feature, not an SDK feature. This keeps `new Ship({})` safe to use from embedded contexts (MCP, n8n, library wrappers) without inheriting the host developer's personal credentials.
 
 ```bash
 SHIP_API_KEY=ship-... ship deployments list

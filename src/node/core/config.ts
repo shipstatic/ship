@@ -1,130 +1,73 @@
 /**
- * @file Manages loading and validation of client configuration.
- * This module uses `cosmiconfig` to find and load configuration from various
- * file sources (e.g., `.shiprc`, `package.json`) and environment variables.
- * Configuration values are validated using Zod schemas.
+ * @file Environment variable resolution for the Node.js Ship SDK.
+ *
+ * The SDK has exactly one ambient credential source: process environment variables.
+ * `SHIP_API_KEY`, `SHIP_DEPLOY_TOKEN`, and `SHIP_API_URL` are honored as the
+ * universal "process boundary" — the same idiom used by the OpenAI and Anthropic
+ * SDKs. Constructor arguments always win over env vars.
+ *
+ * File-based config (`~/.shiprc`, `package.json` `"ship"` key) is the CLI's
+ * responsibility — see `src/node/cli/shiprc.ts`. The SDK does not read files,
+ * which is what lets embedded consumers (MCP, n8n, GitHub Action) construct
+ * `new Ship({})` for anonymous deployments without leaking the host developer's
+ * personal credentials.
  */
 
 import { z } from 'zod';
-import type { ShipClientOptions, DeploymentOptions } from '../../shared/types.js';
-import { ShipError, isShipError } from '@shipstatic/types';
+import type { ShipClientOptions } from '../../shared/types.js';
+import { ShipError } from '@shipstatic/types';
 import { getENV } from '../../shared/lib/env.js';
-import { DEFAULT_API } from '../../shared/core/constants.js';
+import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
 
-
-
-/** @internal Name of the module, used by cosmiconfig for config file searching. */
-const MODULE_NAME = 'ship';
+// `.strict()` matches the file-config schema. The `raw` object below is
+// constructed from a fixed set of keys, so .strict() doesn't catch user
+// typos here (env vars we don't read are simply never put into `raw` in
+// the first place). What it does catch is a *contributor* error — adding
+// a new env-var read without updating `CREDENTIAL_FIELDS` produces a clear
+// validation failure rather than a silently-stripped value. Nearly free
+// (one method call), and keeps both schemas reading the same.
+const EnvConfigSchema = z.object(CREDENTIAL_FIELDS).strict();
 
 /**
- * Zod schema for validating ship configuration.
- * @internal
+ * Map a `ShipClientOptions` field name (camelCase) back to the env var that
+ * supplied it (SCREAMING_SNAKE_CASE), so validation errors point users at
+ * the actual variable they need to fix. Kept as an explicit table rather
+ * than a regex because the set is small, fixed, and unambiguous.
  */
-const ConfigSchema = z.object({
-  apiUrl: z.string().url().optional(),
-  apiKey: z.string().min(1).optional(),
-  deployToken: z.string().min(1).optional()
-}).strict();
+const ENV_VAR_BY_FIELD: Record<string, string> = {
+  apiUrl: 'SHIP_API_URL',
+  apiKey: 'SHIP_API_KEY',
+  deployToken: 'SHIP_DEPLOY_TOKEN',
+};
 
 /**
- * Validates configuration using Zod schema.
- * @param config - Configuration object to validate
- * @returns Validated configuration or throws error
- * @internal
- */
-function validateConfig(config: unknown): Partial<ShipClientOptions> {
-  try {
-    return ConfigSchema.parse(config);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const firstError = error.issues[0];
-      const path = firstError.path.length > 0 ? ` at ${firstError.path.join('.')}` : '';
-      throw ShipError.config(`Configuration validation failed${path}: ${firstError.message}`);
-    }
-    throw ShipError.config('Configuration validation failed');
-  }
-}
-
-/**
- * Loads client configuration from files.
- * Searches for .shiprc and package.json with ship key.
- * First searches from the current directory, then from the home directory.
- * @param configFile - Optional specific config file path to load
- * @returns Configuration object or empty if not found/invalid
- * @internal
- */
-async function loadConfigFromFile(configFile?: string): Promise<Partial<ShipClientOptions>> {
-  try {
-    // Only use cosmiconfig in Node.js environments
-    if (getENV() !== 'node') {
-      return {};
-    }
-    
-    // Dynamically import cosmiconfig and os only in Node.js environments
-    const { cosmiconfigSync } = await import('cosmiconfig');
-    const os = await import('os');
-    
-    const explorer = cosmiconfigSync(MODULE_NAME, {
-      searchPlaces: [
-        `.${MODULE_NAME}rc`,
-        'package.json',
-        `${os.homedir()}/.${MODULE_NAME}rc`, // Always include home directory as fallback
-      ],
-      stopDir: os.homedir(), // Stop searching at home directory
-    });
-    
-    let result;
-    
-    // If a specific config file is provided, load it directly
-    if (configFile) {
-      result = explorer.load(configFile);
-    } else {
-      // cosmiconfig automatically searches up the directory tree
-      // from current directory to stopDir (home directory)
-      result = explorer.search();
-    }
-    
-    if (result && result.config) {
-      return validateConfig(result.config);
-    }
-  } catch (error) {
-    if (isShipError(error)) throw error; // Re-throw all ShipError instances
-    // Silently fail for file loading issues - this is optional config
-  }
-  return {};
-}
-
-/**
- * Simplified configuration loading prioritizing environment variables.
- * Only loads file config if environment variables are not set.
- * Only available in Node.js environments.
+ * Read `SHIP_*` environment variables and validate the result.
  *
- * @param configFile - Optional specific config file path to load
- * @returns Configuration object with loaded values
- * @throws {ShipInvalidConfigError} If the configuration is invalid.
+ * Empty strings (CI/Docker often sets env vars to `""` instead of unsetting them)
+ * are normalized to `undefined` before validation, so they don't trigger zod's
+ * "min length 1" check or accidentally override a valid constructor argument.
+ *
+ * Returns an empty object outside Node.js — browser/edge runtimes have no
+ * `process.env` we should reach into.
  */
-export async function loadConfig(configFile?: string): Promise<Partial<ShipClientOptions>> {
+export function readEnvConfig(): Partial<ShipClientOptions> {
   if (getENV() !== 'node') return {};
 
-  // Start with environment variables (highest priority)
-  // CI/Docker often sets env vars to "" instead of unsetting — normalize to undefined
-  const envConfig = {
+  const raw = {
     apiUrl: process.env.SHIP_API_URL || undefined,
     apiKey: process.env.SHIP_API_KEY || undefined,
     deployToken: process.env.SHIP_DEPLOY_TOKEN || undefined,
   };
 
-  // Always try to load file config for fallback values
-  const fileConfig = await loadConfigFromFile(configFile);
-
-  // Merge with environment variables taking precedence
-  const mergedConfig = {
-    apiUrl: envConfig.apiUrl ?? fileConfig.apiUrl,
-    apiKey: envConfig.apiKey ?? fileConfig.apiKey,
-    deployToken: envConfig.deployToken ?? fileConfig.deployToken,
-  };
-
-  // Validate final config
-  return validateConfig(mergedConfig);
+  try {
+    return EnvConfigSchema.parse(raw);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const issue = error.issues[0];
+      const field = issue.path[0] as string | undefined;
+      const envVar = (field && ENV_VAR_BY_FIELD[field]) ?? 'SHIP environment configuration';
+      throw ShipError.config(`Invalid ${envVar}: ${issue.message}`);
+    }
+    throw ShipError.config('Invalid environment configuration');
+  }
 }
-

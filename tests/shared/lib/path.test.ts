@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { processFilesForBrowser } from '@/browser/lib/browser-files';
+import { processFilesForBrowser } from '@/browser/core/browser-files';
 import { __setTestEnvironment } from '@/shared/lib/env';
 import { Ship } from '@/browser/index';
 // import type { StaticFile } from '../../src/shared/types'; // Could be used for uploadedFiles if desired
@@ -14,7 +14,7 @@ const mockApiHttpInstance = {
     expires: new Date().toISOString(),
     fileCount: 3
   }),
-  getConfig: vi.fn().mockResolvedValue({
+  getLimits: vi.fn().mockResolvedValue({
     maxFileSize: 10 * 1024 * 1024,
     maxFilesCount: 1000,
     maxTotalSize: 100 * 1024 * 1024,

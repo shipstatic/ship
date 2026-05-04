@@ -58,7 +58,7 @@ describe('Base Ship Class (Abstract)', () => {
     (ship as any).http = {
       deploy: mockApiDeploy,
       ping: vi.fn().mockResolvedValue(true),
-      getConfig: vi.fn().mockResolvedValue({}),
+      getLimits: vi.fn().mockResolvedValue({}),
       listDeployments: vi.fn().mockResolvedValue({ deployments: [], count: 0 }),
       getDeployment: vi.fn().mockResolvedValue({ id: 'dep_123' }),
       removeDeployment: vi.fn().mockResolvedValue(undefined),

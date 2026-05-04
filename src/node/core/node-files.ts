@@ -3,12 +3,12 @@
  * Provides helpers for recursively discovering, filtering, and preparing files for deploy in Node.js.
  */
 import { getENV } from '../../shared/lib/env.js';
+import type { PlatformLimits } from '@shipstatic/types';
 import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
 import { filterJunk } from '../../shared/lib/junk.js';
 import { validateDeployPath, validateDeployFile } from '../../shared/lib/security.js';
 import { ShipError, isShipError, UNBUILT_PROJECT_MARKERS } from '@shipstatic/types';
-import { getCurrentConfig } from '../../shared/core/platform-config.js';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
 import { findCommonParent } from '../../shared/lib/path.js';
 
@@ -58,12 +58,17 @@ function findAllFilePaths(dirPath: string, visited: Set<string> = new Set()): st
  * 
  * @param paths - File or directory paths to scan and process.
  * @param options - Processing options (pathDetect, etc.).
+ * @param platformLimits - Per-instance platform limits (file-size / count /
+ *   total-size caps) from the originating Ship's `GET /config` fetch. Passed
+ *   in rather than read from a module global so concurrent Ships against
+ *   different API URLs cannot clobber each other's caps.
  * @returns Promise resolving to an array of StaticFile objects.
  * @throws {ShipClientError} If called outside Node.js or if fs/path modules fail.
  */
 export async function processFilesForNode(
   paths: string[],
-  options: DeploymentOptions = {}
+  options: DeploymentOptions = {},
+  platformLimits?: PlatformLimits
 ): Promise<StaticFile[]> {
   if (getENV() !== 'node') {
     throw ShipError.business('processFilesForNode can only be called in Node.js environment.');
@@ -144,7 +149,12 @@ export async function processFilesForNode(
   // 7. Process files into StaticFile objects
   const results: StaticFile[] = [];
   let totalSize = 0;
-  const platformLimits = getCurrentConfig();
+  if (!platformLimits) {
+    throw ShipError.config(
+      'Platform limits not provided. processFilesForNode requires the limits ' +
+      'argument — pass `ship.getLimits()` result.'
+    );
+  }
 
   for (let i = 0; i < validAbsPaths.length; i++) {
     const filePath = validAbsPaths[i];

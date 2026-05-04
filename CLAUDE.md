@@ -10,14 +10,22 @@ Claude Code instructions for the **Ship SDK & CLI** package.
 src/
 ├── shared/              # Cross-platform code (70% of codebase)
 │   ├── api/http.ts      # HTTP client with events, timeout, auth
-│   ├── base-ship.ts     # Base Ship class (auth state, init, resources)
+│   ├── base-ship.ts     # Base Ship class (auth state, lazy /limits fetch, resources)
 │   ├── resources.ts     # Resource factories (deployments, domains, etc.)
 │   ├── types.ts         # Internal SDK types
-│   ├── core/            # Configuration resolution
+│   ├── core/config.ts   # resolveConfig + mergeDeployOptions (cross-platform)
 │   └── lib/             # Utilities (validation, junk filtering, MD5, SPA detection)
 ├── browser/             # Browser Ship class + file handling
-└── node/                # Node Ship class + CLI (Commander.js) + config loading
+└── node/
+    ├── core/config.ts   # readEnvConfig — SHIP_* env-var resolution (no filesystem)
+    ├── core/...         # node-files, deploy-body
+    └── cli/
+        ├── shiprc.ts    # cosmiconfig loader for .shiprc / package.json — CLI ONLY
+        ├── config.ts    # Interactive `ship config` wizard
+        └── index.ts     # Commander.js commands, createClient
 ```
+
+The SDK proper has no filesystem dependency — the only ambient credential source is `SHIP_*` env vars. File-based config (`.shiprc`, `package.json` `"ship"` key) lives entirely in `cli/shiprc.ts`. This is what makes `new Ship({})` safe to use in embedded contexts (MCP, n8n, GitHub Action) without leaking the host's `~/.shiprc` credentials.
 
 ## Quick Reference
 
@@ -36,12 +44,14 @@ pnpm build                   # Build all bundles
 | `src/shared/resources.ts` | Resource factory implementations |
 | `src/shared/api/http.ts` | HTTP client (all API calls) |
 | `src/shared/base-ship.ts` | Base Ship class (auth, init, top-level methods) |
-| `src/node/cli/index.ts` | CLI command definitions, `withErrorHandling`, `performDeploy` |
+| `src/node/core/config.ts` | `readEnvConfig` — SHIP_* env-var resolution (the SDK's only ambient source) |
+| `src/node/cli/index.ts` | CLI command definitions, `withErrorHandling`, `performDeploy`, `createClient` |
+| `src/node/cli/shiprc.ts` | `loadShipFile` — cosmiconfig-based loader for `.shiprc` / `package.json` (CLI only) |
 | `src/node/cli/utils.ts` | Output primitives (`success`, `error`, `warn`, `info`, `formatTable`, `formatDetails`) |
 | `src/node/cli/formatters.ts` | Resource-specific output formatters, `formatOutput` router |
 | `src/node/cli/types.ts` | CLI option and result types (`GlobalOptions`, `CLIResult`, `EnrichedDomain`) |
 | `src/node/cli/error-handling.ts` | Pure error formatting (`getUserMessage`, `toShipError`) |
-| `src/node/cli/config.ts` | Interactive `ship config` wizard |
+| `src/node/cli/config.ts` | Interactive `ship config` wizard (writes `~/.shiprc`) |
 | `src/node/cli/completion.ts` | Shell completion install/uninstall |
 | `tests/fixtures/api-responses.ts` | Typed API response fixtures |
 
@@ -59,7 +69,7 @@ ship.whoami()                  // → account.get()
 
 // Top-level
 ship.ping()                    // returns boolean
-ship.getConfig()               // returns ConfigResponse (cached after init)
+ship.getLimits()               // returns PlatformLimits (cached after init)
 ship.setApiKey(key)
 ship.setDeployToken(token)
 ship.on(event, handler)
@@ -88,21 +98,53 @@ ship.on('error', (error, url) => ...);
 
 ### Authentication Flow
 
-Init is lazy — triggered on first API call via `ensureInitialized()`, which loads config from files/env and replaces the HTTP client while preserving event listeners.
+The constructor is fully synchronous: auth state and the HTTP client are formed at construction time from constructor args, with `SHIP_*` env vars filling any gaps in Node. The only deferred work is the one-shot `GET /limits` fetch that hydrates platform limits — that runs lazily on the first API call via `ensureInitialized()`.
 
-**Token precedence:** Deploy token (per-request) > API key (instance) > Cookie (browser, `useCredentials: true`)
+**Credential resolution (Node, in priority order):**
+
+1. Constructor arguments (`new Ship({ apiKey })`)
+2. Environment variables: `SHIP_API_KEY`, `SHIP_DEPLOY_TOKEN`, `SHIP_API_URL`
+
+That's the entire SDK contract. `~/.shiprc` and `package.json` `"ship"` keys are **CLI-only** — see `src/node/cli/shiprc.ts`. This separation is what makes `new Ship({})` safe in embedded contexts: the SDK can't reach into the host developer's personal dotfile and silently leak credentials into anonymous public deployments. The convention follows the OpenAI / Anthropic / Stripe pattern.
+
+Browser `Ship` has no ambient source at all — credentials must come from constructor options (or, for first-party browser apps, an HTTP-only cookie via `useCredentials: true`).
+
+#### Strict-isolation contract for embedded hosts
+
+The env-var fallback is **the** SDK contract. There is no programmatic opt-out — no `envFallback: false` flag, no `apiKey: null` sentinel. Embedded SDK consumers (MCP, n8n, GitHub Action, library wrappers, multi-tenant integrations) are expected to manage `SHIP_*` env vars at the process boundary:
+
+- **Hosts that pass credentials explicitly** (e.g. MCP receives `SHIP_API_KEY` via its server config and forwards it to `new Ship({ apiKey })`) get exactly what they expect — explicit args win, no surprises.
+- **Hosts that need strict isolation** (e.g. a multi-tenant runner where the deployer's identity must never leak into a customer's deployment) must scrub `SHIP_*` from the worker process or run the SDK in a sub-process with a clean env. The SDK trusts whatever env it sees.
+
+Why no opt-out option? Because every flag we add to disable env reading would itself become a footgun in the same way `configFile` resolution did — embedded consumers would forget to set it and silently leak. Making env reading non-overrideable forces the host to think about credential isolation as a process-level concern, where it actually belongs.
+
+**Token precedence (per request):** Deploy token (per-call option) > API key (instance) > Cookie (browser, `useCredentials: true`)
+
+#### Future credential providers
+
+The current design forecloses async credential resolution (OAuth refresh, OIDC token exchange, AWS-style provider chains) because the constructor is fully synchronous. If we ever ship short-lived credentials with refresh, the additive path is a credential-provider option:
+
+```typescript
+new Ship({ apiKey: () => Promise<string> })  // hypothetical future shape
+```
+
+This doesn't break the current static-credential design — it would be opt-in for callers that need it. Static API keys remain the primary contract because that's how the product is used today.
 
 ### Cross-Platform File Input
 
-```typescript
-// Node.js: string path(s) or StaticFile[]
-ship.deploy('./dist');
-ship.deploy([{ path: 'index.html', content: Buffer.from('...') }]);
+The shared `DeployInput` type is `File[] | string | string[]`. Each platform's `deploy()` shortcut narrows to its accepted shape; non-matching inputs throw at runtime.
 
-// Browser: FileList/File[] or StaticFile[]
-ship.deploy(fileInput.files);
-ship.deploy([{ path: 'index.html', content: new Blob(['...']) }]);
+```typescript
+// Node — string or string[] (file/directory paths; directories walked recursively)
+ship.deploy('./dist');
+ship.deploy(['./dist/index.html', './dist/app']);
+
+// Browser — File[] (typically from <input type="file"> or drag-and-drop)
+ship.deploy(Array.from(fileInput.files));
+ship.deploy([fileFromDragDrop]);
 ```
+
+`FileList` is not accepted directly — the runtime check is `Array.isArray(input) && input.every(item => item instanceof File)`. Convert with `Array.from(fileInput.files)`. Synthetic `StaticFile` objects (`{path, content, md5, size}`) are an internal pipeline shape produced by `processFilesForNode` / `processFilesForBrowser`; they are not a public input format for `deploy()`.
 
 ### Server-Processed Uploads (Build/Prerender/SPA)
 
@@ -205,7 +247,7 @@ When both parent and subcommand define `--label`, subcommand options take preced
 
 ## SDK-Local Types
 
-`DomainSetResult = Domain & { isCreate: boolean }` — HTTP 201 vs 200 determines `isCreate`. Defined in `src/shared/types.ts`.
+`DomainSetResult` is the published return shape of `domains.set()` — `Domain` plus an `isCreate` flag derived from HTTP 201 vs 200. It lives in `@shipstatic/types` (alongside `Domain`) so the resource interface return type matches the SDK's actual return value.
 
 `EnrichedDomain extends DomainSetResult` — adds optional `_dnsRecords` and `_shareHash` for CLI display. `CLIResult` is the discriminated union of all possible command outputs. Both in `src/node/cli/types.ts`.
 
@@ -258,9 +300,18 @@ CLI error formatting (`src/node/cli/error-handling.ts`) — pure functions, full
 
 **Browser file handling** — SDK extracts path from `webkitRelativePath` or falls back to `name`.
 
-**Config file loading order** — constructor options → env vars (`SHIP_API_KEY`, `SHIP_API_URL`) → `.shiprc` → `package.json` `"ship"` key.
+**Credential resolution (effective end-to-end):**
 
-**`getConfig()` is cached** — reuses the `ConfigResponse` fetched during initialization; no extra API call.
+| Layer | Where | Reads |
+|---|---|---|
+| **CLI** | `src/node/cli/shiprc.ts` | `.shiprc`, `package.json` `"ship"` (cosmiconfig) |
+| **CLI** | `src/node/cli/index.ts` `createClient()` | merges flag → env → file, hands result to `new Ship({...})` |
+| **SDK (Node)** | `src/node/index.ts` constructor | `SHIP_API_KEY`, `SHIP_DEPLOY_TOKEN`, `SHIP_API_URL` (under any constructor arg) |
+| **SDK (Browser)** | `src/browser/index.ts` constructor | nothing — fully explicit |
+
+For a CLI user who has all three: `--api-key` flag → env → file. For an embedded SDK consumer: constructor arg → env. There's no path from the SDK to the filesystem.
+
+**`getLimits()` is cached** — reuses the `PlatformLimits` fetched during initialization; no extra API call.
 
 ## Backend Integration
 
@@ -285,7 +336,7 @@ CLI error formatting (`src/node/cli/error-handling.ts`) — pure functions, full
 | `tokens.remove()` | `DELETE /tokens/:token` | Returns 202 (async) |
 | `account.get()` | `GET /account` | |
 | `ping()` | `GET /ping` | Returns boolean |
-| `getConfig()` | `GET /config` | Cached after init |
+| `getLimits()` | `GET /limits` | Cached after init (`/config` is a 301 alias for older CLIs) |
 | (internal) | `POST /spa-check` | SPA detection during upload |
 
 ### Domain Write Semantics

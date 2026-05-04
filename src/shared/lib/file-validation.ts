@@ -4,7 +4,7 @@
  */
 
 import type {
-  ConfigResponse,
+  PlatformLimits,
   FileValidationResult,
   ValidatableFile,
   ValidationIssue,
@@ -77,12 +77,12 @@ export function validateFileName(filename: string): { valid: boolean; reason?: s
  * - **Warnings**: Exclude files but allow deployment (empty files, etc.)
  *
  * @param files - Array of files to validate
- * @param config - Validation configuration from ship.getConfig()
+ * @param config - Validation configuration from ship.getLimits()
  * @returns Validation result with errors and warnings
  *
  * @example
  * ```typescript
- * const config = await ship.getConfig();
+ * const config = await ship.getLimits();
  * const result = validateFiles(files, config);
  *
  * if (!result.canDeploy) {
@@ -100,7 +100,7 @@ export function validateFileName(filename: string): { valid: boolean; reason?: s
  */
 export function validateFiles<T extends ValidatableFile>(
   files: T[],
-  config: ConfigResponse
+  config: PlatformLimits
 ): FileValidationResult<T> {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];

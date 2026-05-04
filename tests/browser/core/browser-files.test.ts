@@ -2,10 +2,10 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { processFilesForBrowser } from '../../../src/browser/lib/browser-files';
+import { processFilesForBrowser } from '../../../src/browser/core/browser-files';
 import { createDeployBody } from '../../../src/browser/core/deploy-body';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
-import { setConfig } from '../../../src/shared/core/platform-config';
+import { TEST_PLATFORM_LIMITS } from '../../fixtures/platform-limits';
 import { ShipError } from '@shipstatic/types';
 
 // Mock MD5 calculation for browser files
@@ -17,13 +17,6 @@ describe('Browser File Processing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     __setTestEnvironment('browser');
-
-    // Initialize platform config (matches Node test setup)
-    setConfig({
-      maxFileSize: 10 * 1024 * 1024,
-      maxFilesCount: 1000,
-      maxTotalSize: 100 * 1024 * 1024,
-    });
   });
 
   describe('processFilesForBrowser', () => {
@@ -33,7 +26,7 @@ describe('Browser File Processing', () => {
         new File(['body { margin: 0; }'], 'style.css', { type: 'text/css' })
       ];
 
-      const result = await processFilesForBrowser(mockFiles, {});
+      const result = await processFilesForBrowser(mockFiles, {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
@@ -53,7 +46,7 @@ describe('Browser File Processing', () => {
     it('should handle empty file array', async () => {
       const emptyFiles: File[] = [];
 
-      const result = await processFilesForBrowser(emptyFiles, {});
+      const result = await processFilesForBrowser(emptyFiles, {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(0);
     });
@@ -62,7 +55,7 @@ describe('Browser File Processing', () => {
       const testContent = '<html><body>Browser Test</body></html>';
       const mockFile = new File([testContent], 'test.html', { type: 'text/html' });
 
-      const result = await processFilesForBrowser([mockFile], {});
+      const result = await processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(1);
       expect(result[0].path).toBe('test.html');
@@ -80,7 +73,7 @@ describe('Browser File Processing', () => {
         new File(['test'], 'file.with.dots.html')
       ];
 
-      const result = await processFilesForBrowser(mockFiles, {});
+      const result = await processFilesForBrowser(mockFiles, {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(4);
       expect(result.map(f => f.path)).toEqual([
@@ -96,7 +89,7 @@ describe('Browser File Processing', () => {
       const largeContent = 'x'.repeat(1024);
       const mockFile = new File([largeContent], 'large-file.txt', { type: 'text/plain' });
 
-      const result = await processFilesForBrowser([mockFile], {});
+      const result = await processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(1);
       expect(result[0].size).toBe(1024);
@@ -112,7 +105,7 @@ describe('Browser File Processing', () => {
         new File([new ArrayBuffer(100)], 'image.png', { type: 'image/png' })
       ];
 
-      const result = await processFilesForBrowser(mockFiles, {});
+      const result = await processFilesForBrowser(mockFiles, {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(5);
       expect(result.map(f => f.path)).toEqual([
@@ -131,7 +124,7 @@ describe('Browser File Processing', () => {
       const largeContent = new ArrayBuffer(5 * 1024 * 1024);
       const mockFile = new File([largeContent], 'large-file.bin', { type: 'application/octet-stream' });
 
-      const result = await processFilesForBrowser([mockFile], {});
+      const result = await processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(1);
       expect(result[0].path).toBe('large-file.bin');
@@ -148,7 +141,7 @@ describe('Browser File Processing', () => {
         new File(['content'], 'café.json') // Accented characters
       ];
 
-      const result = await processFilesForBrowser(unicodeFiles, {});
+      const result = await processFilesForBrowser(unicodeFiles, {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(5);
       expect(result.map(f => f.path)).toEqual([
@@ -167,7 +160,7 @@ describe('Browser File Processing', () => {
         new File([new ArrayBuffer(0)], 'empty-buffer.bin')
       ];
 
-      const result = await processFilesForBrowser(emptyFiles, {});
+      const result = await processFilesForBrowser(emptyFiles, {}, TEST_PLATFORM_LIMITS);
 
       // Empty files are skipped — same behavior as Node
       expect(result).toHaveLength(0);
@@ -181,7 +174,7 @@ describe('Browser File Processing', () => {
         new File(['content'], 'multi.part.name.txt', { type: 'text/plain; charset=utf-8' })
       ];
 
-      const result = await processFilesForBrowser(unusualFiles, {});
+      const result = await processFilesForBrowser(unusualFiles, {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(4);
       expect(result.map(f => f.path)).toEqual([
@@ -204,7 +197,7 @@ describe('Browser File Processing', () => {
       // File from string
       const fileFromString = new File(['string content'], 'from-string.txt');
 
-      const result = await processFilesForBrowser([fileFromBlob, fileFromBuffer, fileFromString], {});
+      const result = await processFilesForBrowser([fileFromBlob, fileFromBuffer, fileFromString], {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(3);
       expect(result.every(f => f.content instanceof File)).toBe(true);
@@ -226,7 +219,7 @@ describe('Browser File Processing', () => {
         createFileWithPath('app.js', '.output/assets/app.js'),
       ];
 
-      const result = await processFilesForBrowser(files, {});
+      const result = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
 
       // Dot-folder root should be stripped — content paths should not be filtered
       expect(result).toHaveLength(3);
@@ -249,7 +242,7 @@ describe('Browser File Processing', () => {
         createFileWithPath('.gitignore', '.output/.gitignore'),
       ];
 
-      const result = await processFilesForBrowser(files, {});
+      const result = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
 
       // Root dot-folder stripped, but .env and .gitignore within content should still be filtered
       expect(result).toHaveLength(1);
@@ -272,7 +265,7 @@ describe('Browser File Processing', () => {
         createFileWithPath('style.css', 'project/dist/css/style.css')
       ];
 
-      const result = await processFilesForBrowser(filesWithPaths, {});
+      const result = await processFilesForBrowser(filesWithPaths, {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(3);
       // Should use webkitRelativePath when available to preserve directory structure
@@ -284,7 +277,7 @@ describe('Browser File Processing', () => {
         new File([`content ${i}`], `file-${i}.txt`)
       );
 
-      const result = await processFilesForBrowser(files, {});
+      const result = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(50);
       expect(result.every(f => f.md5 === 'mock-browser-hash')).toBe(true);
@@ -296,7 +289,7 @@ describe('Browser File Processing', () => {
         lastModified: now - 1000 
       });
 
-      const result = await processFilesForBrowser([fileWithTimestamp], {});
+      const result = await processFilesForBrowser([fileWithTimestamp], {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(1);
       // The timestamp might not be preserved in StaticFile format, but processing should succeed
@@ -311,7 +304,7 @@ describe('Browser File Processing', () => {
         new File(['content3'], 'duplicate.txt')
       ];
 
-      const result = await processFilesForBrowser(duplicateFiles, {});
+      const result = await processFilesForBrowser(duplicateFiles, {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(3);
       // All should be processed, even with duplicate names
@@ -380,10 +373,10 @@ describe('Browser File Processing', () => {
       // .exe should be rejected by deploy validation
       const files = [new File(['malware'], 'virus.exe')];
 
-      await expect(processFilesForBrowser(files, {}))
+      await expect(processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('File extension not allowed');
 
-      await expect(processFilesForBrowser(files, { build: false, prerender: false }))
+      await expect(processFilesForBrowser(files, { build: false, prerender: false }, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('File extension not allowed');
     });
   });
@@ -398,7 +391,7 @@ describe('Browser File Processing', () => {
       Object.defineProperty(files[0], 'webkitRelativePath', { value: 'demo/index.html' });
       Object.defineProperty(files[1], 'webkitRelativePath', { value: 'demo/node_modules/react/index.js' });
 
-      await expect(processFilesForBrowser(files, {}))
+      await expect(processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('Unbuilt project detected');
     });
 
@@ -410,7 +403,7 @@ describe('Browser File Processing', () => {
       Object.defineProperty(files[0], 'webkitRelativePath', { value: 'demo/index.html' });
       Object.defineProperty(files[1], 'webkitRelativePath', { value: 'demo/package.json' });
 
-      await expect(processFilesForBrowser(files, {}))
+      await expect(processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('Unbuilt project detected');
     });
 
@@ -425,7 +418,7 @@ describe('Browser File Processing', () => {
       });
 
       // Common root 'demo/' is stripped, leaving node_modules visible in content paths
-      await expect(processFilesForBrowser(files, {}))
+      await expect(processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('Unbuilt project detected');
     });
   });
@@ -433,55 +426,55 @@ describe('Browser File Processing', () => {
   describe('filename and extension validation', () => {
     it('should reject blocked extensions (.exe, .msi)', async () => {
       const exeFile = new File(['malware'], 'virus.exe');
-      await expect(processFilesForBrowser([exeFile], {}))
+      await expect(processFilesForBrowser([exeFile], {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('File extension not allowed');
 
       const msiFile = new File(['installer'], 'installer.msi');
-      await expect(processFilesForBrowser([msiFile], {}))
+      await expect(processFilesForBrowser([msiFile], {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('File extension not allowed');
     });
 
     it('should reject URL-breaking and HTML-unsafe filename characters', async () => {
       const questionFile = new File(['test'], 'file?.txt');
-      await expect(processFilesForBrowser([questionFile], {}))
+      await expect(processFilesForBrowser([questionFile], {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('unsafe characters');
 
       const hashFile = new File(['test'], 'file#anchor.txt');
-      await expect(processFilesForBrowser([hashFile], {}))
+      await expect(processFilesForBrowser([hashFile], {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('unsafe characters');
 
       const htmlFile = new File(['test'], 'file<tag>.txt');
-      await expect(processFilesForBrowser([htmlFile], {}))
+      await expect(processFilesForBrowser([htmlFile], {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('unsafe characters');
     });
 
     it('should allow characters that survive the URL round-trip', async () => {
       const parenFile = new File(['test'], 'file(1).json');
-      const result1 = await processFilesForBrowser([parenFile], {});
+      const result1 = await processFilesForBrowser([parenFile], {}, TEST_PLATFORM_LIMITS);
       expect(result1).toHaveLength(1);
 
       const bracketFile = new File(['test'], 'file[slug].js');
-      const result2 = await processFilesForBrowser([bracketFile], {});
+      const result2 = await processFilesForBrowser([bracketFile], {}, TEST_PLATFORM_LIMITS);
       expect(result2).toHaveLength(1);
 
       const braceFile = new File(['test'], 'file{id}.txt');
-      const result3 = await processFilesForBrowser([braceFile], {});
+      const result3 = await processFilesForBrowser([braceFile], {}, TEST_PLATFORM_LIMITS);
       expect(result3).toHaveLength(1);
 
       const semicolonFile = new File(['test'], 'file;semi.txt');
-      const result4 = await processFilesForBrowser([semicolonFile], {});
+      const result4 = await processFilesForBrowser([semicolonFile], {}, TEST_PLATFORM_LIMITS);
       expect(result4).toHaveLength(1);
     });
 
     it('should reject Windows reserved names', async () => {
       const conFile = new File(['reserved'], 'CON.txt');
-      await expect(processFilesForBrowser([conFile], {}))
+      await expect(processFilesForBrowser([conFile], {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('reserved system name');
     });
 
     it('should reject filenames ending with dots', async () => {
       const dotFile = new File(['trailing'], 'file.');
-      await expect(processFilesForBrowser([dotFile], {}))
+      await expect(processFilesForBrowser([dotFile], {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('cannot end with dots');
     });
 
@@ -492,7 +485,7 @@ describe('Browser File Processing', () => {
         new File(['{}'], 'data.json'),
       ];
 
-      const result = await processFilesForBrowser(validFiles, {});
+      const result = await processFilesForBrowser(validFiles, {}, TEST_PLATFORM_LIMITS);
       expect(result).toHaveLength(3);
     });
   });
@@ -505,7 +498,7 @@ describe('Browser File Processing', () => {
           new File([`batch ${batch} file ${i}`], `batch-${batch}-file-${i}.txt`)
         );
         
-        const result = await processFilesForBrowser(files, {});
+        const result = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
         expect(result).toHaveLength(10);
       }
     });
@@ -516,7 +509,7 @@ describe('Browser File Processing', () => {
 
       const files = [new File(['content'], 'test.txt')];
       
-      await expect(processFilesForBrowser(files, {}))
+      await expect(processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS))
         .rejects.toThrow('processFilesForBrowser can only be called in a browser environment.');
 
       // Restore environment
@@ -528,7 +521,7 @@ describe('Browser File Processing', () => {
       const typedArray = new Uint8Array([72, 101, 108, 108, 111]); // "Hello"
       const fileFromTypedArray = new File([typedArray], 'typed-array.bin');
 
-      const result = await processFilesForBrowser([fileFromTypedArray], {});
+      const result = await processFilesForBrowser([fileFromTypedArray], {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(1);
       expect(result[0].content).toBeInstanceOf(File);

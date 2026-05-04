@@ -6,7 +6,7 @@ import type {
   DeploymentCreateResponse,
   DeploymentListResponse,
   PingResponse,
-  ConfigResponse,
+  PlatformLimits,
   Domain,
   DomainListResponse,
   DomainDnsResponse,
@@ -33,7 +33,7 @@ const ENDPOINTS = {
   DOMAINS: '/domains',
   TOKENS: '/tokens',
   ACCOUNT: '/account',
-  CONFIG: '/config',
+  LIMITS: '/limits',
   PING: '/ping',
   SPA_CHECK: '/spa-check'
 } as const;
@@ -89,13 +89,6 @@ export class ApiHttp extends SimpleEvents {
    */
   setGlobalHeaders(headers: Record<string, string>): void {
     this.globalHeaders = headers;
-  }
-
-  /**
-   * Transfer events to another client
-   */
-  transferEventsTo(target: ApiHttp): void {
-    this.transfer(target);
   }
 
   // ===========================================================================
@@ -418,8 +411,8 @@ export class ApiHttp extends SimpleEvents {
     return this.request(`${this.apiUrl}${ENDPOINTS.ACCOUNT}`, { method: 'GET' }, 'Get account');
   }
 
-  async getConfig(): Promise<ConfigResponse> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.CONFIG}`, { method: 'GET' }, 'Get config');
+  async getLimits(): Promise<PlatformLimits> {
+    return this.request(`${this.apiUrl}${ENDPOINTS.LIMITS}`, { method: 'GET' }, 'Get limits');
   }
 
   async ping(): Promise<boolean> {

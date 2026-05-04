@@ -11,7 +11,7 @@ import { __setTestEnvironment } from '../../src/shared/lib/env';
 const createMockApiClient = () => ({
   deploy: vi.fn(),
   ping: vi.fn(),
-  getConfig: vi.fn(),
+  getLimits: vi.fn(),
   checkSPA: vi.fn()
 });
 

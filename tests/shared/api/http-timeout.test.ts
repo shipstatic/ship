@@ -230,7 +230,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
       const promises = [
         apiHttp.ping(),
-        apiHttp.getConfig(),
+        apiHttp.getLimits(),
         apiHttp.listDeployments()
       ];
 
@@ -249,7 +249,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
       await Promise.all([
         apiHttp.ping(),
-        apiHttp.getConfig()
+        apiHttp.getLimits()
       ]);
 
       expect(signals).toHaveLength(2);

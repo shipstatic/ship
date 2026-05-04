@@ -6,7 +6,7 @@ import { Ship } from '../../src/browser/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
 
 // Mock browser file processing
-vi.mock('../../src/browser/lib/browser-files', () => ({
+vi.mock('../../src/browser/core/browser-files', () => ({
   processFilesForBrowser: vi.fn().mockResolvedValue([
     { path: 'index.html', content: new ArrayBuffer(13), size: 13, md5: 'abc123' }
   ])
@@ -44,16 +44,16 @@ describe('Ship - Browser Implementation', () => {
       });
 
       // Mock the HTTP client to avoid actual network calls
-      const getConfigSpy = vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 });
+      const getLimitsSpy = vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 });
       (ship as any).http = {
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: getConfigSpy
+        getLimits: getLimitsSpy
       };
 
       await ship.ping(); // This triggers initialization
 
       // Verify that platform config was fetched from API
-      expect(getConfigSpy).toHaveBeenCalled();
+      expect(getLimitsSpy).toHaveBeenCalled();
 
       // Browser doesn't store client config - loadConfig just returns empty
       // All config comes through constructor options
@@ -74,7 +74,7 @@ describe('Ship - Browser Implementation', () => {
           url: 'https://dep_browser_123.shipstatic.com'
         }),
         checkSPA: vi.fn().mockResolvedValue(false),
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       // Create mock File objects
@@ -107,7 +107,7 @@ describe('Ship - Browser Implementation', () => {
           url: 'https://dep_spa_123.shipstatic.com'
         }),
         checkSPA: vi.fn().mockResolvedValue(true), // SPA detected
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const mockFiles = [
@@ -125,9 +125,9 @@ describe('Ship - Browser Implementation', () => {
     it('should export browser-specific utilities', async () => {
       const browserModule = await import('../../src/browser/index');
 
-      expect(browserModule.setPlatformConfig).toBeDefined(); // Platform config, not client config
       expect(browserModule.processFilesForBrowser).toBeDefined();
     });
+
 
     it('should re-export shared utilities', async () => {
       const browserModule = await import('../../src/browser/index');
@@ -160,16 +160,16 @@ describe('Ship - Browser Implementation', () => {
       });
 
       // Mock the HTTP client
-      const getConfigSpy = vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 });
+      const getLimitsSpy = vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 });
       (ship as any).http = {
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: getConfigSpy
+        getLimits: getLimitsSpy
       };
 
       await ship.ping(); // This triggers initialization
 
       // Browser loadFullConfig should only fetch platform config, not load client config files
-      expect(getConfigSpy).toHaveBeenCalled();
+      expect(getLimitsSpy).toHaveBeenCalled();
     });
   });
 
@@ -204,7 +204,7 @@ describe('Ship - Browser Implementation', () => {
           url: 'https://dep_options_123.shipstatic.com'
         }),
         checkSPA: vi.fn().mockResolvedValue(false),
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const mockFiles = [new File(['test'], 'test.txt')];
@@ -235,7 +235,7 @@ describe('Ship - Browser Implementation', () => {
           url: 'https://dep_empty_123.shipstatic.com'
         }),
         checkSPA: vi.fn().mockResolvedValue(false),
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const emptyFiles: File[] = [];
@@ -256,7 +256,7 @@ describe('Ship - Browser Implementation', () => {
           url: 'https://dep_mime_123.shipstatic.com'
         }),
         checkSPA: vi.fn().mockResolvedValue(false),
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const mockFiles = [
@@ -284,7 +284,7 @@ describe('Ship - Browser Implementation', () => {
       });
 
       (ship as any).http = {
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       await expect(ship.deploy('/path/to/file' as any))
@@ -298,7 +298,7 @@ describe('Ship - Browser Implementation', () => {
       });
 
       (ship as any).http = {
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       await expect(ship.deploy(['./file1.html', './file2.css'] as any))
@@ -312,7 +312,7 @@ describe('Ship - Browser Implementation', () => {
       });
 
       (ship as any).http = {
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       await expect(ship.deploy({ invalid: 'object' } as any))
@@ -329,7 +329,7 @@ describe('Ship - Browser Implementation', () => {
       (ship as any).http = {
         deploy: vi.fn().mockRejectedValue(new Error('Request timeout after 30000ms')),
         checkSPA: vi.fn().mockResolvedValue(false),
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const mockFiles = [new File(['test'], 'test.html')];
@@ -348,7 +348,7 @@ describe('Ship - Browser Implementation', () => {
       (ship as any).http = {
         deploy: vi.fn().mockRejectedValue(new Error('API key is invalid')),
         checkSPA: vi.fn().mockResolvedValue(false),
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       const mockFiles = [new File(['test'], 'test.html')];

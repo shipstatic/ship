@@ -8,24 +8,14 @@ const mockDeployBodyCreator: DeployBodyCreator = async () => ({
     headers: { 'Content-Type': 'multipart/form-data' }
 });
 
-// Concrete implementation for testing
+// Concrete test implementation. The `ensureInitialized` no-op skips the
+// `GET /limits` fetch — these tests focus on auth flow and don't need
+// platform limits hydrated.
 class TestShip extends Ship {
-    protected resolveInitialConfig(options: ShipClientOptions): any {
-        return {
-            apiUrl: options.apiUrl || 'https://test-api.com',
-            apiKey: options.apiKey,
-            deployToken: options.deployToken
-        };
+    protected async ensureInitialized(): Promise<void> { /* no platform-limits fetch in tests */ }
+    protected async processInput(_input: DeployInput, _options: DeploymentOptions): Promise<StaticFile[]> {
+        return [];
     }
-
-    protected async loadFullConfig(): Promise<void> {
-        return Promise.resolve();
-    }
-
-    protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
-        return Promise.resolve([]);
-    }
-
     protected getDeployBodyCreator(): DeployBodyCreator {
         return mockDeployBodyCreator;
     }

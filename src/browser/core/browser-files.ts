@@ -9,6 +9,7 @@
  *
  * Both modes share: environment check → extract paths → optimize paths → filter junk → MD5.
  */
+import type { PlatformLimits } from '@shipstatic/types';
 import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
 import { calculateMD5 } from '../../shared/lib/md5.js';
 import { ShipError } from '@shipstatic/types';
@@ -16,7 +17,6 @@ import { getENV } from '../../shared/lib/env.js';
 import { filterJunk } from '../../shared/lib/junk.js';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
 import { validateDeployPath, validateDeployFile } from '../../shared/lib/security.js';
-import { getCurrentConfig } from '../../shared/core/platform-config.js';
 
 /**
  * Processes browser files into an array of StaticFile objects ready for deploy.
@@ -27,12 +27,17 @@ import { getCurrentConfig } from '../../shared/core/platform-config.js';
  *
  * @param browserFiles - File[] to process for deploy.
  * @param options - Processing options including pathDetect for automatic path optimization.
+ * @param platformLimits - Per-instance platform limits (file-size / count / total-size caps)
+ *   from the originating Ship's `GET /config` fetch. Passed in rather than read from a
+ *   module global so concurrent Ships against different API URLs cannot clobber each
+ *   other's caps.
  * @returns Promise resolving to an array of StaticFile objects.
  * @throws {ShipError} If called outside a browser or with invalid input.
  */
 export async function processFilesForBrowser(
   browserFiles: File[],
-  options: DeploymentOptions = {}
+  options: DeploymentOptions = {},
+  platformLimits?: PlatformLimits
 ): Promise<StaticFile[]> {
   // 1. Environment check
   if (getENV() !== 'browser') {
@@ -75,7 +80,12 @@ export async function processFilesForBrowser(
   }
 
   // 6. Deploy: full validation pipeline
-  const platformLimits = getCurrentConfig();
+  if (!platformLimits) {
+    throw ShipError.config(
+      'Platform limits not provided. processFilesForBrowser requires the limits ' +
+      'argument for deploy-mode validation — pass `ship.getLimits()` result.'
+    );
+  }
   const results: StaticFile[] = [];
   let totalSize = 0;
 

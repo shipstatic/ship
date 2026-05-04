@@ -10,10 +10,10 @@ import { success, error } from './utils.js';
 import { formatOutput, type OutputContext } from './formatters.js';
 import { installCompletion, uninstallCompletion } from './completion.js';
 import { runConfig } from './config.js';
+import { createClient } from './create-client.js';
 import { getUserMessage, toShipError, formatErrorJson } from './error-handling.js';
 import { bold, dim } from 'yoctocolors';
 import type { GlobalOptions, DeployCommandOptions, LabelOptions, TokenCreateCommandOptions, CLIResult } from './types.js';
-import type { DomainSetResult } from '../../shared/types.js';
 
 // Load package.json for version
 function loadPackageJson(): { version: string } {
@@ -283,21 +283,14 @@ function withErrorHandling<T extends unknown[], R extends CLIResult>(
     } : {};
 
     try {
-      const client = createClient();
+      const { config, apiUrl, apiKey, deployToken } = program.opts();
+      const client = createClient({ config, apiUrl, apiKey, deployToken });
       const result = await handler(client, globalOptions, ...args);
       formatOutput(result, resolvedContext, { json: globalOptions.json, quiet: globalOptions.quiet, noColor: globalOptions.noColor });
     } catch (err) {
       handleError(err, resolvedContext);
     }
   };
-}
-
-/**
- * Create Ship client from CLI options
- */
-function createClient(): Ship {
-  const { config, apiUrl, apiKey, deployToken } = program.opts();
-  return new Ship({ configFile: config, apiUrl, apiKey, deployToken });
 }
 
 /** Spinner instance type from yocto-spinner */
@@ -589,8 +582,9 @@ domainsCmd
       if (deployment) setOptions.deployment = deployment;
       if (labels !== undefined) setOptions.labels = labels;
 
-      // SDK returns DomainSetResult (Domain + isCreate derived from HTTP 201/200)
-      const result = await client.domains.set(name, setOptions) as DomainSetResult;
+      // SDK returns DomainSetResult (Domain + isCreate derived from HTTP 201/200) —
+      // the resource interface in @shipstatic/types declares this directly, no cast needed.
+      const result = await client.domains.set(name, setOptions);
 
       // Enrich with DNS info for new external domains (pure formatter will display it)
       if (result.isCreate && name.includes('.')) {
