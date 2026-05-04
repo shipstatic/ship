@@ -8,7 +8,7 @@ const mockApiClient = {
   ping: vi.fn().mockResolvedValue(true),
   deploy: vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://dep_123.shipstatic.com' }),
   getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
-  getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760 }),
+  getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760 }),
   checkSPA: vi.fn().mockResolvedValue(false)
 };
 
@@ -23,18 +23,11 @@ vi.mock('../../src/node/core/node-files', () => ({
   ])
 }));
 
-// Mock platform config
-vi.mock('../../src/node/core/platform-config', () => ({
-  setConfig: vi.fn(),
-  getCurrentConfig: vi.fn().mockReturnValue({})
-}));
-
-// Mock config loading
+// Mock env-var resolution. The Node Ship reads SHIP_* env vars synchronously
+// in the constructor; this mock lets tests assert what was read without
+// needing to mutate process.env.
 vi.mock('../../src/node/core/config', () => ({
-  loadConfig: vi.fn().mockResolvedValue({
-    apiKey: 'test-key',
-    apiUrl: 'https://test-api.com'
-  })
+  readEnvConfig: vi.fn(() => ({})),
 }));
 
 describe('Ship - Node.js Implementation', () => {
@@ -66,21 +59,45 @@ describe('Ship - Node.js Implementation', () => {
     });
   });
 
-  describe('configuration loading', () => {
-    it('should load configuration from files and environment', async () => {
-      const ship = new Ship({ configFile: '.shiprc' });
-      
-      // Mock the HTTP client to avoid actual network calls
-      (ship as any).http = {
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 1000000 }),
-        ping: vi.fn().mockResolvedValue(true)
-      };
+  describe('env-var resolution', () => {
+    it('reads SHIP_* env vars and adopts them as auth', async () => {
+      const { readEnvConfig } = await import('../../src/node/core/config');
+      (readEnvConfig as any).mockReturnValue({
+        apiKey: 'ship-from-env',
+        apiUrl: 'https://env.example.com',
+      });
 
-      await ship.ping(); // This triggers initialization
+      const ship = new Ship({});
 
-      // Verify that the config loading was attempted
-      const { loadConfig } = await import('../../src/node/core/config');
-      expect(loadConfig).toHaveBeenCalledWith('.shiprc');
+      // Auth state is set synchronously from the merged constructor args.
+      expect((ship as any).auth).toEqual({ type: 'apiKey', value: 'ship-from-env' });
+      expect((ship as any).clientOptions.apiUrl).toBe('https://env.example.com');
+    });
+
+    it('prefers constructor args over env vars', async () => {
+      const { readEnvConfig } = await import('../../src/node/core/config');
+      (readEnvConfig as any).mockReturnValue({
+        apiKey: 'ship-from-env',
+        apiUrl: 'https://env.example.com',
+      });
+
+      const ship = new Ship({ apiKey: 'ship-explicit', apiUrl: 'https://explicit.example.com' });
+
+      expect((ship as any).auth).toEqual({ type: 'apiKey', value: 'ship-explicit' });
+      expect((ship as any).clientOptions.apiUrl).toBe('https://explicit.example.com');
+    });
+
+    it('does not read the filesystem (no .shiprc lookup in SDK)', async () => {
+      // Regression: this is the credential-isolation contract that embedded
+      // consumers (MCP, n8n, GitHub Action) depend on. The SDK must never
+      // reach into the host's ~/.shiprc — file resolution is the CLI's job.
+      const { readEnvConfig } = await import('../../src/node/core/config');
+      (readEnvConfig as any).mockReturnValue({});
+
+      const ship = new Ship({});
+
+      // No env, no constructor args → genuinely anonymous.
+      expect((ship as any).auth).toBeNull();
     });
   });
 
@@ -94,7 +111,7 @@ describe('Ship - Node.js Implementation', () => {
           id: 'dep_123',
           url: 'https://dep_123.shipstatic.com'
         }),
-        getConfig: vi.fn().mockResolvedValue({}),
+        getLimits: vi.fn().mockResolvedValue({}),
         checkSPA: vi.fn().mockResolvedValue(false)
       };
 
@@ -127,13 +144,11 @@ describe('Ship - Node.js Implementation', () => {
     it('should export Node.js specific utilities', async () => {
       const nodeModule = await import('../../src/node/index');
 
-      expect(nodeModule.loadConfig).toBeDefined();
-      expect(nodeModule.setPlatformConfig).toBeDefined();
-      expect(nodeModule.getCurrentConfig).toBeDefined();
       expect(nodeModule.processFilesForNode).toBeDefined();
       expect(nodeModule.getENV).toBeDefined();
       expect(nodeModule.__setTestEnvironment).toBeDefined();
     });
+
   });
 
   describe('resource functionality', () => {
@@ -161,7 +176,7 @@ describe('Ship - Node.js Implementation', () => {
           id: 'dep_paths_123',
           url: 'https://dep_paths_123.shipstatic.com'
         }),
-        getConfig: vi.fn().mockResolvedValue({}),
+        getLimits: vi.fn().mockResolvedValue({}),
         checkSPA: vi.fn().mockResolvedValue(false)
       };
 
@@ -265,7 +280,7 @@ describe('Ship - Node.js Implementation', () => {
           id: 'dep_opt_123',
           url: 'https://dep_opt_123.shipstatic.com'
         }),
-        getConfig: vi.fn().mockResolvedValue({}),
+        getLimits: vi.fn().mockResolvedValue({}),
         checkSPA: vi.fn().mockResolvedValue(false)
       };
 

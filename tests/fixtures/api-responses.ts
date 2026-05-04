@@ -22,7 +22,7 @@ import type {
   TokenListItem,
   TokenListResponse,
   TokenCreateResponse,
-  ConfigResponse,
+  PlatformLimits,
   PingResponse,
   SPACheckResponse,
   ErrorResponse,
@@ -573,7 +573,7 @@ export const configs = {
     maxFileSize: 10485760,      // 10MB
     maxFilesCount: 1000,
     maxTotalSize: 104857600,    // 100MB
-  } satisfies ConfigResponse,
+  } satisfies PlatformLimits,
 
   /**
    * Minimal config (for basic tests)
@@ -582,7 +582,7 @@ export const configs = {
     maxFileSize: 5242880,       // 5MB
     maxFilesCount: 100,
     maxTotalSize: 26214400,     // 25MB
-  } satisfies ConfigResponse,
+  } satisfies PlatformLimits,
 } as const;
 
 // =============================================================================

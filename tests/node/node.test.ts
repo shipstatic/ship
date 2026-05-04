@@ -17,11 +17,11 @@ import {
 import { processFilesForNode } from '../../src/node/core/node-files'; // Import processFilesForNode for testing
 import { __setTestEnvironment } from '../../src/index';
 import { ShipError } from '@shipstatic/types';
-import { setConfig } from '../../src/shared/core/platform-config';
+import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 
 // Mock API HTTP client
 const mockApiHttpInstance = {
-  getConfig: vi.fn().mockResolvedValue({
+  getLimits: vi.fn().mockResolvedValue({
     maxFileSize: 10 * 1024 * 1024,
     maxFilesCount: 1000,
     maxTotalSize: 100 * 1024 * 1024,
@@ -91,13 +91,6 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
       apiKey: 'mock_node_key'
     });
     __setTestEnvironment('node');
-    
-    // Initialize platform config for tests
-    setConfig({
-      maxFileSize: 10 * 1024 * 1024,
-      maxFilesCount: 1000,
-      maxTotalSize: 100 * 1024 * 1024,
-    });
 
     // Properly handle absolute and relative paths
     MOCK_PATH_MODULE_IMPLEMENTATION.resolve.mockImplementation((...args: string[]) => {
@@ -216,7 +209,7 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
 
     it('should scan a single file path', async () => {
       setupMockFs({ '/mock/cwd/file1.txt': 'content1' });
-      const result = await processFilesForNode(['file1.txt']);
+      const result = await processFilesForNode(['file1.txt'], {}, TEST_PLATFORM_LIMITS);
       expect(result).toHaveLength(1);
       expect(result[0].path).toBe('file1.txt');
       expect(MOCK_CALCULATE_MD5_FN).toHaveBeenCalledWith(Buffer.from('content1'));
@@ -230,14 +223,14 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
         '/mock/cwd/mydir/subdir': { type: 'dir' },
         '/mock/cwd/mydir/subdir/fileB.txt': 'content-B'
       });
-      const result = await processFilesForNode(['mydir']);
+      const result = await processFilesForNode(['mydir'], {}, TEST_PLATFORM_LIMITS);
       // With preserveDirs=false by default (common prefix stripped)
       expect(result.map(f => f.path).sort()).toEqual(['fileA.txt', 'subdir/fileB.txt'].sort());
     });
 
     it('should throw ShipError if called in non-Node.js env', async () => {
       __setTestEnvironment('browser');
-      await expect(processFilesForNode(['/path'])).rejects.toThrow(ShipError.business('processFilesForNode can only be called in Node.js environment.'));
+      await expect(processFilesForNode(['/path'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(ShipError.business('processFilesForNode can only be called in Node.js environment.'));
     });
     
     // Instead of testing the internal function directly, test the behavior via the public API
@@ -291,7 +284,7 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
       const result = await processFilesForNode([
         'project/src/file1.txt',
         'project/src/components/file2.txt'
-      ], { stripCommonPrefix: true });
+      ], { stripCommonPrefix: true }, {}, TEST_PLATFORM_LIMITS);
       
       expect(result).toHaveLength(2);
       

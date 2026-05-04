@@ -1,13 +1,19 @@
 /**
- * @file Shared configuration logic for both environments.
+ * @file Cross-platform configuration helpers.
  *
- * CONFIGURATION PRECEDENCE (highest to lowest):
- * 1. Constructor options / CLI flags (passed directly to Ship())
- * 2. Environment variables (SHIP_API_KEY, SHIP_DEPLOY_TOKEN, SHIP_API_URL)
- * 3. Config file (.shiprc or package.json "ship" key)
- * 4. Default values (DEFAULT_API)
+ * Two pure helpers used by both Node and Browser:
  *
- * This means CLI flags always win, followed by env vars, then config files.
+ *   - `resolveConfig(options)` — applies the API-URL default. The Node Ship
+ *     calls this after merging env vars under the user's options; the Browser
+ *     Ship calls it directly (no ambient sources).
+ *   - `mergeDeployOptions(perCallOptions, clientDefaults)` — overlays
+ *     instance-level defaults under per-call overrides for a single deploy.
+ *
+ * Credential precedence is owned by callers, not this file:
+ *
+ *   - SDK (Node): constructor args > `SHIP_*` env vars (see `node/index.ts`)
+ *   - SDK (Browser): constructor args only
+ *   - CLI: `--flag` > env > `.shiprc` / `package.json` (see `cli/create-client.ts`)
  */
 
 import { DEFAULT_API, type ResolvedConfig } from '@shipstatic/types';
@@ -16,40 +22,32 @@ import type { ShipClientOptions, DeploymentOptions } from '../types.js';
 export type { ResolvedConfig } from '@shipstatic/types';
 
 /**
- * Universal configuration resolver for all environments.
- * This is the single source of truth for config resolution.
+ * Apply the API-URL default and project the credential triplet into a
+ * `ResolvedConfig` shape. Optional fields are omitted (rather than set to
+ * `undefined`) so spread merges downstream behave predictably.
  */
-export function resolveConfig(
-  userOptions: ShipClientOptions = {},
-  loadedConfig: Partial<ShipClientOptions> = {}
-): ResolvedConfig {
-  const finalConfig = {
-    apiUrl: userOptions.apiUrl || loadedConfig.apiUrl || DEFAULT_API,
-    apiKey: userOptions.apiKey !== undefined ? userOptions.apiKey : loadedConfig.apiKey,
-    deployToken: userOptions.deployToken !== undefined ? userOptions.deployToken : loadedConfig.deployToken,
-  };
-
+export function resolveConfig(options: ShipClientOptions = {}): ResolvedConfig {
   const result: ResolvedConfig = {
-    apiUrl: finalConfig.apiUrl
+    apiUrl: options.apiUrl || DEFAULT_API,
   };
-
-  if (finalConfig.apiKey !== undefined) result.apiKey = finalConfig.apiKey;
-  if (finalConfig.deployToken !== undefined) result.deployToken = finalConfig.deployToken;
-
+  if (options.apiKey !== undefined) result.apiKey = options.apiKey;
+  if (options.deployToken !== undefined) result.deployToken = options.deployToken;
   return result;
 }
 
 /**
- * Merge deployment options with client defaults.
- * This is shared logic used by both environments.
+ * Overlay client-level defaults under per-call deploy options.
+ *
+ * Per-call options always win — they're the explicit override for a single
+ * `deployments.upload()`. Defaults fill in only when the per-call option is
+ * `undefined` (an explicit `null` / empty value passes through).
  */
 export function mergeDeployOptions(
   options: DeploymentOptions,
-  clientDefaults: ShipClientOptions
+  clientDefaults: ShipClientOptions,
 ): DeploymentOptions {
   const result: DeploymentOptions = { ...options };
 
-  // Only add defined values from client defaults
   if (result.apiUrl === undefined && clientDefaults.apiUrl !== undefined) {
     result.apiUrl = clientDefaults.apiUrl;
   }

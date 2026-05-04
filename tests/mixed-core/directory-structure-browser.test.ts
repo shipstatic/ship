@@ -6,9 +6,9 @@
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { processFilesForBrowser } from '../../src/browser/lib/browser-files';
+import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
+import { processFilesForBrowser } from '../../src/browser/core/browser-files';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
-import { setConfig } from '../../src/shared/core/platform-config';
 
 // Helper function to create mock File objects with webkitRelativePath
 function createMockFileWithPath(name: string, webkitRelativePath: string, content: string): File {
@@ -26,13 +26,6 @@ describe('Browser SDK Directory Structure Preservation', () => {
   beforeEach(() => {
     // Set environment to browser for these tests
     __setTestEnvironment('browser');
-
-    // Initialize platform config (required by processFilesForBrowser)
-    setConfig({
-      maxFileSize: 10 * 1024 * 1024,
-      maxFilesCount: 1000,
-      maxTotalSize: 100 * 1024 * 1024,
-    });
   });
 
   afterEach(() => {
@@ -59,7 +52,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('Button.jsx', 'my-app/components/ui/Button.jsx', 'export const Button = () => {};')
     ];
 
-    const processedFiles = await processFilesForBrowser(files);
+    const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
     
     // Extract the paths from processed files  
     const filePaths = processedFiles.map(f => f.path);
@@ -102,7 +95,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('favicon.ico', 'dist/favicon.ico', 'ico-data')
     ];
 
-    const processedFiles = await processFilesForBrowser(files);
+    const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
     
     const filePaths = processedFiles.map(f => f.path);
 
@@ -127,7 +120,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       new File(['console.log("app");'], 'app', { type: 'application/javascript' })
     ];
 
-    const processedFiles = await processFilesForBrowser(files);
+    const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
     
     const filePaths = processedFiles.map(f => f.path);
 
@@ -146,7 +139,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('index.html', 'project/public/index.html', '<html>App</html>')
     ];
 
-    const processedFiles = await processFilesForBrowser(files);
+    const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
     
     const filePaths = processedFiles.map(f => f.path);
 
@@ -170,7 +163,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('README.md', 'webapp/docs/README.md', '# Documentation')
     ];
 
-    const processedFiles = await processFilesForBrowser(files);
+    const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
     
     const filePaths = processedFiles.map(f => f.path);
 
@@ -193,7 +186,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
     ];
 
     // Test with File array (not FileList)
-    const processedFiles = await processFilesForBrowser(files);
+    const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
     
     const filePaths = processedFiles.map(f => f.path);
 
@@ -209,7 +202,7 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('app', '', 'console.log("app");')
     ];
 
-    const processedFiles = await processFilesForBrowser(files);
+    const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
     
     const filePaths = processedFiles.map(f => f.path);
 

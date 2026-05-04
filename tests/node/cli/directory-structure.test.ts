@@ -6,22 +6,16 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
+import { TEST_PLATFORM_LIMITS } from '../../fixtures/platform-limits';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { processFilesForNode } from '@/node/core/node-files';
-import { setConfig } from '@/shared/core/platform-config';
 
 describe('CLI Directory Structure Preservation', () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    // Setup platform config for tests
-    setConfig({
-      maxFileSize: 10 * 1024 * 1024, // 10MB
-      maxFilesCount: 1000,
-      maxTotalSize: 100 * 1024 * 1024, // 100MB
-    });
     // Create a temporary directory with nested structure
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-test-'));
     
@@ -62,11 +56,11 @@ describe('CLI Directory Structure Preservation', () => {
 
   test('should preserve nested directory structure by default for directory deployments', async () => {
     // Test the core file processing logic directly - this is what was broken
-    const files = await processFilesForNode([tempDir], { pathDetect: false });
-    
+    const files = await processFilesForNode([tempDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
+
     // Extract the paths from processed files
     const filePaths = files.map(f => f.path);
-    
+
     // Verify nested paths are preserved
     expect(filePaths).toContain('assets/js/app');
     expect(filePaths).toContain('assets/css/styles.css');
@@ -83,7 +77,7 @@ describe('CLI Directory Structure Preservation', () => {
 
   test('should optimize paths when pathDetect is true (default)', async () => {
     // Test with pathDetect enabled (default behavior)  
-    const files = await processFilesForNode([tempDir], { pathDetect: true });
+    const files = await processFilesForNode([tempDir], { pathDetect: true }, TEST_PLATFORM_LIMITS);
     
     const filePaths = files.map(f => f.path);
     
@@ -124,7 +118,7 @@ describe('CLI Directory Structure Preservation', () => {
     fs.writeFileSync(path.join(viteDir, 'assets', 'index-f1e2d3c4'), '// Vite bundle');
     fs.writeFileSync(path.join(viteDir, 'assets', 'vue-logo-a1b2c3d4.png'), 'png-data');
     
-    const files = await processFilesForNode([viteDir], { pathDetect: false });
+    const files = await processFilesForNode([viteDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
     const filePaths = files.map(f => f.path);
     
     // THE CRITICAL TEST: These must NOT be flattened (the original bug)
@@ -145,7 +139,7 @@ describe('CLI Directory Structure Preservation', () => {
     fs.mkdirSync(deepPath, { recursive: true });
     fs.writeFileSync(path.join(deepPath, 'TextInput.tsx'), 'export const TextInput = () => {};');
     
-    const files = await processFilesForNode([tempDir], { pathDetect: false });
+    const files = await processFilesForNode([tempDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
     const filePaths = files.map(f => f.path);
     
     // Verify deep nesting is preserved
@@ -160,7 +154,7 @@ describe('CLI Directory Structure Preservation', () => {
     const singleFile = path.join(tempDir, 'standalone.html');
     fs.writeFileSync(singleFile, '<html>Single file</html>');
     
-    const files = await processFilesForNode([singleFile], { pathDetect: false });
+    const files = await processFilesForNode([singleFile], { pathDetect: false }, TEST_PLATFORM_LIMITS);
     const filePaths = files.map(f => f.path);
     
     // Single file should just use filename
@@ -170,7 +164,7 @@ describe('CLI Directory Structure Preservation', () => {
 
   test('should optimize paths by default when processing directories', async () => {
     // This tests the default behavior - paths are optimized by default
-    const files = await processFilesForNode([tempDir]); // No explicit pathDetect option
+    const files = await processFilesForNode([tempDir], {}, TEST_PLATFORM_LIMITS); // No explicit pathDetect option
     
     const filePaths = files.map(f => f.path);
     
@@ -193,7 +187,7 @@ describe('CLI Directory Structure Preservation', () => {
     fs.writeFileSync(path.join(tempDir, 'assets', 'manifest.json'), '{"name": "test"}');
     fs.writeFileSync(path.join(tempDir, 'robots.txt'), 'User-agent: *');
     
-    const files = await processFilesForNode([tempDir], { pathDetect: false });
+    const files = await processFilesForNode([tempDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
     const filePaths = files.map(f => f.path);
     
     // Verify all file types preserve their paths

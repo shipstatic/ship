@@ -1,14 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
 
-// Mock environment-specific modules to avoid actual file system/network calls
+// Mock environment-specific modules to avoid actual filesystem/network calls.
 vi.mock('../../src/node/core/config', () => ({
-  loadConfig: vi.fn().mockResolvedValue({ apiKey: 'test-key' })
-}));
-
-vi.mock('../../src/node/core/platform-config', () => ({
-  setConfig: vi.fn(),
-  getCurrentConfig: vi.fn().mockReturnValue({})
+  readEnvConfig: vi.fn(() => ({ apiKey: 'test-key' })),
 }));
 
 vi.mock('../../src/node/core/node-files', () => ({
@@ -17,7 +12,7 @@ vi.mock('../../src/node/core/node-files', () => ({
   ])
 }));
 
-vi.mock('../../src/browser/lib/browser-files', () => ({
+vi.mock('../../src/browser/core/browser-files', () => ({
   processFilesForBrowser: vi.fn().mockResolvedValue([
     { path: 'test.html', content: new ArrayBuffer(13), size: 13, md5: 'browser-hash' }
   ])
@@ -194,12 +189,12 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       // Mock HTTP clients
       (nodeShip as any).http = {
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       (browserShip as any).http = {
         ping: vi.fn().mockResolvedValue(true),
-        getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
       };
 
       // Both should handle ping (which triggers initialization) successfully

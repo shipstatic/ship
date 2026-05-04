@@ -25,11 +25,11 @@ import BrowserIndex, {
 import type { StaticFile } from '../../src/browser/index';
 // Import error class
 import { ShipError } from '@shipstatic/types';
-import { setConfig } from '../../src/shared/core/platform-config';
+import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 
 // Mock API HTTP client
 const mockApiHttpInstance = {
-  getConfig: vi.fn().mockResolvedValue({
+  getLimits: vi.fn().mockResolvedValue({
     maxFileSize: 10 * 1024 * 1024,
     maxFilesCount: 1000,
     maxTotalSize: 100 * 1024 * 1024,
@@ -91,13 +91,6 @@ describe('Browser Entry Point (@/browser)', () => {
     });
     // __setTestEnvironment is now imported from @/browser
     __setTestEnvironment('browser');
-
-    // Initialize platform config (required by processFilesForBrowser)
-    setConfig({
-      maxFileSize: 10 * 1024 * 1024,
-      maxFilesCount: 1000,
-      maxTotalSize: 100 * 1024 * 1024,
-    });
   });
 
   afterEach(() => {
@@ -129,7 +122,7 @@ describe('Browser Entry Point (@/browser)', () => {
         createMockFile('file1.txt', 'content1', 'text/plain', 'folder/file1.txt'),
         createMockFile('file2.jpg', 'image data', 'image/jpeg', 'folder/file2.jpg'),
       ];
-      const staticFiles = await processFilesForBrowser(files);
+      const staticFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
 
       expect(staticFiles).toHaveLength(2);
       expect(staticFiles[0].path).toBe('file1.txt'); // Now flattened by default

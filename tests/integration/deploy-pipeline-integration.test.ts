@@ -11,7 +11,7 @@ const mockApiClient = {
     files: []
   }),
   getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
-  getConfig: vi.fn().mockResolvedValue({ maxFileSize: 10485760, domains: [] }),
+  getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, domains: [] }),
   checkSPA: vi.fn().mockResolvedValue(false)
 };
 
@@ -38,7 +38,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
       files: []
     });
     mockApiClient.getAccount = vi.fn().mockResolvedValue({ email: 'test@example.com' });
-    mockApiClient.getConfig = vi.fn().mockResolvedValue({ maxFileSize: 10485760, domains: [] });
+    mockApiClient.getLimits = vi.fn().mockResolvedValue({ maxFileSize: 10485760, domains: [] });
     mockApiClient.checkSPA = vi.fn().mockResolvedValue(false);
   });
 

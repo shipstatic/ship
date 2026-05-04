@@ -99,7 +99,7 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
   }
 
   // Authentication check
-  const isPublicEndpoint = path === '/ping' || path === '/config' || (path === '/tokens' && method === 'POST');
+  const isPublicEndpoint = path === '/ping' || path === '/limits' || (path === '/tokens' && method === 'POST');
   const hasAuth = req.headers.authorization || req.headers['x-api-key'];
 
   if (!isPublicEndpoint && !hasAuth) {
@@ -142,8 +142,8 @@ function routeRequest(
     return;
   }
 
-  // Config
-  if (path === '/config' && method === 'GET') {
+  // Limits
+  if (path === '/limits' && method === 'GET') {
     res.writeHead(200);
     res.end(JSON.stringify(configs.standard));
     return;
