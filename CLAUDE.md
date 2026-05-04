@@ -320,6 +320,13 @@ All errors use `ShipError` from `@shipstatic/types`. The class provides the full
 
 For a CLI user who has all three: `--api-key` flag → env → file. For an embedded SDK consumer: constructor arg → env. There's no path from the SDK to the filesystem.
 
+**CLI-only env vars** (read by the CLI but *not* by the SDK constructor):
+
+| Var | Purpose |
+|---|---|
+| `SHIP_PASSWORD` | Default for `--password <password>` on `ship deploy` / `ship deployments upload`. Empty string is normalized to absence (so unset CI variables don't accidentally protect a deploy). |
+| `SHIP_VIA` | Overrides the deploy `via` field (default `'cli'`). Used by integrations that wrap the CLI for origin tracking — the GitHub Action sets `SHIP_VIA=git`, the MCP server sets `SHIP_VIA=mcp`. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
+
 **`getLimits()` is cached** — reuses the `PlatformLimits` fetched during initialization; no extra API call.
 
 ## Backend Integration
