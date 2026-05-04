@@ -287,7 +287,7 @@ On upload, the SDK POSTs `index.html` content (must be < 100KB) to `/spa-check` 
 
 All errors use `ShipError` from `@shipstatic/types`. The class provides the full factory + type-guard API and the two HTTP-context constructors (`fromHttpResponse`, `fromFetchError`). See `@shipstatic/types/CLAUDE.md` "Error Flow" for the end-to-end lifecycle.
 
-**`ApiHttp` is pure transport.** `src/shared/api/http.ts` does not implement any error mapping of its own. `executeRequest` calls the two helpers directly — `ShipError.fromHttpResponse(response, operationName)` for non-OK responses and `ShipError.fromFetchError(error, operationName)` for thrown causes (including pass-through of existing `ShipError`s). There are no private `handleResponseError` / `handleFetchError` wrappers.
+**`ApiHttp` is pure transport.** `src/shared/api/http.ts` owns no error-mapping logic. `executeRequest` calls the two helpers directly — `ShipError.fromHttpResponse(response, operationName)` for non-OK responses and `ShipError.fromFetchError(error, operationName)` for thrown causes (which passes existing `ShipError`s through unchanged).
 
 **CLI error UX** (`src/node/cli/error-handling.ts`) — pure functions, fully unit-testable:
 - `toShipError(err)` — normalizes any thrown value to a `ShipError` (used by the CLI's global error handler for non-fetch errors like Commander parse failures).
