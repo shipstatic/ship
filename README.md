@@ -229,7 +229,7 @@ ship.deploy(input, {
 
 #### Password protection
 
-Pass `password` (6–128 characters; whitespace significant) to gate the deployment behind a prompt. Visitors are asked for the password before they can view the site, including on any custom domains pointing at it. To remove protection, redeploy without a password.
+Pass `password` (6–128 characters) to gate the deployment behind a prompt. Visitors are asked for the password before they can view the site, including on any custom domains pointing at it. To remove protection, redeploy without a password.
 
 ```bash
 ship --password 'your-passphrase' ./dist
