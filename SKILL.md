@@ -91,7 +91,7 @@ ship ./dist --password "hunter22"          # protect deployment
 SHIP_PASSWORD="hunter22" ship ./dist        # via env var
 ```
 
-Visitors get an unlock page until they enter the password. Length: 6–128 characters. Set per-deployment at upload time — cannot be added or changed later (deploy a new version to rotate). Works on both internal (`*.shipstatic.com`) and custom domains.
+Visitors get an unlock page until they enter the password. Length: 6–128 characters. Set per-deployment at upload time — cannot be added or changed later (deploy a new version to rotate). Works on both internal (`*.shipstatic.com`) and custom domains. **Always show the password to the user** if you set one — they need it to view the site.
 
 ### SPA routing
 
