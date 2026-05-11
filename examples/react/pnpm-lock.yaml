@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@shipstatic/ship':
-        specifier: ^0.2.4
-        version: 0.2.8(typescript@4.9.5)
+        specifier: ^0.9.1
+        version: 0.9.1(typescript@4.9.5)
       '@shipstatic/types':
-        specifier: ^0.2.3
-        version: 0.2.9
+        specifier: ^0.9.1
+        version: 0.9.1
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.1
@@ -1071,13 +1071,13 @@ packages:
   '@rushstack/eslint-patch@1.14.0':
     resolution: {integrity: sha512-WJFej426qe4RWOm9MMtP4V3CV4AucXolQty+GRgAWLgQXmpCuwzs7hEpxxhSc/znXUSxum9d/P/32MW0FlAAlA==}
 
-  '@shipstatic/ship@0.2.8':
-    resolution: {integrity: sha512-TWkAcv8jItFfnEQ5Z1FjK0kKU1j5SBYqYB1DZwzNcM3JSiKZI9GXbaRmyP9Odcl77qT5QjbLWtUtqF5Jz5/KVA==}
+  '@shipstatic/ship@0.9.1':
+    resolution: {integrity: sha512-V/UUdI+98+TXK1BzsoGv1A33UYIq+0Zh/3+8wiURVCK3Q5/k5oDvz8wey2d7sx68S0rOwE7IHfbYeytZmaKGNQ==}
     engines: {node: '>=20.0.0'}
     hasBin: true
 
-  '@shipstatic/types@0.2.9':
-    resolution: {integrity: sha512-rZaHquU3Es0sHaO/fKIttL0GlrUCHZoz3MjsXoRdCWkQFBgDFK0nMiyfK9Usrp8KiXLcS5rhBGWlpOJ/yECGrw==}
+  '@shipstatic/types@0.9.1':
+    resolution: {integrity: sha512-AhfHt79HnMBDIDjfmE4noi7+DGTLedDQpZC9WUAlRyJFv0KJ6+JUetxNhZwnR1399dIsPSGZUV9BIHXa+aFyvQ==}
     engines: {node: '>=20.0.0'}
 
   '@sinclair/typebox@0.24.51':
@@ -1999,8 +1999,8 @@ packages:
     resolution: {integrity: sha512-AdmX6xUzdNASswsFtmwSt7Vj8po9IuqXm0UXz7QKPuEUmPB4XyjGfaAr2PSuELMwkRMVH1EpIkX5bTZGRB3eCA==}
     engines: {node: '>=10'}
 
-  cosmiconfig@9.0.0:
-    resolution: {integrity: sha512-itvL5h8RETACmOTFc4UfIyB2RfEHi71Ax6E/PivVxq9NseKbOWpeyHEOIbmAw1rs8Ak0VursQNww7lf7YtUwzg==}
+  cosmiconfig@9.0.1:
+    resolution: {integrity: sha512-hr4ihw+DBqcvrsEDioRO31Z17x71pUYoNe/4h6Z0wB72p7MU7/9gH8Q3s12NFhHPfYBBOV3qyfUxmr/Yn3shnQ==}
     engines: {node: '>=14'}
     peerDependencies:
       typescript: '>=4.9.5'
@@ -3674,10 +3674,6 @@ packages:
 
   mime-types@2.1.35:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
-    engines: {node: '>= 0.6'}
-
-  mime-types@3.0.1:
-    resolution: {integrity: sha512-xRc4oEhT6eaBpU1XF7AjpOFD+xQmXNB5OVKwp4tqCuBpHLS/ZbBDrc07mYTDqVMg6PfxUjjNp85O6Cd2Z/5HWA==}
     engines: {node: '>= 0.6'}
 
   mime@1.6.0:
@@ -5573,16 +5569,16 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
-  yocto-spinner@1.0.0:
-    resolution: {integrity: sha512-VPX8P/+Z2Fnpx8PC/JELbxp3QRrBxjAekio6yulGtA5gKt9YyRc5ycCb+NHgZCbZ0kx9KxwZp7gC6UlrCcCdSQ==}
+  yocto-spinner@1.2.0:
+    resolution: {integrity: sha512-Yw0hUB6UA3o4YUgKy3oSe9a4cxoaZ9sBfYDw+JSxo6Id0KoJGoxzPA24qqUXYKBWABs/zDSGTz9kww7t3F0XGw==}
     engines: {node: '>=18.19'}
 
   yoctocolors@2.1.2:
     resolution: {integrity: sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug==}
     engines: {node: '>=18'}
 
-  zod@4.1.12:
-    resolution: {integrity: sha512-JInaHOamG8pt5+Ey8kGmdcAcg3OL9reK8ltczgHTAwNhMys/6ThXHityHxVV2p3fkw/c+MAvBHFVYHFZDmjMCQ==}
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
 
@@ -6902,24 +6898,22 @@ snapshots:
 
   '@rushstack/eslint-patch@1.14.0': {}
 
-  '@shipstatic/ship@0.2.8(typescript@4.9.5)':
+  '@shipstatic/ship@0.9.1(typescript@4.9.5)':
     dependencies:
-      '@shipstatic/types': 0.2.9
       columnify: 1.6.0
       commander: 12.1.0
-      cosmiconfig: 9.0.0(typescript@4.9.5)
+      cosmiconfig: 9.0.1(typescript@4.9.5)
       form-data-encoder: 4.1.0
       formdata-node: 6.0.3
       junk: 4.0.1
-      mime-types: 3.0.1
       spark-md5: 3.0.2
-      yocto-spinner: 1.0.0
+      yocto-spinner: 1.2.0
       yoctocolors: 2.1.2
-      zod: 4.1.12
+      zod: 4.4.3
     transitivePeerDependencies:
       - typescript
 
-  '@shipstatic/types@0.2.9': {}
+  '@shipstatic/types@0.9.1': {}
 
   '@sinclair/typebox@0.24.51': {}
 
@@ -8013,7 +8007,7 @@ snapshots:
       path-type: 4.0.0
       yaml: 1.10.2
 
-  cosmiconfig@9.0.0(typescript@4.9.5):
+  cosmiconfig@9.0.1(typescript@4.9.5):
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
@@ -10110,10 +10104,6 @@ snapshots:
   mime-types@2.1.35:
     dependencies:
       mime-db: 1.52.0
-
-  mime-types@3.0.1:
-    dependencies:
-      mime-db: 1.54.0
 
   mime@1.6.0: {}
 
@@ -12304,10 +12294,10 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  yocto-spinner@1.0.0:
+  yocto-spinner@1.2.0:
     dependencies:
       yoctocolors: 2.1.2
 
   yoctocolors@2.1.2: {}
 
-  zod@4.1.12: {}
+  zod@4.4.3: {}
