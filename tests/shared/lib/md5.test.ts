@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { calculateMD5 } from '../../../src/shared/lib/md5';
-import { __setTestEnvironment } from '../../../src/shared/lib/env';
 import { ShipError } from '@shipstatic/types';
 
 const { MOCK_SPARK_MD5_INSTANCE, MOCK_SPARK_MD5_ARRAY_BUFFER_FN } = vi.hoisted(() => {
@@ -13,122 +12,103 @@ const { MOCK_CRYPTO_HASH_INSTANCE, MOCK_CREATE_HASH_FN } = vi.hoisted(() => {
   return { MOCK_CRYPTO_HASH_INSTANCE: instance, MOCK_CREATE_HASH_FN: vi.fn(() => instance) };
 });
 const { MOCK_FS_STREAM_INSTANCE, MOCK_CREATE_READ_STREAM_FN } = vi.hoisted(() => {
-  const streamInstance = { on: vi.fn(), pipe: vi.fn() };
+  const streamInstance = { on: vi.fn() };
   return { MOCK_FS_STREAM_INSTANCE: streamInstance, MOCK_CREATE_READ_STREAM_FN: vi.fn(() => streamInstance) };
 });
 
 vi.mock('spark-md5', () => ({ default: { ArrayBuffer: MOCK_SPARK_MD5_ARRAY_BUFFER_FN } }));
 vi.mock('crypto', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('crypto')>();
-    return { ...actual, createHash: MOCK_CREATE_HASH_FN };
+  const actual = await importOriginal<typeof import('crypto')>();
+  return { ...actual, createHash: MOCK_CREATE_HASH_FN };
 });
 vi.mock('fs', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('fs')>();
-    return { ...actual, createReadStream: MOCK_CREATE_READ_STREAM_FN };
+  const actual = await importOriginal<typeof import('fs')>();
+  return { ...actual, createReadStream: MOCK_CREATE_READ_STREAM_FN };
 });
 
-describe('Unified calculateMD5 Utility', () => {
-  let mockFileReader: {
-    readAsArrayBuffer: ReturnType<typeof vi.fn>;
-    onload: ((event: { target: { result: ArrayBuffer | null } }) => void) | null;
-    onerror: ((event?: any) => void) | null;
-  };
-
+describe('calculateMD5', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    __setTestEnvironment('node');
-
     MOCK_SPARK_MD5_INSTANCE.end.mockReturnValue('mocked-spark-md5-hash');
     MOCK_CRYPTO_HASH_INSTANCE.digest.mockReturnValue('mocked-crypto-md5-hash');
-
-    MOCK_FS_STREAM_INSTANCE.on.mockReset().mockImplementation(function(this: any, event: string, callback: (...args: any[]) => void) { // Changed Function to (...args: any[]) => void
-        if (event === 'data') { setTimeout(() => callback(Buffer.from('mock stream data')), 0); }
-        if (event === 'end') { setTimeout(() => callback(), 0); }
-        return this;
-    });
-
-    mockFileReader = {
-      readAsArrayBuffer: vi.fn(),
-      onload: null,
-      onerror: null,
-    };
-    vi.stubGlobal('FileReader', vi.fn(() => mockFileReader));
   });
 
-  afterEach(() => {
-    __setTestEnvironment(null);
-    vi.unstubAllGlobals();
-  });
-
-  describe('Browser Environment', () => {
-    beforeEach(() => { __setTestEnvironment('browser'); });
-
-    it('should use SparkMD5 for a Blob', async () => {
-      const mockBlob = new Blob(['hello browser']);
-      mockFileReader.readAsArrayBuffer.mockImplementationOnce(() => {
-        if (mockFileReader.onload) {
-          setTimeout(() => mockFileReader.onload!({ target: { result: new TextEncoder().encode('hello browser').buffer } } as any), 0);
-        }
-      });
-
-      const result = await calculateMD5(mockBlob);
+  describe('Blob', () => {
+    it('hashes a Blob via SparkMD5 and Blob.arrayBuffer()', async () => {
+      const blob = new Blob(['hello']);
+      const result = await calculateMD5(blob);
       expect(MOCK_SPARK_MD5_ARRAY_BUFFER_FN).toHaveBeenCalled();
-      expect(mockFileReader.readAsArrayBuffer).toHaveBeenCalledWith(mockBlob.slice(0, mockBlob.size));
+      expect(MOCK_SPARK_MD5_INSTANCE.append).toHaveBeenCalled();
       expect(result.md5).toBe('mocked-spark-md5-hash');
     });
 
-    it('should reject on FileReader error', async () => {
-      const mockBlob = new Blob(['error data']);
-      mockFileReader.readAsArrayBuffer.mockImplementationOnce(() => {
-        if (mockFileReader.onerror) {
-          setTimeout(() => mockFileReader.onerror!(new ErrorEvent('error', {error: new Error('test read error')})), 0);
-        }
+    it('does not touch FileReader', async () => {
+      // Pin the contract: the Blob path uses only Blob.arrayBuffer — the one
+      // primitive every modern runtime ships. jsdom's arrayBuffer polyfill in
+      // tests/setup.ts goes through FileReader, so we patch slice() to return
+      // a native-arrayBuffer object and bypass the polyfill for this assertion.
+      const data = new TextEncoder().encode('payload');
+      const blob = new Blob([data]);
+      Object.defineProperty(blob, 'slice', {
+        configurable: true,
+        value: () => ({ arrayBuffer: async () => data.buffer }),
       });
-      await expect(calculateMD5(mockBlob)).rejects.toThrow(ShipError.business('Failed to calculate MD5: FileReader error'));
-    });
 
-    it('should throw if input is not a Blob in browser env', async () => {
-        await expect(calculateMD5(Buffer.from('not a blob') as any)).rejects.toThrow('Invalid input for browser MD5 calculation: Expected Blob or File.');
+      const original = (globalThis as any).FileReader;
+      (globalThis as any).FileReader = undefined;
+      try {
+        const result = await calculateMD5(blob);
+        expect(result.md5).toBe('mocked-spark-md5-hash');
+      } finally {
+        (globalThis as any).FileReader = original;
+      }
     });
   });
 
-  describe('Node.js Environment', () => {
-    beforeEach(() => { __setTestEnvironment('node'); });
-
-    it('should use crypto for a Buffer input', async () => {
-      const buffer = Buffer.from('hello node');
+  describe('Buffer', () => {
+    it('hashes a Buffer via crypto', async () => {
+      const buffer = Buffer.from('hello');
       const result = await calculateMD5(buffer);
       expect(MOCK_CREATE_HASH_FN).toHaveBeenCalledWith('md5');
       expect(MOCK_CRYPTO_HASH_INSTANCE.update).toHaveBeenCalledWith(buffer);
       expect(result.md5).toBe('mocked-crypto-md5-hash');
     });
+  });
 
-    it('should use crypto and fs.createReadStream for a file path input', async () => {
-      const filePath = '/mock/file.txt';
-      await calculateMD5(filePath);
-      expect(MOCK_CREATE_READ_STREAM_FN).toHaveBeenCalledWith(filePath);
-      expect(MOCK_CRYPTO_HASH_INSTANCE.update).toHaveBeenCalledWith(Buffer.from('mock stream data'));
-    });
-
-    it('should reject on fs.createReadStream error', async () => {
-      const filePath = '/mock/errorfile.txt';
-      const streamError = new Error('File access denied');
-      MOCK_CREATE_READ_STREAM_FN.mockImplementationOnce(() => {
-        const errorStream = { on: vi.fn((event: string, cb: (...args: any[]) => void) => { if (event === 'error') setTimeout(() => cb(streamError),0); return errorStream; })}; // Changed Function to (...args: any[]) => void
-        return errorStream as any;
+  describe('file path', () => {
+    function mockStream(handlers: { data?: Buffer; end?: boolean; error?: Error }) {
+      MOCK_FS_STREAM_INSTANCE.on.mockImplementation((event: string, cb: (...args: any[]) => void) => {
+        if (event === 'data' && handlers.data) setTimeout(() => cb(handlers.data), 0);
+        if (event === 'end' && handlers.end) setTimeout(() => cb(), 0);
+        if (event === 'error' && handlers.error) setTimeout(() => cb(handlers.error), 0);
+        return MOCK_FS_STREAM_INSTANCE;
       });
-      await expect(calculateMD5(filePath)).rejects.toThrow(ShipError.business(`Failed to read file for MD5: ${streamError.message}`));
+    }
+
+    it('hashes a file via fs.createReadStream', async () => {
+      const chunk = Buffer.from('mock stream data');
+      mockStream({ data: chunk, end: true });
+
+      const path = '/mock/file.txt';
+      await calculateMD5(path);
+      expect(MOCK_CREATE_READ_STREAM_FN).toHaveBeenCalledWith(path);
+      expect(MOCK_CRYPTO_HASH_INSTANCE.update).toHaveBeenCalledWith(chunk);
     });
 
-    it('should throw if input is not Buffer or string in Node.js env', async () => {
-        await expect(calculateMD5(new Blob(['not buffer']) as any)).rejects.toThrow('Invalid input for Node.js MD5 calculation: Expected Buffer or file path string.');
+    it('rejects when the file stream errors', async () => {
+      const streamError = new Error('File access denied');
+      mockStream({ error: streamError });
+
+      await expect(calculateMD5('/mock/errorfile.txt')).rejects.toThrow(
+        ShipError.business(`Failed to read file for MD5: ${streamError.message}`)
+      );
     });
   });
 
-  describe('Unknown Environment', () => {
-    it('should throw an error', async () => {
-      __setTestEnvironment('unknown');
-      await expect(calculateMD5(Buffer.from('any') as any)).rejects.toThrow('Unknown or unsupported execution environment for MD5 calculation.');
+  describe('invalid input', () => {
+    it('throws for inputs that are neither Blob, Buffer, nor string', async () => {
+      await expect(calculateMD5(42 as any)).rejects.toThrow('Invalid input for MD5 calculation');
+      await expect(calculateMD5({} as any)).rejects.toThrow('Invalid input for MD5 calculation');
     });
   });
 });
