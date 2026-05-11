@@ -56,6 +56,27 @@ describe('ApiHttp', () => {
       });
       expect(api).toBeDefined();
     });
+
+    it('binds the default fetch to globalThis (browser Illegal invocation regression)', async () => {
+      // Browser `window.fetch` throws "Illegal invocation" when called with
+      // `this` set to anything other than `window`. Simulate that contract.
+      const original = globalThis.fetch;
+      const strictFetch = vi.fn(function (this: any) {
+        if (this !== globalThis) {
+          throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+        }
+        return createMockResponse({ success: true, message: 'pong' });
+      });
+      globalThis.fetch = strictFetch as unknown as typeof fetch;
+
+      try {
+        const api = new ApiHttp(mockOptions);
+        await expect(api.ping()).resolves.toBeDefined();
+        expect(strictFetch).toHaveBeenCalled();
+      } finally {
+        globalThis.fetch = original;
+      }
+    });
   });
 
   describe('ping', () => {
