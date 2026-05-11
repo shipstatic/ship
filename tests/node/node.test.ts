@@ -13,6 +13,7 @@ import {
     Ship,
     StaticFile
 } from '../../src/index';
+import type { Fetch } from '../../src/index';
 // NodeShipClient no longer exists, using Ship class instead
 import { processFilesForNode } from '../../src/node/core/node-files'; // Import processFilesForNode for testing
 import { __setTestEnvironment } from '../../src/index';
@@ -157,6 +158,14 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
       expect(Ship).toBeDefined();
       const client = new Ship();
       expect(client).toBeInstanceOf(Ship);
+    });
+
+    it('should forward fetch through to the ApiHttp transport', () => {
+      const fetch = vi.fn<Fetch>();
+      new Ship({ fetch });
+      expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
+        expect.objectContaining({ fetch }),
+      );
     });
   });
 

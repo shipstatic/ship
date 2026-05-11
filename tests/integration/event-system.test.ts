@@ -101,7 +101,13 @@ describe('Ship SDK Events - Final Demo', () => {
   });
 
   test('should demonstrate use cases', async () => {
-    const ship = new Ship({ 
+    // Install the fetch mock before constructing Ship. The SDK captures
+    // `globalThis.fetch` at construction time, so any swap must happen first.
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), { status: 200 })
+    );
+
+    const ship = new Ship({
       apiUrl: 'https://api.example.com'
     });
 
@@ -110,12 +116,12 @@ describe('Ship SDK Events - Final Demo', () => {
     ship.on('request', (url, init) => {
       logs.push(`→ ${init.method || 'GET'} ${url}`);
     });
-    
+
     ship.on('response', (response, url) => {
       logs.push(`← ${response.status} ${url}`);
     });
 
-    // Use case 2: Error monitoring  
+    // Use case 2: Error monitoring
     const errors: string[] = [];
     ship.on('error', (error, url) => {
       errors.push(`❌ ${error.message} at ${url}`);
@@ -124,11 +130,11 @@ describe('Ship SDK Events - Final Demo', () => {
     // Use case 3: Performance monitoring
     const timings: Array<{url: string, duration: number}> = [];
     const startTimes = new Map<string, number>();
-    
+
     ship.on('request', (url) => {
       startTimes.set(url, Date.now());
     });
-    
+
     ship.on('response', (response, url) => {
       const start = startTimes.get(url);
       if (start) {
@@ -139,11 +145,6 @@ describe('Ship SDK Events - Final Demo', () => {
         startTimes.delete(url);
       }
     });
-
-    // Mock fetch to avoid actual requests  
-    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ success: true }), { status: 200 })
-    );
 
     try {
       await ship.ping();

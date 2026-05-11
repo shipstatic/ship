@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http';
+import type { Fetch } from '../../../src/shared/types';
 import { ShipError, ErrorType } from '@shipstatic/types';
 
 // Mock fetch globally
@@ -1111,6 +1112,108 @@ describe('ApiHttp', () => {
       // Verify the signal was passed (indicates timeout setup)
       const fetchCall = (fetch as any).mock.calls[0][1];
       expect(fetchCall.signal).toBeDefined();
+    });
+  });
+
+  describe('fetch injection', () => {
+    it('should use globalThis.fetch by default', async () => {
+      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
+
+      const api = new ApiHttp(mockOptions);
+      const result = await api.ping();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://api.test.com/ping',
+        expect.objectContaining({ method: 'GET' }),
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should route every API call through the injected fetcher and bypass globalThis.fetch', async () => {
+      const injected = vi.fn<Fetch>().mockResolvedValue(
+        createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
+      );
+
+      const api = new ApiHttp({ ...mockOptions, fetch: injected });
+      await api.ping();
+      await api.getAccount();
+      await api.listDeployments();
+
+      expect(injected).toHaveBeenCalledTimes(3);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('should pass the same RequestInit shape to the injected fetcher (headers, method, signal)', async () => {
+      const injected = vi.fn<Fetch>().mockResolvedValue(
+        createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
+      );
+
+      const api = new ApiHttp({ ...mockOptions, fetch: injected });
+      await api.ping();
+
+      const [url, init] = injected.mock.calls[0];
+      expect(url).toBe('https://api.test.com/ping');
+      expect(init?.method).toBe('GET');
+      expect(init?.headers).toMatchObject({ Authorization: 'Bearer test-api-key' });
+      expect(init?.signal).toBeDefined();
+    });
+
+    it('should normalise injected-fetcher throws via ShipError.fromFetchError', async () => {
+      const injected = vi.fn<Fetch>().mockRejectedValue(new TypeError('fetch failed'));
+
+      const api = new ApiHttp({ ...mockOptions, fetch: injected });
+
+      await expect(api.ping()).rejects.toBeInstanceOf(ShipError);
+      await expect(api.ping()).rejects.toThrow('fetch failed');
+    });
+
+    it('should normalise injected-fetcher non-OK responses via ShipError.fromHttpResponse', async () => {
+      const injected = vi.fn<Fetch>().mockResolvedValue({
+        ok: false,
+        status: 401,
+        headers: {
+          get: vi.fn().mockImplementation((header: string) =>
+            header === 'content-type' ? 'application/json' : null,
+          ),
+        },
+        json: async () => ({ error: ErrorType.Authentication, message: 'bad key', status: 401 }),
+      } as unknown as Response);
+
+      const api = new ApiHttp({ ...mockOptions, fetch: injected });
+
+      await expect(api.ping()).rejects.toMatchObject({
+        type: ErrorType.Authentication,
+        status: 401,
+      });
+    });
+
+    it('should emit request/response events for injected-fetcher calls', async () => {
+      const injected = vi.fn<Fetch>().mockResolvedValue(
+        createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
+      );
+      const api = new ApiHttp({ ...mockOptions, fetch: injected });
+
+      const onRequest = vi.fn();
+      const onResponse = vi.fn();
+      api.on('request', onRequest);
+      api.on('response', onResponse);
+
+      await api.ping();
+
+      expect(onRequest).toHaveBeenCalledWith('https://api.test.com/ping', expect.objectContaining({ method: 'GET' }));
+      expect(onResponse).toHaveBeenCalledWith(expect.anything(), 'https://api.test.com/ping');
+    });
+
+    it('should emit error event when injected fetcher throws', async () => {
+      const injected = vi.fn<Fetch>().mockRejectedValue(new TypeError('fetch failed'));
+      const api = new ApiHttp({ ...mockOptions, fetch: injected });
+
+      const onError = vi.fn();
+      api.on('error', onError);
+
+      await expect(api.ping()).rejects.toBeInstanceOf(ShipError);
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledWith(expect.any(ShipError), 'https://api.test.com/ping');
     });
   });
 
