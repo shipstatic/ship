@@ -74,7 +74,10 @@ export class ApiHttp extends SimpleEvents {
     this.getAuthHeadersCallback = options.getAuthHeaders;
     this.useCredentials = options.useCredentials ?? false;
     this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
-    this.fetch = options.fetch ?? globalThis.fetch;
+    // Bind to globalThis when falling back to the platform `fetch` — browsers
+    // require `this === window` on `window.fetch` and throw "Illegal invocation"
+    // when it's invoked as a property of any other object.
+    this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.createDeployBody = options.createDeployBody;
     this.deployEndpoint = options.deployEndpoint || ENDPOINTS.DEPLOYMENTS;
   }
