@@ -111,7 +111,7 @@ ship --api-key <key> ...           # Per-command override
 ship config                        # Interactive setup → ~/.shiprc (requires TTY)
 ```
 
-Deploy tokens (`--deploy-token`) are single-use — consumed after one successful deploy. For CI/CD one-shot workflows.
+Deploy tokens (`--deploy-token`) are scoped, revocable deploy credentials. Set a short TTL for one-shot CI/CD workflows.
 
 Free API key: https://my.shipstatic.com/api-key
 
