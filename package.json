@@ -85,7 +85,7 @@
     "zod": "^4.4.2"
   },
   "devDependencies": {
-    "@shipstatic/types": "^0.9.11",
+    "@shipstatic/types": "^1.0.0",
     "@types/columnify": "^1.5.4",
     "@types/node": "^20.19.39",
     "@types/spark-md5": "^3.0.5",
