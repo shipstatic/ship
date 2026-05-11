@@ -1,62 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   LABEL_CONSTRAINTS,
-  PASSWORD_CONSTRAINTS,
   ErrorType,
   isShipError,
 } from '@shipstatic/types';
-import { validatePassword, validateLabels } from '../../../src/shared/lib/validation';
+import { validateLabels } from '../../../src/shared/lib/validation';
 
-describe('validatePassword', () => {
-  it('is a no-op for absent values', () => {
-    expect(() => validatePassword(undefined)).not.toThrow();
-    expect(() => validatePassword(null)).not.toThrow();
-  });
-
-  it('rejects non-string values', () => {
-    expect(() => validatePassword(123)).toThrow(/string/);
-    expect(() => validatePassword(true)).toThrow(/string/);
-    expect(() => validatePassword({})).toThrow(/string/);
-  });
-
-  it('rejects strings shorter than the minimum', () => {
-    const tooShort = 'a'.repeat(PASSWORD_CONSTRAINTS.MIN_LENGTH - 1);
-    expect(() => validatePassword(tooShort)).toThrow(/between/);
-  });
-
-  it('rejects strings longer than the maximum', () => {
-    const tooLong = 'a'.repeat(PASSWORD_CONSTRAINTS.MAX_LENGTH + 1);
-    expect(() => validatePassword(tooLong)).toThrow(/between/);
-  });
-
-  it('accepts boundary lengths', () => {
-    expect(() => validatePassword('a'.repeat(PASSWORD_CONSTRAINTS.MIN_LENGTH))).not.toThrow();
-    expect(() => validatePassword('a'.repeat(PASSWORD_CONSTRAINTS.MAX_LENGTH))).not.toThrow();
-  });
-
-  it('preserves whitespace verbatim (does not trim)', () => {
-    const sixSpaces = ' '.repeat(PASSWORD_CONSTRAINTS.MIN_LENGTH);
-    expect(() => validatePassword(sixSpaces)).not.toThrow();
-  });
-
-  it('rejects the empty string', () => {
-    expect(() => validatePassword('')).toThrow(/between/);
-  });
-
-  it('throws ShipError with the same error type the API would emit', () => {
-    // Both SDK and API throw ShipError.validation for input format/length
-    // errors so users switching on `err.type` see the same value regardless of
-    // whether the SDK or the server caught it.
-    try {
-      validatePassword('x');
-      throw new Error('expected throw');
-    } catch (err) {
-      expect(isShipError(err)).toBe(true);
-      expect((err as any).type).toBe(ErrorType.Validation);
-      expect((err as any).status).toBe(400);
-    }
-  });
-});
+// `validatePassword` is re-exported from `@shipstatic/types`; its tests live
+// in that package (`tests/validation-constants.test.ts`) so the canonical
+// validator is verified at its source. This file covers SDK-local validators.
 
 describe('validateLabels', () => {
   it('is a no-op for undefined', () => {

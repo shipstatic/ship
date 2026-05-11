@@ -159,7 +159,7 @@ Available on every command:
 | Flag | Description |
 |------|-------------|
 | `--api-key <key>` | API key for authenticated requests |
-| `--deploy-token <token>` | Deploy token for single-use deployments |
+| `--deploy-token <token>` | Deploy token for authenticated deployments |
 | `--api-url <url>` | API URL override (for development) |
 | `--config <file>` | Custom config file path |
 | `--json` | Output results in JSON format |
@@ -199,7 +199,7 @@ const ship = new Ship();
 // API key — permanent, full access
 const ship = new Ship({ apiKey: 'ship-...' });
 
-// Deploy token — single-use, consumed on successful deploy
+// Deploy token — scoped to deploys, optional TTL, revocable
 const ship = new Ship({ deployToken: 'token-...' });
 
 // Set credentials after construction
@@ -229,7 +229,7 @@ ship.deploy(input, {
 
 #### Password protection
 
-Pass `password` (6–128 characters; whitespace significant) to gate the deployment behind a prompt. Visitors are asked for the password before they can view the site, including on any custom domains pointing at it. To remove protection, redeploy without a password.
+Pass `password` (6–128 characters) to gate the deployment behind a prompt. Visitors are asked for the password before they can view the site, including on any custom domains pointing at it. To remove protection, redeploy without a password.
 
 ```bash
 ship --password 'your-passphrase' ./dist
@@ -264,6 +264,28 @@ ship.on('request', (url, init) => {});
 ship.on('response', (response, url) => {});
 ship.on('error', (error, url) => {});
 ship.off('request', handler);
+```
+
+### Custom fetch
+
+Pass `fetch` to override the transport function used for every API call. Defaults to `globalThis.fetch`. Useful for wrapping requests with tracing, retries, or request signing, and for injecting a Cloudflare service-binding `Fetcher` from a Worker so calls reach a sibling Worker in-process instead of through the public hostname.
+
+```typescript
+import type { Fetch } from '@shipstatic/ship';
+
+const traced: Fetch = (input, init) =>
+  globalThis.fetch(input, { ...init, headers: { ...init?.headers, 'X-Trace-Id': 'abc-123' } });
+
+const ship = new Ship({ fetch: traced });
+```
+
+```typescript
+// Cloudflare Worker with a service binding to the API.
+// Any parseable apiUrl works — service bindings dispatch by binding identity, not hostname.
+const ship = new Ship({
+  apiUrl: 'https://api',
+  fetch: env.API.fetch.bind(env.API),
+});
 ```
 
 ### Error Handling

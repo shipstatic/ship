@@ -62,6 +62,7 @@ export const deployments = {
     via: null,
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
+    screenshot: 'https://screenshots.shipstatic.com/test-deployment-1/0123456789abcdef',
   } satisfies Deployment,
 
   /**
@@ -79,6 +80,7 @@ export const deployments = {
     via: null,
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
+    screenshot: 'https://screenshots.shipstatic.com/labeled-deployment-1/0123456789abcdef',
   } satisfies Deployment,
 
   /**
@@ -96,6 +98,7 @@ export const deployments = {
     via: null,
     created: timestamps.jan2022,
     expires: null,
+    screenshot: 'https://screenshots.shipstatic.com/pending-deployment-1/0123456789abcdef',
   } satisfies Deployment,
 
   /**
@@ -113,6 +116,7 @@ export const deployments = {
     via: 'cli',
     created: timestamps.jan2022,
     expires: timestamps.jan2023,
+    screenshot: 'https://screenshots.shipstatic.com/cli-deployment-1/0123456789abcdef',
   } satisfies Deployment,
 
 } as const;

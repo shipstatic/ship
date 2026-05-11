@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@shipstatic/ship':
-        specifier: ^0.2.4
-        version: 0.2.8
+        specifier: ^0.9.1
+        version: 0.9.1
       '@shipstatic/types':
-        specifier: ^0.2.3
-        version: 0.2.9
+        specifier: ^0.9.1
+        version: 0.9.1
 
 packages:
 
@@ -25,13 +25,13 @@ packages:
     resolution: {integrity: sha512-D2hP9eA+Sqx1kBZgzxZh0y1trbuU+JoDkiEwqhQ36nodYqJwyEIhPSdMNd7lOm/4io72luTPWH20Yda0xOuUow==}
     engines: {node: '>=6.9.0'}
 
-  '@shipstatic/ship@0.2.8':
-    resolution: {integrity: sha512-TWkAcv8jItFfnEQ5Z1FjK0kKU1j5SBYqYB1DZwzNcM3JSiKZI9GXbaRmyP9Odcl77qT5QjbLWtUtqF5Jz5/KVA==}
+  '@shipstatic/ship@0.9.1':
+    resolution: {integrity: sha512-V/UUdI+98+TXK1BzsoGv1A33UYIq+0Zh/3+8wiURVCK3Q5/k5oDvz8wey2d7sx68S0rOwE7IHfbYeytZmaKGNQ==}
     engines: {node: '>=20.0.0'}
     hasBin: true
 
-  '@shipstatic/types@0.2.9':
-    resolution: {integrity: sha512-rZaHquU3Es0sHaO/fKIttL0GlrUCHZoz3MjsXoRdCWkQFBgDFK0nMiyfK9Usrp8KiXLcS5rhBGWlpOJ/yECGrw==}
+  '@shipstatic/types@0.9.1':
+    resolution: {integrity: sha512-AhfHt79HnMBDIDjfmE4noi7+DGTLedDQpZC9WUAlRyJFv0KJ6+JUetxNhZwnR1399dIsPSGZUV9BIHXa+aFyvQ==}
     engines: {node: '>=20.0.0'}
 
   ansi-regex@5.0.1:
@@ -57,8 +57,8 @@ packages:
     resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
     engines: {node: '>=18'}
 
-  cosmiconfig@9.0.0:
-    resolution: {integrity: sha512-itvL5h8RETACmOTFc4UfIyB2RfEHi71Ax6E/PivVxq9NseKbOWpeyHEOIbmAw1rs8Ak0VursQNww7lf7YtUwzg==}
+  cosmiconfig@9.0.1:
+    resolution: {integrity: sha512-hr4ihw+DBqcvrsEDioRO31Z17x71pUYoNe/4h6Z0wB72p7MU7/9gH8Q3s12NFhHPfYBBOV3qyfUxmr/Yn3shnQ==}
     engines: {node: '>=14'}
     peerDependencies:
       typescript: '>=4.9.5'
@@ -108,14 +108,6 @@ packages:
   lines-and-columns@1.2.4:
     resolution: {integrity: sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==}
 
-  mime-db@1.54.0:
-    resolution: {integrity: sha512-aU5EJuIN2WDemCcAp2vFBfp/m4EAhWJnUNSSw0ixs7/kXbd6Pg64EmwJkNdFhB8aWt1sH2CTXrLxo/iAGV3oPQ==}
-    engines: {node: '>= 0.6'}
-
-  mime-types@3.0.1:
-    resolution: {integrity: sha512-xRc4oEhT6eaBpU1XF7AjpOFD+xQmXNB5OVKwp4tqCuBpHLS/ZbBDrc07mYTDqVMg6PfxUjjNp85O6Cd2Z/5HWA==}
-    engines: {node: '>= 0.6'}
-
   parent-module@1.0.1:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}
     engines: {node: '>=6'}
@@ -141,16 +133,16 @@ packages:
   wcwidth@1.0.1:
     resolution: {integrity: sha512-XHPEwS0q6TaxcvG85+8EYkbiCux2XtWG2mkc47Ng2A77BQu9+DqIOJldST4HgPkuea7dvKSj5VgX3P1d4rW8Tg==}
 
-  yocto-spinner@1.0.0:
-    resolution: {integrity: sha512-VPX8P/+Z2Fnpx8PC/JELbxp3QRrBxjAekio6yulGtA5gKt9YyRc5ycCb+NHgZCbZ0kx9KxwZp7gC6UlrCcCdSQ==}
+  yocto-spinner@1.2.0:
+    resolution: {integrity: sha512-Yw0hUB6UA3o4YUgKy3oSe9a4cxoaZ9sBfYDw+JSxo6Id0KoJGoxzPA24qqUXYKBWABs/zDSGTz9kww7t3F0XGw==}
     engines: {node: '>=18.19'}
 
   yoctocolors@2.1.2:
     resolution: {integrity: sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug==}
     engines: {node: '>=18'}
 
-  zod@4.1.12:
-    resolution: {integrity: sha512-JInaHOamG8pt5+Ey8kGmdcAcg3OL9reK8ltczgHTAwNhMys/6ThXHityHxVV2p3fkw/c+MAvBHFVYHFZDmjMCQ==}
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
 
@@ -162,24 +154,22 @@ snapshots:
 
   '@babel/helper-validator-identifier@7.27.1': {}
 
-  '@shipstatic/ship@0.2.8':
+  '@shipstatic/ship@0.9.1':
     dependencies:
-      '@shipstatic/types': 0.2.9
       columnify: 1.6.0
       commander: 12.1.0
-      cosmiconfig: 9.0.0
+      cosmiconfig: 9.0.1
       form-data-encoder: 4.1.0
       formdata-node: 6.0.3
       junk: 4.0.1
-      mime-types: 3.0.1
       spark-md5: 3.0.2
-      yocto-spinner: 1.0.0
+      yocto-spinner: 1.2.0
       yoctocolors: 2.1.2
-      zod: 4.1.12
+      zod: 4.4.3
     transitivePeerDependencies:
       - typescript
 
-  '@shipstatic/types@0.2.9': {}
+  '@shipstatic/types@0.9.1': {}
 
   ansi-regex@5.0.1: {}
 
@@ -196,7 +186,7 @@ snapshots:
 
   commander@12.1.0: {}
 
-  cosmiconfig@9.0.0:
+  cosmiconfig@9.0.1:
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
@@ -236,12 +226,6 @@ snapshots:
 
   lines-and-columns@1.2.4: {}
 
-  mime-db@1.54.0: {}
-
-  mime-types@3.0.1:
-    dependencies:
-      mime-db: 1.54.0
-
   parent-module@1.0.1:
     dependencies:
       callsites: 3.1.0
@@ -267,10 +251,10 @@ snapshots:
     dependencies:
       defaults: 1.0.4
 
-  yocto-spinner@1.0.0:
+  yocto-spinner@1.2.0:
     dependencies:
       yoctocolors: 2.1.2
 
   yoctocolors@2.1.2: {}
 
-  zod@4.1.12: {}
+  zod@4.4.3: {}

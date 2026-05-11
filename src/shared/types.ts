@@ -88,6 +88,9 @@ export type DeployBodyCreator = (
 // CLIENT CONFIGURATION
 // =============================================================================
 
+/** Standard `fetch` signature — the type of the `fetch` client option. */
+export type Fetch = typeof fetch;
+
 /**
  * Options for configuring a `Ship` instance.
  * Sets default API host, authentication credentials, progress callbacks, concurrency, and timeouts for the client.
@@ -97,7 +100,7 @@ export interface ShipClientOptions {
   apiUrl?: string | undefined;
   /** API key for authenticated deployments (format: ship-<64-char-hex>, total 69 chars). */
   apiKey?: string | undefined;
-  /** Deploy token for single-use deployments (format: token-<64-char-hex>, total 70 chars). */
+  /** Deploy token for authenticated deployments (format: token-<64-char-hex>, total 70 chars). */
   deployToken?: string | undefined;
   /**
    * Default callback for deploy progress for deploys made with this client.
@@ -124,6 +127,14 @@ export interface ShipClientOptions {
    * to proceed with cookie-based credentials.
    */
   useCredentials?: boolean | undefined;
+  /**
+   * Custom `fetch` implementation. Defaults to `globalThis.fetch`.
+   *
+   * Use to inject a Cloudflare service-binding `Fetcher`
+   * (`env.API.fetch.bind(env.API)`) for Worker-to-Worker calls, to wrap
+   * requests with tracing/retries/signing, or to mock in tests.
+   */
+  fetch?: Fetch | undefined;
   /**
    * Default caller identifier for multi-tenant deployments.
    * Alphanumeric characters, dots, underscores, and hyphens allowed (max 128 chars).

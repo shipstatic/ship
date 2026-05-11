@@ -19,7 +19,7 @@ import type {
   TokenCreateResponse,
   TokenListResponse
 } from '@shipstatic/types';
-import type { ApiDeployOptions, DeployBodyCreator, DomainSetResult, ShipClientOptions } from '../types.js';
+import type { ApiDeployOptions, DeployBodyCreator, DomainSetResult, Fetch, ShipClientOptions } from '../types.js';
 import { ShipError, DEFAULT_API } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 import { validateLabels, validatePassword } from '../lib/validation.js';
@@ -63,6 +63,7 @@ export class ApiHttp extends SimpleEvents {
   private readonly getAuthHeadersCallback: () => Record<string, string>;
   private readonly useCredentials: boolean;
   private readonly timeout: number;
+  private readonly fetch: Fetch;
   private readonly createDeployBody: DeployBodyCreator;
   private readonly deployEndpoint: string;
   private globalHeaders: Record<string, string> = {};
@@ -73,6 +74,7 @@ export class ApiHttp extends SimpleEvents {
     this.getAuthHeadersCallback = options.getAuthHeaders;
     this.useCredentials = options.useCredentials ?? false;
     this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
+    this.fetch = options.fetch ?? globalThis.fetch;
     this.createDeployBody = options.createDeployBody;
     this.deployEndpoint = options.deployEndpoint || ENDPOINTS.DEPLOYMENTS;
   }
@@ -110,7 +112,7 @@ export class ApiHttp extends SimpleEvents {
     this.emit('request', url, fetchOptions);
 
     try {
-      const response = await fetch(url, fetchOptions);
+      const response = await this.fetch(url, fetchOptions);
       cleanup();
 
       if (!response.ok) {
