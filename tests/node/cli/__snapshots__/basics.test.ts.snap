@@ -56,7 +56,7 @@ COMMANDS
 
 FLAGS
   --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for single-use deployments
+  --deploy-token <token>    Deploy token for authenticated deployments
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
@@ -115,7 +115,7 @@ COMMANDS
 
 FLAGS
   --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for single-use deployments
+  --deploy-token <token>    Deploy token for authenticated deployments
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
@@ -174,7 +174,7 @@ COMMANDS
 
 FLAGS
   --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for single-use deployments
+  --deploy-token <token>    Deploy token for authenticated deployments
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment

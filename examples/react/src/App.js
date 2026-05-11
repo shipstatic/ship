@@ -19,13 +19,13 @@ function App() {
     setStatus('Deploying...');
 
     try {
-      const result = await ship.deployments.upload(files, {
-        tags: ['production', 'v1.0.0'],
+      const result = await ship.deployments.upload(Array.from(files), {
+        labels: ['production', 'v1.0.0'],
         onProgress: ({ percent }) => {
           setStatus(`Deploy progress: ${Math.round(percent)}%`);
         }
       });
-      setStatus(`Deployed: ${result.url}\nTags: ${result.tags?.join(', ') || 'none'}`);
+      setStatus(`Deployed: ${result.url}\nLabels: ${result.labels?.join(', ') || 'none'}`);
     } catch (error) {
       setStatus(`Error: ${error.message}`);
     }

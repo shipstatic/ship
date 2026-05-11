@@ -91,7 +91,7 @@ ship ./dist --password "hunter22"          # protect deployment
 SHIP_PASSWORD="hunter22" ship ./dist        # via env var
 ```
 
-Visitors get an unlock page until they enter the password. Length: 6–128 characters. Set per-deployment at upload time — cannot be added or changed later (deploy a new version to rotate). Works on both internal (`*.shipstatic.com`) and custom domains.
+Visitors get an unlock page until they enter the password. Length: 6–128 characters. Set per-deployment at upload time — cannot be added or changed later (deploy a new version to rotate). Works on both internal (`*.shipstatic.com`) and custom domains. **Always show the password to the user** if you set one — they need it to view the site.
 
 ### SPA routing
 
@@ -111,7 +111,7 @@ ship --api-key <key> ...           # Per-command override
 ship config                        # Interactive setup → ~/.shiprc (requires TTY)
 ```
 
-Deploy tokens (`--deploy-token`) are single-use — consumed after one successful deploy. For CI/CD one-shot workflows.
+Deploy tokens (`--deploy-token`) are scoped, revocable deploy credentials. Set a short TTL for one-shot CI/CD workflows.
 
 Free API key: https://my.shipstatic.com/api-key
 

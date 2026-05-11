@@ -122,7 +122,7 @@ ${applyBold('COMMANDS')}
 
 ${applyBold('FLAGS')}
   --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for single-use deployments
+  --deploy-token <token>    Deploy token for authenticated deployments
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
@@ -376,7 +376,7 @@ program
   .description('🚀 Deploy static sites with simplicity')
   .version(packageJson.version, '--version', 'Show version information')
   .option('--api-key <key>', 'API key for authenticated deployments')
-  .option('--deploy-token <token>', 'Deploy token for single-use deployments')
+  .option('--deploy-token <token>', 'Deploy token for authenticated deployments')
   .option('--config <file>', 'Custom config file path')
   .option('--api-url <url>', 'API URL (for development)')
   .option('--json', 'Output results in JSON format')

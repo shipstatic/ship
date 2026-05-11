@@ -2,38 +2,21 @@
  * @file Client-side input validation for SDK request boundaries.
  *
  * These validators run before request construction. Constants come from
- * `@shipstatic/types` (`PASSWORD_CONSTRAINTS`, `LABEL_CONSTRAINTS`,
- * `LABEL_PATTERN`) so the SDK and API agree on the rules.
+ * `@shipstatic/types` (`LABEL_CONSTRAINTS`, `LABEL_PATTERN`) so the SDK and
+ * API agree on the rules.
  */
 
 import {
   LABEL_CONSTRAINTS,
   LABEL_PATTERN,
-  PASSWORD_CONSTRAINTS,
   ShipError,
 } from '@shipstatic/types';
 
-/**
- * Validate an optional deployment password.
- *
- * Absent → no-op (an unprotected deployment is a valid choice). Present →
- * must be a string within `PASSWORD_CONSTRAINTS` length bounds. Whitespace
- * is preserved verbatim — significant.
- */
-export function validatePassword(value: unknown): void {
-  if (value === undefined || value === null) return;
-  if (typeof value !== 'string') {
-    throw ShipError.validation('Password must be a string');
-  }
-  if (
-    value.length < PASSWORD_CONSTRAINTS.MIN_LENGTH ||
-    value.length > PASSWORD_CONSTRAINTS.MAX_LENGTH
-  ) {
-    throw ShipError.validation(
-      `Password must be between ${PASSWORD_CONSTRAINTS.MIN_LENGTH} and ${PASSWORD_CONSTRAINTS.MAX_LENGTH} characters`,
-    );
-  }
-}
+// Re-export the canonical password validator from `@shipstatic/types` so
+// existing SDK callers (`http.ts`) keep their `from '../lib/validation.js'`
+// import path unchanged. The types-tier definition is the single source of
+// truth — see `@shipstatic/types/CLAUDE.md` "Validation: format vs policy".
+export { validatePassword } from '@shipstatic/types';
 
 /**
  * Validate and normalize an array of labels.

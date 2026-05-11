@@ -22,7 +22,7 @@ import BrowserIndex, {
     __setTestEnvironment
 } from '../../src/browser/index';
 // Import ShipClient as a type
-import type { StaticFile } from '../../src/browser/index';
+import type { StaticFile, Fetch } from '../../src/browser/index';
 // Import error class
 import { ShipError } from '@shipstatic/types';
 import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
@@ -113,6 +113,14 @@ describe('Browser Entry Point (@/browser)', () => {
     it('should have Ship as the default export', () => {
         expect(BrowserIndex).toBeDefined();
         expect(BrowserIndex).toBe(Ship);
+    });
+
+    it('should forward fetch through to the ApiHttp transport', () => {
+      const fetch = vi.fn<Fetch>();
+      new Ship({ fetch });
+      expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
+        expect.objectContaining({ fetch }),
+      );
     });
   });
 

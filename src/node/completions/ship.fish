@@ -42,7 +42,7 @@ complete -c ship -f -n '__fish_use_subcommand' -a 'completion' -d 'Setup shell c
 
 # Global options
 complete -c ship -l api-key -d 'API key for authentication' -x
-complete -c ship -l deploy-token -d 'Deploy token for single-use deployments' -x
+complete -c ship -l deploy-token -d 'Deploy token for authenticated deployments' -x
 complete -c ship -l config -d 'Custom config file path' -r
 complete -c ship -l api-url -d 'API URL (for development)' -x
 complete -c ship -l label -d 'Label (can be repeated)' -x

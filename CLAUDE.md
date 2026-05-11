@@ -2,7 +2,7 @@
 
 Claude Code instructions for the **Ship SDK & CLI** package.
 
-**@shipstatic/ship** — universal SDK and CLI for ShipStatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Release candidate; interfaces stabilizing.
+**@shipstatic/ship** — universal SDK and CLI for ShipStatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Stable; semver applies — breaking changes require a major version bump.
 
 ## Architecture
 
@@ -95,6 +95,8 @@ Resources are factory functions that receive a `ResourceContext` (`getApi`, `ens
 - All path parameters use `encodeURIComponent()`
 - Optional arrays: use `labels !== undefined` (not `labels?.length`) — distinguishes "not provided" from "empty array"
 - `requestWithStatus()` used when HTTP status drives behavior (domain creation: 201 = `isCreate: true`)
+
+**Transport injection (`fetch`):** `ShipClientOptions.fetch` overrides the function used for every outbound API call. Defaults to `globalThis.fetch` (captured at construction). Any `fetch`-compatible function works — typical uses include a Cloudflare service-binding `Fetcher` for Worker-to-Worker calls, tracing/retry wrappers, and test mocks. All downstream machinery (events, timeouts, `AbortSignal`, multipart bodies, `ShipError` normalisation) operates on standard `Request`/`Response`, so the injected fetcher inherits everything for free.
 
 **Events:**
 ```typescript
@@ -305,7 +307,7 @@ All errors use `ShipError` from `@shipstatic/types`. The class provides the full
 
 **Tests must run sequentially** — mock server is shared. Never add `fileParallelism: true`.
 
-**Deploy token vs API key** — API key is persistent; deploy token is single-use (consumed on successful deploy) and overrides the API key for that request.
+**Deploy token vs API key** — API key is persistent and grants full account access; deploy token is scoped to deploys, supports an optional TTL, is revocable, and overrides the API key for that request.
 
 **Browser file handling** — SDK extracts path from `webkitRelativePath` or falls back to `name`.
 
@@ -325,9 +327,11 @@ For a CLI user who has all three: `--api-key` flag → env → file. For an embe
 | Var | Purpose |
 |---|---|
 | `SHIP_PASSWORD` | Default for `--password <password>` on `ship deploy` / `ship deployments upload`. Empty string is normalized to absence (so unset CI variables don't accidentally protect a deploy). |
-| `SHIP_VIA` | Overrides the deploy `via` field (default `'cli'`). Used by integrations that wrap the CLI for origin tracking — the GitHub Action sets `SHIP_VIA=git`, the MCP server sets `SHIP_VIA=mcp`. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
+| `SHIP_VIA` | Overrides the deploy `via` field (default `'cli'`). Used by integrations that **wrap the CLI as a subprocess** — the GitHub Action sets `SHIP_VIA=git`. In-process SDK consumers (e.g. the MCP server) set the same field as a programmatic `via` option on the SDK call (`ship.deployments.upload(..., { via: 'mcp' })`) — same destination, different mechanism. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
 
-> **Doc placement note:** `SHIP_VIA` and `caller` are intentionally *not* in the public README's CLI Reference / SDK Deploy Options. They serve first-party integration code paths and are kept to internal/integration-tier surfaces (this file + JSDoc + the integrations submodules). Keep new mechanisms of the same shape (override hooks for first-party orchestrators, anything tied to platform-tier behavior shaping) in the same tier — don't promote them to the public README.
+> **Doc placement note:** `SHIP_VIA` and `caller` are intentionally *not* in the public README's CLI Reference / SDK Deploy Options. They're ShipStatic-specific operational levers (analytics origin, rate-limit bucketing) that serve first-party integration code paths and stay in internal-tier surfaces (this file + JSDoc + the integrations submodules). Keep mechanisms of the same shape — platform-tier behavior shaping — in the same tier.
+>
+> The `fetch` option is the exception: it's in the public README ("Custom fetch") because transport injection is a convention every comparable SDK ships (Stripe, OpenAI, Anthropic). Rule of thumb: ShipStatic-specific levers stay internal; industry-standard SDK conventions are public.
 
 **`getLimits()` is cached** — reuses the `PlatformLimits` fetched during initialization; no extra API call.
 
