@@ -105,11 +105,6 @@ describe('Environment Switching Cross-Platform Validation', () => {
         }
       } as any;
 
-      global.FileReader = class MockFileReader {
-        readAsArrayBuffer() { this.onload?.({ target: { result: new ArrayBuffer(4) } } as any); }
-        onload: any;
-      } as any;
-
       // Import browser-specific functionality
       const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
 
