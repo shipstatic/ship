@@ -1,0 +1,56 @@
+// Platform-standard Biome config (one tool for lint + format; exact-pinned
+// version so formatting never drifts between repos). Keep this file identical
+// across ShipStatic repos; per-repo deviations get a comment explaining why.
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.5/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        // Visible in editors and CI summaries without blocking the build.
+        "noExplicitAny": "warn"
+      }
+    }
+  },
+  "overrides": [
+    {
+      // Tests may use `!` and `any` freely — they assert the invariants
+      // production code must prove.
+      "includes": ["**/tests/**", "**/*.test.ts", "**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "style": { "noNonNullAssertion": "off" },
+          "suspicious": { "noExplicitAny": "off" }
+        }
+      }
+    },
+    {
+      // Per-repo deviation: examples/ are illustrative docs artifacts —
+      // formatted but not linted.
+      "includes": ["examples/**"],
+      "linter": { "enabled": false }
+    }
+  ]
+}
