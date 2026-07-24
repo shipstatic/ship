@@ -3,14 +3,16 @@
  */
 import { Command } from 'commander';
 import { Ship } from '../index.js';
-import { ShipError, ErrorType, validateApiKey, validateDeployToken, validateApiUrl, isShipError, type Deployment } from '@shipstatic/types';
+import { ShipError, ErrorType, validateToken, validateApiUrl, isShipError, type Deployment } from '@shipstatic/types';
 import { readFileSync, existsSync, statSync } from 'fs';
 import * as path from 'path';
 import { success, error } from './utils.js';
 import { formatOutput, type OutputContext } from './formatters.js';
 import { installCompletion, uninstallCompletion } from './completion.js';
 import { runConfig } from './config.js';
-import { createClient } from './create-client.js';
+import { createClient, mergeCliConfig } from './create-client.js';
+import { readEnvConfig } from '../core/config.js';
+import { loadShipFile } from './shiprc.js';
 import { getUserMessage, toShipError, formatErrorJson } from './error-handling.js';
 import { bold, dim } from 'yoctocolors';
 import type { GlobalOptions, DeployCommandOptions, LabelOptions, TokenCreateCommandOptions, CLIResult } from './types.js';
@@ -113,7 +115,7 @@ ${applyBold('COMMANDS')}
   ship tokens remove <token>            Delete token permanently
 
   ${icon('⚙️')}${applyBold('Setup')}
-  ship config                           Save your API key
+  ship config                           Save your token
   ship whoami                           Get current account information
 
   ${icon('🛠️')}${applyBold('Completion')}
@@ -121,8 +123,7 @@ ${applyBold('COMMANDS')}
   ship completion uninstall             Uninstall shell completion script
 
 ${applyBold('FLAGS')}
-  --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for authenticated deployments
+  --token <token>           Any ship token: API key (ship-…) or deploy token (deploy-…)
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
@@ -170,8 +171,8 @@ function mergeLabelOption(cmdOptions: LabelOptions | undefined, programOpts: Lab
  *
  * An empty `--password ''` is forwarded to the SDK validator so the user
  * sees a clear length error rather than a silent drop. An empty
- * `SHIP_PASSWORD` is coerced to undefined, matching how SHIP_API_KEY,
- * SHIP_DEPLOY_TOKEN, and SHIP_API_URL treat empty env vars (CI/Docker
+ * `SHIP_PASSWORD` is coerced to undefined, matching how SHIP_TOKEN
+ * and SHIP_API_URL treat empty env vars (CI/Docker
  * often sets unset vars to "" — see core/config.ts).
  */
 function mergePasswordOption(
@@ -237,6 +238,25 @@ function processOptions(command: Command): GlobalOptions {
  * Error handler - outputs errors consistently in text or JSON format.
  * Message formatting is delegated to the error-handling module.
  */
+/**
+ * The credential the CLI actually resolved (flag > env > file). The error
+ * path must diagnose with the same lens the client was built with — a user
+ * whose `SHIP_TOKEN` or `.shiprc` token was rejected is credentialed, and
+ * the anonymous-user hint would misdiagnose their failure. A config file
+ * that fails to load counts as no file credential: that failure is already
+ * the error being reported.
+ */
+function resolveCliToken(flags: { config?: string; apiUrl?: string; token?: string }): string | undefined {
+  let file = {};
+  try {
+    file = loadShipFile(flags.config);
+  } catch {}
+  // Flags, env, and files only ever hold strings — provider functions exist
+  // solely as constructor arguments, which the CLI never passes.
+  const token = mergeCliConfig(flags, readEnvConfig(), file).token;
+  return typeof token === 'string' ? token : undefined;
+}
+
 function handleError(
   err: unknown,
   context?: OutputContext
@@ -246,8 +266,7 @@ function handleError(
 
   // Get user-facing message using the extracted pure function
   const message = getUserMessage(shipError, context, {
-    apiKey: opts.apiKey,
-    deployToken: opts.deployToken
+    token: resolveCliToken(program.opts())
   });
 
   // Output in appropriate format
@@ -283,8 +302,8 @@ function withErrorHandling<T extends unknown[], R extends CLIResult>(
     } : {};
 
     try {
-      const { config, apiUrl, apiKey, deployToken } = program.opts();
-      const client = createClient({ config, apiUrl, apiKey, deployToken });
+      const { config, apiUrl, token } = program.opts();
+      const client = createClient({ config, apiUrl, token });
       const result = await handler(client, globalOptions, ...args);
       formatOutput(result, resolvedContext, { json: globalOptions.json, quiet: globalOptions.quiet, noColor: globalOptions.noColor });
     } catch (err) {
@@ -375,8 +394,7 @@ program
   .name('ship')
   .description('🚀 Deploy static sites with simplicity')
   .version(packageJson.version, '--version', 'Show version information')
-  .option('--api-key <key>', 'API key for authenticated deployments')
-  .option('--deploy-token <token>', 'Deploy token for authenticated deployments')
+  .option('--token <token>', 'Any ship token: API key (ship-…) or deploy token (deploy-…)')
   .option('--config <file>', 'Custom config file path')
   .option('--api-url <url>', 'API URL (for development)')
   .option('--json', 'Output results in JSON format')
@@ -399,12 +417,8 @@ program.hook('preAction', (thisCommand) => {
   const options = processOptions(thisCommand);
 
   try {
-    if (options.apiKey && typeof options.apiKey === 'string') {
-      validateApiKey(options.apiKey);
-    }
-
-    if (options.deployToken && typeof options.deployToken === 'string') {
-      validateDeployToken(options.deployToken);
+    if (options.token && typeof options.token === 'string') {
+      validateToken(options.token);
     }
 
     if (options.apiUrl && typeof options.apiUrl === 'string') {
@@ -691,7 +705,7 @@ completionCmd
 // Config command
 program
   .command('config')
-  .description('Save your API key')
+  .description('Save your token')
   .action(async () => {
     const options = processOptions(program);
     try {

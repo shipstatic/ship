@@ -19,8 +19,8 @@ describe('CLI with Mock API', () => {
   const testEnv = () => ({
     env: {
       SHIP_API_URL: `http://localhost:${serverPort}`,
-      SHIP_API_KEY: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
-    }
+      SHIP_TOKEN: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+    } as Record<string, string>
   });
 
   beforeAll(async () => {
@@ -140,7 +140,7 @@ describe('CLI with Mock API', () => {
           res.writeHead(201, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             token: 't3sttkn',
-            secret: 'token-t3sttkn0123456789abcdef0123456789abcdef0123456789abcdef01234567',
+            secret: 'deploy-t3sttkn0123456789abcdef0123456789abcdef0123456789abcdef01234567',
             expires: requestData.ttl ? Date.now() + (requestData.ttl * 1000) : null,
             labels: requestData.labels ?? []
           }));
@@ -540,7 +540,7 @@ describe('CLI with Mock API', () => {
       const result = await runCli(['-q', 'tokens', 'create'], testEnv());
       expect(result.exitCode).toBe(0);
       const secret = result.stdout.trim();
-      expect(secret).toMatch(/^token-/);
+      expect(secret).toMatch(/^deploy-/);
       expect(secret.length).toBeGreaterThan(20);
     });
 

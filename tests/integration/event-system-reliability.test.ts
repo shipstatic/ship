@@ -147,9 +147,9 @@ describe('Bulletproof Event System', () => {
     const events: string[] = [];
     
     // Create ship and add listeners BEFORE any API calls
-    const ship = new Ship({ 
+    const ship = new Ship({
       apiUrl: 'https://api.example.com',
-      apiKey: 'test-key'
+      token: 'test-key'
     });
 
     ship.on('request', (url) => {

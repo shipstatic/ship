@@ -14,7 +14,7 @@ describe('Tokens API', () => {
   beforeEach(() => {
     resetMockServer();
     ship = new Ship({
-      apiKey: 'test-api-key',
+      token: 'test-api-key',
       apiUrl: 'http://localhost:13579',
     });
   });
@@ -31,14 +31,14 @@ describe('Tokens API', () => {
 
     it('should create a token with TTL', async () => {
       const ttl = 3600; // 1 hour
-      const result = await ship.tokens.create(ttl);
+      const result = await ship.tokens.create({ ttl });
 
       expect(result).toBeDefined();
       expect(result.token).toBeDefined();
     });
 
     it('should create a token with labels', async () => {
-      const result = await ship.tokens.create(undefined, ['ci', 'github-actions']);
+      const result = await ship.tokens.create({ labels: ['ci-pipeline', 'github-actions'] });
 
       expect(result).toBeDefined();
       expect(result.token).toBeDefined();
@@ -47,7 +47,7 @@ describe('Tokens API', () => {
     it('should create a token with both TTL and labels', async () => {
       const ttl = 7200; // 2 hours
       const labels = ['production', 'deploy'];
-      const result = await ship.tokens.create(ttl, labels);
+      const result = await ship.tokens.create({ ttl, labels });
 
       expect(result).toBeDefined();
       expect(result.token).toBeDefined();

@@ -5,7 +5,7 @@ STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(js
 if [ -n "$STAGED_FILES" ]; then
   # Only look at added or modified lines in staged files
   # Exclude the standard fake test key pattern (1234567890abcdef repeating)
-  MATCHES=$(git diff --cached --no-color --unified=0 $STAGED_FILES | grep -E '^\+' | grep -E '(ship|token)-[0-9a-f]{64}' | grep -v '1234567890abcdef' || true)
+  MATCHES=$(git diff --cached --no-color --unified=0 $STAGED_FILES | grep -E '^\+' | grep -E '(ship|deploy)-[0-9a-f]{64}' | grep -v '1234567890abcdef' || true)
 
   if [ -n "$MATCHES" ]; then
     echo "🔴 Error: Ship API key or deploy token found in staged changes"
@@ -14,5 +14,5 @@ if [ -n "$STAGED_FILES" ]; then
   fi
 fi
 
-# Run original hook command
-npm test -- --run
+# Typecheck (tsup builds never typecheck the CLI entry) + full suite
+pnpm typecheck && pnpm test --run

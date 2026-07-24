@@ -7,6 +7,8 @@ import { Ship } from '../../src/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
 import { setupMockServer, cleanupMockServer } from '../mocks/server';
 
+const TEST_DEPLOY_TOKEN = 'deploy-' + 'a'.repeat(64);
+
 describe('SDK Initialization Order', () => {
   const mockServerPort = 13579; // Standard port used by the mock server
   
@@ -70,8 +72,8 @@ describe('SDK Initialization Order', () => {
 
     try {
       // Create Ship instance with custom API URL
-      const ship = new Ship({ 
-        deployToken: 'token-test123',
+      const ship = new Ship({
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: `http://localhost:${mockServerPort}`
       });
 
@@ -138,8 +140,8 @@ describe('SDK Initialization Order', () => {
 
     try {
       // Create Ship instance with custom API URL
-      const ship = new Ship({ 
-        deployToken: 'token-test123',
+      const ship = new Ship({
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: customApiUrl
       });
 

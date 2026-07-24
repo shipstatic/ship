@@ -4,17 +4,18 @@
  * The constructor is fully synchronous: an `ApiHttp` instance is built immediately
  * with whatever credentials the caller supplied (and, in Node, env vars merged in
  * by the subclass before `super()`). The only deferred work is the one-shot
- * `GET /config` fetch that hydrates platform limits — that's lazy and runs on
+ * `GET /limits` fetch that hydrates platform limits — that's lazy and runs on
  * first API call via `ensureInitialized()`.
  *
  * Subclasses only override what genuinely differs per environment:
  *   - `processInput()` — Node reads paths from disk; Browser handles `File[]`
  *   - `getDeployBodyCreator()` — Node streams Buffers; Browser builds Blobs
  *
- * Everything else (auth state, resources, events, lazy platform-limits) lives here.
+ * Everything else (the credential slot, resources, events, lazy platform-limits)
+ * lives here.
  */
 
-import { ShipError } from '@shipstatic/types';
+import { ShipError, validateToken, validateCaller } from '@shipstatic/types';
 import type {
   Deployment,
   PlatformLimits,
@@ -26,7 +27,6 @@ import type {
 } from '@shipstatic/types';
 
 import { ApiHttp } from './api/http.js';
-import { resolveConfig } from './core/config.js';
 import {
   createDeploymentResource,
   createDomainResource,
@@ -39,16 +39,8 @@ import type {
   ShipEvents,
   DeploymentOptions,
   DeployBodyCreator,
+  TokenProvider,
 } from './types.js';
-
-/**
- * Authentication state for the Ship instance.
- * Discriminated union ensures only one auth method is active at a time.
- */
-type AuthState =
-  | { type: 'token'; value: string }
-  | { type: 'apiKey'; value: string }
-  | null;
 
 /**
  * Abstract base class for Ship SDK implementations.
@@ -77,43 +69,53 @@ export abstract class Ship {
   private initPromise: Promise<void> | null = null;
   protected platformLimits: PlatformLimits | null = null;
 
-  // Auth state — consulted dynamically on every request through `getAuthHeaders`.
-  private auth: AuthState = null;
+  // The credential slot — one platform token (any population) or a provider
+  // that supplies one per request. Read dynamically on every request through
+  // `getAuthHeaders`, so `setToken` takes effect without rebuilding the client.
+  private credential: string | TokenProvider | null = null;
 
   constructor(options: ShipClientOptions = {}) {
-    // SDK-boundary normalization: empty-string credentials are never valid,
-    // and storing them would pollute `mergeDeployOptions` (which checks
-    // `=== undefined`, not falsy) and silently suppress per-call defaults
-    // — turning what should have been an authenticated deploy into an
-    // anonymous PUBLIC_ACCOUNT deploy via the agent-token fallback.
-    //
-    // Empty strings reach here from shell-expansion of unset CI variables,
-    // empty form fields in browser apps, and any other path that produces
-    // `''` instead of `undefined`. Normalizing once at the SDK boundary
-    // covers every entry point: CLI, Browser SDK, Node SDK, embedded
-    // consumers, and direct base-class use in tests.
+    // SDK-boundary normalization: an empty-string token is absence of
+    // credential intent, never a credential. Empty strings reach here from
+    // shell-expansion of unset CI variables, empty form fields in browser
+    // apps, and any other path that produces `''` instead of `undefined`.
+    // Normalizing once at the SDK boundary covers every entry point: CLI,
+    // Browser SDK, Node SDK, embedded consumers, and direct base-class use.
     options = {
       ...options,
       apiUrl: options.apiUrl || undefined,
-      apiKey: options.apiKey || undefined,
-      deployToken: options.deployToken || undefined,
+      token: options.token || undefined,
+      caller: options.caller || undefined,
     };
     this.clientOptions = options;
 
-    // Initialize auth state from constructor options.
-    // Deploy token outranks API key when both are provided.
-    if (options.deployToken) {
-      this.auth = { type: 'token', value: options.deployToken };
-    } else if (options.apiKey) {
-      this.auth = { type: 'apiKey', value: options.apiKey };
+    // Caller identity is validated at the boundary like the token: a value
+    // the API would silently drop (the header is unauthenticated) is a
+    // configuration error here, never a quiet fallback to IP bucketing.
+    if (options.caller !== undefined) {
+      validateCaller(options.caller);
     }
 
-    // Build the HTTP client once. The `getAuthHeaders` callback reads `this.auth`
-    // dynamically on every request, so `setApiKey()` / `setDeployToken()` take
-    // effect immediately without needing to rebuild the client.
+    // One client, one identity. A token and a cookie session are different
+    // principals — holding both is a configuration error, not a precedence
+    // question.
+    if (options.token && options.session) {
+      throw ShipError.config('Provide either `token` or `session`, not both.');
+    }
+
+    // Static tokens are validated at the boundary (prefix-classified, same
+    // rules the server applies); providers are invoked per request instead.
+    if (typeof options.token === 'string') {
+      validateToken(options.token);
+      this.credential = options.token;
+    } else if (options.token) {
+      this.credential = options.token;
+    }
+
+    // Build the HTTP client once. The `getAuthHeaders` callback reads
+    // `this.credential` dynamically on every request.
     this.http = new ApiHttp({
       ...options,
-      ...resolveConfig(options),
       getAuthHeaders: () => this.getAuthHeaders(),
       createDeployBody: this.getDeployBodyCreator(),
     });
@@ -127,7 +129,6 @@ export abstract class Ship {
       ...ctx,
       processInput: (input, opts) => this.processInput(input, opts),
       clientDefaults: this.clientOptions,
-      hasAuth: () => this.hasAuth(),
     });
     this.domains = createDomainResource(ctx);
     this.account = createAccountResource(ctx);
@@ -216,42 +217,52 @@ export abstract class Ship {
   }
 
   /**
-   * Sets the deploy token for authentication.
-   * Overrides any previously set API key or deploy token.
-   * @param token Deploy token (format: `token-<64-char-hex>`)
+   * Sets the client token — any platform token (API key, deploy token, OAuth
+   * access token) or a {@link TokenProvider} invoked per request. Replaces
+   * whatever credential the client held before.
+   * @param token A platform token, sent verbatim, or a provider function
    */
-  public setDeployToken(token: string): void {
-    if (!token || typeof token !== 'string') {
-      throw ShipError.business('Invalid deploy token provided. Deploy token must be a non-empty string.');
+  public setToken(token: string | TokenProvider): void {
+    // One client, one identity — the constructor's token/session exclusion
+    // holds for the client's whole life, not just its first moment.
+    if (this.clientOptions.session) {
+      throw ShipError.config('Provide either `token` or `session`, not both.');
     }
-    this.auth = { type: 'token', value: token };
+    if (typeof token === 'string') {
+      if (!token) {
+        throw ShipError.business('Invalid token provided. Token must be a non-empty string.');
+      }
+      validateToken(token);
+      this.credential = token;
+      return;
+    }
+    if (typeof token !== 'function') {
+      throw ShipError.business('Invalid token provided. Token must be a non-empty string or a provider function.');
+    }
+    this.credential = token;
   }
 
   /**
-   * Sets the API key for authentication.
-   * Overrides any previously set API key or deploy token.
-   * @param key API key (format: `ship-<64-char-hex>`)
+   * Resolve the credential slot into request headers. Async because a
+   * provider may mint or refresh its token per request.
+   *
+   * Anonymity requires proven absence of credentials: a configured provider
+   * that yields nothing is an error — the request fails typed rather than
+   * silently proceeding as an anonymous public deploy. Empty-string
+   * normalization at the constructor is the same invariant's boundary
+   * condition: `''` is absence of intent, so it never reaches this point.
    */
-  public setApiKey(key: string): void {
-    if (!key || typeof key !== 'string') {
-      throw ShipError.business('Invalid API key provided. API key must be a non-empty string.');
+  private async getAuthHeaders(): Promise<Record<string, string>> {
+    if (this.credential === null) return {};
+    const value = typeof this.credential === 'function'
+      ? await this.credential()
+      : this.credential;
+    if (!value) {
+      throw ShipError.authentication('Token provider returned no token.');
     }
-    this.auth = { type: 'apiKey', value: key };
-  }
-
-  private getAuthHeaders(): Record<string, string> {
-    if (!this.auth) return {};
-    return { Authorization: `Bearer ${this.auth.value}` };
-  }
-
-  /**
-   * Check whether authentication credentials are configured.
-   * Used by resources to fail fast (or trigger the agent-token fallback) when
-   * auth is required.
-   */
-  private hasAuth(): boolean {
-    // useCredentials means cookies are used for auth — no explicit token needed.
-    if (this.clientOptions.useCredentials) return true;
-    return this.auth !== null;
+    if (typeof value !== 'string') {
+      throw ShipError.authentication('Token provider returned a non-string value.');
+    }
+    return { Authorization: `Bearer ${value}` };
   }
 }

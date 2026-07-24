@@ -45,23 +45,16 @@ const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => ({
 vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
 
 
-// Mock for configLoader
-const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
-  CONFIG_LOADER_MOCK_IMPLEMENTATION: {
-    loadConfig: vi.fn(),
-    DEFAULT_API_HOST: 'https://default.browser.loaded.host',
-    resolveConfig: vi.fn((userOptions = {}, loadedConfig = {}) => ({
-      apiUrl: userOptions.apiUrl || loadedConfig.apiUrl || 'https://api.shipstatic.com',
-      apiKey: userOptions.apiKey !== undefined ? userOptions.apiKey : loadedConfig.apiKey
-    })),
+// Mock for config helpers
+const { CONFIG_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
+  CONFIG_MOCK_IMPLEMENTATION: {
     mergeDeployOptions: vi.fn((userOptions = {}, clientDefaults = {}) => ({
       ...clientDefaults,
       ...userOptions
     }))
   }
 }));
-vi.mock('../../src/shared/core/config', () => CONFIG_LOADER_MOCK_IMPLEMENTATION);
-const configLoaderMock = CONFIG_LOADER_MOCK_IMPLEMENTATION;
+vi.mock('../../src/shared/core/config', () => CONFIG_MOCK_IMPLEMENTATION);
 
 
 const { MOCK_CALCULATE_MD5_FN } = vi.hoisted(() => ({ MOCK_CALCULATE_MD5_FN: vi.fn() }));
@@ -85,10 +78,6 @@ describe('Browser Entry Point (@/browser)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     MOCK_CALCULATE_MD5_FN.mockResolvedValue({ md5: 'mocked-md5-hash' });
-    configLoaderMock.loadConfig.mockResolvedValue({
-      apiUrl: 'https://mock.browser.host',
-      apiKey: 'mock_browser_key'
-    });
     // __setTestEnvironment is now imported from @/browser
     __setTestEnvironment('browser');
   });

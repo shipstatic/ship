@@ -150,7 +150,7 @@ describe('Environment Switching Cross-Platform Validation', () => {
       const { Ship: NodeShip } = await import('../../src/node/index');
       
       expect(() => {
-        new NodeShip({ apiKey: 'test-key' });
+        new NodeShip({ token: 'test-key' });
       }).toThrow('Node.js Ship class can only be used in Node.js environment.');
     });
 
@@ -162,7 +162,7 @@ describe('Environment Switching Cross-Platform Validation', () => {
         const { Ship: BrowserShip } = await import('../../src/browser/index');
         
         expect(() => {
-          new BrowserShip({ deployToken: 'test-token', apiUrl: 'https://api.test.com' });
+          new BrowserShip({ token: 'test-token', apiUrl: 'https://api.test.com' });
         }).not.toThrow();
       }
     });
@@ -171,7 +171,7 @@ describe('Environment Switching Cross-Platform Validation', () => {
       // Create Ship instance in one environment
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      const nodeShip = new NodeShip({ apiKey: 'test-key' });
+      const nodeShip = new NodeShip({ token: 'test-key' });
       
       // Switch environment
       __setTestEnvironment('browser');

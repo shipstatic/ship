@@ -10,6 +10,13 @@ const applyColor = (colorFn: (text: string) => string, text: string, noColor?: b
   return noColor ? text : colorFn(text);
 };
 
+// Wire messages are displayed verbatim — identifiers, paths, and acronyms
+// must survive formatting. The CLI's lowercase opening applies to the leading
+// sentence word only, and only when it's an ordinary capitalized word (never
+// "DNS", a quoted key, or a path).
+const decapitalize = (msg: string): string =>
+  /^[A-Z][a-z]/.test(msg) ? msg.charAt(0).toLowerCase() + msg.slice(1) : msg;
+
 /**
  * Message helper functions for consistent CLI output
  */
@@ -17,7 +24,7 @@ export const success = (msg: string, json?: boolean, noColor?: boolean) => {
   if (json) {
     console.log(JSON.stringify({ success: msg }, null, 2) + '\n');
   } else {
-    console.log(`${applyColor(green, msg.toLowerCase().replace(/\.$/, ''), noColor)}\n`);
+    console.log(`${applyColor(green, decapitalize(msg).replace(/\.$/, ''), noColor)}\n`);
   }
 };
 
@@ -26,7 +33,7 @@ export const error = (msg: string, json?: boolean, noColor?: boolean) => {
     console.error(JSON.stringify({ error: msg }, null, 2) + '\n');
   } else {
     const errorPrefix = applyColor((text) => inverse(red(text)), `${applyColor(hidden, '[', noColor)}error${applyColor(hidden, ']', noColor)}`, noColor);
-    const errorMsg = applyColor(red, msg.toLowerCase().replace(/\.$/, ''), noColor);
+    const errorMsg = applyColor(red, decapitalize(msg).replace(/\.$/, ''), noColor);
     console.error(`${errorPrefix} ${errorMsg}\n`);
   }
 };
@@ -36,7 +43,7 @@ export const warn = (msg: string, json?: boolean, noColor?: boolean) => {
     console.log(JSON.stringify({ warning: msg }, null, 2) + '\n');
   } else {
     const warnPrefix = applyColor((text) => inverse(yellow(text)), `${applyColor(hidden, '[', noColor)}warning${applyColor(hidden, ']', noColor)}`, noColor);
-    const warnMsg = applyColor(yellow, msg.toLowerCase().replace(/\.$/, ''), noColor);
+    const warnMsg = applyColor(yellow, decapitalize(msg).replace(/\.$/, ''), noColor);
     console.log(`${warnPrefix} ${warnMsg}\n`);
   }
 };
@@ -46,7 +53,7 @@ export const info = (msg: string, json?: boolean, noColor?: boolean) => {
     console.log(JSON.stringify({ info: msg }, null, 2) + '\n');
   } else {
     const infoPrefix = applyColor((text) => inverse(blue(text)), `${applyColor(hidden, '[', noColor)}info${applyColor(hidden, ']', noColor)}`, noColor);
-    const infoMsg = applyColor(blue, msg.toLowerCase().replace(/\.$/, ''), noColor);
+    const infoMsg = applyColor(blue, decapitalize(msg).replace(/\.$/, ''), noColor);
     console.log(`${infoPrefix} ${infoMsg}\n`);
   }
 };

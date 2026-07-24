@@ -22,7 +22,7 @@ describe('CLI Output', () => {
     it('should provide consistent version format', async () => {
       const result = await runCli(['--version']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
     });
   });
 
@@ -37,7 +37,7 @@ describe('CLI Output', () => {
     it('should handle JSON flag with version', async () => {
       const result = await runCli(['--version', '--json']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
     });
   });
 

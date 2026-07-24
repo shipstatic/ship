@@ -32,24 +32,9 @@ const { NODE_FILE_UTILS_MOCK } = vi.hoisted(() => ({
   }
 }));
 
-const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
-  CONFIG_LOADER_MOCK_IMPLEMENTATION: {
-    DEFAULT_API: 'https://loaded.config.host',
-    resolveConfig: vi.fn((userDeployOptions: Record<string, any> = {}) => ({
-      apiUrl: userDeployOptions.apiUrl || 'https://api.shipstatic.com',
-      ...(userDeployOptions.apiKey !== undefined ? { apiKey: userDeployOptions.apiKey } : {}),
-    })),
-    mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
-      ...clientDefaults,
-      ...userOptions,
-    })),
-  },
-}));
-
 // Mock modules using the predefined implementations
 vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
 vi.mock('../../src/node/core/node-files', () => NODE_FILE_UTILS_MOCK);
-vi.mock('../../src/shared/core/config', () => CONFIG_LOADER_MOCK_IMPLEMENTATION);
 
 // Aliases to the mocked implementations
 const apiClientMock = mockApiHttpInstance;
@@ -64,20 +49,20 @@ describe('BaseShipClient', () => {
     await __setTestEnvironment(null);
     vi.clearAllMocks();
     // Clear process.env variables set in tests
-    delete process.env.SHIPSTATIC_API_KEY;
-    delete process.env.SHIPSTATIC_API;
+    delete process.env.SHIP_TOKEN;
+    delete process.env.SHIP_API_URL;
   });
 
   describe('Constructor and Ship class', () => {
     it('should prefer explicit options over environment variables', async () => {
-      process.env.SHIPSTATIC_API_KEY = 'env_api_key';
-      process.env.SHIPSTATIC_API = 'https://env.host';
+      process.env.SHIP_TOKEN = 'env_token';
+      process.env.SHIP_API_URL = 'https://env.host';
       const { Ship } = await import('../../src/index');
-      const shipInstance = new Ship({ api: 'opt_host', apiKey: 'opt_api_key' }); // Renamed to avoid conflict
+      new Ship({ apiUrl: 'https://opt.host', token: 'opt_token' });
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
-          api: 'opt_host',
-          apiKey: 'opt_api_key'
+          apiUrl: 'https://opt.host',
+          token: 'opt_token'
         })
       );
     });
@@ -87,7 +72,7 @@ describe('BaseShipClient', () => {
       await __setTestEnvironment('node');
 
       // SDK's only ambient credential source — the "process boundary".
-      process.env.SHIP_API_KEY = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+      process.env.SHIP_TOKEN = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
       process.env.SHIP_API_URL = 'https://test.api.shipstatic.com';
 
       MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
@@ -98,19 +83,19 @@ describe('BaseShipClient', () => {
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
           apiUrl: 'https://test.api.shipstatic.com',
-          apiKey: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+          token: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         })
       );
 
-      delete process.env.SHIP_API_KEY;
+      delete process.env.SHIP_TOKEN;
       delete process.env.SHIP_API_URL;
     });
 
-    it('falls back to the default API host when env supplies only an apiKey', async () => {
+    it('falls back to the default API host when env supplies only a token', async () => {
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
       await __setTestEnvironment('node');
 
-      process.env.SHIP_API_KEY = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+      process.env.SHIP_TOKEN = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
       delete process.env.SHIP_API_URL;
 
       MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
@@ -120,11 +105,11 @@ describe('BaseShipClient', () => {
 
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
-          apiKey: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+          token: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         })
       );
 
-      delete process.env.SHIP_API_KEY;
+      delete process.env.SHIP_TOKEN;
     });
   });
 
@@ -133,15 +118,15 @@ describe('BaseShipClient', () => {
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
       await __setTestEnvironment('node');
       const { Ship } = await import('../../src/index');
-      client = new Ship({ apiUrl: MOCK_API_HOST, apiKey: 'mock_api_key' });
+      client = new Ship({ apiUrl: MOCK_API_HOST, token: 'mock_token' });
     });
-    
+
     it('should use client default progress callbacks if not provided in options', async () => {
       const { Ship } = await import('../../src/index');
       const defaultProgressCallback = vi.fn();
-      const clientWithDefaults = new Ship({ 
-        apiUrl: MOCK_API_HOST, 
-        apiKey: 'mock_api_key',
+      const clientWithDefaults = new Ship({
+        apiUrl: MOCK_API_HOST,
+        token: 'mock_token',
         onProgress: defaultProgressCallback,
         timeout: 8000
       });
@@ -181,11 +166,11 @@ describe('BaseShipClient', () => {
       
       // The error should be thrown when creating the client, not when calling deploy
       expect(() => {
-        new Ship({ api: MOCK_API_HOST, apiKey: 'mock_api_key' });
+        new Ship({ apiUrl: MOCK_API_HOST, token: 'mock_token' });
       }).toThrow('Node.js Ship class can only be used in Node.js environment.');
-      
+
       try {
-        new Ship({ api: MOCK_API_HOST, apiKey: 'mock_api_key' });
+        new Ship({ apiUrl: MOCK_API_HOST, token: 'mock_token' });
         // We shouldn't reach this point
         expect.fail('Should have thrown an error');
       } catch (e) {
@@ -198,7 +183,7 @@ describe('BaseShipClient', () => {
 
   describe('Configuration Loading Integration', () => {
     it('loads SHIP_* env vars when no constructor options are supplied', async () => {
-      process.env.SHIP_API_KEY = 'env-test-key';
+      process.env.SHIP_TOKEN = 'env-test-key';
       process.env.SHIP_API_URL = 'https://env-test-api.com';
 
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
@@ -211,47 +196,47 @@ describe('BaseShipClient', () => {
 
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
-          apiKey: 'env-test-key',
+          token: 'env-test-key',
           apiUrl: 'https://env-test-api.com',
         })
       );
 
-      delete process.env.SHIP_API_KEY;
+      delete process.env.SHIP_TOKEN;
       delete process.env.SHIP_API_URL;
     });
 
     it('should prioritize constructor options over environment variables', async () => {
       // Set up environment variables that should be ignored
-      process.env.SHIP_API_KEY = 'env-ignored-key';
-      process.env.SHIP_API_URL = 'https://env-ignored.com';  
-      
+      process.env.SHIP_TOKEN = 'env-ignored-key';
+      process.env.SHIP_API_URL = 'https://env-ignored.com';
+
       // Set Node.js environment
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
       await __setTestEnvironment('node');
-      
-      // Reset the ApiHttp mock to track calls  
+
+      // Reset the ApiHttp mock to track calls
       MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
-      
+
       const { Ship } = await import('../../src/index');
       const ship = new Ship({
-        apiKey: 'constructor-priority-key',
+        token: 'constructor-priority-key',
         apiUrl: 'https://constructor-priority.com'
       });
-      
+
       // Trigger config initialization
       await ship.ping();
-      
+
       // Verify constructor options took precedence
       // First call should have constructor options
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
-          apiKey: 'constructor-priority-key',
+          token: 'constructor-priority-key',
           apiUrl: 'https://constructor-priority.com'
         })
       );
-      
+
       // Clean up
-      delete process.env.SHIP_API_KEY;
+      delete process.env.SHIP_TOKEN;
       delete process.env.SHIP_API_URL;
     });
   });

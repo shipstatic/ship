@@ -51,7 +51,7 @@ describe('CLI Basics', () => {
     it('should show version with --version flag', async () => {
       const result = await runCli(['--version']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
     });
 
     // Removed -v short flag as part of CLI simplification
@@ -68,7 +68,7 @@ describe('CLI Basics', () => {
     it('version output should be valid semver format', async () => {
       const result = await runCli(['--version']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
     });
 
     it('no args help output should match snapshot', async () => {
