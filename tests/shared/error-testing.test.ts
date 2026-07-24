@@ -1,19 +1,10 @@
 import { ShipError } from '@shipstatic/types';
-import { describe, expect, it, vi } from 'vitest';
-import { __setTestEnvironment } from '../../src/shared/lib/env';
+import { describe, expect, it } from 'vitest';
 
 /**
- * Shared error testing utilities and standardized error behavior tests
- * These tests ensure consistent error handling across browser and Node.js platforms
+ * Standardized error behavior tests — consistent error handling across
+ * browser and Node.js platforms.
  */
-
-// Mock API client for error testing
-const createMockApiClient = () => ({
-  deploy: vi.fn(),
-  ping: vi.fn(),
-  getLimits: vi.fn(),
-  checkSPA: vi.fn(),
-});
 
 describe('Cross-Platform Error Standardization', () => {
   describe('ShipError consistency', () => {
