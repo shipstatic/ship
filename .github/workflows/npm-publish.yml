@@ -2,7 +2,7 @@ name: Publish
 
 on:
   push:
-    branches: [main]
+    branches: [main, development]
   workflow_dispatch:
 
 jobs:
@@ -13,34 +13,52 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20.19.1'
           registry-url: 'https://registry.npmjs.org'
-      
-      - uses: pnpm/action-setup@v4
+
+      # The version decides everything: skip when this version is already on
+      # the registry (any push — workflow edits, docs — is a safe no-op, so
+      # publishes are idempotent), and derive the dist-tag from the version —
+      # prerelease versions (any `-` suffix) publish under `beta` so `latest`
+      # keeps resolving the last stable; promoting a stable version needs no
+      # workflow change. The branch decides only which pushes are eligible.
+      - id: version
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION already on the registry — nothing to publish"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            if [[ "$VERSION" == *-* ]]; then TAG=beta; else TAG=latest; fi
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.version.outputs.publish == 'true'
+        uses: pnpm/action-setup@v4
         with:
           version: 10.12.4
-      
-      - run: pnpm install
-      
-      - run: pnpm run build
-      
-      # The dist-tag derives from the version: prerelease versions (any `-`
-      # suffix) publish under `beta` so `latest` keeps resolving the last
-      # stable; promoting a stable version needs no workflow change.
-      - run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if [[ "$VERSION" == *-* ]]; then TAG=beta; else TAG=latest; fi
-          pnpm publish --access public --no-git-checks --provenance --tag "$TAG"
+
+      - if: steps.version.outputs.publish == 'true'
+        run: pnpm install
+
+      - if: steps.version.outputs.publish == 'true'
+        run: pnpm run build
+
+      - if: steps.version.outputs.publish == 'true'
+        run: pnpm publish --access public --no-git-checks --provenance --tag "${{ steps.version.outputs.tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
-      
-      - if: success()
+
+      - if: steps.version.outputs.publish == 'true'
         uses: slackapi/slack-github-action@v1.23.0
         with:
-          payload: '{"text":"✅ @shipstatic/ship published successfully"}'
+          payload: '{"text":"✅ @shipstatic/ship ${{ steps.version.outputs.version }} published (${{ steps.version.outputs.tag }})"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
