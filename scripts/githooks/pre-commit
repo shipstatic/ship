@@ -1,9 +1,10 @@
 #!/bin/sh
 # Fast gate only — the full suite lives in CI (the workflow's test job).
 
-# No ship-/deploy- credential may enter history (the repeating fake test key
-# is excluded). Scans added lines of staged files.
-LEAKS=$(git diff --cached --no-color --unified=0 --diff-filter=ACMR \
+# No ship-/deploy- credential may enter history. Test paths are excluded —
+# fixtures hold fake keys by design — as is the repeating fake test key.
+LEAKS=$(git diff --cached --no-color --unified=0 --diff-filter=ACMR -- . \
+  ':(exclude)tests/**' ':(exclude)**/*.test.*' ':(exclude)examples/**' \
   | grep -E '^\+' | grep -E '(ship|deploy)-[0-9a-f]{64}' \
   | grep -v '1234567890abcdef' || true)
 if [ -n "$LEAKS" ]; then

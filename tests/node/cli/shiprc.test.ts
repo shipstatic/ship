@@ -7,10 +7,10 @@
  * explicit-path loading via `--config`, and schema validation.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import { promises as fs } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadShipFile } from '../../../src/node/cli/shiprc';
 
 vi.mock('os', async () => {
@@ -57,7 +57,7 @@ describe('CLI shiprc loader', () => {
     it('finds .shiprc in the current directory', async () => {
       await fs.writeFile(
         path.join(dirs.deep, '.shiprc'),
-        JSON.stringify({ token: 'cwd-token', apiUrl: 'https://cwd.example.com' })
+        JSON.stringify({ token: 'cwd-token', apiUrl: 'https://cwd.example.com' }),
       );
       process.chdir(dirs.deep);
 
@@ -70,7 +70,7 @@ describe('CLI shiprc loader', () => {
     it('walks up the directory tree to find .shiprc', async () => {
       await fs.writeFile(
         path.join(dirs.shallow, '.shiprc'),
-        JSON.stringify({ token: 'shallow-token' })
+        JSON.stringify({ token: 'shallow-token' }),
       );
       process.chdir(dirs.deep);
 
@@ -79,10 +79,7 @@ describe('CLI shiprc loader', () => {
     });
 
     it('falls back to $HOME/.shiprc when no project file is found', async () => {
-      await fs.writeFile(
-        path.join(dirs.home, '.shiprc'),
-        JSON.stringify({ token: 'home-token' })
-      );
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), JSON.stringify({ token: 'home-token' }));
       process.chdir(dirs.deep);
 
       const result = loadShipFile();
@@ -95,7 +92,7 @@ describe('CLI shiprc loader', () => {
         JSON.stringify({
           name: 'test-pkg',
           ship: { token: 'pkg-token', apiUrl: 'https://pkg.example.com' },
-        })
+        }),
       );
       process.chdir(dirs.deep);
 
@@ -107,14 +104,8 @@ describe('CLI shiprc loader', () => {
 
     it('prefers the closer config when multiple are present', async () => {
       // .shiprc in the deep dir should win over a $HOME/.shiprc.
-      await fs.writeFile(
-        path.join(dirs.home, '.shiprc'),
-        JSON.stringify({ token: 'home-token' })
-      );
-      await fs.writeFile(
-        path.join(dirs.deep, '.shiprc'),
-        JSON.stringify({ token: 'deep-token' })
-      );
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), JSON.stringify({ token: 'home-token' }));
+      await fs.writeFile(path.join(dirs.deep, '.shiprc'), JSON.stringify({ token: 'deep-token' }));
       process.chdir(dirs.deep);
 
       const result = loadShipFile();
@@ -128,7 +119,7 @@ describe('CLI shiprc loader', () => {
       const explicit = path.join(tempDir, 'custom.json');
       await fs.writeFile(
         explicit,
-        JSON.stringify({ token: 'explicit-token', apiUrl: 'https://explicit.example.com' })
+        JSON.stringify({ token: 'explicit-token', apiUrl: 'https://explicit.example.com' }),
       );
       process.chdir(dirs.deep);
 
@@ -141,14 +132,13 @@ describe('CLI shiprc loader', () => {
     it('throws when the explicit path does not exist', () => {
       // Surfacing the typo immediately is much clearer than a downstream
       // "auth failed" — the user knows exactly which file we couldn't read.
-      expect(() => loadShipFile('/non/existent/path.shiprc'))
-        .toThrow(/Failed to read ship config/);
+      expect(() => loadShipFile('/non/existent/path.shiprc')).toThrow(/Failed to read ship config/);
     });
 
     it('supports relative paths', async () => {
       await fs.writeFile(
         path.join(dirs.middle, 'ship.config.json'),
-        JSON.stringify({ token: 'relative-token' })
+        JSON.stringify({ token: 'relative-token' }),
       );
       process.chdir(dirs.deep);
 
@@ -159,20 +149,14 @@ describe('CLI shiprc loader', () => {
 
   describe('validation', () => {
     it('throws on invalid apiUrl', async () => {
-      await fs.writeFile(
-        path.join(dirs.deep, '.shiprc'),
-        JSON.stringify({ apiUrl: 'not-a-url' })
-      );
+      await fs.writeFile(path.join(dirs.deep, '.shiprc'), JSON.stringify({ apiUrl: 'not-a-url' }));
       process.chdir(dirs.deep);
 
       expect(() => loadShipFile()).toThrow(/Invalid config/);
     });
 
     it('rejects empty-string credentials', async () => {
-      await fs.writeFile(
-        path.join(dirs.deep, '.shiprc'),
-        JSON.stringify({ token: '' })
-      );
+      await fs.writeFile(path.join(dirs.deep, '.shiprc'), JSON.stringify({ token: '' }));
       process.chdir(dirs.deep);
 
       expect(() => loadShipFile()).toThrow(/Invalid config/);
@@ -181,7 +165,7 @@ describe('CLI shiprc loader', () => {
     it('rejects unknown keys (strict schema)', async () => {
       await fs.writeFile(
         path.join(dirs.deep, '.shiprc'),
-        JSON.stringify({ token: 'some-token', unknownField: 'huh' })
+        JSON.stringify({ token: 'some-token', unknownField: 'huh' }),
       );
       process.chdir(dirs.deep);
 
@@ -191,25 +175,23 @@ describe('CLI shiprc loader', () => {
     it('names the rename for a retired credential key', async () => {
       await fs.writeFile(
         path.join(dirs.deep, '.shiprc'),
-        JSON.stringify({ apiKey: 'ship-' + 'a'.repeat(64) })
+        JSON.stringify({ apiKey: `ship-${'a'.repeat(64)}` }),
       );
       process.chdir(dirs.deep);
 
       expect(() => loadShipFile()).toThrow(
-        /"apiKey" is no longer supported — the key is now "token"/
+        /"apiKey" is no longer supported — the key is now "token"/,
       );
     });
 
     it('names both retired keys when both are present', async () => {
       await fs.writeFile(
         path.join(dirs.deep, '.shiprc'),
-        JSON.stringify({ apiKey: 'a', deployToken: 'b' })
+        JSON.stringify({ apiKey: 'a', deployToken: 'b' }),
       );
       process.chdir(dirs.deep);
 
-      expect(() => loadShipFile()).toThrow(
-        /"apiKey" and "deployToken" are no longer supported/
-      );
+      expect(() => loadShipFile()).toThrow(/"apiKey" and "deployToken" are no longer supported/);
     });
 
     it('returns empty for an empty config file', async () => {

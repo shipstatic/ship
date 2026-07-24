@@ -10,13 +10,13 @@
  * Both modes share: environment check → extract paths → optimize paths → filter junk → MD5.
  */
 import type { PlatformLimits } from '@shipstatic/types';
-import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
-import { calculateMD5 } from '../../shared/lib/md5.js';
 import { ShipError } from '@shipstatic/types';
+import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
 import { getENV } from '../../shared/lib/env.js';
 import { filterJunk } from '../../shared/lib/junk.js';
-import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
-import { validateDeployPath, validateDeployFile } from '../../shared/lib/security.js';
+import { calculateMD5 } from '../../shared/lib/md5.js';
+import { validateDeployFile, validateDeployPath } from '../../shared/lib/security.js';
+import type { DeploymentOptions, StaticFile } from '../../shared/types.js';
 
 /**
  * Processes browser files into an array of StaticFile objects ready for deploy.
@@ -37,7 +37,7 @@ import { validateDeployPath, validateDeployFile } from '../../shared/lib/securit
 export async function processFilesForBrowser(
   browserFiles: File[],
   options: DeploymentOptions = {},
-  platformLimits?: PlatformLimits
+  platformLimits?: PlatformLimits,
 ): Promise<StaticFile[]> {
   // 1. Environment check
   if (getENV() !== 'browser') {
@@ -45,14 +45,14 @@ export async function processFilesForBrowser(
   }
 
   // 2. Extract raw paths from File objects
-  const rawPaths = browserFiles.map(file => file.webkitRelativePath || file.name);
+  const rawPaths = browserFiles.map((file) => file.webkitRelativePath || file.name);
 
   // Server-processed uploads (build/prerender) send source files, not deploy output
   const isServerProcessed = options.build || options.prerender;
 
   // 3. Optimize paths for deployment (strip common root, flatten)
   const deployFiles = optimizeDeployPaths(rawPaths, { flatten: options.pathDetect !== false });
-  const deployPaths = deployFiles.map(f => f.path);
+  const deployPaths = deployFiles.map((f) => f.path);
 
   // 4. Filter junk from deploy paths (allowUnbuilt for server-processed)
   const filteredSet = new Set(filterJunk(deployPaths, { allowUnbuilt: isServerProcessed }));
@@ -83,7 +83,7 @@ export async function processFilesForBrowser(
   if (!platformLimits) {
     throw ShipError.config(
       'Platform limits not provided. processFilesForBrowser requires the limits ' +
-      'argument for deploy-mode validation — pass `ship.getLimits()` result.'
+        'argument for deploy-mode validation — pass `ship.getLimits()` result.',
     );
   }
   const results: StaticFile[] = [];
@@ -105,11 +105,15 @@ export async function processFilesForBrowser(
 
     // Validate file sizes (matches Node validation)
     if (file.size > platformLimits.maxFileSize) {
-      throw ShipError.business(`File ${file.name} is too large. Maximum allowed size is ${platformLimits.maxFileSize / (1024 * 1024)}MB.`);
+      throw ShipError.business(
+        `File ${file.name} is too large. Maximum allowed size is ${platformLimits.maxFileSize / (1024 * 1024)}MB.`,
+      );
     }
     totalSize += file.size;
     if (totalSize > platformLimits.maxTotalSize) {
-      throw ShipError.business(`Total deploy size is too large. Maximum allowed is ${platformLimits.maxTotalSize / (1024 * 1024)}MB.`);
+      throw ShipError.business(
+        `Total deploy size is too large. Maximum allowed is ${platformLimits.maxTotalSize / (1024 * 1024)}MB.`,
+      );
     }
 
     // Calculate MD5 hash
@@ -125,7 +129,9 @@ export async function processFilesForBrowser(
 
   // Validate file count (matches Node validation)
   if (results.length > platformLimits.maxFilesCount) {
-    throw ShipError.business(`Too many files to deploy. Maximum allowed is ${platformLimits.maxFilesCount} files.`);
+    throw ShipError.business(
+      `Too many files to deploy. Maximum allowed is ${platformLimits.maxFilesCount} files.`,
+    );
   }
 
   return results;

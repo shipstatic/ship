@@ -4,15 +4,14 @@
  * These are the critical tests that were missing - now we have direct coverage.
  */
 
-import { describe, it, expect } from 'vitest';
-import { ShipError, ErrorType } from '@shipstatic/types';
+import { ErrorType, ShipError } from '@shipstatic/types';
+import { describe, expect, it } from 'vitest';
 import {
+  type ErrorOptions,
+  formatErrorJson,
   getUserMessage,
   toShipError,
-  formatErrorJson,
-  type ErrorOptions
 } from '../../../src/node/cli/error-handling';
-import type { OutputContext } from '../../../src/node/cli/formatters';
 
 describe('CLI Error Handling', () => {
   describe('getUserMessage', () => {
@@ -51,14 +50,16 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe('authentication required: pass --token, set SHIP_TOKEN, or run ship config');
+        expect(message).toBe(
+          'authentication required: pass --token, set SHIP_TOKEN, or run ship config',
+        );
       });
     });
 
     describe('network errors', () => {
       it('should include URL when available in details', () => {
         const err = new ShipError(ErrorType.Network, 'Network failed', undefined, {
-          url: 'https://api.shipstatic.com'
+          url: 'https://api.shipstatic.com',
         });
 
         const message = getUserMessage(err);
@@ -71,13 +72,17 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe('network error: could not reach the API. check your internet connection');
+        expect(message).toBe(
+          'network error: could not reach the API. check your internet connection',
+        );
       });
     });
 
     describe('file errors', () => {
       it('should pass through file error message', () => {
-        const err = ShipError.file('dist/index.html path does not exist', { filePath: 'dist/index.html' });
+        const err = ShipError.file('dist/index.html path does not exist', {
+          filePath: 'dist/index.html',
+        });
 
         const message = getUserMessage(err);
 
@@ -129,7 +134,9 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe('server error: please try again or check https://status.shipstatic.com');
+        expect(message).toBe(
+          'server error: please try again or check https://status.shipstatic.com',
+        );
       });
 
       it('should show generic server error for unknown error types', () => {
@@ -137,7 +144,9 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe('server error: please try again or check https://status.shipstatic.com');
+        expect(message).toBe(
+          'server error: please try again or check https://status.shipstatic.com',
+        );
       });
     });
 
@@ -147,7 +156,9 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe('server error: please try again or check https://status.shipstatic.com');
+        expect(message).toBe(
+          'server error: please try again or check https://status.shipstatic.com',
+        );
       });
 
       it('should handle error with null details', () => {
@@ -155,7 +166,9 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe('server error: please try again or check https://status.shipstatic.com');
+        expect(message).toBe(
+          'server error: please try again or check https://status.shipstatic.com',
+        );
       });
     });
   });
@@ -192,7 +205,7 @@ describe('CLI Error Handling', () => {
       const parsed = JSON.parse(json);
 
       expect(parsed).toEqual({
-        error: 'something went wrong'
+        error: 'something went wrong',
       });
     });
 
@@ -203,7 +216,7 @@ describe('CLI Error Handling', () => {
 
       expect(parsed).toEqual({
         error: 'auth failed',
-        details: { code: 'ERR_AUTH', data: { reason: 'expired' } }
+        details: { code: 'ERR_AUTH', data: { reason: 'expired' } },
       });
     });
 
@@ -212,7 +225,7 @@ describe('CLI Error Handling', () => {
       const parsed = JSON.parse(json);
 
       expect(parsed).toEqual({
-        error: 'error'
+        error: 'error',
       });
       expect(parsed).not.toHaveProperty('details');
     });
@@ -223,7 +236,7 @@ describe('CLI Error Handling', () => {
 
       // null is falsy, so details should not be included
       expect(parsed).toEqual({
-        error: 'error'
+        error: 'error',
       });
     });
 

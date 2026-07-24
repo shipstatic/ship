@@ -4,9 +4,9 @@
  * Replaces: output-consistency.test.ts, output-formatting.test.ts, property-order.test.ts, pure-functions.test.ts
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { error, formatDetails, formatTable, formatTimestamp, success } from '@/node/cli/utils';
 import { runCli } from './helpers';
-import { formatTable, formatDetails, formatTimestamp, success, error } from '@/node/cli/utils';
 
 describe('CLI Output', () => {
   describe('Help and Version Consistency', () => {
@@ -49,7 +49,7 @@ describe('CLI Output', () => {
     });
 
     it('should format error messages consistently', () => {
-      // error() outputs to console, doesn't return a value  
+      // error() outputs to console, doesn't return a value
       expect(() => error('Test failed')).not.toThrow();
       expect(() => error('Test failed', true)).not.toThrow();
     });
@@ -63,7 +63,7 @@ describe('CLI Output', () => {
     it('should format tables with proper spacing', () => {
       const data = [
         { name: 'test1', status: 'active' },
-        { name: 'test2', status: 'inactive' }
+        { name: 'test2', status: 'inactive' },
       ];
       const formatted = formatTable(data);
       expect(formatted).toContain('name');
@@ -102,7 +102,7 @@ describe('CLI Output', () => {
     it('should show consistent command structure in help', async () => {
       const result = await runCli(['--help']);
       expect(result.exitCode).toBe(0);
-      
+
       // Verify all main commands are present
       expect(result.stdout).toContain('deployments');
       expect(result.stdout).toContain('domains');
@@ -118,5 +118,4 @@ describe('CLI Output', () => {
       expect(result.stdout).toContain('deployments');
     });
   });
-
 });

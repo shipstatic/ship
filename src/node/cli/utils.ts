@@ -2,7 +2,7 @@
  * Simple CLI utilities following "impossible simplicity" mantra
  */
 import columnify from 'columnify';
-import { bold, dim, green, red, yellow, blue, inverse, hidden } from 'yoctocolors';
+import { blue, dim, green, hidden, inverse, red, yellow } from 'yoctocolors';
 
 const INTERNAL_FIELDS = ['isCreate', 'claim'];
 
@@ -22,7 +22,7 @@ const decapitalize = (msg: string): string =>
  */
 export const success = (msg: string, json?: boolean, noColor?: boolean) => {
   if (json) {
-    console.log(JSON.stringify({ success: msg }, null, 2) + '\n');
+    console.log(`${JSON.stringify({ success: msg }, null, 2)}\n`);
   } else {
     console.log(`${applyColor(green, decapitalize(msg).replace(/\.$/, ''), noColor)}\n`);
   }
@@ -30,9 +30,13 @@ export const success = (msg: string, json?: boolean, noColor?: boolean) => {
 
 export const error = (msg: string, json?: boolean, noColor?: boolean) => {
   if (json) {
-    console.error(JSON.stringify({ error: msg }, null, 2) + '\n');
+    console.error(`${JSON.stringify({ error: msg }, null, 2)}\n`);
   } else {
-    const errorPrefix = applyColor((text) => inverse(red(text)), `${applyColor(hidden, '[', noColor)}error${applyColor(hidden, ']', noColor)}`, noColor);
+    const errorPrefix = applyColor(
+      (text) => inverse(red(text)),
+      `${applyColor(hidden, '[', noColor)}error${applyColor(hidden, ']', noColor)}`,
+      noColor,
+    );
     const errorMsg = applyColor(red, decapitalize(msg).replace(/\.$/, ''), noColor);
     console.error(`${errorPrefix} ${errorMsg}\n`);
   }
@@ -40,9 +44,13 @@ export const error = (msg: string, json?: boolean, noColor?: boolean) => {
 
 export const warn = (msg: string, json?: boolean, noColor?: boolean) => {
   if (json) {
-    console.log(JSON.stringify({ warning: msg }, null, 2) + '\n');
+    console.log(`${JSON.stringify({ warning: msg }, null, 2)}\n`);
   } else {
-    const warnPrefix = applyColor((text) => inverse(yellow(text)), `${applyColor(hidden, '[', noColor)}warning${applyColor(hidden, ']', noColor)}`, noColor);
+    const warnPrefix = applyColor(
+      (text) => inverse(yellow(text)),
+      `${applyColor(hidden, '[', noColor)}warning${applyColor(hidden, ']', noColor)}`,
+      noColor,
+    );
     const warnMsg = applyColor(yellow, decapitalize(msg).replace(/\.$/, ''), noColor);
     console.log(`${warnPrefix} ${warnMsg}\n`);
   }
@@ -50,30 +58,39 @@ export const warn = (msg: string, json?: boolean, noColor?: boolean) => {
 
 export const info = (msg: string, json?: boolean, noColor?: boolean) => {
   if (json) {
-    console.log(JSON.stringify({ info: msg }, null, 2) + '\n');
+    console.log(`${JSON.stringify({ info: msg }, null, 2)}\n`);
   } else {
-    const infoPrefix = applyColor((text) => inverse(blue(text)), `${applyColor(hidden, '[', noColor)}info${applyColor(hidden, ']', noColor)}`, noColor);
+    const infoPrefix = applyColor(
+      (text) => inverse(blue(text)),
+      `${applyColor(hidden, '[', noColor)}info${applyColor(hidden, ']', noColor)}`,
+      noColor,
+    );
     const infoMsg = applyColor(blue, decapitalize(msg).replace(/\.$/, ''), noColor);
     console.log(`${infoPrefix} ${infoMsg}\n`);
   }
 };
 
-
 /**
  * Format unix timestamp to ISO 8601 string without milliseconds, or return '-' if not provided
  */
-export const formatTimestamp = (timestamp?: number, context: 'table' | 'details' = 'details', noColor?: boolean): string => {
+export const formatTimestamp = (
+  timestamp?: number,
+  context: 'table' | 'details' = 'details',
+  noColor?: boolean,
+): string => {
   if (timestamp === undefined || timestamp === null || timestamp === 0) {
     return '-';
   }
-  
+
   const isoString = new Date(timestamp * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-  
+
   // Hide the T and Z characters only in table/list views for cleaner appearance
   if (context === 'table') {
-    return isoString.replace(/T/, applyColor(hidden, 'T', noColor)).replace(/Z$/, applyColor(hidden, 'Z', noColor));
+    return isoString
+      .replace(/T/, applyColor(hidden, 'T', noColor))
+      .replace(/Z$/, applyColor(hidden, 'Z', noColor));
   }
-  
+
   return isoString;
 };
 
@@ -81,9 +98,21 @@ export const formatTimestamp = (timestamp?: number, context: 'table' | 'details'
  * Format value for display.
  * Handles timestamps, file sizes, and boolean configs with special formatting.
  */
-const formatValue = (key: string, value: unknown, context: 'table' | 'details' = 'details', noColor?: boolean): string => {
+const formatValue = (
+  key: string,
+  value: unknown,
+  context: 'table' | 'details' = 'details',
+  noColor?: boolean,
+): string => {
   if (value === null || (Array.isArray(value) && value.length === 0)) return '-';
-  if (typeof value === 'number' && (key === 'created' || key === 'activated' || key === 'expires' || key === 'linked' || key === 'grace')) {
+  if (
+    typeof value === 'number' &&
+    (key === 'created' ||
+      key === 'activated' ||
+      key === 'expires' ||
+      key === 'linked' ||
+      key === 'grace')
+  ) {
     return formatTimestamp(value, context, noColor);
   }
   if (key === 'size' && typeof value === 'number') {
@@ -105,20 +134,27 @@ const formatValue = (key: string, value: unknown, context: 'table' | 'details' =
  * @param noColor - Disable colors
  * @param headerMap - Optional mapping of property names to display headers
  */
-export const formatTable = (data: object[], columns?: string[], noColor?: boolean, headerMap?: Record<string, string>): string => {
+export const formatTable = (
+  data: object[],
+  columns?: string[],
+  noColor?: boolean,
+  headerMap?: Record<string, string>,
+): string => {
   if (!data || data.length === 0) return '';
 
   // Get column order from first item (preserves API order) or use provided columns
   const firstItem = data[0] as Record<string, unknown>;
-  const columnOrder = columns || Object.keys(firstItem).filter(key =>
-    firstItem[key] !== undefined && !INTERNAL_FIELDS.includes(key)
-  );
+  const columnOrder =
+    columns ||
+    Object.keys(firstItem).filter(
+      (key) => firstItem[key] !== undefined && !INTERNAL_FIELDS.includes(key),
+    );
 
   // Transform data preserving column order
-  const transformedData = data.map(item => {
+  const transformedData = data.map((item) => {
     const record = item as Record<string, unknown>;
     const transformed: Record<string, string> = {};
-    columnOrder.forEach(col => {
+    columnOrder.forEach((col) => {
       if (col in record && record[col] !== undefined) {
         transformed[col] = formatValue(col, record[col], 'table', noColor);
       }
@@ -129,22 +165,28 @@ export const formatTable = (data: object[], columns?: string[], noColor?: boolea
   const output = columnify(transformedData, {
     columnSplitter: '   ',
     columns: columnOrder,
-    config: columnOrder.reduce<Record<string, { headingTransform: (h: string) => string }>>((config, col) => {
-      config[col] = {
-        headingTransform: (heading: string) => applyColor(dim, headerMap?.[heading] || heading, noColor)
-      };
-      return config;
-    }, {})
+    config: columnOrder.reduce<Record<string, { headingTransform: (h: string) => string }>>(
+      (config, col) => {
+        config[col] = {
+          headingTransform: (heading: string) =>
+            applyColor(dim, headerMap?.[heading] || heading, noColor),
+        };
+        return config;
+      },
+      {},
+    ),
   });
-  
+
   // Clean output: remove null bytes and ensure clean spacing
-  return output
+  return `${output
     .split('\n')
-    .map((line: string) => line
-      .replace(/\0/g, '') // Remove any null bytes
-      .replace(/\s+$/, '') // Remove trailing spaces
+    .map(
+      (line: string) =>
+        line
+          .replace(/\0/g, '') // Remove any null bytes
+          .replace(/\s+$/, ''), // Remove trailing spaces
     )
-    .join('\n') + '\n';
+    .join('\n')}\n`;
 };
 
 /**
@@ -157,29 +199,28 @@ export const formatDetails = (obj: object, noColor?: boolean): string => {
     if (INTERNAL_FIELDS.includes(key)) return false;
     return value !== undefined;
   });
-  
+
   if (entries.length === 0) return '';
-  
+
   // Transform to columnify format while preserving order
   const data = entries.map(([key, value]) => ({
-    property: key + ':',
-    value: formatValue(key, value, 'details', noColor)
+    property: `${key}:`,
+    value: formatValue(key, value, 'details', noColor),
   }));
-  
+
   const output = columnify(data, {
     columnSplitter: '  ',
     showHeaders: false,
     config: {
-      property: { 
-        dataTransform: (value: string) => applyColor(dim, value, noColor)
-      }
-    }
+      property: {
+        dataTransform: (value: string) => applyColor(dim, value, noColor),
+      },
+    },
   });
-  
+
   // Clean output: remove null bytes and ensure clean spacing
-  return output
+  return `${output
     .split('\n')
     .map((line: string) => line.replace(/\0/g, '')) // Remove any null bytes
-    .join('\n') + '\n';
+    .join('\n')}\n`;
 };
-

@@ -3,8 +3,8 @@
  * Simple setup following "impossible simplicity" philosophy
  */
 
-import { beforeAll, afterAll, afterEach } from 'vitest';
-import { setupMockServer, cleanupMockServer, resetMockServer } from './mocks/server';
+import { afterAll, afterEach, beforeAll } from 'vitest';
+import { cleanupMockServer, resetMockServer, setupMockServer } from './mocks/server';
 
 // jsdom lacks Blob.prototype.arrayBuffer; every shipping runtime has it.
 // Polyfill via FileReader so tests can exercise the production code path.
@@ -23,7 +23,7 @@ if (typeof Blob !== 'undefined' && typeof (Blob.prototype as any).arrayBuffer !=
 beforeAll(async () => {
   await setupMockServer();
   // Give server time to fully start
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await new Promise((resolve) => setTimeout(resolve, 100));
 }, 10000);
 
 // Cleanup after all tests

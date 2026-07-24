@@ -1,26 +1,29 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createDeploymentResource, type DeploymentResource } from '../../../src/shared/resources';
+import { DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApiHttp } from '../../../src/shared/api/http';
-import type { StaticFile, DeploymentOptions } from '../../../src/shared/types';
-import { ShipError, DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
+import { createDeploymentResource, type DeploymentResource } from '../../../src/shared/resources';
+import type { DeploymentOptions } from '../../../src/shared/types';
 
 // Mock the shared SPA detection
 vi.mock('../../../src/shared/lib/spa', () => ({
-  detectAndConfigureSPA: vi.fn((files, apiClient, options) => {
+  detectAndConfigureSPA: vi.fn((files, _apiClient, options) => {
     // Simple mock that adds SPA config if not present and spaDetect is true
-    if (options.spaDetect !== false && !files.some((f: any) => f.path === DEPLOYMENT_CONFIG_FILENAME)) {
+    if (
+      options.spaDetect !== false &&
+      !files.some((f: any) => f.path === DEPLOYMENT_CONFIG_FILENAME)
+    ) {
       return Promise.resolve([
         ...files,
         {
           path: DEPLOYMENT_CONFIG_FILENAME,
           content: Buffer.from('{"rewrites":[{"source":"/(.*)", "destination":"/index.html"}]}'),
           size: 100,
-          md5: 'spa-config-hash'
-        }
+          md5: 'spa-config-hash',
+        },
       ]);
     }
     return Promise.resolve(files);
-  })
+  }),
 }));
 
 describe('Deployment Resource (Unified Architecture)', () => {
@@ -39,16 +42,16 @@ describe('Deployment Resource (Unified Architecture)', () => {
         id: 'dep_123',
         url: 'https://dep_123.shipstatic.com',
         files: [],
-        labels: []
+        labels: [],
       }),
       ping: vi.fn().mockResolvedValue(true),
-      checkSPA: vi.fn().mockResolvedValue(false)
+      checkSPA: vi.fn().mockResolvedValue(false),
     } as any;
 
     // Mock processInput function (environment-specific)
     mockProcessInput = vi.fn().mockResolvedValue([
       { path: 'index.html', content: Buffer.from('<html></html>'), size: 13, md5: 'abc123' },
-      { path: 'style.css', content: Buffer.from('body {}'), size: 7, md5: 'def456' }
+      { path: 'style.css', content: Buffer.from('body {}'), size: 7, md5: 'def456' },
     ]);
 
     // Mock initialization
@@ -58,7 +61,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
     deploymentResource = createDeploymentResource({
       getApi: () => mockApiHttp,
       ensureInit: mockEnsureInit,
-      processInput: mockProcessInput
+      processInput: mockProcessInput,
     });
   });
 
@@ -77,7 +80,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
         id: 'dep_123',
         url: 'https://dep_123.shipstatic.com',
         files: [],
-        labels: []
+        labels: [],
       });
     });
 
@@ -90,7 +93,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
         id: 'dep_456',
         url: 'https://dep_456.shipstatic.com',
         files: [],
-        labels
+        labels,
       });
 
       const result = await deploymentResource.upload(mockInput as any, options);
@@ -112,7 +115,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
         id: 'dep_789',
         url: 'https://dep_789.shipstatic.com',
         files: [],
-        labels
+        labels,
       });
 
       const result = await deploymentResource.upload(mockInput as any, options);
@@ -139,7 +142,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       const mockInput = ['./dist'];
       const options: DeploymentOptions = { labels: [] };
 
-      const result = await deploymentResource.upload(mockInput as any, options);
+      const _result = await deploymentResource.upload(mockInput as any, options);
 
       const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
       const deployOptions = deployCallArgs[1];
@@ -155,7 +158,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       // Verify SPA detection was applied (through our mock)
       const deployCallArgs = (mockApiHttp.deploy as any).mock.calls[0];
       const processedFiles = deployCallArgs[0];
-      
+
       // Should include the SPA config file added by detectAndConfigureSPA
       expect(processedFiles).toHaveLength(3); // 2 original + 1 SPA config
       expect(processedFiles.some((f: any) => f.path === DEPLOYMENT_CONFIG_FILENAME)).toBe(true);
@@ -165,11 +168,12 @@ describe('Deployment Resource (Unified Architecture)', () => {
       const brokenResource = createDeploymentResource({
         getApi: () => mockApiHttp,
         ensureInit: mockEnsureInit,
-        processInput: undefined as any
+        processInput: undefined as any,
       });
 
-      await expect(brokenResource.upload(['./dist'] as any, {}))
-        .rejects.toThrow('processInput function is not provided.');
+      await expect(brokenResource.upload(['./dist'] as any, {})).rejects.toThrow(
+        'processInput function is not provided.',
+      );
     });
 
     it('should merge client defaults with options', async () => {
@@ -178,7 +182,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
         getApi: () => mockApiHttp,
         ensureInit: mockEnsureInit,
         processInput: mockProcessInput,
-        clientDefaults
+        clientDefaults,
       });
 
       const options = { timeout: 10000 }; // Override timeout

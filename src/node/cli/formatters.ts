@@ -3,20 +3,20 @@
  * All formatters are synchronous and have no side effects beyond console output.
  */
 import type {
+  Account,
   Deployment,
   DeploymentCreateResponse,
   DeploymentListResponse,
   Domain,
-  DomainListResponse,
-  DomainValidateResponse,
-  DomainRecordsResponse,
   DomainDnsResponse,
-  Account,
+  DomainListResponse,
+  DomainRecordsResponse,
+  DomainValidateResponse,
   TokenCreateResponse,
-  TokenListResponse
+  TokenListResponse,
 } from '@shipstatic/types';
-import type { EnrichedDomain, DomainShareResponse, MessageResult, CLIResult } from './types.js';
-import { formatTable, formatDetails, success, error, info } from './utils.js';
+import type { CLIResult, DomainShareResponse, EnrichedDomain, MessageResult } from './types.js';
+import { error, formatDetails, formatTable, info, success } from './utils.js';
 
 const setupUrl = (hash: string, domain: string) => `https://setup.shipstatic.com/${hash}/${domain}`;
 
@@ -35,7 +35,11 @@ export interface FormatOptions {
 /**
  * Format deployments list
  */
-export function formatDeploymentsList(result: DeploymentListResponse, context: OutputContext, options: FormatOptions): void {
+export function formatDeploymentsList(
+  result: DeploymentListResponse,
+  _context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
 
   if (result.deployments.length === 0) {
@@ -51,7 +55,11 @@ export function formatDeploymentsList(result: DeploymentListResponse, context: O
 /**
  * Format domains list
  */
-export function formatDomainsList(result: DomainListResponse, context: OutputContext, options: FormatOptions): void {
+export function formatDomainsList(
+  result: DomainListResponse,
+  _context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
 
   if (result.domains.length === 0) {
@@ -68,7 +76,11 @@ export function formatDomainsList(result: DomainListResponse, context: OutputCon
  * Format single domain result.
  * Accepts plain Domain (from get) or EnrichedDomain (from set, with DNS info).
  */
-export function formatDomain(result: Domain | EnrichedDomain, context: OutputContext, options: FormatOptions): void {
+export function formatDomain(
+  result: Domain | EnrichedDomain,
+  context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
 
   // Destructure enrichment fields (undefined when result is plain Domain)
@@ -101,7 +113,11 @@ export function formatDomain(result: Domain | EnrichedDomain, context: OutputCon
 /**
  * Format single deployment result
  */
-export function formatDeployment(result: Deployment | DeploymentCreateResponse, context: OutputContext, options: FormatOptions): void {
+export function formatDeployment(
+  result: Deployment | DeploymentCreateResponse,
+  context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
 
   // Show success message for upload operations
@@ -115,15 +131,25 @@ export function formatDeployment(result: Deployment | DeploymentCreateResponse, 
   const claim = (result as DeploymentCreateResponse).claim;
   if (claim) {
     const days = result.expires ? Math.round((result.expires - result.created) / 86400) : null;
-    console.log(`IMPORTANT: this deployment${days ? ` expires in ${days} day${days !== 1 ? 's' : ''}` : ' will expire'}, claim it to keep permanently:\n${claim}\n`);
-    info(`configure a free API key with 'ship config' to deploy to your own account`, false, noColor);
+    console.log(
+      `IMPORTANT: this deployment${days ? ` expires in ${days} day${days !== 1 ? 's' : ''}` : ' will expire'}, claim it to keep permanently:\n${claim}\n`,
+    );
+    info(
+      `configure a free API key with 'ship config' to deploy to your own account`,
+      false,
+      noColor,
+    );
   }
 }
 
 /**
  * Format account/email result
  */
-export function formatAccount(result: Account, context: OutputContext, options: FormatOptions): void {
+export function formatAccount(
+  result: Account,
+  _context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
   console.log(formatDetails(result, noColor));
 }
@@ -131,7 +157,11 @@ export function formatAccount(result: Account, context: OutputContext, options: 
 /**
  * Format message result (e.g., from DNS verification)
  */
-export function formatMessage(result: MessageResult, context: OutputContext, options: FormatOptions): void {
+export function formatMessage(
+  result: MessageResult,
+  _context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
   if (result.message) {
     success(result.message, false, noColor);
@@ -141,7 +171,11 @@ export function formatMessage(result: MessageResult, context: OutputContext, opt
 /**
  * Format domain validation result
  */
-export function formatDomainValidate(result: DomainValidateResponse, context: OutputContext, options: FormatOptions): void {
+export function formatDomainValidate(
+  result: DomainValidateResponse,
+  _context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
 
   if (result.valid) {
@@ -151,7 +185,11 @@ export function formatDomainValidate(result: DomainValidateResponse, context: Ou
       console.log(`  normalized: ${result.normalized}`);
     }
     if (result.available !== null) {
-      const availabilityText = result.available ? (noColor ? 'available' : 'available ✓') : 'already taken';
+      const availabilityText = result.available
+        ? noColor
+          ? 'available'
+          : 'available ✓'
+        : 'already taken';
       console.log(`  availability: ${availabilityText}`);
     }
     console.log();
@@ -163,7 +201,11 @@ export function formatDomainValidate(result: DomainValidateResponse, context: Ou
 /**
  * Format domain DNS records result
  */
-export function formatDomainRecords(result: DomainRecordsResponse, context: OutputContext, options: FormatOptions): void {
+export function formatDomainRecords(
+  result: DomainRecordsResponse,
+  _context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
 
   if (result.records.length === 0) {
@@ -179,7 +221,11 @@ export function formatDomainRecords(result: DomainRecordsResponse, context: Outp
 /**
  * Format domain DNS provider result
  */
-export function formatDomainDns(result: DomainDnsResponse, context: OutputContext, options: FormatOptions): void {
+export function formatDomainDns(
+  result: DomainDnsResponse,
+  _context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
   const provider = result.dns?.provider?.name || null;
   console.log(formatDetails({ domain: result.domain, provider }, noColor));
@@ -188,7 +234,11 @@ export function formatDomainDns(result: DomainDnsResponse, context: OutputContex
 /**
  * Format domain share result as setup URL
  */
-export function formatDomainShare(result: DomainShareResponse, context: OutputContext, options: FormatOptions): void {
+export function formatDomainShare(
+  result: DomainShareResponse,
+  _context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
   success(setupUrl(result.hash, result.domain), false, noColor);
 }
@@ -196,7 +246,11 @@ export function formatDomainShare(result: DomainShareResponse, context: OutputCo
 /**
  * Format tokens list
  */
-export function formatTokensList(result: TokenListResponse, context: OutputContext, options: FormatOptions): void {
+export function formatTokensList(
+  result: TokenListResponse,
+  _context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
 
   if (result.tokens.length === 0) {
@@ -212,7 +266,11 @@ export function formatTokensList(result: TokenListResponse, context: OutputConte
 /**
  * Format single token result (creation response includes both token ID and secret)
  */
-export function formatToken(result: TokenCreateResponse, context: OutputContext, options: FormatOptions): void {
+export function formatToken(
+  result: TokenCreateResponse,
+  context: OutputContext,
+  options: FormatOptions,
+): void {
   const { noColor } = options;
 
   if (context.operation === 'create' && result.token) {
@@ -229,7 +287,7 @@ export function formatToken(result: TokenCreateResponse, context: OutputContext,
 export function formatOutput(
   result: CLIResult,
   context: OutputContext,
-  options: FormatOptions
+  options: FormatOptions,
 ): void {
   const { json, quiet, noColor } = options;
 
@@ -238,13 +296,14 @@ export function formatOutput(
     if (result === undefined || typeof result === 'boolean') return;
     if (result !== null && typeof result === 'object') {
       if ('deployments' in result) {
-        (result as DeploymentListResponse).deployments.forEach(d => console.log(d.deployment));
+        for (const d of (result as DeploymentListResponse).deployments) console.log(d.deployment);
       } else if ('domains' in result) {
-        (result as DomainListResponse).domains.forEach(d => console.log(d.domain));
+        for (const d of (result as DomainListResponse).domains) console.log(d.domain);
       } else if ('tokens' in result) {
-        (result as TokenListResponse).tokens.forEach(t => console.log(t.token));
+        for (const t of (result as TokenListResponse).tokens) console.log(t.token);
       } else if ('records' in result) {
-        (result as DomainRecordsResponse).records.forEach(r => console.log(`${r.type} ${r.name} ${r.value}`));
+        for (const r of (result as DomainRecordsResponse).records)
+          console.log(`${r.type} ${r.name} ${r.value}`);
       } else if ('hash' in result) {
         const r = result as DomainShareResponse;
         console.log(setupUrl(r.hash, r.domain));

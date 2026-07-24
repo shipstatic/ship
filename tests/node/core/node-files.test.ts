@@ -1,18 +1,23 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ShipError } from '@shipstatic/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { processFilesForNode } from '../../../src/node/core/node-files';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
-import { ShipError, ErrorType } from '@shipstatic/types';
 import { TEST_PLATFORM_LIMITS } from '../../fixtures/platform-limits';
 
 // Define mock implementations using vi.hoisted()
 const { MOCK_CALCULATE_MD5_FN } = vi.hoisted(() => ({ MOCK_CALCULATE_MD5_FN: vi.fn() }));
 
 const { MOCK_FS_IMPLEMENTATION } = vi.hoisted(() => ({
-  MOCK_FS_IMPLEMENTATION: { readdirSync: vi.fn(), statSync: vi.fn(), readFileSync: vi.fn(), realpathSync: vi.fn() }
+  MOCK_FS_IMPLEMENTATION: {
+    readdirSync: vi.fn(),
+    statSync: vi.fn(),
+    readFileSync: vi.fn(),
+    realpathSync: vi.fn(),
+  },
 }));
 
 const { MOCK_PATH_MODULE_IMPLEMENTATION } = vi.hoisted(() => {
-  const basenameFn = (p: string) => p.split(/[\/\\]/).pop() || '';
+  const basenameFn = (p: string) => p.split(/[/\\]/).pop() || '';
   return {
     MOCK_PATH_MODULE_IMPLEMENTATION: {
       resolve: vi.fn(),
@@ -20,8 +25,8 @@ const { MOCK_PATH_MODULE_IMPLEMENTATION } = vi.hoisted(() => {
       relative: vi.fn(),
       dirname: vi.fn(),
       basename: vi.fn(basenameFn),
-      sep: '/'
-    }
+      sep: '/',
+    },
   };
 });
 
@@ -38,38 +43,41 @@ describe('Node File Utilities', () => {
     MOCK_CALCULATE_MD5_FN.mockResolvedValue({ md5: 'mocked-md5-for-node-files' });
 
     MOCK_PATH_MODULE_IMPLEMENTATION.resolve.mockImplementation((...args: string[]) => {
-      let path = args.join(require('path').sep);
-      if (!require('path').isAbsolute(path)) path = require('path').join('/mock/cwd', path);
+      let path = args.join(require('node:path').sep);
+      if (!require('node:path').isAbsolute(path))
+        path = require('node:path').join('/mock/cwd', path);
       return path.replace(/\\/g, '/');
     });
-    MOCK_PATH_MODULE_IMPLEMENTATION.join.mockImplementation((...args: string[]) => args.join('/').replace(/\/+/g, '/'));
+    MOCK_PATH_MODULE_IMPLEMENTATION.join.mockImplementation((...args: string[]) =>
+      args.join('/').replace(/\/+/g, '/'),
+    );
     MOCK_PATH_MODULE_IMPLEMENTATION.relative.mockImplementation((from: string, to: string) => {
       // For tests, ensure path.relative strips the common prefix to match the expected behavior
       // with the new pathDetect=false default
-      
+
       // Handle the case where the 'to' path is a direct child of 'from'
-      if (to.startsWith(from + '/')) {
+      if (to.startsWith(`${from}/`)) {
         return to.substring(from.length + 1); // +1 to account for the trailing slash
       }
-      
+
       // For directories being tested (they would have a mock/cwd prefix)
       if (to.startsWith('/mock/cwd/dir/')) {
         return to.substring('/mock/cwd/dir/'.length);
       }
-      
+
       // For nested/asdf test case
       if (to.startsWith('/mock/cwd/nested/asdf/')) {
         return to.substring('/mock/cwd/nested/asdf/'.length);
       }
-      
+
       // If no clear relationship, try simple prefix removal
       if (to.startsWith(from)) {
         return to.substring(from.length).replace(/^\//, '');
       }
-      
+
       // Default case - return the 'to' path
     });
-    
+
     MOCK_PATH_MODULE_IMPLEMENTATION.dirname.mockImplementation((p: string) => {
       // Get directory name
       const lastSlash = p.lastIndexOf('/');
@@ -77,7 +85,7 @@ describe('Node File Utilities', () => {
       if (lastSlash === 0) return '/';
       return p.substring(0, lastSlash);
     });
-    
+
     MOCK_PATH_MODULE_IMPLEMENTATION.basename.mockImplementation((p: string) => {
       return p.split('/').pop() || '';
     });
@@ -90,7 +98,9 @@ describe('Node File Utilities', () => {
     __setTestEnvironment(null);
   });
 
-  const setupMockFsNode = (files: Record<string, { type: 'dir' } | { type: 'file'; content?: string; size?: number }>) => {
+  const setupMockFsNode = (
+    files: Record<string, { type: 'dir' } | { type: 'file'; content?: string; size?: number }>,
+  ) => {
     // Mock statSync to handle directory detection properly
     MOCK_FS_IMPLEMENTATION.statSync.mockImplementation((filePath: string) => {
       const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
@@ -100,43 +110,46 @@ describe('Node File Utilities', () => {
         return {
           isDirectory: () => fileData.type === 'dir',
           isFile: () => fileData.type === 'file',
-          size: fileData.type === 'file' ? (fileData.size ?? (fileData.content ?? '').length) : 0
+          size: fileData.type === 'file' ? (fileData.size ?? (fileData.content ?? '').length) : 0,
         } as any;
       }
-      
+
       // Check if this is an implicit directory with descendants
-      const prefix = normalizedPath + '/';
-      if (Object.keys(files).some(k => k.startsWith(prefix))) {
+      const prefix = `${normalizedPath}/`;
+      if (Object.keys(files).some((k) => k.startsWith(prefix))) {
         return { isDirectory: () => true, isFile: () => false, size: 0 } as any;
       }
-      
-      throw Object.assign(new Error(`ENOENT: no such file or directory, stat '${normalizedPath}'`), { code: 'ENOENT' });
+
+      throw Object.assign(
+        new Error(`ENOENT: no such file or directory, stat '${normalizedPath}'`),
+        { code: 'ENOENT' },
+      );
     });
-    
+
     // More accurate readdirSync implementation that matches Node.js behavior
     MOCK_FS_IMPLEMENTATION.readdirSync.mockImplementation((dirPath: string) => {
       const normalizedDirPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(dirPath.toString());
-      const prefix = normalizedDirPath.endsWith('/') ? normalizedDirPath : normalizedDirPath + '/';
-      
+      const prefix = normalizedDirPath.endsWith('/') ? normalizedDirPath : `${normalizedDirPath}/`;
+
       // Get direct children only
       const children = new Set<string>();
-      
-      Object.keys(files).forEach(filePath => {
+
+      Object.keys(files).forEach((filePath) => {
         // Skip if not a child of this directory
         if (!filePath.startsWith(prefix)) return;
-        
+
         // Extract the immediate child name
         const relPath = filePath.substring(prefix.length);
         const firstSegment = relPath.split('/')[0];
-        
+
         if (firstSegment) {
           children.add(firstSegment);
         }
       });
-      
+
       return Array.from(children);
     });
-    
+
     // Simple but accurate readFileSync mock
     MOCK_FS_IMPLEMENTATION.readFileSync.mockImplementation((filePath: string) => {
       const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
@@ -162,17 +175,22 @@ describe('Node File Utilities', () => {
         return normalizedPath;
       }
       // Check if it's an implicit directory
-      const prefix = normalizedPath + '/';
-      if (Object.keys(files).some(k => k.startsWith(prefix))) {
+      const prefix = `${normalizedPath}/`;
+      if (Object.keys(files).some((k) => k.startsWith(prefix))) {
         return normalizedPath;
       }
-      throw Object.assign(new Error(`ENOENT: no such file or directory, realpath '${normalizedPath}'`), { code: 'ENOENT' });
+      throw Object.assign(
+        new Error(`ENOENT: no such file or directory, realpath '${normalizedPath}'`),
+        { code: 'ENOENT' },
+      );
     });
   };
 
   describe('processFilesForNode', () => {
     it('should scan files and call calculateMD5', async () => {
-      setupMockFsNode({ '/mock/cwd/project/file1.txt': { type: 'file', content: 'node_content1' } });
+      setupMockFsNode({
+        '/mock/cwd/project/file1.txt': { type: 'file', content: 'node_content1' },
+      });
       const result = await processFilesForNode(['project/file1.txt'], {}, TEST_PLATFORM_LIMITS);
       expect(result).toHaveLength(1);
       expect(result[0].path).toBe('file1.txt');
@@ -181,9 +199,11 @@ describe('Node File Utilities', () => {
 
     it('should throw ShipError.business if called in non-Node.js env', async () => {
       __setTestEnvironment('browser');
-      await expect(processFilesForNode(['/path'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(ShipError.business('processFilesForNode can only be called in Node.js environment.'));
+      await expect(processFilesForNode(['/path'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        ShipError.business('processFilesForNode can only be called in Node.js environment.'),
+      );
     });
-    
+
     it('should scan directories recursively', async () => {
       // Setup mock filesystem with recursive directory structure
       setupMockFsNode({
@@ -191,34 +211,34 @@ describe('Node File Utilities', () => {
         '/mock/cwd/dir/file2.txt': { type: 'file', content: 'content2' },
         '/mock/cwd/dir/subdir/file3.txt': { type: 'file', content: 'content3' },
       });
-      
+
       // Call scanNodePaths with our directory
       const result = await processFilesForNode(['dir'], {}, TEST_PLATFORM_LIMITS);
-      
+
       // Assert that we got the expected number of files
       expect(result).toHaveLength(3);
-      
+
       // Check that file paths are flattened by default (common parent stripped)
-      const paths = result.map(f => f.path).sort();
+      const paths = result.map((f) => f.path).sort();
       // Files at the root level should be just the filename, subdirectory files should keep their relative path
       expect(paths).toEqual(['file1.txt', 'file2.txt', 'subdir/file3.txt'].sort());
 
       // Verify calculateMD5 was called for each file
       expect(MOCK_CALCULATE_MD5_FN).toHaveBeenCalledTimes(3);
     });
-    
+
     it('should handle basePath option correctly for path calculations', async () => {
       // Setup mock filesystem for a single file test
       setupMockFsNode({
-        '/mock/cwd/path/to/file1.txt': { type: 'file', content: 'test-content' }
+        '/mock/cwd/path/to/file1.txt': { type: 'file', content: 'test-content' },
       });
 
       // Set up for a single file test with basePath option
       const input = ['path/to/file1.txt'];
-      
+
       // Store the original mock implementation to restore it after
       const originalRelativeMock = MOCK_PATH_MODULE_IMPLEMENTATION.relative;
-      
+
       // Mock a special case for basePath test
       MOCK_PATH_MODULE_IMPLEMENTATION.relative.mockImplementation((from: string, to: string) => {
         // Handle the specific test case for basePath
@@ -227,16 +247,21 @@ describe('Node File Utilities', () => {
         }
         // Default implementation
         if (to.startsWith(from)) return to.substring(from.length).replace(/^\//g, '');
-        if (to.startsWith(from + '/')) {
+        if (to.startsWith(`${from}/`)) {
           return to.substring(from.length + 1); // +1 to account for the trailing slash
         }
         // If no clear relationship, just return the 'to' path
         return to;
       });
-      
+
       // Execute the test
-      const result = await processFilesForNode(input, { basePath: 'custom-base' }, {}, TEST_PLATFORM_LIMITS);
-      
+      const result = await processFilesForNode(
+        input,
+        { basePath: 'custom-base' },
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
+
       // Restore original mock implementation
       MOCK_PATH_MODULE_IMPLEMENTATION.relative = originalRelativeMock;
 
@@ -247,7 +272,7 @@ describe('Node File Utilities', () => {
       expect(result[0].path).toBe('file1.txt');
       expect(MOCK_CALCULATE_MD5_FN).toHaveBeenCalledTimes(1);
     });
-    
+
     it('should preserve directory structure when pathDetect is true', async () => {
       // Setup mock filesystem
       setupMockFsNode({
@@ -263,18 +288,14 @@ describe('Node File Utilities', () => {
 
       // Run test with default pathDetect behavior (should flatten paths)
       const result = await processFilesForNode(['parent'], {}, TEST_PLATFORM_LIMITS);
-      
+
       // Verify results
       expect(result).toHaveLength(3);
-      
+
       // With default pathDetect behavior, paths should be flattened (common parent removed)
-      const actualPaths = result.map(f => f.path).sort();
+      const actualPaths = result.map((f) => f.path).sort();
       // The common parent "parent" should be stripped, leaving just the subdirectory structure
-      const possibleExpectedPaths = [
-        'sub1/file1.txt', 
-        'sub1/file2.txt', 
-        'sub2/file3.txt'
-      ].sort();
+      const possibleExpectedPaths = ['sub1/file1.txt', 'sub1/file2.txt', 'sub2/file3.txt'].sort();
       expect(actualPaths).toEqual(possibleExpectedPaths);
     });
 
@@ -298,7 +319,7 @@ describe('Node File Utilities', () => {
 
       // The paths should be fully stripped of the common prefix with our new universal implementation
       // Sort both actual and expected for comparison
-      const actualPaths = result.map(f => f.path).sort();
+      const actualPaths = result.map((f) => f.path).sort();
       // With the new implementation, we should get these relative paths:
       const expectedPaths = ['README.md', 'css/styles.css', 'js/dark-mode'].sort();
       expect(actualPaths).toEqual(expectedPaths);
@@ -309,62 +330,101 @@ describe('Node File Utilities', () => {
         setupMockFsNode({
           '/mock/cwd/dist/index.html': { type: 'file', content: '<!DOCTYPE html>' },
           '/mock/cwd/dist/vite.svg': { type: 'file', content: '<svg>' },
-          '/mock/cwd/dist/assets/browser-SQEQcwkt': { type: 'file', content: 'console.log("browser");' },
-          '/mock/cwd/dist/assets/index-BaplGdt4': { type: 'file', content: 'console.log("index");' },
-          '/mock/cwd/dist/assets/style-CuqkljXd.css': { type: 'file', content: 'body { margin: 0; }' }
+          '/mock/cwd/dist/assets/browser-SQEQcwkt': {
+            type: 'file',
+            content: 'console.log("browser");',
+          },
+          '/mock/cwd/dist/assets/index-BaplGdt4': {
+            type: 'file',
+            content: 'console.log("index");',
+          },
+          '/mock/cwd/dist/assets/style-CuqkljXd.css': {
+            type: 'file',
+            content: 'body { margin: 0; }',
+          },
         });
 
-        const result = await processFilesForNode(['dist'], { pathDetect: false }, {}, TEST_PLATFORM_LIMITS);
-        const paths = result.map(f => f.path).sort();
+        const result = await processFilesForNode(
+          ['dist'],
+          { pathDetect: false },
+          {},
+          TEST_PLATFORM_LIMITS,
+        );
+        const paths = result.map((f) => f.path).sort();
 
         expect(paths).toEqual([
           'assets/browser-SQEQcwkt',
           'assets/index-BaplGdt4',
           'assets/style-CuqkljXd.css',
           'index.html',
-          'vite.svg'
+          'vite.svg',
         ]);
       });
 
       it('should preserve React build structure exactly', async () => {
         setupMockFsNode({
           '/mock/cwd/build/index.html': { type: 'file', content: '<!DOCTYPE html>' },
-          '/mock/cwd/build/static/css/main.abc123.css': { type: 'file', content: '.App { text-align: center; }' },
+          '/mock/cwd/build/static/css/main.abc123.css': {
+            type: 'file',
+            content: '.App { text-align: center; }',
+          },
           '/mock/cwd/build/static/js/main.def456': { type: 'file', content: 'React.render();' },
           '/mock/cwd/build/static/media/logo.789xyz.png': { type: 'file', content: 'PNG_DATA' },
-          '/mock/cwd/build/manifest.json': { type: 'file', content: '{"name": "test"}' }
+          '/mock/cwd/build/manifest.json': { type: 'file', content: '{"name": "test"}' },
         });
 
-        const result = await processFilesForNode(['build'], { pathDetect: false }, {}, TEST_PLATFORM_LIMITS);
-        const paths = result.map(f => f.path).sort();
+        const result = await processFilesForNode(
+          ['build'],
+          { pathDetect: false },
+          {},
+          TEST_PLATFORM_LIMITS,
+        );
+        const paths = result.map((f) => f.path).sort();
 
         expect(paths).toEqual([
           'index.html',
           'manifest.json',
           'static/css/main.abc123.css',
           'static/js/main.def456',
-          'static/media/logo.789xyz.png'
+          'static/media/logo.789xyz.png',
         ]);
       });
 
       it('should preserve complex nested project structure', async () => {
         setupMockFsNode({
-          '/mock/cwd/project/src/components/Header.tsx': { type: 'file', content: 'export const Header = () => {};' },
-          '/mock/cwd/project/src/components/Footer.tsx': { type: 'file', content: 'export const Footer = () => {};' },
-          '/mock/cwd/project/src/utils/helpers.ts': { type: 'file', content: 'export const helper = () => {};' },
+          '/mock/cwd/project/src/components/Header.tsx': {
+            type: 'file',
+            content: 'export const Header = () => {};',
+          },
+          '/mock/cwd/project/src/components/Footer.tsx': {
+            type: 'file',
+            content: 'export const Footer = () => {};',
+          },
+          '/mock/cwd/project/src/utils/helpers.ts': {
+            type: 'file',
+            content: 'export const helper = () => {};',
+          },
           '/mock/cwd/project/public/favicon.ico': { type: 'file', content: 'ICO_DATA' },
-          '/mock/cwd/project/config/env/production/config.json': { type: 'file', content: '{"env": "prod"}' }
+          '/mock/cwd/project/config/env/production/config.json': {
+            type: 'file',
+            content: '{"env": "prod"}',
+          },
         });
 
-        const result = await processFilesForNode(['project'], { pathDetect: false }, {}, TEST_PLATFORM_LIMITS);
-        const paths = result.map(f => f.path).sort();
+        const result = await processFilesForNode(
+          ['project'],
+          { pathDetect: false },
+          {},
+          TEST_PLATFORM_LIMITS,
+        );
+        const paths = result.map((f) => f.path).sort();
 
         expect(paths).toEqual([
           'config/env/production/config.json',
           'public/favicon.ico',
           'src/components/Footer.tsx',
           'src/components/Header.tsx',
-          'src/utils/helpers.ts'
+          'src/utils/helpers.ts',
         ]);
       });
 
@@ -374,73 +434,77 @@ describe('Node File Utilities', () => {
           '/mock/cwd/assets/js/app': { type: 'file', content: 'console.log("app");' },
           '/mock/cwd/assets/css/styles.css': { type: 'file', content: 'body { margin: 0; }' },
           '/mock/cwd/images/logo.png': { type: 'file', content: 'PNG_DATA' },
-          '/mock/cwd/deep/nested/folder/config': { type: 'file', content: 'module.exports = {};' }
+          '/mock/cwd/deep/nested/folder/config': { type: 'file', content: 'module.exports = {};' },
         });
 
         // Process multiple individual files/directories
-        const result = await processFilesForNode([
-          'index.html',
-          'assets/js/app', 
-          'assets/css/styles.css',
-          'images/logo.png',
-          'deep/nested/folder/config'
-        ], { pathDetect: false }, TEST_PLATFORM_LIMITS);
-        const paths = result.map(f => f.path).sort();
+        const result = await processFilesForNode(
+          [
+            'index.html',
+            'assets/js/app',
+            'assets/css/styles.css',
+            'images/logo.png',
+            'deep/nested/folder/config',
+          ],
+          { pathDetect: false },
+          TEST_PLATFORM_LIMITS,
+        );
+        const paths = result.map((f) => f.path).sort();
 
-        expect(paths).toEqual([
-          'app',
-          'config',
-          'index.html',
-          'logo.png',
-          'styles.css'
-        ]);
+        expect(paths).toEqual(['app', 'config', 'index.html', 'logo.png', 'styles.css']);
       });
 
       it('should handle single files with full paths preserved', async () => {
         setupMockFsNode({
-          '/mock/cwd/some/deep/path/single-file.txt': { type: 'file', content: 'standalone content' },
-          '/mock/cwd/another/different/path/other-file.txt': { type: 'file', content: 'other content' },
-          '/mock/cwd/root-file.txt': { type: 'file', content: 'root content' }
+          '/mock/cwd/some/deep/path/single-file.txt': {
+            type: 'file',
+            content: 'standalone content',
+          },
+          '/mock/cwd/another/different/path/other-file.txt': {
+            type: 'file',
+            content: 'other content',
+          },
+          '/mock/cwd/root-file.txt': { type: 'file', content: 'root content' },
         });
 
-        const result = await processFilesForNode([
-          'some/deep/path/single-file.txt',
-          'another/different/path/other-file.txt',
-          'root-file.txt'
-        ], { pathDetect: false }, TEST_PLATFORM_LIMITS);
-        const paths = result.map(f => f.path).sort();
+        const result = await processFilesForNode(
+          [
+            'some/deep/path/single-file.txt',
+            'another/different/path/other-file.txt',
+            'root-file.txt',
+          ],
+          { pathDetect: false },
+          TEST_PLATFORM_LIMITS,
+        );
+        const paths = result.map((f) => f.path).sort();
 
-        expect(paths).toEqual([
-          'other-file.txt',
-          'root-file.txt',
-          'single-file.txt'
-        ]);
+        expect(paths).toEqual(['other-file.txt', 'root-file.txt', 'single-file.txt']);
       });
 
       it('should normalize path separators but preserve structure', async () => {
         setupMockFsNode({
           '/mock/cwd/folder/subfolder/file1.txt': { type: 'file', content: 'content1' },
           '/mock/cwd/folder/subfolder/file2.txt': { type: 'file', content: 'content2' },
-          '/mock/cwd/folder/subfolder/file3.txt': { type: 'file', content: 'content3' }
+          '/mock/cwd/folder/subfolder/file3.txt': { type: 'file', content: 'content3' },
         });
 
         // Simulate Windows-style paths in the input (they get normalized)
-        const result = await processFilesForNode([
-          'folder\\subfolder\\file1.txt',
-          'folder/subfolder/file2.txt', 
-          'folder\\subfolder/file3.txt'
-        ], { pathDetect: false }, TEST_PLATFORM_LIMITS);
-        const paths = result.map(f => f.path).sort();
+        const result = await processFilesForNode(
+          [
+            'folder\\subfolder\\file1.txt',
+            'folder/subfolder/file2.txt',
+            'folder\\subfolder/file3.txt',
+          ],
+          { pathDetect: false },
+          TEST_PLATFORM_LIMITS,
+        );
+        const paths = result.map((f) => f.path).sort();
 
         // Should normalize to forward slashes but preserve full structure
-        expect(paths).toEqual([
-          'file1.txt',
-          'file2.txt',
-          'file3.txt'
-        ]);
+        expect(paths).toEqual(['file1.txt', 'file2.txt', 'file3.txt']);
 
         // Verify no backslashes remain
-        paths.forEach(path => {
+        paths.forEach((path) => {
           expect(path).not.toContain('\\');
         });
       });
@@ -448,71 +512,81 @@ describe('Node File Utilities', () => {
       it('should preserve directory structure with empty directory handling', async () => {
         setupMockFsNode({
           '/mock/cwd/valid/path/file.txt': { type: 'file', content: 'valid content' },
-          '/mock/cwd/path/with/double/slashes/file2.txt': { type: 'file', content: 'double content' }
+          '/mock/cwd/path/with/double/slashes/file2.txt': {
+            type: 'file',
+            content: 'double content',
+          },
         });
 
-        const result = await processFilesForNode([
-          'valid/path/file.txt',
-          'path//with//double//slashes/file2.txt'
-        ], { pathDetect: false }, TEST_PLATFORM_LIMITS);
-        const paths = result.map(f => f.path).sort();
+        const result = await processFilesForNode(
+          ['valid/path/file.txt', 'path//with//double//slashes/file2.txt'],
+          { pathDetect: false },
+          TEST_PLATFORM_LIMITS,
+        );
+        const paths = result.map((f) => f.path).sort();
 
         // Should preserve the intended structure (double slashes get normalized by path handling)
-        expect(paths).toEqual([
-          'file.txt',
-          'file2.txt'
-        ]);
+        expect(paths).toEqual(['file.txt', 'file2.txt']);
       });
 
       it('should handle very deep nested structures', async () => {
         setupMockFsNode({
-          '/mock/cwd/a/very/deep/nested/folder/structure/that/goes/many/levels/deep.txt': { 
-            type: 'file', 
-            content: 'deep file content' 
+          '/mock/cwd/a/very/deep/nested/folder/structure/that/goes/many/levels/deep.txt': {
+            type: 'file',
+            content: 'deep file content',
           },
-          '/mock/cwd/shallow.txt': { type: 'file', content: 'shallow content' }
+          '/mock/cwd/shallow.txt': { type: 'file', content: 'shallow content' },
         });
 
-        const result = await processFilesForNode([
-          'a/very/deep/nested/folder/structure/that/goes/many/levels/deep.txt',
-          'shallow.txt'
-        ], { pathDetect: false }, TEST_PLATFORM_LIMITS);
-        const paths = result.map(f => f.path).sort();
+        const result = await processFilesForNode(
+          ['a/very/deep/nested/folder/structure/that/goes/many/levels/deep.txt', 'shallow.txt'],
+          { pathDetect: false },
+          TEST_PLATFORM_LIMITS,
+        );
+        const paths = result.map((f) => f.path).sort();
 
-        expect(paths).toEqual([
-          'deep.txt',
-          'shallow.txt'
-        ]);
+        expect(paths).toEqual(['deep.txt', 'shallow.txt']);
       });
 
       it('should preserve build output structure for deployment scenarios', async () => {
         // Test the exact scenario that was causing the regression
         setupMockFsNode({
           '/mock/cwd/web/drop/dist/index.html': { type: 'file', content: '<!DOCTYPE html>' },
-          '/mock/cwd/web/drop/dist/assets/browser-SQEQcwkt': { type: 'file', content: 'window.app = {};' },
-          '/mock/cwd/web/drop/dist/assets/style-abc123.css': { type: 'file', content: '.main { color: blue; }' },
-          '/mock/cwd/web/drop/dist/favicon.ico': { type: 'file', content: 'ICO_DATA' }
+          '/mock/cwd/web/drop/dist/assets/browser-SQEQcwkt': {
+            type: 'file',
+            content: 'window.app = {};',
+          },
+          '/mock/cwd/web/drop/dist/assets/style-abc123.css': {
+            type: 'file',
+            content: '.main { color: blue; }',
+          },
+          '/mock/cwd/web/drop/dist/favicon.ico': { type: 'file', content: 'ICO_DATA' },
         });
 
-        const result = await processFilesForNode(['web/drop/dist'], { pathDetect: false }, {}, TEST_PLATFORM_LIMITS);
-        const paths = result.map(f => f.path).sort();
+        const result = await processFilesForNode(
+          ['web/drop/dist'],
+          { pathDetect: false },
+          {},
+          TEST_PLATFORM_LIMITS,
+        );
+        const paths = result.map((f) => f.path).sort();
 
-        // The critical requirement: assets folder must be preserved 
+        // The critical requirement: assets folder must be preserved
         expect(paths).toEqual([
           'assets/browser-SQEQcwkt',
           'assets/style-abc123.css',
           'favicon.ico',
-          'index.html'
+          'index.html',
         ]);
 
         // Verify the original bug is fixed - these should NOT exist
         expect(paths).not.toContain('browser-SQEQcwkt');
         expect(paths).not.toContain('style-abc123.css');
-        
+
         // The assets folder structure should be completely preserved
-        const assetsFiles = paths.filter(p => p.includes('assets/'));
+        const assetsFiles = paths.filter((p) => p.includes('assets/'));
         expect(assetsFiles).toHaveLength(2);
-        expect(assetsFiles.every(f => f.startsWith('assets/'))).toBe(true);
+        expect(assetsFiles.every((f) => f.startsWith('assets/'))).toBe(true);
       });
 
       it('should preserve multiple directory structures when processing multiple paths', async () => {
@@ -521,23 +595,17 @@ describe('Node File Utilities', () => {
           '/mock/cwd/frontend/dist/app': { type: 'file', content: 'frontend app' },
           '/mock/cwd/backend/build/server': { type: 'file', content: 'backend server' },
           '/mock/cwd/backend/build/config.json': { type: 'file', content: '{"port": 3000}' },
-          '/mock/cwd/docs/api.md': { type: 'file', content: '# API Documentation' }
+          '/mock/cwd/docs/api.md': { type: 'file', content: '# API Documentation' },
         });
 
-        const result = await processFilesForNode([
-          'frontend/dist',
-          'backend/build', 
-          'docs/api.md'
-        ], { pathDetect: false }, TEST_PLATFORM_LIMITS);
-        const paths = result.map(f => f.path).sort();
+        const result = await processFilesForNode(
+          ['frontend/dist', 'backend/build', 'docs/api.md'],
+          { pathDetect: false },
+          TEST_PLATFORM_LIMITS,
+        );
+        const paths = result.map((f) => f.path).sort();
 
-        expect(paths).toEqual([
-          'api.md',
-          'app',
-          'config.json',
-          'index.html',
-          'server'
-        ]);
+        expect(paths).toEqual(['api.md', 'app', 'config.json', 'index.html', 'server']);
       });
     });
   });
@@ -549,33 +617,31 @@ describe('Node File Utilities', () => {
         '/mock/cwd/папка/файл': { type: 'file', content: 'Cyrillic file' },
         '/mock/cwd/مجلد/ملف.html': { type: 'file', content: 'Arabic file' },
         '/mock/cwd/🚀folder/rocket.css': { type: 'file', content: 'Emoji folder' },
-        '/mock/cwd/café/menu.json': { type: 'file', content: 'Accented folder' }
+        '/mock/cwd/café/menu.json': { type: 'file', content: 'Accented folder' },
       });
 
-      const result = await processFilesForNode([
-        '测试文件.txt',
-        'папка/файл',
-        'مجلد/ملف.html',
-        '🚀folder/rocket.css',
-        'café/menu.json'
-      ], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['测试文件.txt', 'папка/файл', 'مجلد/ملف.html', '🚀folder/rocket.css', 'café/menu.json'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       expect(result).toHaveLength(5);
-      expect(result.map(f => f.path)).toEqual([
+      expect(result.map((f) => f.path)).toEqual([
         '测试文件.txt',
-        'файл', 
+        'файл',
         'ملف.html',
         'rocket.css',
-        'menu.json'
+        'menu.json',
       ]);
     });
 
     it('should handle very deep directory nesting', async () => {
       const deepPath = 'a/very/deep/nested/folder/structure/that/goes/many/levels/deep.txt';
       const deepFilePath = `/mock/cwd/${deepPath}`;
-      
+
       setupMockFsNode({
-        [deepFilePath]: { type: 'file', content: 'Deep file content' }
+        [deepFilePath]: { type: 'file', content: 'Deep file content' },
       });
 
       const result = await processFilesForNode([deepPath], {}, TEST_PLATFORM_LIMITS);
@@ -589,22 +655,30 @@ describe('Node File Utilities', () => {
         '/mock/cwd/Dockerfile': { type: 'file', content: 'FROM node:18' },
         '/mock/cwd/Makefile': { type: 'file', content: 'all:\n\techo "build"' },
         '/mock/cwd/LICENSE': { type: 'file', content: 'MIT License' },
-        '/mock/cwd/README': { type: 'file', content: 'Project readme' }
+        '/mock/cwd/README': { type: 'file', content: 'Project readme' },
       });
 
-      const result = await processFilesForNode(['Dockerfile', 'Makefile', 'LICENSE', 'README'], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['Dockerfile', 'Makefile', 'LICENSE', 'README'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       expect(result).toHaveLength(4);
-      expect(result.map(f => f.path)).toEqual(['Dockerfile', 'Makefile', 'LICENSE', 'README']);
+      expect(result.map((f) => f.path)).toEqual(['Dockerfile', 'Makefile', 'LICENSE', 'README']);
     });
 
     it('should handle empty directories gracefully', async () => {
       setupMockFsNode({
         '/mock/cwd/empty-dir': { type: 'dir' },
-        '/mock/cwd/another-empty': { type: 'dir' }
+        '/mock/cwd/another-empty': { type: 'dir' },
       });
 
-      const result = await processFilesForNode(['empty-dir', 'another-empty'], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['empty-dir', 'another-empty'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       expect(result).toHaveLength(0);
     });
@@ -614,23 +688,18 @@ describe('Node File Utilities', () => {
         '/mock/cwd/single-file.txt': { type: 'file', content: 'Single file' },
         '/mock/cwd/directory/file1': { type: 'file', content: 'Dir file 1' },
         '/mock/cwd/directory/file2.css': { type: 'file', content: 'Dir file 2' },
-        '/mock/cwd/another-single.html': { type: 'file', content: 'Another single' }
+        '/mock/cwd/another-single.html': { type: 'file', content: 'Another single' },
       });
 
-      const result = await processFilesForNode([
-        'single-file.txt',
-        'directory',
-        'another-single.html'
-      ], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['single-file.txt', 'directory', 'another-single.html'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       expect(result).toHaveLength(4);
-      const paths = result.map(f => f.path).sort();
-      expect(paths).toEqual([
-        'another-single.html',
-        'file1',
-        'file2.css', 
-        'single-file.txt'
-      ]);
+      const paths = result.map((f) => f.path).sort();
+      expect(paths).toEqual(['another-single.html', 'file1', 'file2.css', 'single-file.txt']);
     });
 
     it('should handle files with spaces, dashes, underscores, and dots', async () => {
@@ -641,15 +710,19 @@ describe('Node File Utilities', () => {
         '/mock/cwd/file.with.many.dots.html': { type: 'file', content: 'Dotted file' },
       });
 
-      const result = await processFilesForNode([
-        'file with spaces.txt',
-        'file-with-dashes',
-        'file_with_underscores.css',
-        'file.with.many.dots.html',
-      ], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        [
+          'file with spaces.txt',
+          'file-with-dashes',
+          'file_with_underscores.css',
+          'file.with.many.dots.html',
+        ],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       expect(result).toHaveLength(4);
-      expect(result.map(f => f.path)).toEqual([
+      expect(result.map((f) => f.path)).toEqual([
         'file with spaces.txt',
         'file-with-dashes',
         'file_with_underscores.css',
@@ -663,46 +736,51 @@ describe('Node File Utilities', () => {
       for (let i = 0; i < 100; i++) {
         manyFiles[`/mock/cwd/file-${i.toString().padStart(3, '0')}.txt`] = {
           type: 'file',
-          content: `Content of file ${i}`
+          content: `Content of file ${i}`,
         };
       }
       setupMockFsNode(manyFiles);
 
-      const filePaths = Array.from({ length: 100 }, (_, i) => 
-        `file-${i.toString().padStart(3, '0')}.txt`
+      const filePaths = Array.from(
+        { length: 100 },
+        (_, i) => `file-${i.toString().padStart(3, '0')}.txt`,
       );
 
       const result = await processFilesForNode(filePaths, {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(100);
-      expect(result.every(f => f.md5 === 'mocked-md5-for-node-files')).toBe(true);
+      expect(result.every((f) => f.md5 === 'mocked-md5-for-node-files')).toBe(true);
     });
 
     it('should handle files with identical names in different directories', async () => {
       setupMockFsNode({
         '/mock/cwd/dir1/config.json': { type: 'file', content: '{"env": "dir1"}' },
         '/mock/cwd/dir2/config.json': { type: 'file', content: '{"env": "dir2"}' },
-        '/mock/cwd/dir3/config.json': { type: 'file', content: '{"env": "dir3"}' }
+        '/mock/cwd/dir3/config.json': { type: 'file', content: '{"env": "dir3"}' },
       });
 
-      const result = await processFilesForNode(['dir1/config.json', 'dir2/config.json', 'dir3/config.json'], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['dir1/config.json', 'dir2/config.json', 'dir3/config.json'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       expect(result).toHaveLength(3);
-      expect(result.map(f => f.path)).toEqual([
-        'config.json',
-        'config.json', 
-        'config.json'
-      ]);
+      expect(result.map((f) => f.path)).toEqual(['config.json', 'config.json', 'config.json']);
     });
 
     it('should handle empty files', async () => {
       setupMockFsNode({
         '/mock/cwd/empty.txt': { type: 'file', content: '' },
         '/mock/cwd/another-empty': { type: 'file', content: '' },
-        '/mock/cwd/zero-size.html': { type: 'file', content: '' }
+        '/mock/cwd/zero-size.html': { type: 'file', content: '' },
       });
 
-      const result = await processFilesForNode(['empty.txt', 'another-empty', 'zero-size.html'], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['empty.txt', 'another-empty', 'zero-size.html'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       // Empty files are now skipped in the new implementation
       expect(result).toHaveLength(0);
@@ -712,8 +790,9 @@ describe('Node File Utilities', () => {
       // Temporarily switch environment to test error handling
       __setTestEnvironment('browser');
 
-      await expect(processFilesForNode(['test.txt'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('processFilesForNode can only be called in Node.js environment.');
+      await expect(processFilesForNode(['test.txt'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        'processFilesForNode can only be called in Node.js environment.',
+      );
 
       // Restore environment
       __setTestEnvironment('node');
@@ -724,21 +803,22 @@ describe('Node File Utilities', () => {
     it('should handle non-existent files gracefully', async () => {
       // Don't set up any mock files, so they don't exist
 
-      await expect(processFilesForNode(['non-existent-file.txt'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow();
+      await expect(
+        processFilesForNode(['non-existent-file.txt'], {}, TEST_PLATFORM_LIMITS),
+      ).rejects.toThrow();
     });
 
     it('should handle paths with .. (parent directory references)', async () => {
       setupMockFsNode({
-        '/mock/parent-file.txt': { type: 'file', content: 'Parent file' }
+        '/mock/parent-file.txt': { type: 'file', content: 'Parent file' },
       });
 
-      // Mock path.resolve to handle the .. properly  
-      const originalResolve = MOCK_PATH_MODULE_IMPLEMENTATION.resolve;
+      // Mock path.resolve to handle the .. properly
+      const _originalResolve = MOCK_PATH_MODULE_IMPLEMENTATION.resolve;
       MOCK_PATH_MODULE_IMPLEMENTATION.resolve.mockImplementation((...args: string[]) => {
         const lastArg = args[args.length - 1];
         // Handle parent directory references specifically
-        if (lastArg && lastArg.includes('../parent-file.txt')) {
+        if (lastArg?.includes('../parent-file.txt')) {
           return '/mock/parent-file.txt';
         }
         // For other paths, use the original implementation behavior
@@ -748,7 +828,12 @@ describe('Node File Utilities', () => {
         return args[0];
       });
 
-      const result = await processFilesForNode(['../parent-file.txt'], { pathDetect: false }, {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['../parent-file.txt'],
+        { pathDetect: false },
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].path).toBe('parent-file.txt'); // Path gets normalized, parent reference resolved
@@ -759,13 +844,17 @@ describe('Node File Utilities', () => {
       // For now, we'll just test that the interface handles symlink-like paths
       setupMockFsNode({
         '/mock/cwd/target-file.txt': { type: 'file', content: 'Target content' },
-        '/mock/cwd/symlink-file.txt': { type: 'file', content: 'Target content' } // Simulate symlink
+        '/mock/cwd/symlink-file.txt': { type: 'file', content: 'Target content' }, // Simulate symlink
       });
 
-      const result = await processFilesForNode(['target-file.txt', 'symlink-file.txt'], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['target-file.txt', 'symlink-file.txt'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       expect(result).toHaveLength(2);
-      expect(result.map(f => f.path)).toEqual(['target-file.txt', 'symlink-file.txt']);
+      expect(result.map((f) => f.path)).toEqual(['target-file.txt', 'symlink-file.txt']);
     });
 
     it('should handle files with various line endings', async () => {
@@ -773,19 +862,18 @@ describe('Node File Utilities', () => {
         '/mock/cwd/unix-endings.txt': { type: 'file', content: 'line1\nline2\nline3' },
         '/mock/cwd/windows-endings.txt': { type: 'file', content: 'line1\r\nline2\r\nline3' },
         '/mock/cwd/mac-endings.txt': { type: 'file', content: 'line1\rline2\rline3' },
-        '/mock/cwd/mixed-endings.txt': { type: 'file', content: 'line1\nline2\r\nline3\r' }
+        '/mock/cwd/mixed-endings.txt': { type: 'file', content: 'line1\nline2\r\nline3\r' },
       });
 
-      const result = await processFilesForNode([
-        'unix-endings.txt',
-        'windows-endings.txt', 
-        'mac-endings.txt',
-        'mixed-endings.txt'
-      ], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['unix-endings.txt', 'windows-endings.txt', 'mac-endings.txt', 'mixed-endings.txt'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       expect(result).toHaveLength(4);
       // All should be processed successfully regardless of line endings
-      result.forEach(file => {
+      result.forEach((file) => {
         expect(file.content).toBeInstanceOf(Buffer);
         expect(file.size).toBeGreaterThan(0);
       });
@@ -797,7 +885,7 @@ describe('Node File Utilities', () => {
       for (let i = 0; i < 50; i++) {
         manyFiles[`/mock/cwd/concurrent-${i}.txt`] = {
           type: 'file',
-          content: `Concurrent file ${i}`
+          content: `Concurrent file ${i}`,
         };
       }
       setupMockFsNode(manyFiles);
@@ -808,7 +896,7 @@ describe('Node File Utilities', () => {
       const promises = [
         processFilesForNode(filePaths.slice(0, 17), {}, TEST_PLATFORM_LIMITS),
         processFilesForNode(filePaths.slice(17, 34), {}, TEST_PLATFORM_LIMITS),
-        processFilesForNode(filePaths.slice(34, 50), {}, TEST_PLATFORM_LIMITS)
+        processFilesForNode(filePaths.slice(34, 50), {}, TEST_PLATFORM_LIMITS),
       ];
 
       const results = await Promise.all(promises);
@@ -823,14 +911,14 @@ describe('Node File Utilities', () => {
     it('should re-throw ShipError instances directly', async () => {
       // Setup a file that will trigger a ShipError during validation
       setupMockFsNode({
-        '/mock/cwd/test.txt': { type: 'file', content: 'content', size: 1 }
+        '/mock/cwd/test.txt': { type: 'file', content: 'content', size: 1 },
       });
 
       // Override the statSync to throw a ShipError on the third call (during processing)
       let callCount = 0;
       MOCK_FS_IMPLEMENTATION.statSync.mockImplementation((filePath: string) => {
         callCount++;
-        const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
+        const _normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
 
         // Calls 1-2: pre-walk marker check + flatMap path validation
         if (callCount <= 2) {
@@ -841,28 +929,30 @@ describe('Node File Utilities', () => {
         throw ShipError.business('Simulated ShipError during file processing');
       });
 
-      await expect(processFilesForNode(['test.txt'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('Simulated ShipError during file processing');
+      await expect(processFilesForNode(['test.txt'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        'Simulated ShipError during file processing',
+      );
     });
 
     it('should convert non-ShipError exceptions to ShipError.file', async () => {
       // Setup file that exists initially but fails during read
       setupMockFsNode({
-        '/mock/cwd/problem.txt': { type: 'file', content: 'content', size: 10 }
+        '/mock/cwd/problem.txt': { type: 'file', content: 'content', size: 10 },
       });
 
       // Make readFileSync throw a generic error
-      MOCK_FS_IMPLEMENTATION.readFileSync.mockImplementation((filePath: string) => {
+      MOCK_FS_IMPLEMENTATION.readFileSync.mockImplementation((_filePath: string) => {
         throw new Error('EACCES: permission denied');
       });
 
-      await expect(processFilesForNode(['problem.txt'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('Failed to read file');
+      await expect(processFilesForNode(['problem.txt'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        'Failed to read file',
+      );
     });
 
     it('should convert non-Error exceptions to ShipError.file', async () => {
       setupMockFsNode({
-        '/mock/cwd/weird.txt': { type: 'file', content: 'content', size: 10 }
+        '/mock/cwd/weird.txt': { type: 'file', content: 'content', size: 10 },
       });
 
       // Make readFileSync throw a string (non-Error)
@@ -870,8 +960,9 @@ describe('Node File Utilities', () => {
         throw 'Some string error';
       });
 
-      await expect(processFilesForNode(['weird.txt'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('Failed to read file');
+      await expect(processFilesForNode(['weird.txt'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        'Failed to read file',
+      );
     });
   });
 
@@ -881,12 +972,11 @@ describe('Node File Utilities', () => {
       setupMockFsNode({
         '/mock/cwd/myproject': { type: 'dir' },
       });
-      MOCK_FS_IMPLEMENTATION.readdirSync.mockReturnValue([
-        'index.html', 'node_modules', 'src',
-      ]);
+      MOCK_FS_IMPLEMENTATION.readdirSync.mockReturnValue(['index.html', 'node_modules', 'src']);
 
-      await expect(processFilesForNode(['myproject'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('"node_modules" detected');
+      await expect(processFilesForNode(['myproject'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        '"node_modules" detected',
+      );
     });
 
     it('should reject directories containing package.json', async () => {
@@ -894,12 +984,11 @@ describe('Node File Utilities', () => {
       setupMockFsNode({
         '/mock/cwd/myproject': { type: 'dir' },
       });
-      MOCK_FS_IMPLEMENTATION.readdirSync.mockReturnValue([
-        'index.html', 'package.json', 'src',
-      ]);
+      MOCK_FS_IMPLEMENTATION.readdirSync.mockReturnValue(['index.html', 'package.json', 'src']);
 
-      await expect(processFilesForNode(['myproject'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('"package.json" detected');
+      await expect(processFilesForNode(['myproject'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        '"package.json" detected',
+      );
     });
 
     it('should allow directories without unbuilt markers', async () => {
@@ -917,7 +1006,11 @@ describe('Node File Utilities', () => {
 
   describe('final file count validation', () => {
     it('should throw when results exceed maxFilesCount', async () => {
-      const limits = { maxFileSize: 10 * 1024 * 1024, maxFilesCount: 5, maxTotalSize: 100 * 1024 * 1024 };
+      const limits = {
+        maxFileSize: 10 * 1024 * 1024,
+        maxFilesCount: 5,
+        maxTotalSize: 100 * 1024 * 1024,
+      };
 
       // Create more files than allowed
       setupMockFsNode({
@@ -926,22 +1019,29 @@ describe('Node File Utilities', () => {
         '/mock/cwd/file3.txt': { type: 'file', content: 'c' },
         '/mock/cwd/file4.txt': { type: 'file', content: 'd' },
         '/mock/cwd/file5.txt': { type: 'file', content: 'e' },
-        '/mock/cwd/file6.txt': { type: 'file', content: 'f' }
+        '/mock/cwd/file6.txt': { type: 'file', content: 'f' },
       });
 
-      await expect(processFilesForNode([
-        'file1.txt', 'file2.txt', 'file3.txt',
-        'file4.txt', 'file5.txt', 'file6.txt'
-      ], {}, limits)).rejects.toThrow('Too many files to deploy. Maximum allowed is 5 files.');
+      await expect(
+        processFilesForNode(
+          ['file1.txt', 'file2.txt', 'file3.txt', 'file4.txt', 'file5.txt', 'file6.txt'],
+          {},
+          limits,
+        ),
+      ).rejects.toThrow('Too many files to deploy. Maximum allowed is 5 files.');
     });
 
     it('should pass when results exactly match maxFilesCount', async () => {
-      const limits = { maxFileSize: 10 * 1024 * 1024, maxFilesCount: 3, maxTotalSize: 100 * 1024 * 1024 };
+      const limits = {
+        maxFileSize: 10 * 1024 * 1024,
+        maxFilesCount: 3,
+        maxTotalSize: 100 * 1024 * 1024,
+      };
 
       setupMockFsNode({
         '/mock/cwd/file1.txt': { type: 'file', content: 'a' },
         '/mock/cwd/file2.txt': { type: 'file', content: 'b' },
-        '/mock/cwd/file3.txt': { type: 'file', content: 'c' }
+        '/mock/cwd/file3.txt': { type: 'file', content: 'c' },
       });
 
       const result = await processFilesForNode(['file1.txt', 'file2.txt', 'file3.txt'], {}, limits);
@@ -958,14 +1058,14 @@ describe('Node File Utilities', () => {
         '/mock/cwd/dir_a/file1.txt': { type: 'file', content: 'file1' },
         '/mock/cwd/dir_a/link_to_b': { type: 'dir' }, // symlink to dir_b
         '/mock/cwd/dir_a/link_to_b/file2.txt': { type: 'file', content: 'file2' },
-        '/mock/cwd/dir_a/link_to_b/link_back': { type: 'dir' } // symlink back to dir_a
+        '/mock/cwd/dir_a/link_to_b/link_back': { type: 'dir' }, // symlink back to dir_a
       };
 
       setupMockFsNode(files);
 
       // Mock realpathSync to simulate symlink resolution with a cycle
-      const visitedPaths = new Set<string>();
-      let cycleDetected = false;
+      const _visitedPaths = new Set<string>();
+      const _cycleDetected = false;
 
       MOCK_FS_IMPLEMENTATION.realpathSync.mockImplementation((filePath: string) => {
         const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
@@ -995,7 +1095,7 @@ describe('Node File Utilities', () => {
 
       setupMockFsNode({
         '/mock/cwd/root': { type: 'dir' },
-        '/mock/cwd/root/file.txt': { type: 'file', content: 'content' }
+        '/mock/cwd/root/file.txt': { type: 'file', content: 'content' },
       });
 
       // Track calls to realpathSync to verify cycle prevention
@@ -1017,13 +1117,14 @@ describe('Node File Utilities', () => {
     it('should allow safe paths with dots in filenames', async () => {
       setupMockFsNode({
         '/mock/cwd/file.test.spec.ts': { type: 'file', content: 'content' },
-        '/mock/cwd/folder.name/file.txt': { type: 'file', content: 'nested' }
+        '/mock/cwd/folder.name/file.txt': { type: 'file', content: 'nested' },
       });
 
-      const result = await processFilesForNode([
-        'file.test.spec.ts',
-        'folder.name/file.txt'
-      ], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['file.test.spec.ts', 'folder.name/file.txt'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       // These should all be allowed (dots in filenames are safe)
       expect(result.length).toBe(2);
@@ -1032,7 +1133,7 @@ describe('Node File Utilities', () => {
     it('should allow paths with single dots (current directory)', async () => {
       // Set up the normalized path (path.resolve normalizes ./file.txt)
       setupMockFsNode({
-        '/mock/cwd/some/file.txt': { type: 'file', content: 'content' }
+        '/mock/cwd/some/file.txt': { type: 'file', content: 'content' },
       });
 
       // path.resolve normalizes some/./file.txt to some/file.txt
@@ -1045,10 +1146,14 @@ describe('Node File Utilities', () => {
       setupMockFsNode({
         '/mock/cwd/.env': { type: 'file', content: 'SECRET=value' },
         '/mock/cwd/.gitignore': { type: 'file', content: 'node_modules' },
-        '/mock/cwd/normal.txt': { type: 'file', content: 'content' }
+        '/mock/cwd/normal.txt': { type: 'file', content: 'content' },
       });
 
-      const result = await processFilesForNode(['.env', '.gitignore', 'normal.txt'], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['.env', '.gitignore', 'normal.txt'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
 
       // Hidden files should be filtered for security (dot files not allowed)
       expect(result.length).toBe(1);
@@ -1066,7 +1171,7 @@ describe('Node File Utilities', () => {
 
       // Dot-folder root is stripped by path.relative — content paths have no dot prefix
       expect(result.length).toBe(2);
-      expect(result.map(f => f.path).sort()).toEqual(['assets/style.css', 'index.html']);
+      expect(result.map((f) => f.path).sort()).toEqual(['assets/style.css', 'index.html']);
     });
 
     it('should preserve files when content paths contain dot-prefixed ancestor dirs (e.g. n8n temp dir)', async () => {
@@ -1075,15 +1180,21 @@ describe('Node File Utilities', () => {
       // Content paths relative to temp dir include .n8n-files — must not be filtered
       setupMockFsNode({
         '/mock/cwd/tmpdir': { type: 'dir' },
-        '/mock/cwd/tmpdir/home/node/.n8n-files/dist/index.html': { type: 'file', content: '<html>Hello</html>' },
-        '/mock/cwd/tmpdir/home/node/.n8n-files/dist/assets/style.css': { type: 'file', content: 'body {}' },
+        '/mock/cwd/tmpdir/home/node/.n8n-files/dist/index.html': {
+          type: 'file',
+          content: '<html>Hello</html>',
+        },
+        '/mock/cwd/tmpdir/home/node/.n8n-files/dist/assets/style.css': {
+          type: 'file',
+          content: 'body {}',
+        },
       });
 
       const result = await processFilesForNode(['tmpdir'], {}, TEST_PLATFORM_LIMITS);
 
       // optimizeDeployPaths strips common root before filterJunk runs
       expect(result.length).toBe(2);
-      expect(result.map(f => f.path).sort()).toEqual(['assets/style.css', 'index.html']);
+      expect(result.map((f) => f.path).sort()).toEqual(['assets/style.css', 'index.html']);
     });
   });
 
@@ -1092,18 +1203,17 @@ describe('Node File Utilities', () => {
       const limits = { maxFileSize: 100, maxFilesCount: 1000, maxTotalSize: 10000 };
 
       setupMockFsNode({
-        '/mock/cwd/large.txt': { type: 'file', content: 'x'.repeat(101), size: 101 }
+        '/mock/cwd/large.txt': { type: 'file', content: 'x'.repeat(101), size: 101 },
       });
 
-      await expect(processFilesForNode(['large.txt'], {}, limits))
-        .rejects.toThrow('too large');
+      await expect(processFilesForNode(['large.txt'], {}, limits)).rejects.toThrow('too large');
     });
 
     it('should accept file exactly at maxFileSize limit', async () => {
       const limits = { maxFileSize: 100, maxFilesCount: 1000, maxTotalSize: 10000 };
 
       setupMockFsNode({
-        '/mock/cwd/exact.txt': { type: 'file', content: 'x'.repeat(100), size: 100 }
+        '/mock/cwd/exact.txt': { type: 'file', content: 'x'.repeat(100), size: 100 },
       });
 
       const result = await processFilesForNode(['exact.txt'], {}, limits);
@@ -1116,12 +1226,13 @@ describe('Node File Utilities', () => {
 
       setupMockFsNode({
         '/mock/cwd/file1.txt': { type: 'file', content: 'x'.repeat(80), size: 80 },
-        '/mock/cwd/file2.txt': { type: 'file', content: 'x'.repeat(80), size: 80 }
+        '/mock/cwd/file2.txt': { type: 'file', content: 'x'.repeat(80), size: 80 },
       });
 
       // Total: 160 bytes > maxTotalSize: 150 bytes
-      await expect(processFilesForNode(['file1.txt', 'file2.txt'], {}, limits))
-        .rejects.toThrow('Total deploy size is too large');
+      await expect(processFilesForNode(['file1.txt', 'file2.txt'], {}, limits)).rejects.toThrow(
+        'Total deploy size is too large',
+      );
     });
 
     it('should accept files with cumulative size exactly at maxTotalSize', async () => {
@@ -1129,7 +1240,7 @@ describe('Node File Utilities', () => {
 
       setupMockFsNode({
         '/mock/cwd/file1.txt': { type: 'file', content: 'x'.repeat(75), size: 75 },
-        '/mock/cwd/file2.txt': { type: 'file', content: 'x'.repeat(75), size: 75 }
+        '/mock/cwd/file2.txt': { type: 'file', content: 'x'.repeat(75), size: 75 },
       });
 
       const result = await processFilesForNode(['file1.txt', 'file2.txt'], {}, limits);
@@ -1143,17 +1254,19 @@ describe('Node File Utilities', () => {
         '/mock/cwd/empty1.txt': { type: 'file', content: '', size: 0 },
         '/mock/cwd/empty2.txt': { type: 'file', content: '', size: 0 },
         '/mock/cwd/real1.txt': { type: 'file', content: 'a', size: 1 },
-        '/mock/cwd/real2.txt': { type: 'file', content: 'b', size: 1 }
+        '/mock/cwd/real2.txt': { type: 'file', content: 'b', size: 1 },
       });
 
       // maxFilesCount is 2, but we have 4 files
       // Empty files should be skipped, leaving only 2 real files
-      const result = await processFilesForNode([
-        'empty1.txt', 'empty2.txt', 'real1.txt', 'real2.txt'
-      ], {}, limits);
+      const result = await processFilesForNode(
+        ['empty1.txt', 'empty2.txt', 'real1.txt', 'real2.txt'],
+        {},
+        limits,
+      );
 
       expect(result).toHaveLength(2);
-      expect(result.every(f => f.size > 0)).toBe(true);
+      expect(result.every((f) => f.size > 0)).toBe(true);
     });
   });
 
@@ -1161,11 +1274,11 @@ describe('Node File Utilities', () => {
     it('should handle paths approaching filesystem limits', async () => {
       // Create a path with many nested directories
       const segments = Array(20).fill('dir');
-      const deepPath = segments.join('/') + '/file.txt';
+      const deepPath = `${segments.join('/')}/file.txt`;
       const fullPath = `/mock/cwd/${deepPath}`;
 
       setupMockFsNode({
-        [fullPath]: { type: 'file', content: 'deep content' }
+        [fullPath]: { type: 'file', content: 'deep content' },
       });
 
       const result = await processFilesForNode([deepPath], {}, TEST_PLATFORM_LIMITS);
@@ -1174,10 +1287,10 @@ describe('Node File Utilities', () => {
     });
 
     it('should handle filenames at reasonable length', async () => {
-      const longFilename = 'a'.repeat(200) + '.txt';
+      const longFilename = `${'a'.repeat(200)}.txt`;
 
       setupMockFsNode({
-        [`/mock/cwd/${longFilename}`]: { type: 'file', content: 'content' }
+        [`/mock/cwd/${longFilename}`]: { type: 'file', content: 'content' },
       });
 
       const result = await processFilesForNode([longFilename], {}, TEST_PLATFORM_LIMITS);
@@ -1193,15 +1306,17 @@ describe('Node File Utilities', () => {
         '/mock/cwd/virus.exe': { type: 'file', content: 'malware' },
       });
 
-      await expect(processFilesForNode(['virus.exe'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('File extension not allowed');
+      await expect(processFilesForNode(['virus.exe'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        'File extension not allowed',
+      );
 
       setupMockFsNode({
         '/mock/cwd/installer.msi': { type: 'file', content: 'installer' },
       });
 
-      await expect(processFilesForNode(['installer.msi'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('File extension not allowed');
+      await expect(
+        processFilesForNode(['installer.msi'], {}, TEST_PLATFORM_LIMITS),
+      ).rejects.toThrow('File extension not allowed');
     });
 
     it('should reject URL-breaking and HTML-unsafe filename characters', async () => {
@@ -1209,22 +1324,25 @@ describe('Node File Utilities', () => {
         '/mock/cwd/file?.txt': { type: 'file', content: 'question' },
       });
 
-      await expect(processFilesForNode(['file?.txt'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('unsafe characters');
+      await expect(processFilesForNode(['file?.txt'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        'unsafe characters',
+      );
 
       setupMockFsNode({
         '/mock/cwd/file#anchor.txt': { type: 'file', content: 'hash' },
       });
 
-      await expect(processFilesForNode(['file#anchor.txt'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('unsafe characters');
+      await expect(
+        processFilesForNode(['file#anchor.txt'], {}, TEST_PLATFORM_LIMITS),
+      ).rejects.toThrow('unsafe characters');
 
       setupMockFsNode({
         '/mock/cwd/file<tag>.txt': { type: 'file', content: 'html' },
       });
 
-      await expect(processFilesForNode(['file<tag>.txt'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('unsafe characters');
+      await expect(
+        processFilesForNode(['file<tag>.txt'], {}, TEST_PLATFORM_LIMITS),
+      ).rejects.toThrow('unsafe characters');
     });
 
     it('should allow characters that survive the URL round-trip', async () => {
@@ -1258,8 +1376,9 @@ describe('Node File Utilities', () => {
         '/mock/cwd/CON.txt': { type: 'file', content: 'reserved' },
       });
 
-      await expect(processFilesForNode(['CON.txt'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('reserved system name');
+      await expect(processFilesForNode(['CON.txt'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        'reserved system name',
+      );
     });
 
     it('should reject filenames ending with dots', async () => {
@@ -1267,8 +1386,9 @@ describe('Node File Utilities', () => {
         '/mock/cwd/file.': { type: 'file', content: 'trailing dot' },
       });
 
-      await expect(processFilesForNode(['file.'], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('cannot end with dots');
+      await expect(processFilesForNode(['file.'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        'cannot end with dots',
+      );
     });
 
     it('should allow valid file extensions (.html, .css, .json)', async () => {
@@ -1278,7 +1398,11 @@ describe('Node File Utilities', () => {
         '/mock/cwd/data.json': { type: 'file', content: '{}' },
       });
 
-      const result = await processFilesForNode(['page.html', 'style.css', 'data.json'], {}, TEST_PLATFORM_LIMITS);
+      const result = await processFilesForNode(
+        ['page.html', 'style.css', 'data.json'],
+        {},
+        TEST_PLATFORM_LIMITS,
+      );
       expect(result).toHaveLength(3);
     });
   });
@@ -1287,7 +1411,7 @@ describe('Node File Utilities', () => {
     it('should filter out .DS_Store files', async () => {
       setupMockFsNode({
         '/mock/cwd/folder/.DS_Store': { type: 'file', content: 'junk' },
-        '/mock/cwd/folder/real.txt': { type: 'file', content: 'content' }
+        '/mock/cwd/folder/real.txt': { type: 'file', content: 'content' },
       });
 
       const result = await processFilesForNode(['folder'], {}, TEST_PLATFORM_LIMITS);
@@ -1299,7 +1423,7 @@ describe('Node File Utilities', () => {
     it('should filter out Thumbs.db files', async () => {
       setupMockFsNode({
         '/mock/cwd/folder/Thumbs.db': { type: 'file', content: 'junk' },
-        '/mock/cwd/folder/image.png': { type: 'file', content: 'image data' }
+        '/mock/cwd/folder/image.png': { type: 'file', content: 'image data' },
       });
 
       const result = await processFilesForNode(['folder'], {}, TEST_PLATFORM_LIMITS);
@@ -1311,41 +1435,41 @@ describe('Node File Utilities', () => {
     it('should filter out __MACOSX directories', async () => {
       setupMockFsNode({
         '/mock/cwd/archive/__MACOSX/._hidden': { type: 'file', content: 'mac junk' },
-        '/mock/cwd/archive/real.txt': { type: 'file', content: 'content' }
+        '/mock/cwd/archive/real.txt': { type: 'file', content: 'content' },
       });
 
       const result = await processFilesForNode(['archive'], {}, TEST_PLATFORM_LIMITS);
 
       // __MACOSX is in JUNK_DIRECTORIES and should be filtered out
-      const paths = result.map(f => f.path);
-      expect(paths.some(p => p.includes('__MACOSX'))).toBe(false);
+      const paths = result.map((f) => f.path);
+      expect(paths.some((p) => p.includes('__MACOSX'))).toBe(false);
       expect(paths).toContain('real.txt');
     });
 
     it('should filter out .Trashes directories', async () => {
       setupMockFsNode({
         '/mock/cwd/volume/.Trashes/item': { type: 'file', content: 'trash' },
-        '/mock/cwd/volume/data.txt': { type: 'file', content: 'data' }
+        '/mock/cwd/volume/data.txt': { type: 'file', content: 'data' },
       });
 
       const result = await processFilesForNode(['volume'], {}, TEST_PLATFORM_LIMITS);
 
       // .Trashes is in JUNK_DIRECTORIES
-      const paths = result.map(f => f.path);
-      expect(paths.some(p => p.includes('.Trashes'))).toBe(false);
+      const paths = result.map((f) => f.path);
+      expect(paths.some((p) => p.includes('.Trashes'))).toBe(false);
     });
 
     it('should filter out desktop.ini files', async () => {
       setupMockFsNode({
         '/mock/cwd/folder/desktop.ini': { type: 'file', content: 'windows junk' },
-        '/mock/cwd/folder/real.txt': { type: 'file', content: 'content' }
+        '/mock/cwd/folder/real.txt': { type: 'file', content: 'content' },
       });
 
       const result = await processFilesForNode(['folder'], {}, TEST_PLATFORM_LIMITS);
 
       // desktop.ini is identified as junk by the 'junk' package
-      const paths = result.map(f => f.path);
-      expect(paths.some(p => p.includes('desktop.ini'))).toBe(false);
+      const paths = result.map((f) => f.path);
+      expect(paths.some((p) => p.includes('desktop.ini'))).toBe(false);
     });
 
     it('should deploy files from directories with dot-prefixed parents', async () => {
@@ -1360,7 +1484,7 @@ describe('Node File Utilities', () => {
       });
 
       MOCK_PATH_MODULE_IMPLEMENTATION.relative.mockImplementation((from: string, to: string) => {
-        if (to.startsWith(from + '/')) {
+        if (to.startsWith(`${from}/`)) {
           return to.substring(from.length + 1);
         }
         if (to.startsWith(from)) {
@@ -1379,7 +1503,7 @@ describe('Node File Utilities', () => {
 
       // Content files are returned — parent directory names don't affect filtering
       expect(result).toHaveLength(2);
-      const paths = result.map(f => f.path);
+      const paths = result.map((f) => f.path);
       expect(paths).toContain('index.html');
       expect(paths).toContain('style.css');
     });
@@ -1396,7 +1520,7 @@ describe('Node File Utilities', () => {
       });
 
       MOCK_PATH_MODULE_IMPLEMENTATION.relative.mockImplementation((from: string, to: string) => {
-        if (to.startsWith(from + '/')) {
+        if (to.startsWith(`${from}/`)) {
           return to.substring(from.length + 1);
         }
         if (to.startsWith(from)) {
@@ -1414,7 +1538,7 @@ describe('Node File Utilities', () => {
       const result = await processFilesForNode(['./dist'], {}, TEST_PLATFORM_LIMITS);
 
       expect(result).toHaveLength(2);
-      const paths = result.map(f => f.path);
+      const paths = result.map((f) => f.path);
       expect(paths).toContain('index.html');
       expect(paths).toContain('app.js');
     });
@@ -1430,7 +1554,7 @@ describe('Node File Utilities', () => {
       });
 
       MOCK_PATH_MODULE_IMPLEMENTATION.relative.mockImplementation((from: string, to: string) => {
-        if (to.startsWith(from + '/')) {
+        if (to.startsWith(`${from}/`)) {
           return to.substring(from.length + 1);
         }
         if (to.startsWith(from)) {

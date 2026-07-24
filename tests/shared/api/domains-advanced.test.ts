@@ -5,7 +5,7 @@
  * These operations are only available for external (custom) domains.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../../src/node';
 import { resetMockServer } from '../../mocks/server';
 
@@ -36,7 +36,7 @@ describe('Advanced Domain Operations', () => {
 
     it('should fail for internal (subdomain) domains', async () => {
       await expect(ship.domains.dns('staging')).rejects.toThrow(
-        /DNS information is only available for external domains/
+        /DNS information is only available for external domains/,
       );
     });
   });
@@ -64,7 +64,7 @@ describe('Advanced Domain Operations', () => {
 
     it('should fail for internal domains', async () => {
       await expect(ship.domains.records('staging')).rejects.toThrow(
-        /DNS information is only available for external domains/
+        /DNS information is only available for external domains/,
       );
     });
   });
@@ -85,7 +85,7 @@ describe('Advanced Domain Operations', () => {
 
     it('should fail for internal domains', async () => {
       await expect(ship.domains.share('staging')).rejects.toThrow(
-        /Setup sharing is only available for external domains/
+        /Setup sharing is only available for external domains/,
       );
     });
   });
@@ -104,7 +104,7 @@ describe('Advanced Domain Operations', () => {
 
     it('should fail for internal domains', async () => {
       await expect(ship.domains.verify('staging')).rejects.toThrow(
-        /DNS verification is only available for external domains/
+        /DNS verification is only available for external domains/,
       );
     });
 
@@ -118,14 +118,16 @@ describe('Advanced Domain Operations', () => {
 
       // Second immediate verification should fail with rate limit
       await expect(ship.domains.verify(domain)).rejects.toThrow(
-        /DNS verification already requested recently/
+        /DNS verification already requested recently/,
       );
     });
   });
 
   describe('Domain status handling', () => {
     it('external domains should start as pending', async () => {
-      const domain = await ship.domains.set('custom.example.com', { deployment: 'test-deployment-1' });
+      const domain = await ship.domains.set('custom.example.com', {
+        deployment: 'test-deployment-1',
+      });
 
       expect(domain.status).toBe('pending');
     });
@@ -143,7 +145,9 @@ describe('Advanced Domain Operations', () => {
       await ship.domains.set('update-test', { deployment: 'test-deployment-1' });
 
       // Update its labels using set with labels only
-      const updated = await ship.domains.set('update-test', { labels: ['new-label', 'another-label'] });
+      const updated = await ship.domains.set('update-test', {
+        labels: ['new-label', 'another-label'],
+      });
 
       expect(updated.domain).toBe('update-test');
       expect(updated.labels).toEqual(['new-label', 'another-label']);
@@ -154,7 +158,9 @@ describe('Advanced Domain Operations', () => {
       await ship.domains.set('update-external.com', { deployment: 'test-deployment-1' });
 
       // Update its labels
-      const updated = await ship.domains.set('update-external.com', { labels: ['production', 'v2-beta'] });
+      const updated = await ship.domains.set('update-external.com', {
+        labels: ['production', 'v2-beta'],
+      });
 
       expect(updated.domain).toBe('update-external.com');
       expect(updated.labels).toEqual(['production', 'v2-beta']);
@@ -162,10 +168,16 @@ describe('Advanced Domain Operations', () => {
 
     it('should clear labels when deployment is provided with empty array', async () => {
       // First create a domain with labels
-      await ship.domains.set('clear-labels-test', { deployment: 'test-deployment-1', labels: ['initial-label'] });
+      await ship.domains.set('clear-labels-test', {
+        deployment: 'test-deployment-1',
+        labels: ['initial-label'],
+      });
 
       // Clear labels by passing deployment with empty array (uses PUT, not PATCH)
-      const updated = await ship.domains.set('clear-labels-test', { deployment: 'test-deployment-1', labels: [] });
+      const updated = await ship.domains.set('clear-labels-test', {
+        deployment: 'test-deployment-1',
+        labels: [],
+      });
 
       expect(updated.domain).toBe('clear-labels-test');
       expect(updated.labels).toEqual([]);

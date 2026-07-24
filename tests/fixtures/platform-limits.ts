@@ -12,7 +12,7 @@
 import type { PlatformLimits } from '@shipstatic/types';
 
 export const TEST_PLATFORM_LIMITS: PlatformLimits = {
-  maxFileSize: 10 * 1024 * 1024,        // 10 MB
+  maxFileSize: 10 * 1024 * 1024, // 10 MB
   maxFilesCount: 1000,
-  maxTotalSize: 100 * 1024 * 1024,      // 100 MB
+  maxTotalSize: 100 * 1024 * 1024, // 100 MB
 };

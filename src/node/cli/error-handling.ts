@@ -14,7 +14,7 @@
  * original message rather than swallowing it as a generic "server error".
  */
 
-import { ShipError, isShipError } from '@shipstatic/types';
+import { isShipError, ShipError } from '@shipstatic/types';
 import type { OutputContext } from './formatters.js';
 
 /**
@@ -53,8 +53,8 @@ export interface ErrorOptions {
  */
 export function getUserMessage(
   err: ShipError,
-  context?: OutputContext,
-  options?: ErrorOptions
+  _context?: OutputContext,
+  options?: ErrorOptions,
 ): string {
   // Auth errors - tell user what credentials to provide
   if (err.isAuthError()) {
@@ -94,8 +94,12 @@ export function getUserMessage(
  * Returns the JSON string to be output (without newline).
  */
 export function formatErrorJson(message: string, details?: unknown): string {
-  return JSON.stringify({
-    error: message,
-    ...(details ? { details } : {})
-  }, null, 2);
+  return JSON.stringify(
+    {
+      error: message,
+      ...(details ? { details } : {}),
+    },
+    null,
+    2,
+  );
 }

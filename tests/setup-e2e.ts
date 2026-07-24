@@ -18,7 +18,7 @@
  *   - Focus on smoke tests, not exhaustive coverage
  */
 
-import { beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll } from 'vitest';
 
 // =============================================================================
 // CONFIGURATION
@@ -53,24 +53,24 @@ beforeAll(() => {
   if (!E2E_API_KEY) {
     console.warn(
       '\n' +
-      '╔══════════════════════════════════════════════════════════════════╗\n' +
-      '║  ⚠️  E2E Tests Skipped - No API Key Provided                      ║\n' +
-      '║                                                                  ║\n' +
-      '║  To run E2E tests, set the SHIP_E2E_API_KEY environment variable:║\n' +
-      '║                                                                  ║\n' +
-      '║  SHIP_E2E_API_KEY=ship-xxx pnpm test:e2e --run                   ║\n' +
-      '╚══════════════════════════════════════════════════════════════════╝\n'
+        '╔══════════════════════════════════════════════════════════════════╗\n' +
+        '║  ⚠️  E2E Tests Skipped - No API Key Provided                      ║\n' +
+        '║                                                                  ║\n' +
+        '║  To run E2E tests, set the SHIP_E2E_API_KEY environment variable:║\n' +
+        '║                                                                  ║\n' +
+        '║  SHIP_E2E_API_KEY=ship-xxx pnpm test:e2e --run                   ║\n' +
+        '╚══════════════════════════════════════════════════════════════════╝\n',
     );
     return;
   }
 
   console.log(
     '\n' +
-    '╔══════════════════════════════════════════════════════════════════╗\n' +
-    '║  🚀 E2E Tests Starting                                           ║\n' +
-    `║  API: ${E2E_API_URL.padEnd(56)}║\n` +
-    `║  Run ID: ${E2E_TEST_RUN_ID.padEnd(53)}║\n` +
-    '╚══════════════════════════════════════════════════════════════════╝\n'
+      '╔══════════════════════════════════════════════════════════════════╗\n' +
+      '║  🚀 E2E Tests Starting                                           ║\n' +
+      `║  API: ${E2E_API_URL.padEnd(56)}║\n` +
+      `║  Run ID: ${E2E_TEST_RUN_ID.padEnd(53)}║\n` +
+      '╚══════════════════════════════════════════════════════════════════╝\n',
   );
 });
 
@@ -78,9 +78,9 @@ afterAll(() => {
   if (E2E_API_KEY) {
     console.log(
       '\n' +
-      '╔══════════════════════════════════════════════════════════════════╗\n' +
-      '║  ✅ E2E Tests Complete                                           ║\n' +
-      '╚══════════════════════════════════════════════════════════════════╝\n'
+        '╔══════════════════════════════════════════════════════════════════╗\n' +
+        '║  ✅ E2E Tests Complete                                           ║\n' +
+        '╚══════════════════════════════════════════════════════════════════╝\n',
     );
   }
 });
@@ -102,7 +102,7 @@ export function generateTestId(prefix: string = 'test'): string {
  * Useful for waiting between API calls that have eventual consistency
  */
 export function wait(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -115,7 +115,7 @@ export async function retry<T>(
     maxAttempts?: number;
     initialDelayMs?: number;
     maxDelayMs?: number;
-  } = {}
+  } = {},
 ): Promise<T> {
   const { maxAttempts = 3, initialDelayMs = 1000, maxDelayMs = 10000 } = options;
 

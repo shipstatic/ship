@@ -1,5 +1,5 @@
-import { defineConfig, Options } from 'tsup';
-import * as path from 'path';
+import * as path from 'node:path';
+import { defineConfig, type Options } from 'tsup';
 
 // Define a base set of external dependencies for Node.js environments
 const nodeExternals = [
@@ -13,23 +13,17 @@ const nodeExternals = [
   'yocto-spinner',
   'yoctocolors',
   'columnify',
-  'zod'
+  'zod',
 ];
 
 // Dependencies to be bundled into the browser build
-const browserBundleDeps = [
-  'spark-md5',
-  'form-data-encoder',
-  'junk',
-  'zod',
-  '@shipstatic/types'
-];
+const browserBundleDeps = ['spark-md5', 'form-data-encoder', 'junk', 'zod', '@shipstatic/types'];
 
 export default defineConfig((tsupOptions: Options): Options[] => [
   // 1. SDK for Node.js (ESM and CJS, main entry)
   {
     entry: {
-      index: 'src/index.ts'
+      index: 'src/index.ts',
     },
     outDir: 'dist',
     format: ['esm', 'cjs'],
@@ -43,7 +37,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     splitting: false,
     clean: true,
     external: nodeExternals,
-    minify: tsupOptions.watch ? false : true
+    minify: !tsupOptions.watch,
   },
   // 2. Browser SDK (ESM, browser entry, with polyfills/shims)
   {
@@ -59,8 +53,8 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     splitting: false,
     clean: false,
     noExternal: browserBundleDeps,
-    minify: tsupOptions.watch ? false : true,
-    esbuildOptions(options, context) {
+    minify: !tsupOptions.watch,
+    esbuildOptions(options, _context) {
       // Use build-time aliasing for Node.js modules
       options.alias = {
         ...options.alias,
@@ -73,16 +67,14 @@ export default defineConfig((tsupOptions: Options): Options[] => [
       // Define NODE_ENV for any dependency that might need it
       options.define = {
         ...options.define,
-        'process.env.NODE_ENV': JSON.stringify(
-          tsupOptions.watch ? 'development' : 'production'
-        ),
+        'process.env.NODE_ENV': JSON.stringify(tsupOptions.watch ? 'development' : 'production'),
       };
     },
   },
   // 3. CLI (CJS for Node.js, cli entry)
   {
     entry: {
-      cli: 'src/node/cli/index.ts'
+      cli: 'src/node/cli/index.ts',
     },
     outDir: 'dist',
     format: ['cjs'],
@@ -91,21 +83,21 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     sourcemap: true,
     clean: false,
     external: nodeExternals,
-    minify: tsupOptions.watch ? false : true,
+    minify: !tsupOptions.watch,
     banner: {
       js: '#!/usr/bin/env node',
     },
     // Copy completion scripts to dist
     onSuccess: async () => {
-      const fs = await import('fs');
-      const path = await import('path');
-      
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+
       // Create completions directory in dist
       const completionsDir = path.resolve('./dist/completions');
       if (!fs.existsSync(completionsDir)) {
         fs.mkdirSync(completionsDir, { recursive: true });
       }
-      
+
       // Copy completion scripts
       const scripts = ['ship.bash', 'ship.zsh', 'ship.fish'];
       for (const script of scripts) {

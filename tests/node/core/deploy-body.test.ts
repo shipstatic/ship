@@ -1,18 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createDeployBody } from '../../../src/node/core/deploy-body';
 import { ShipError } from '@shipstatic/types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDeployBody } from '../../../src/node/core/deploy-body';
 import type { StaticFile } from '../../../src/shared/types';
 
 // Mock formdata-node and form-data-encoder
 const mockFormDataAppend = vi.fn();
 const mockFormDataInstance = {
-  append: mockFormDataAppend
+  append: mockFormDataAppend,
 };
 
 const mockEncoderEncode = vi.fn();
 const mockEncoderInstance = {
   encode: mockEncoderEncode,
-  contentType: 'multipart/form-data; boundary=----test-boundary'
+  contentType: 'multipart/form-data; boundary=----test-boundary',
 };
 
 vi.mock('formdata-node', () => ({
@@ -20,12 +20,12 @@ vi.mock('formdata-node', () => ({
   File: vi.fn((content: any[], name: string, options: any) => ({
     content,
     name,
-    type: options?.type
-  }))
+    type: options?.type,
+  })),
 }));
 
 vi.mock('form-data-encoder', () => ({
-  FormDataEncoder: vi.fn(() => mockEncoderInstance)
+  FormDataEncoder: vi.fn(() => mockEncoderInstance),
 }));
 
 describe('Node.js Deploy Body Creation', () => {
@@ -48,8 +48,8 @@ describe('Node.js Deploy Body Creation', () => {
           path: 'index.html',
           content: Buffer.from('<html></html>'),
           size: 13,
-          md5: 'abc123def456'
-        }
+          md5: 'abc123def456',
+        },
       ];
 
       const result = await createDeployBody(files);
@@ -67,8 +67,8 @@ describe('Node.js Deploy Body Creation', () => {
           path: 'assets/style.css',
           content: Buffer.from('body {}'),
           size: 7,
-          md5: 'css123'
-        }
+          md5: 'css123',
+        },
       ];
 
       await createDeployBody(files);
@@ -76,7 +76,7 @@ describe('Node.js Deploy Body Creation', () => {
       // Check FormData.append was called with files[] (no third arg — File name is the path)
       expect(mockFormDataAppend).toHaveBeenCalledWith(
         'files[]',
-        expect.objectContaining({ name: 'assets/style.css' })
+        expect.objectContaining({ name: 'assets/style.css' }),
       );
     });
   });
@@ -86,14 +86,14 @@ describe('Node.js Deploy Body Creation', () => {
       const files: StaticFile[] = [
         { path: 'file1.txt', content: Buffer.from('a'), size: 1, md5: 'md5-1' },
         { path: 'file2.txt', content: Buffer.from('b'), size: 1, md5: 'md5-2' },
-        { path: 'file3.txt', content: Buffer.from('c'), size: 1, md5: 'md5-3' }
+        { path: 'file3.txt', content: Buffer.from('c'), size: 1, md5: 'md5-3' },
       ];
 
       await createDeployBody(files);
 
       expect(mockFormDataAppend).toHaveBeenCalledWith(
         'checksums',
-        JSON.stringify(['md5-1', 'md5-2', 'md5-3'])
+        JSON.stringify(['md5-1', 'md5-2', 'md5-3']),
       );
     });
 
@@ -103,8 +103,8 @@ describe('Node.js Deploy Body Creation', () => {
           path: 'missing-md5.txt',
           content: Buffer.from('content'),
           size: 7,
-          md5: undefined as any // Simulate missing md5
-        }
+          md5: undefined as any, // Simulate missing md5
+        },
       ];
 
       await expect(createDeployBody(files)).rejects.toThrow(ShipError);
@@ -115,7 +115,7 @@ describe('Node.js Deploy Body Creation', () => {
   describe('labels handling', () => {
     it('should append labels as JSON when provided', async () => {
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
       ];
       const labels = ['production', 'v1.0.0', 'release'];
 
@@ -123,33 +123,29 @@ describe('Node.js Deploy Body Creation', () => {
 
       expect(mockFormDataAppend).toHaveBeenCalledWith(
         'labels',
-        JSON.stringify(['production', 'v1.0.0', 'release'])
+        JSON.stringify(['production', 'v1.0.0', 'release']),
       );
     });
 
     it('should not append labels when array is empty', async () => {
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
       ];
 
       await createDeployBody(files, { labels: [] });
 
-      const tagsCall = mockFormDataAppend.mock.calls.find(
-        (call: any[]) => call[0] === 'labels'
-      );
+      const tagsCall = mockFormDataAppend.mock.calls.find((call: any[]) => call[0] === 'labels');
       expect(tagsCall).toBeUndefined();
     });
 
     it('should not append labels when undefined', async () => {
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
       ];
 
       await createDeployBody(files);
 
-      const tagsCall = mockFormDataAppend.mock.calls.find(
-        (call: any[]) => call[0] === 'labels'
-      );
+      const tagsCall = mockFormDataAppend.mock.calls.find((call: any[]) => call[0] === 'labels');
       expect(tagsCall).toBeUndefined();
     });
   });
@@ -157,7 +153,7 @@ describe('Node.js Deploy Body Creation', () => {
   describe('via field handling', () => {
     it('should append via field when provided', async () => {
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
       ];
 
       await createDeployBody(files, { via: 'cli' });
@@ -167,28 +163,23 @@ describe('Node.js Deploy Body Creation', () => {
 
     it('should append via field with labels', async () => {
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
       ];
 
       await createDeployBody(files, { labels: ['tag1'], via: 'sdk' });
 
       expect(mockFormDataAppend).toHaveBeenCalledWith('via', 'sdk');
-      expect(mockFormDataAppend).toHaveBeenCalledWith(
-        'labels',
-        JSON.stringify(['tag1'])
-      );
+      expect(mockFormDataAppend).toHaveBeenCalledWith('labels', JSON.stringify(['tag1']));
     });
 
     it('should not append via when undefined', async () => {
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
       ];
 
       await createDeployBody(files);
 
-      const viaCall = mockFormDataAppend.mock.calls.find(
-        (call: any[]) => call[0] === 'via'
-      );
+      const viaCall = mockFormDataAppend.mock.calls.find((call: any[]) => call[0] === 'via');
       expect(viaCall).toBeUndefined();
     });
   });
@@ -196,7 +187,7 @@ describe('Node.js Deploy Body Creation', () => {
   describe('password handling', () => {
     it('should append password when provided', async () => {
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
       ];
 
       await createDeployBody(files, { password: 'secret123' });
@@ -206,13 +197,13 @@ describe('Node.js Deploy Body Creation', () => {
 
     it('should not append password when undefined', async () => {
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
       ];
 
       await createDeployBody(files);
 
       const passwordCall = mockFormDataAppend.mock.calls.find(
-        (call: any[]) => call[0] === 'password'
+        (call: any[]) => call[0] === 'password',
       );
       expect(passwordCall).toBeUndefined();
     });
@@ -223,7 +214,7 @@ describe('Node.js Deploy Body Creation', () => {
       const files: StaticFile[] = [
         { path: 'script.js', content: Buffer.from('code'), size: 4, md5: 'js1' },
         { path: 'style.css', content: Buffer.from('css'), size: 3, md5: 'css1' },
-        { path: 'page.html', content: Buffer.from('html'), size: 4, md5: 'html1' }
+        { path: 'page.html', content: Buffer.from('html'), size: 4, md5: 'html1' },
       ];
 
       await createDeployBody(files);
@@ -241,8 +232,8 @@ describe('Node.js Deploy Body Creation', () => {
           path: 'weird.txt',
           content: 'string-content' as any, // Not Buffer or Blob
           size: 14,
-          md5: 'md5'
-        }
+          md5: 'md5',
+        },
       ];
 
       await expect(createDeployBody(files)).rejects.toThrow(ShipError);
@@ -255,8 +246,8 @@ describe('Node.js Deploy Body Creation', () => {
           path: 'specific/path/file.txt',
           content: { invalid: 'object' } as any,
           size: 10,
-          md5: 'md5'
-        }
+          md5: 'md5',
+        },
       ];
 
       await expect(createDeployBody(files)).rejects.toThrow('specific/path/file.txt');
@@ -266,12 +257,14 @@ describe('Node.js Deploy Body Creation', () => {
   describe('FormDataEncoder output', () => {
     it('should return correct headers from encoder', async () => {
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('test'), size: 4, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('test'), size: 4, md5: 'md5' },
       ];
 
       const result = await createDeployBody(files);
 
-      expect(result.headers['Content-Type']).toBe('multipart/form-data; boundary=----test-boundary');
+      expect(result.headers['Content-Type']).toBe(
+        'multipart/form-data; boundary=----test-boundary',
+      );
     });
 
     it('should calculate Content-Length from encoded body', async () => {
@@ -282,7 +275,7 @@ describe('Node.js Deploy Body Creation', () => {
       });
 
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('test'), size: 4, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('test'), size: 4, md5: 'md5' },
       ];
 
       const result = await createDeployBody(files);
@@ -298,7 +291,7 @@ describe('Node.js Deploy Body Creation', () => {
       });
 
       const files: StaticFile[] = [
-        { path: 'file.txt', content: Buffer.from('test'), size: 4, md5: 'md5' }
+        { path: 'file.txt', content: Buffer.from('test'), size: 4, md5: 'md5' },
       ];
 
       const result = await createDeployBody(files);
@@ -315,14 +308,14 @@ describe('Node.js Deploy Body Creation', () => {
       const files: StaticFile[] = [
         { path: 'file1.txt', content: Buffer.from('content1'), size: 8, md5: 'md5-1' },
         { path: 'file2.js', content: Buffer.from('content2'), size: 8, md5: 'md5-2' },
-        { path: 'dir/file3.css', content: Buffer.from('content3'), size: 8, md5: 'md5-3' }
+        { path: 'dir/file3.css', content: Buffer.from('content3'), size: 8, md5: 'md5-3' },
       ];
 
       await createDeployBody(files, { labels: ['tag1', 'tag2'], via: 'cli' });
 
       // Should have 3 files[] appends, 1 checksums, 1 labels, 1 via
       const filesAppends = mockFormDataAppend.mock.calls.filter(
-        (call: any[]) => call[0] === 'files[]'
+        (call: any[]) => call[0] === 'files[]',
       );
       expect(filesAppends).toHaveLength(3);
 
@@ -336,13 +329,13 @@ describe('Node.js Deploy Body Creation', () => {
       const files: StaticFile[] = [
         { path: 'a.txt', content: Buffer.from('a'), size: 1, md5: 'first' },
         { path: 'b.txt', content: Buffer.from('b'), size: 1, md5: 'second' },
-        { path: 'c.txt', content: Buffer.from('c'), size: 1, md5: 'third' }
+        { path: 'c.txt', content: Buffer.from('c'), size: 1, md5: 'third' },
       ];
 
       await createDeployBody(files);
 
       const checksumsCall = mockFormDataAppend.mock.calls.find(
-        (call: any[]) => call[0] === 'checksums'
+        (call: any[]) => call[0] === 'checksums',
       );
       expect(checksumsCall).toBeDefined();
       expect(JSON.parse(checksumsCall[1])).toEqual(['first', 'second', 'third']);

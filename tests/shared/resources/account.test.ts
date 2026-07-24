@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createAccountResource, type AccountResource } from '../../../src/shared/resources';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApiHttp } from '../../../src/shared/api/http';
+import { type AccountResource, createAccountResource } from '../../../src/shared/resources';
 
 describe('AccountResource', () => {
   let mockApi: ApiHttp;
@@ -21,7 +21,7 @@ describe('AccountResource', () => {
       getAlias: vi.fn(),
       setAlias: vi.fn(),
       removeAlias: vi.fn(),
-      getAccount: vi.fn()
+      getAccount: vi.fn(),
     } as unknown as ApiHttp;
 
     account = createAccountResource({ getApi: () => mockApi, ensureInit: async () => {} });
@@ -33,7 +33,7 @@ describe('AccountResource', () => {
         email: 'test@example.com',
         name: 'Test User',
         plan: 'free',
-        created: 1234567890
+        created: 1234567890,
       };
 
       (mockApi.getAccount as any).mockResolvedValue(mockResponse);
@@ -50,15 +50,15 @@ describe('AccountResource', () => {
           email: 'free@example.com',
           name: 'Free User',
           plan: 'free' as const,
-          created: 1234567890
+          created: 1234567890,
         },
         {
           email: 'paid@example.com',
           name: 'Paid User',
           picture: 'https://example.com/avatar.jpg',
           plan: 'active' as const,
-          created: 1234567890
-        }
+          created: 1234567890,
+        },
       ];
 
       for (const testCase of testCases) {

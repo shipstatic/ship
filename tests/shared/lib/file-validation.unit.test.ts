@@ -1,17 +1,17 @@
 /**
  * Tests for file validation utilities
  */
-import { describe, it, expect } from 'vitest';
+
+import type { PlatformLimits } from '@shipstatic/types';
+import { describe, expect, it } from 'vitest';
 import {
-  validateFiles,
-  formatFileSize,
-  getValidFiles,
   allValidFilesReady,
   FILE_VALIDATION_STATUS,
+  formatFileSize,
+  getValidFiles,
   type ValidatableFile,
-  type FileValidationResult,
+  validateFiles,
 } from '../../../src/shared/lib/file-validation.js';
-import type { PlatformLimits } from '@shipstatic/types';
 
 // Mock file helper
 function createMockFile(name: string, size: number): ValidatableFile {
@@ -64,10 +64,7 @@ describe('File Validation', () => {
     };
 
     it('should mark all files as valid when within limits', () => {
-      const files = [
-        createMockFile('file1.txt', 1024),
-        createMockFile('file2.txt', 2048),
-      ];
+      const files = [createMockFile('file1.txt', 1024), createMockFile('file2.txt', 2048)];
 
       const result = validateFiles(files, config);
 
@@ -75,16 +72,14 @@ describe('File Validation', () => {
       expect(result.canDeploy).toBe(true);
       expect(result.errors).toHaveLength(0);
       expect(result.warnings).toHaveLength(0);
-      result.files.forEach(f => {
+      result.files.forEach((f) => {
         expect(f.status).toBe(FILE_VALIDATION_STATUS.READY);
         expect(f.statusMessage).toBe('Ready for upload');
       });
     });
 
     it('should reject when file count exceeds limit', () => {
-      const files = Array.from({ length: 101 }, (_, i) =>
-        createMockFile(`file${i}.txt`, 100)
-      );
+      const files = Array.from({ length: 101 }, (_, i) => createMockFile(`file${i}.txt`, 100));
 
       const result = validateFiles(files, config);
 
@@ -92,16 +87,13 @@ describe('File Validation', () => {
       expect(result.canDeploy).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].message).toContain('exceeds limit');
-      result.files.forEach(f => {
+      result.files.forEach((f) => {
         expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
     });
 
     it('should exclude empty files with warning (allow deployment)', () => {
-      const files = [
-        createMockFile('empty.txt', 0),
-        createMockFile('valid.txt', 100),
-      ];
+      const files = [createMockFile('empty.txt', 0), createMockFile('valid.txt', 100)];
 
       const result = validateFiles(files, config);
 
@@ -158,7 +150,7 @@ describe('File Validation', () => {
       const files = [
         createMockFile('file1.txt', 10 * 1024 * 1024), // 10MB
         createMockFile('file2.txt', 10 * 1024 * 1024), // 10MB - total 20MB (ok individually)
-        createMockFile('file3.txt', 6 * 1024 * 1024),  // 6MB - total 26MB (exceeds)
+        createMockFile('file3.txt', 6 * 1024 * 1024), // 6MB - total 26MB (exceeds)
       ];
 
       const result = validateFiles(files, largeConfig);
@@ -209,17 +201,15 @@ describe('File Validation', () => {
         const result = validateFiles(files, config);
 
         expect(result.validFiles).toHaveLength(3);
-        expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
-        result.files.forEach(f => {
+        expect(result.canDeploy).toBe(true);
+        expect(result.errors).toHaveLength(0);
+        result.files.forEach((f) => {
           expect(f.status).toBe(FILE_VALIDATION_STATUS.READY);
         });
       });
 
       it('should reject files with blocked extensions (atomic)', () => {
-        const files = [
-          createMockFile('malware.exe', 100),
-          createMockFile('valid.txt', 100),
-        ];
+        const files = [createMockFile('malware.exe', 100), createMockFile('valid.txt', 100)];
 
         const result = validateFiles(files, config);
 
@@ -242,8 +232,9 @@ describe('File Validation', () => {
         const result = validateFiles(files, config);
 
         expect(result.validFiles).toHaveLength(4);
-        expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
-        result.files.forEach(f => {
+        expect(result.canDeploy).toBe(true);
+        expect(result.errors).toHaveLength(0);
+        result.files.forEach((f) => {
           expect(f.status).toBe(FILE_VALIDATION_STATUS.READY);
         });
       });
@@ -258,7 +249,8 @@ describe('File Validation', () => {
         const result = validateFiles(files, config);
 
         expect(result.validFiles).toHaveLength(3);
-        expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+        expect(result.canDeploy).toBe(true);
+        expect(result.errors).toHaveLength(0);
       });
 
       it('should reject multiple files with blocked extensions (atomic)', () => {
@@ -287,14 +279,13 @@ describe('File Validation', () => {
       });
 
       it('should accept WASM files (web standard)', () => {
-        const files = [
-          createMockFile('app.wasm', 100),
-        ];
+        const files = [createMockFile('app.wasm', 100)];
 
         const result = validateFiles(files, config);
 
         expect(result.validFiles).toHaveLength(1);
-        expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+        expect(result.canDeploy).toBe(true);
+        expect(result.errors).toHaveLength(0);
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.READY);
       });
     });
@@ -313,15 +304,13 @@ describe('File Validation', () => {
         expect(result.errors[0].message).toContain('Unbuilt project detected');
         expect(result.validFiles).toHaveLength(0);
         // All files marked as failed (atomic)
-        result.files.forEach(f => {
+        result.files.forEach((f) => {
           expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
         });
       });
 
       it('should reject nested node_modules paths', () => {
-        const files = [
-          createMockFile('src/vendor/node_modules/lodash/index.js', 100),
-        ];
+        const files = [createMockFile('src/vendor/node_modules/lodash/index.js', 100)];
 
         const result = validateFiles(files, config);
 
@@ -385,10 +374,7 @@ describe('File Validation', () => {
     };
 
     it('should reject empty file names (atomic)', () => {
-      const files = [
-        { ...createMockFile('', 100), name: '' },
-        createMockFile('valid.txt', 100),
-      ];
+      const files = [{ ...createMockFile('', 100), name: '' }, createMockFile('valid.txt', 100)];
 
       const result = validateFiles(files, config);
 
@@ -401,10 +387,7 @@ describe('File Validation', () => {
     });
 
     it('should reject file names with path traversal (atomic)', () => {
-      const files = [
-        createMockFile('../../../etc/passwd', 100),
-        createMockFile('valid.txt', 100),
-      ];
+      const files = [createMockFile('../../../etc/passwd', 100), createMockFile('valid.txt', 100)];
 
       const result = validateFiles(files, config);
 
@@ -417,10 +400,7 @@ describe('File Validation', () => {
     });
 
     it('should reject file names with null bytes (atomic)', () => {
-      const files = [
-        createMockFile('file\0.txt', 100),
-        createMockFile('valid.txt', 100),
-      ];
+      const files = [createMockFile('file\0.txt', 100), createMockFile('valid.txt', 100)];
 
       const result = validateFiles(files, config);
 
@@ -474,7 +454,8 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(4);
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should accept files with multiple dots (handles last extension)', () => {
@@ -487,7 +468,8 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should accept hidden files (files starting with dot)', () => {
@@ -500,7 +482,8 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should accept hidden files with extensions', () => {
@@ -513,14 +496,12 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should handle case-insensitive blocked extensions', () => {
-      const files = [
-        createMockFile('virus.EXE', 100),
-        createMockFile('malware.MSI', 100),
-      ];
+      const files = [createMockFile('virus.EXE', 100), createMockFile('malware.MSI', 100)];
 
       const result = validateFiles(files, config);
 
@@ -546,7 +527,8 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should accept video files', () => {
@@ -559,7 +541,8 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should accept audio files', () => {
@@ -572,7 +555,8 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should accept modern image formats', () => {
@@ -585,7 +569,8 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.validFiles).toHaveLength(3);
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
   });
 
@@ -620,9 +605,7 @@ describe('File Validation', () => {
 
   describe('allValidFilesReady', () => {
     it('should return true when valid files exist', () => {
-      const files = [
-        { ...createMockFile('file1.txt', 100), status: FILE_VALIDATION_STATUS.READY },
-      ];
+      const files = [{ ...createMockFile('file1.txt', 100), status: FILE_VALIDATION_STATUS.READY }];
 
       expect(allValidFilesReady(files)).toBe(true);
     });
@@ -658,13 +641,9 @@ describe('File Validation', () => {
     };
 
     it('should reject files with URL-breaking characters', () => {
-      const unsafeNames = [
-        'file?.txt',
-        'file#hash.txt',
-        'file%percent.txt',
-      ];
+      const unsafeNames = ['file?.txt', 'file#hash.txt', 'file%percent.txt'];
 
-      unsafeNames.forEach(name => {
+      unsafeNames.forEach((name) => {
         const result = validateFiles([createMockFile(name, 100)], config);
         expect(result.canDeploy).toBe(false);
         expect(result.errors[0].message).toBeDefined();
@@ -674,13 +653,9 @@ describe('File Validation', () => {
     });
 
     it('should reject files with HTML-unsafe characters', () => {
-      const htmlUnsafe = [
-        'file<less.txt',
-        'file>greater.txt',
-        'file"doublequote.txt',
-      ];
+      const htmlUnsafe = ['file<less.txt', 'file>greater.txt', 'file"doublequote.txt'];
 
-      htmlUnsafe.forEach(name => {
+      htmlUnsafe.forEach((name) => {
         const result = validateFiles([createMockFile(name, 100)], config);
         expect(result.canDeploy).toBe(false);
         expect(result.errors[0].message).toBeDefined();
@@ -720,7 +695,7 @@ describe('File Validation', () => {
         'file`backtick.txt',
       ];
 
-      safeNames.forEach(name => {
+      safeNames.forEach((name) => {
         const result = validateFiles([createMockFile(name, 100)], config);
         expect(result.canDeploy).toBe(true);
         expect(result.validFiles).toHaveLength(1);
@@ -754,10 +729,10 @@ describe('File Validation', () => {
         'LPT9.txt',
       ];
 
-      reservedNames.forEach(name => {
+      reservedNames.forEach((name) => {
         const result = validateFiles([createMockFile(name, 100)], config);
         expect(result.canDeploy).toBe(false);
-      expect(result.errors[0].message).toBeDefined();
+        expect(result.errors[0].message).toBeDefined();
         expect(result.validFiles).toHaveLength(0);
       });
     });
@@ -801,22 +776,27 @@ describe('File Validation', () => {
         '.htaccess',
       ];
 
-      validFiles.forEach(name => {
+      validFiles.forEach((name) => {
         const result = validateFiles([createMockFile(name, 100)], config);
-        expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+        expect(result.canDeploy).toBe(true);
+        expect(result.errors).toHaveLength(0);
         expect(result.validFiles).toHaveLength(1);
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.READY);
       });
     });
 
     it('should support nested paths (for subdirectories)', () => {
-      const result = validateFiles([
-        createMockFile('folder/file.txt', 100),
-        createMockFile('folder/subfolder/file.txt', 100),
-        createMockFile('assets/images/logo.png', 100),
-      ], config);
+      const result = validateFiles(
+        [
+          createMockFile('folder/file.txt', 100),
+          createMockFile('folder/subfolder/file.txt', 100),
+          createMockFile('assets/images/logo.png', 100),
+        ],
+        config,
+      );
 
-      expect(result.canDeploy).toBe(true); expect(result.errors).toHaveLength(0);
+      expect(result.canDeploy).toBe(true);
+      expect(result.errors).toHaveLength(0);
       expect(result.validFiles).toHaveLength(3);
     });
 

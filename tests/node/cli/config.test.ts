@@ -3,10 +3,10 @@
  * All tests run via subprocess, same as every other CLI command.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, statSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runCli } from './helpers';
 
 const TEST_TOKEN = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
@@ -67,7 +67,10 @@ describe('Config Command', () => {
     });
 
     it('should include custom API URL', async () => {
-      writeFileSync(configPath, JSON.stringify({ token: TEST_TOKEN, apiUrl: 'https://custom.example.com' }));
+      writeFileSync(
+        configPath,
+        JSON.stringify({ token: TEST_TOKEN, apiUrl: 'https://custom.example.com' }),
+      );
       const result = await runCli(['config', '--json'], {
         env: { HOME: tempHome },
       });
@@ -136,10 +139,13 @@ describe('Config Command', () => {
     });
 
     it('should preserve other fields like apiUrl', async () => {
-      writeFileSync(configPath, JSON.stringify({
-        token: TEST_TOKEN,
-        apiUrl: 'https://custom.example.com',
-      }));
+      writeFileSync(
+        configPath,
+        JSON.stringify({
+          token: TEST_TOKEN,
+          apiUrl: 'https://custom.example.com',
+        }),
+      );
 
       const result = await runCli(['config'], {
         stdin: [ALT_TOKEN],

@@ -2,27 +2,33 @@
  * @file HTTP client for Ship API.
  */
 import type {
+  AccountGetResponse,
   Deployment,
   DeploymentCreateResponse,
   DeploymentListResponse,
-  PingResponse,
-  PlatformLimits,
   Domain,
-  DomainListResponse,
   DomainDnsResponse,
+  DomainListResponse,
   DomainRecordsResponse,
   DomainValidateResponse,
-  AccountGetResponse,
+  PingResponse,
+  PlatformLimits,
   SPACheckRequest,
   SPACheckResponse,
   StaticFile,
   TokenCreateResponse,
-  TokenListResponse
+  TokenListResponse,
 } from '@shipstatic/types';
-import type { ApiDeployOptions, DeployBodyCreator, DomainSetResult, Fetch, ShipClientOptions } from '../types.js';
-import { ShipError, DEFAULT_API } from '@shipstatic/types';
+import { DEFAULT_API, ShipError } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 import { validateLabels, validatePassword } from '../lib/validation.js';
+import type {
+  ApiDeployOptions,
+  DeployBodyCreator,
+  DomainSetResult,
+  Fetch,
+  ShipClientOptions,
+} from '../types.js';
 
 // =============================================================================
 // CONSTANTS
@@ -35,7 +41,7 @@ const ENDPOINTS = {
   ACCOUNT: '/account',
   LIMITS: '/limits',
   PING: '/ping',
-  SPA_CHECK: '/spa-check'
+  SPA_CHECK: '/spa-check',
 } as const;
 
 const DEFAULT_REQUEST_TIMEOUT = 30000;
@@ -61,7 +67,9 @@ interface RequestResult<T> {
 
 export class ApiHttp extends SimpleEvents {
   private readonly apiUrl: string;
-  private readonly getAuthHeadersCallback: () => Record<string, string> | Promise<Record<string, string>>;
+  private readonly getAuthHeadersCallback: () =>
+    | Record<string, string>
+    | Promise<Record<string, string>>;
   private readonly session: boolean;
   private readonly caller: string | undefined;
   private readonly timeout: number;
@@ -103,7 +111,7 @@ export class ApiHttp extends SimpleEvents {
   private async executeRequest<T>(
     url: string,
     options: RequestInit,
-    operationName: string
+    operationName: string,
   ): Promise<RequestResult<T>> {
     let cleanup = () => {};
 
@@ -156,7 +164,11 @@ export class ApiHttp extends SimpleEvents {
   /**
    * Request with status - returns data and HTTP status code
    */
-  private async requestWithStatus<T>(url: string, options: RequestInit, operationName: string): Promise<RequestResult<T>> {
+  private async requestWithStatus<T>(
+    url: string,
+    options: RequestInit,
+    operationName: string,
+  ): Promise<RequestResult<T>> {
     return this.executeRequest<T>(url, options, operationName);
   }
 
@@ -164,7 +176,9 @@ export class ApiHttp extends SimpleEvents {
   // REQUEST HELPERS
   // ===========================================================================
 
-  private async mergeHeaders(customHeaders: Record<string, string> = {}): Promise<Record<string, string>> {
+  private async mergeHeaders(
+    customHeaders: Record<string, string> = {},
+  ): Promise<Record<string, string>> {
     // `caller` is instance identity metadata, like the credential: the
     // rate limiter buckets by X-Caller on every write, so it rides every
     // request rather than any single operation.
@@ -176,7 +190,10 @@ export class ApiHttp extends SimpleEvents {
     };
   }
 
-  private createTimeoutSignal(existingSignal?: AbortSignal | null): { signal: AbortSignal; cleanup: () => void } {
+  private createTimeoutSignal(existingSignal?: AbortSignal | null): {
+    signal: AbortSignal;
+    cleanup: () => void;
+  } {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
@@ -188,7 +205,7 @@ export class ApiHttp extends SimpleEvents {
 
     return {
       signal: controller.signal,
-      cleanup: () => clearTimeout(timeoutId)
+      cleanup: () => clearTimeout(timeoutId),
     };
   }
 
@@ -211,13 +228,18 @@ export class ApiHttp extends SimpleEvents {
   // PUBLIC API - DEPLOYMENTS
   // ===========================================================================
 
-  async deploy(files: StaticFile[], options: ApiDeployOptions = {}): Promise<DeploymentCreateResponse> {
+  async deploy(
+    files: StaticFile[],
+    options: ApiDeployOptions = {},
+  ): Promise<DeploymentCreateResponse> {
     if (!files.length) {
       throw ShipError.business('No files to deploy');
     }
     for (const file of files) {
       if (!file.md5) {
-        throw ShipError.file(`MD5 checksum missing for file: ${file.path}`, { filePath: file.path });
+        throw ShipError.file(`MD5 checksum missing for file: ${file.path}`, {
+          filePath: file.path,
+        });
       }
     }
 
@@ -225,9 +247,10 @@ export class ApiHttp extends SimpleEvents {
     validatePassword(options.password);
     const labels = validateLabels(options.labels);
 
-    const flags = (options.build || options.prerender || options.spa)
-      ? { build: options.build, prerender: options.prerender, spa: options.spa }
-      : undefined;
+    const flags =
+      options.build || options.prerender || options.spa
+        ? { build: options.build, prerender: options.prerender, spa: options.spa }
+        : undefined;
     const { body, headers: bodyHeaders } = await this.createDeployBody(files, {
       labels,
       via: options.via,
@@ -239,24 +262,36 @@ export class ApiHttp extends SimpleEvents {
     return this.request<DeploymentCreateResponse>(
       `${this.apiUrl}${this.deployEndpoint}`,
       { method: 'POST', body, headers: bodyHeaders, signal: options.signal || null },
-      'Deploy'
+      'Deploy',
     );
   }
 
   async listDeployments(): Promise<DeploymentListResponse> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}`, { method: 'GET' }, 'List deployments');
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}`,
+      { method: 'GET' },
+      'List deployments',
+    );
   }
 
   async getDeployment(id: string): Promise<Deployment> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`, { method: 'GET' }, 'Get deployment');
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
+      { method: 'GET' },
+      'Get deployment',
+    );
   }
 
   async updateDeploymentLabels(id: string, labels: string[]): Promise<Deployment> {
     const normalized = validateLabels(labels);
     return this.request(
       `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labels: normalized }) },
-      'Update deployment labels'
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labels: normalized }),
+      },
+      'Update deployment labels',
     );
   }
 
@@ -264,7 +299,7 @@ export class ApiHttp extends SimpleEvents {
     await this.request<void>(
       `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
       { method: 'DELETE' },
-      'Remove deployment'
+      'Remove deployment',
     );
   }
 
@@ -282,8 +317,12 @@ export class ApiHttp extends SimpleEvents {
 
     const { data, status } = await this.requestWithStatus<Domain>(
       `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
-      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-      'Set domain'
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      'Set domain',
     );
 
     return { ...data, isCreate: status === 201 };
@@ -294,34 +333,62 @@ export class ApiHttp extends SimpleEvents {
   }
 
   async getDomain(name: string): Promise<Domain> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`, { method: 'GET' }, 'Get domain');
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
+      { method: 'GET' },
+      'Get domain',
+    );
   }
 
   async removeDomain(name: string): Promise<void> {
-    await this.request<void>(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`, { method: 'DELETE' }, 'Remove domain');
+    await this.request<void>(
+      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
+      { method: 'DELETE' },
+      'Remove domain',
+    );
   }
 
   async verifyDomain(name: string): Promise<{ message: string }> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/verify`, { method: 'POST' }, 'Verify domain');
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/verify`,
+      { method: 'POST' },
+      'Verify domain',
+    );
   }
 
   async getDomainDns(name: string): Promise<DomainDnsResponse> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/dns`, { method: 'GET' }, 'Get domain DNS');
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/dns`,
+      { method: 'GET' },
+      'Get domain DNS',
+    );
   }
 
   async getDomainRecords(name: string): Promise<DomainRecordsResponse> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/records`, { method: 'GET' }, 'Get domain records');
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/records`,
+      { method: 'GET' },
+      'Get domain records',
+    );
   }
 
   async getDomainShare(name: string): Promise<{ domain: string; hash: string }> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/share`, { method: 'GET' }, 'Get domain share');
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/share`,
+      { method: 'GET' },
+      'Get domain share',
+    );
   }
 
   async validateDomain(name: string): Promise<DomainValidateResponse> {
     return this.request(
       `${this.apiUrl}${ENDPOINTS.DOMAINS}/validate`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: name }) },
-      'Validate domain'
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: name }),
+      },
+      'Validate domain',
     );
   }
 
@@ -337,8 +404,12 @@ export class ApiHttp extends SimpleEvents {
 
     return this.request(
       `${this.apiUrl}${ENDPOINTS.TOKENS}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-      'Create token'
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      'Create token',
     );
   }
 
@@ -347,7 +418,11 @@ export class ApiHttp extends SimpleEvents {
   }
 
   async removeToken(token: string): Promise<void> {
-    await this.request<void>(`${this.apiUrl}${ENDPOINTS.TOKENS}/${encodeURIComponent(token)}`, { method: 'DELETE' }, 'Remove token');
+    await this.request<void>(
+      `${this.apiUrl}${ENDPOINTS.TOKENS}/${encodeURIComponent(token)}`,
+      { method: 'DELETE' },
+      'Remove token',
+    );
   }
 
   // ===========================================================================
@@ -363,7 +438,11 @@ export class ApiHttp extends SimpleEvents {
   }
 
   async ping(): Promise<boolean> {
-    const data = await this.request<PingResponse>(`${this.apiUrl}${ENDPOINTS.PING}`, { method: 'GET' }, 'Ping');
+    const data = await this.request<PingResponse>(
+      `${this.apiUrl}${ENDPOINTS.PING}`,
+      { method: 'GET' },
+      'Ping',
+    );
     return data?.success || false;
   }
 
@@ -371,8 +450,8 @@ export class ApiHttp extends SimpleEvents {
   // PUBLIC API - SPA CHECK
   // ===========================================================================
 
-  async checkSPA(files: StaticFile[], options: ApiDeployOptions = {}): Promise<boolean> {
-    const indexFile = files.find(f => f.path === 'index.html' || f.path === '/index.html');
+  async checkSPA(files: StaticFile[], _options: ApiDeployOptions = {}): Promise<boolean> {
+    const indexFile = files.find((f) => f.path === 'index.html' || f.path === '/index.html');
     if (!indexFile || indexFile.size > 100 * 1024) {
       return false;
     }
@@ -388,11 +467,15 @@ export class ApiHttp extends SimpleEvents {
       return false;
     }
 
-    const body: SPACheckRequest = { files: files.map(f => f.path), index: indexContent };
+    const body: SPACheckRequest = { files: files.map((f) => f.path), index: indexContent };
     const response = await this.request<SPACheckResponse>(
       `${this.apiUrl}${ENDPOINTS.SPA_CHECK}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-      'SPA check'
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      'SPA check',
     );
 
     return response.isSPA;

@@ -14,18 +14,18 @@
  * developer's personal credentials.
  */
 
-import { Ship as BaseShip } from '../shared/base-ship.js';
 import { ShipError } from '@shipstatic/types';
+import { Ship as BaseShip } from '../shared/base-ship.js';
 import { getENV } from '../shared/lib/env.js';
-import { readEnvConfig } from './core/config.js';
 import type {
-  ShipClientOptions,
-  Deployment,
-  DeployInput,
-  DeploymentOptions,
-  StaticFile,
   DeployBodyCreator,
+  DeployInput,
+  Deployment,
+  DeploymentOptions,
+  ShipClientOptions,
+  StaticFile,
 } from '../shared/types.js';
+import { readEnvConfig } from './core/config.js';
 import { createDeployBody } from './core/deploy-body.js';
 
 // Export all shared functionality
@@ -84,12 +84,17 @@ export class Ship extends BaseShip {
     return super.deploy(input, options);
   }
 
-  protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
+  protected async processInput(
+    input: DeployInput,
+    options: DeploymentOptions,
+  ): Promise<StaticFile[]> {
     // Normalize string to string[] and validate.
     const paths = typeof input === 'string' ? [input] : input;
 
-    if (!Array.isArray(paths) || !paths.every(p => typeof p === 'string')) {
-      throw ShipError.business('Invalid input type for Node.js environment. Expected string or string[].');
+    if (!Array.isArray(paths) || !paths.every((p) => typeof p === 'string')) {
+      throw ShipError.business(
+        'Invalid input type for Node.js environment. Expected string or string[].',
+      );
     }
 
     if (paths.length === 0) {

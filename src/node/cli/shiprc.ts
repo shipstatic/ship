@@ -16,12 +16,12 @@
  * The `--config <file>` CLI flag bypasses the search and loads a specific path.
  */
 
-import { z } from 'zod';
-import { homedir } from 'os';
+import { homedir } from 'node:os';
+import { isShipError, ShipError } from '@shipstatic/types';
 import { cosmiconfigSync } from 'cosmiconfig';
-import { ShipError, isShipError } from '@shipstatic/types';
-import type { ShipClientOptions } from '../../shared/types.js';
+import { z } from 'zod';
 import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
+import type { ShipClientOptions } from '../../shared/types.js';
 
 // `.strict()` rejects unknown keys — catches typos like `apikey` (lowercase)
 // in user-authored `.shiprc` files. The env reader doesn't need this because
@@ -56,11 +56,7 @@ export function loadShipFile(configFile?: string): Partial<ShipClientOptions> {
 
   const home = homedir();
   const explorer = cosmiconfigSync(MODULE_NAME, {
-    searchPlaces: [
-      `.${MODULE_NAME}rc`,
-      'package.json',
-      `${home}/.${MODULE_NAME}rc`,
-    ],
+    searchPlaces: [`.${MODULE_NAME}rc`, 'package.json', `${home}/.${MODULE_NAME}rc`],
     stopDir: home,
   });
 
@@ -76,7 +72,7 @@ export function loadShipFile(configFile?: string): Partial<ShipClientOptions> {
     throw ShipError.config(`Failed to read ship config${where}: ${message}`);
   }
 
-  if (!result || !result.config) return {};
+  if (!result?.config) return {};
 
   try {
     return FileConfigSchema.parse(result.config);
@@ -90,14 +86,12 @@ export function loadShipFile(configFile?: string): Partial<ShipClientOptions> {
         if (legacy.length > 0) {
           const keys = legacy.map((key) => `"${key}"`).join(' and ');
           throw ShipError.config(
-            `Invalid config in ${result.filepath}: ${keys} ${legacy.length > 1 ? 'are' : 'is'} no longer supported — the key is now "token". Run \`ship config\` to rewrite it.`
+            `Invalid config in ${result.filepath}: ${keys} ${legacy.length > 1 ? 'are' : 'is'} no longer supported — the key is now "token". Run \`ship config\` to rewrite it.`,
           );
         }
       }
       const path = issue.path.length > 0 ? ` at ${issue.path.join('.')}` : '';
-      throw ShipError.config(
-        `Invalid config in ${result.filepath}${path}: ${issue.message}`
-      );
+      throw ShipError.config(`Invalid config in ${result.filepath}${path}: ${issue.message}`);
     }
     throw ShipError.config(`Invalid config in ${result.filepath}`);
   }

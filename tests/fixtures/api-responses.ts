@@ -10,22 +10,22 @@
  */
 
 import type {
+  AccountGetResponse,
   Deployment,
   DeploymentListResponse,
   Domain,
-  DomainListResponse,
   DomainDnsResponse,
+  DomainListResponse,
   DomainRecordsResponse,
   DomainValidateResponse,
-  AccountGetResponse,
-  TokenListItem,
-  TokenListResponse,
-  TokenCreateResponse,
-  PlatformLimits,
-  PingResponse,
-  SPACheckResponse,
   ErrorResponse,
   ErrorType,
+  PingResponse,
+  PlatformLimits,
+  SPACheckResponse,
+  TokenCreateResponse,
+  TokenListItem,
+  TokenListResponse,
 } from '@shipstatic/types';
 
 // =============================================================================
@@ -117,7 +117,6 @@ export const deployments = {
     expires: timestamps.jan2023,
     screenshot: 'https://screenshots.shipstatic.com/cli-deployment-1/0123456789abcdef',
   } satisfies Deployment,
-
 } as const;
 
 export const deploymentListResponses = {
@@ -340,7 +339,6 @@ export const accounts = {
 // TOKENS
 // =============================================================================
 
-
 export const tokenListResponses = {
   /**
    * Empty token list
@@ -354,13 +352,15 @@ export const tokenListResponses = {
    * Single token
    */
   single: {
-    tokens: [{
-      token: 'a1b2c3d',
-      labels: [],
-      created: timestamps.jan2022,
-      expires: null,
-      used: null,
-    }],
+    tokens: [
+      {
+        token: 'a1b2c3d',
+        labels: [],
+        created: timestamps.jan2022,
+        expires: null,
+        used: null,
+      },
+    ],
     total: 1,
   } satisfies TokenListResponse,
 } as const;
@@ -500,18 +500,18 @@ export const configs = {
    * Standard platform config
    */
   standard: {
-    maxFileSize: 10485760,      // 10MB
+    maxFileSize: 10485760, // 10MB
     maxFilesCount: 1000,
-    maxTotalSize: 104857600,    // 100MB
+    maxTotalSize: 104857600, // 100MB
   } satisfies PlatformLimits,
 
   /**
    * Minimal config (for basic tests)
    */
   minimal: {
-    maxFileSize: 5242880,       // 5MB
+    maxFileSize: 5242880, // 5MB
     maxFilesCount: 100,
-    maxTotalSize: 26214400,     // 25MB
+    maxTotalSize: 26214400, // 25MB
   } satisfies PlatformLimits,
 } as const;
 
@@ -644,7 +644,7 @@ export function createDynamicDeployment(overrides: Partial<Deployment> = {}): De
     labels: [],
     via: null,
     created: now,
-    expires: now + (7 * 24 * 60 * 60), // 7 days
+    expires: now + 7 * 24 * 60 * 60, // 7 days
     screenshot: `https://screenshots.shipstatic.com/${deploymentSlug}/mock`,
     ...overrides,
   };
@@ -684,7 +684,7 @@ export function createDynamicToken(overrides: Partial<TokenListItem> = {}): Toke
 export function createDynamicDomain(
   domainName: string,
   deploymentId: string | null,
-  overrides: Partial<Domain> = {}
+  overrides: Partial<Domain> = {},
 ): Domain {
   const now = Math.floor(Date.now() / 1000);
   const isExternal = isExternalDomain(domainName);
@@ -692,7 +692,11 @@ export function createDynamicDomain(
   return {
     domain: domainName,
     url: `https://${domainName}`,
-    deployment: deploymentId ? (deploymentId.includes('.') ? deploymentId : `${deploymentId}.shipstatic.com`) : null,
+    deployment: deploymentId
+      ? deploymentId.includes('.')
+        ? deploymentId
+        : `${deploymentId}.shipstatic.com`
+      : null,
     // External domains start as 'pending' (need DNS verification)
     // Internal domains are immediately 'success'
     status: isExternal ? 'pending' : 'success',

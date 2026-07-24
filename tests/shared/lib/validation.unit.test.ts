@@ -1,9 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import {
-  LABEL_CONSTRAINTS,
-  ErrorType,
-  isShipError,
-} from '@shipstatic/types';
+import { ErrorType, isShipError, LABEL_CONSTRAINTS } from '@shipstatic/types';
+import { describe, expect, it } from 'vitest';
 import { validateLabels } from '../../../src/shared/lib/validation';
 
 // `validatePassword` is re-exported from `@shipstatic/types`; its tests live

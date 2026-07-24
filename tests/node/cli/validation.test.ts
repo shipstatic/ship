@@ -8,7 +8,7 @@
  * validity is the server's to decide.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { runCli } from './helpers';
 
 describe('CLI Validation', () => {
@@ -20,7 +20,7 @@ describe('CLI Validation', () => {
     });
 
     it('should reject a ship- token with invalid hex chars', async () => {
-      const result = await runCli(['--token', 'ship-' + 'g'.repeat(64), 'ping']);
+      const result = await runCli(['--token', `ship-${'g'.repeat(64)}`, 'ping']);
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('must contain 64 hexadecimal characters');
     });
@@ -32,14 +32,14 @@ describe('CLI Validation', () => {
     });
 
     it('should accept a valid API key', async () => {
-      const validKey = 'ship-' + 'a'.repeat(64);
+      const validKey = `ship-${'a'.repeat(64)}`;
       const result = await runCli(['--token', validKey, '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
     });
 
     it('should accept a valid deploy token', async () => {
-      const validToken = 'deploy-' + 'a'.repeat(64);
+      const validToken = `deploy-${'a'.repeat(64)}`;
       const result = await runCli(['--token', validToken, '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');

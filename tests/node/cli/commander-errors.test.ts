@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { runCli } from './helpers';
 
 describe('Commander.js Error Handling', () => {
   it('should format unknown command errors consistently', async () => {
     const result = await runCli(['invalidcommand']);
-    
+
     expect(result.exitCode).not.toBe(0);
     // Should contain our error formatting (strip ANSI for easier testing)
     const cleanError = result.stderr.replace(/\u001b\[[0-9;]*m/g, '');
@@ -17,7 +17,7 @@ describe('Commander.js Error Handling', () => {
 
   it('should format unknown option errors consistently', async () => {
     const result = await runCli(['deployments', '--invalid-flag']);
-    
+
     expect(result.exitCode).not.toBe(0);
     // Should contain our error formatting (strip ANSI for easier testing)
     const cleanError = result.stderr.replace(/\u001b\[[0-9;]*m/g, '');
@@ -30,7 +30,7 @@ describe('Commander.js Error Handling', () => {
 
   it('should format missing argument errors consistently', async () => {
     const result = await runCli(['deployments', 'upload']);
-    
+
     expect(result.exitCode).not.toBe(0);
     // Should contain our error formatting (strip ANSI for easier testing)
     const cleanError = result.stderr.replace(/\u001b\[[0-9;]*m/g, '');
@@ -43,7 +43,7 @@ describe('Commander.js Error Handling', () => {
 
   it('should format errors as JSON when --json flag is used', async () => {
     const result = await runCli(['--json', 'invalidcommand']);
-    
+
     expect(result.exitCode).not.toBe(0);
     // Parse as JSON
     const parsed = JSON.parse(result.stderr);
@@ -56,7 +56,7 @@ describe('Commander.js Error Handling', () => {
 
   it('should format errors without color when --no-color flag is used', async () => {
     const result = await runCli(['--no-color', 'invalidcommand']);
-    
+
     expect(result.exitCode).not.toBe(0);
     // Should not contain ANSI escape sequences
     expect(result.stderr).not.toMatch(/\x1b\[/);

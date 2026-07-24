@@ -7,7 +7,7 @@ import { ApiHttp } from '../../../src/shared/api/http.js';
 
 const mockCreateDeployBody = async () => ({
   body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' }
+  headers: { 'Content-Type': 'multipart/form-data' },
 });
 
 describe('ApiHttp Events', () => {
@@ -15,14 +15,14 @@ describe('ApiHttp Events', () => {
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ success: true }), {
         status: 200,
-        headers: { 'content-type': 'application/json' }
-      })
+        headers: { 'content-type': 'application/json' },
+      }),
     );
 
     const apiHttp = new ApiHttp({
       apiUrl: 'https://api.example.com',
       getAuthHeaders: () => ({}),
-      createDeployBody: mockCreateDeployBody
+      createDeployBody: mockCreateDeployBody,
     });
 
     const requestHandler = vi.fn();
@@ -33,17 +33,17 @@ describe('ApiHttp Events', () => {
     expect(requestHandler).toHaveBeenCalledWith(
       'https://api.example.com/ping',
       expect.objectContaining({
-        method: 'GET'
-      })
+        method: 'GET',
+      }),
     );
 
     mockFetch.mockRestore();
   });
 
   test('should emit response event', async () => {
-    const mockResponse = new Response(JSON.stringify({ success: true }), { 
+    const mockResponse = new Response(JSON.stringify({ success: true }), {
       status: 200,
-      headers: { 'content-type': 'application/json' }
+      headers: { 'content-type': 'application/json' },
     });
 
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse);
@@ -51,7 +51,7 @@ describe('ApiHttp Events', () => {
     const apiHttp = new ApiHttp({
       apiUrl: 'https://api.example.com',
       getAuthHeaders: () => ({}),
-      createDeployBody: mockCreateDeployBody
+      createDeployBody: mockCreateDeployBody,
     });
 
     const responseHandler = vi.fn();
@@ -61,7 +61,7 @@ describe('ApiHttp Events', () => {
 
     expect(responseHandler).toHaveBeenCalledWith(
       expect.any(Response),
-      'https://api.example.com/ping'
+      'https://api.example.com/ping',
     );
 
     mockFetch.mockRestore();

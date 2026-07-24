@@ -4,7 +4,7 @@
  * Simple tests to verify the SDK handles concurrent API calls correctly.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../../src/node';
 import { resetMockServer } from '../../mocks/server';
 
@@ -21,11 +21,7 @@ describe('Concurrent Operations', () => {
 
   describe('Concurrent API calls', () => {
     it('should handle multiple concurrent ping requests', async () => {
-      const results = await Promise.all([
-        ship.ping(),
-        ship.ping(),
-        ship.ping(),
-      ]);
+      const results = await Promise.all([ship.ping(), ship.ping(), ship.ping()]);
 
       expect(results).toHaveLength(3);
       expect(results.every((r) => r === true)).toBe(true);
@@ -79,11 +75,7 @@ describe('Concurrent Operations', () => {
         requestUrls.push(url);
       });
 
-      await Promise.all([
-        ship.ping(),
-        ship.account.get(),
-        ship.tokens.list(),
-      ]);
+      await Promise.all([ship.ping(), ship.account.get(), ship.tokens.list()]);
 
       // Should have captured requests for all three operations
       expect(requestUrls.some((u) => u.includes('/ping'))).toBe(true);

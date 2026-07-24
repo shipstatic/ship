@@ -1,26 +1,34 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import type { DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
+import type {
+  DeployBodyCreator,
+  DeployInput,
+  DeploymentOptions,
+  StaticFile,
+} from '../../src/shared/types';
 
 // Mock deploy body creator for tests
-const mockDeployBodyCreator: DeployBodyCreator = async (files, context) => ({
+const mockDeployBodyCreator: DeployBodyCreator = async (_files, _context) => ({
   body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' }
+  headers: { 'Content-Type': 'multipart/form-data' },
 });
 
 // API key in the canonical format: 'ship-' + 64 hex chars
-const TEST_API_KEY = 'ship-' + 'a'.repeat(64);
+const TEST_API_KEY = `ship-${'a'.repeat(64)}`;
 
 // Create a concrete test implementation of the abstract Ship class
 class TestShip extends Ship {
-  protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
+  protected async processInput(
+    _input: DeployInput,
+    _options: DeploymentOptions,
+  ): Promise<StaticFile[]> {
     return Promise.resolve([
       {
         path: 'test.html',
         content: Buffer.from('<html>Test</html>'),
         size: 18,
-        md5: 'test-hash'
-      }
+        md5: 'test-hash',
+      },
     ]);
   }
 
@@ -39,12 +47,12 @@ describe('Base Ship Class (Abstract)', () => {
     // Mock the API deploy method
     mockApiDeploy = vi.fn().mockResolvedValue({
       id: 'dep_123',
-      url: 'https://dep_123.shipstatic.com'
+      url: 'https://dep_123.shipstatic.com',
     });
 
     // Initialize with a token for authentication
     ship = new TestShip({ apiUrl: 'https://test-api.com', token: TEST_API_KEY });
-    
+
     // Override the http client with our mock
     (ship as any).http = {
       deploy: mockApiDeploy,
@@ -56,7 +64,7 @@ describe('Base Ship Class (Abstract)', () => {
       get: vi.fn().mockResolvedValue({ username: 'testuser' }),
       getAccount: vi.fn().mockResolvedValue({ username: 'testuser' }),
       listApiKeys: vi.fn().mockResolvedValue({ keys: [], count: 0 }),
-      removeApiKey: vi.fn().mockResolvedValue(undefined)
+      removeApiKey: vi.fn().mockResolvedValue(undefined),
     };
   });
 
@@ -84,7 +92,7 @@ describe('Base Ship Class (Abstract)', () => {
 
       expect(result).toEqual({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.com'
+        url: 'https://dep_123.shipstatic.com',
       });
       expect(mockApiDeploy).toHaveBeenCalled();
     });
@@ -93,7 +101,7 @@ describe('Base Ship Class (Abstract)', () => {
   describe('whoami convenience method', () => {
     it('should call account.get', async () => {
       const result = await ship.whoami();
-      
+
       expect(result).toEqual({ username: 'testuser' });
       expect((ship as any).http.getAccount).toHaveBeenCalled();
     });
@@ -102,7 +110,7 @@ describe('Base Ship Class (Abstract)', () => {
   describe('ping method', () => {
     it('should call http.ping after initialization', async () => {
       const result = await ship.ping();
-      
+
       expect(result).toBe(true);
       expect((ship as any).http.ping).toHaveBeenCalled();
     });
@@ -129,7 +137,7 @@ describe('Base Ship Class (Abstract)', () => {
     it('should handle lazy initialization', async () => {
       // Initialization should happen when we first call a method that needs it
       await ship.ping();
-      
+
       // The ensureInitialized method should have been called
       // (This is verified through the ping call succeeding)
       expect(true).toBe(true); // Basic assertion that we got here

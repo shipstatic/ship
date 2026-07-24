@@ -4,7 +4,7 @@
  * Tests for the tokens resource - create, list, and delete operations.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../../src/node';
 import { resetMockServer } from '../../mocks/server';
 

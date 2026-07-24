@@ -1,27 +1,23 @@
 /**
  * @file Utility for filtering out junk files and directories from file paths
- * 
+ *
  * This module provides functionality to filter out common system junk files and directories
  * from a list of file paths. It uses the 'junk' package to identify junk filenames and
  * a custom list to filter out common junk directories.
  */
+
+import { hasUnbuiltMarker, ShipError } from '@shipstatic/types';
 import { isJunk } from 'junk';
-import { ShipError, hasUnbuiltMarker } from '@shipstatic/types';
 
 /**
  * List of directory names considered as junk
- * 
+ *
  * Files within these directories (at any level in the path hierarchy) will be excluded.
  * The comparison is case-insensitive for cross-platform compatibility.
- * 
+ *
  * @internal
  */
-export const JUNK_DIRECTORIES = [
-  '__MACOSX',
-  '.Trashes',
-  '.fseventsd',
-  '.Spotlight-V100',
-] as const;
+export const JUNK_DIRECTORIES = ['__MACOSX', '.Trashes', '.fseventsd', '.Spotlight-V100'] as const;
 
 /**
  * Filters an array of file paths, removing those considered junk
@@ -77,10 +73,7 @@ export const JUNK_DIRECTORIES = [
  * );
  * ```
  */
-export function filterJunk(
-  filePaths: string[],
-  options?: { allowUnbuilt?: boolean }
-): string[] {
+export function filterJunk(filePaths: string[], options?: { allowUnbuilt?: boolean }): string[] {
   if (!filePaths || filePaths.length === 0) {
     return [];
   }
@@ -89,15 +82,15 @@ export function filterJunk(
   // pnpm stores files under node_modules/.pnpm/ — the dot-file filter below
   // strips .pnpm/ paths, destroying the only signal that this is an unbuilt project.
   if (!options?.allowUnbuilt) {
-    const marker = filePaths.find(p => p && hasUnbuiltMarker(p));
+    const marker = filePaths.find((p) => p && hasUnbuiltMarker(p));
     if (marker) {
       throw ShipError.business(
-        'Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder'
+        'Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder',
       );
     }
   }
 
-  return filePaths.filter(filePath => {
+  return filePaths.filter((filePath) => {
     if (!filePath) {
       return false; // Exclude null or undefined paths
     }
@@ -125,8 +118,7 @@ export function filterJunk(
     // Check if any directory segment is in our junk directories list
     const directorySegments = parts.slice(0, -1);
     for (const segment of directorySegments) {
-      if (JUNK_DIRECTORIES.some(junkDir =>
-          segment.toLowerCase() === junkDir.toLowerCase())) {
+      if (JUNK_DIRECTORIES.some((junkDir) => segment.toLowerCase() === junkDir.toLowerCase())) {
         return false;
       }
     }

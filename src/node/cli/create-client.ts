@@ -15,10 +15,10 @@
  * MCP can't inadvertently inherit the host developer's `~/.shiprc`.
  */
 
-import { Ship } from '../index.js';
-import { readEnvConfig } from '../core/config.js';
-import { loadShipFile } from './shiprc.js';
 import type { ShipClientOptions } from '../../shared/types.js';
+import { readEnvConfig } from '../core/config.js';
+import { Ship } from '../index.js';
+import { loadShipFile } from './shiprc.js';
 
 /**
  * The subset of CLI flags that participate in config resolution.

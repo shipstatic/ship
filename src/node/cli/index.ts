@@ -1,27 +1,41 @@
 /**
  * @file Main entry point for the Ship CLI.
  */
+
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import * as path from 'node:path';
+import {
+  type Deployment,
+  ErrorType,
+  isShipError,
+  ShipError,
+  validateApiUrl,
+  validateToken,
+} from '@shipstatic/types';
 import { Command } from 'commander';
-import { Ship } from '../index.js';
-import { ShipError, ErrorType, validateToken, validateApiUrl, isShipError, type Deployment } from '@shipstatic/types';
-import { readFileSync, existsSync, statSync } from 'fs';
-import * as path from 'path';
-import { success, error } from './utils.js';
-import { formatOutput, type OutputContext } from './formatters.js';
+import { bold, dim } from 'yoctocolors';
+import { readEnvConfig } from '../core/config.js';
+import type { Ship } from '../index.js';
 import { installCompletion, uninstallCompletion } from './completion.js';
 import { runConfig } from './config.js';
 import { createClient, mergeCliConfig } from './create-client.js';
-import { readEnvConfig } from '../core/config.js';
+import { formatErrorJson, getUserMessage, toShipError } from './error-handling.js';
+import { formatOutput, type OutputContext } from './formatters.js';
 import { loadShipFile } from './shiprc.js';
-import { getUserMessage, toShipError, formatErrorJson } from './error-handling.js';
-import { bold, dim } from 'yoctocolors';
-import type { GlobalOptions, DeployCommandOptions, LabelOptions, TokenCreateCommandOptions, CLIResult } from './types.js';
+import type {
+  CLIResult,
+  DeployCommandOptions,
+  GlobalOptions,
+  LabelOptions,
+  TokenCreateCommandOptions,
+} from './types.js';
+import { error } from './utils.js';
 
 // Load package.json for version
 function loadPackageJson(): { version: string } {
   const paths = [
     path.resolve(__dirname, '../package.json'),
-    path.resolve(__dirname, '../../package.json')
+    path.resolve(__dirname, '../../package.json'),
   ];
   for (const p of paths) {
     try {
@@ -32,8 +46,6 @@ function loadPackageJson(): { version: string } {
 }
 
 const packageJson = loadPackageJson();
-
-
 
 const program = new Command();
 
@@ -75,17 +87,16 @@ program
         process.stderr.write(str);
       }
     },
-    writeOut: (str) => process.stdout.write(str)
+    writeOut: (str) => process.stdout.write(str),
   });
-
 
 /**
  * Display comprehensive help information for all commands
  */
 function displayHelp(noColor?: boolean) {
-  const applyBold = (text: string) => noColor ? text : bold(text);
-  const applyDim = (text: string) => noColor ? text : dim(text);
-  const icon = (emoji: string) => noColor ? '' : `${emoji} `;
+  const applyBold = (text: string) => (noColor ? text : bold(text));
+  const applyDim = (text: string) => (noColor ? text : dim(text));
+  const icon = (emoji: string) => (noColor ? '' : `${emoji} `);
 
   const output = `${applyBold('USAGE')}
   ship <path>               ${icon('🚀')}Deploy static sites with simplicity
@@ -157,11 +168,14 @@ function collect(value: string, previous: string[] = []): string[] {
  * Merge label options from command and program levels.
  * Commander.js sometimes routes --label to program level instead of command level.
  */
-function mergeLabelOption(cmdOptions: LabelOptions | undefined, programOpts: LabelOptions | undefined): string[] | undefined {
+function mergeLabelOption(
+  cmdOptions: LabelOptions | undefined,
+  programOpts: LabelOptions | undefined,
+): string[] | undefined {
   const labels = cmdOptions?.label?.length ? cmdOptions.label : programOpts?.label;
   if (!labels?.length) return undefined;
   // Filter empty strings: --label '' means "clear all labels"
-  const filtered = labels.filter(l => l !== '');
+  const filtered = labels.filter((l) => l !== '');
   return filtered.length ? filtered : [];
 }
 
@@ -186,7 +200,10 @@ function mergePasswordOption(
  * Handle unknown or missing subcommand for parent commands.
  * Shows scoped usage instead of full help — the user already knows the group.
  */
-function handleUnknownSubcommand(parentName: string, validSubcommands: string[]): (...args: unknown[]) => void {
+function handleUnknownSubcommand(
+  parentName: string,
+  validSubcommands: string[],
+): (...args: unknown[]) => void {
   return (...args: unknown[]) => {
     const globalOptions = processOptions(program);
 
@@ -246,7 +263,11 @@ function processOptions(command: Command): GlobalOptions {
  * that fails to load counts as no file credential: that failure is already
  * the error being reported.
  */
-function resolveCliToken(flags: { config?: string; apiUrl?: string; token?: string }): string | undefined {
+function resolveCliToken(flags: {
+  config?: string;
+  apiUrl?: string;
+  token?: string;
+}): string | undefined {
   let file = {};
   try {
     file = loadShipFile(flags.config);
@@ -257,21 +278,18 @@ function resolveCliToken(flags: { config?: string; apiUrl?: string; token?: stri
   return typeof token === 'string' ? token : undefined;
 }
 
-function handleError(
-  err: unknown,
-  context?: OutputContext
-) {
+function handleError(err: unknown, context?: OutputContext) {
   const opts = processOptions(program);
   const shipError = toShipError(err);
 
   // Get user-facing message using the extracted pure function
   const message = getUserMessage(shipError, context, {
-    token: resolveCliToken(program.opts())
+    token: resolveCliToken(program.opts()),
   });
 
   // Output in appropriate format
   if (opts.json) {
-    console.error(formatErrorJson(message, shipError.details) + '\n');
+    console.error(`${formatErrorJson(message, shipError.details)}\n`);
   } else {
     error(message, false, opts.noColor);
     // Show help only for unknown command errors (user CLI mistake)
@@ -289,23 +307,29 @@ function handleError(
  */
 function withErrorHandling<T extends unknown[], R extends CLIResult>(
   handler: (client: Ship, options: GlobalOptions, ...args: T) => Promise<R>,
-  context?: { operation?: string; resourceType?: string; getResourceId?: (...args: T) => string }
+  context?: { operation?: string; resourceType?: string; getResourceId?: (...args: T) => string },
 ) {
-  return async function(this: Command, ...args: T) {
+  return async function (this: Command, ...args: T) {
     const globalOptions = processOptions(this);
 
     // Build context once for both output and error paths
-    const resolvedContext: OutputContext = context ? {
-      operation: context.operation,
-      resourceType: context.resourceType,
-      resourceId: context.getResourceId?.(...args)
-    } : {};
+    const resolvedContext: OutputContext = context
+      ? {
+          operation: context.operation,
+          resourceType: context.resourceType,
+          resourceId: context.getResourceId?.(...args),
+        }
+      : {};
 
     try {
       const { config, apiUrl, token } = program.opts();
       const client = createClient({ config, apiUrl, token });
       const result = await handler(client, globalOptions, ...args);
-      formatOutput(result, resolvedContext, { json: globalOptions.json, quiet: globalOptions.quiet, noColor: globalOptions.noColor });
+      formatOutput(result, resolvedContext, {
+        json: globalOptions.json,
+        quiet: globalOptions.quiet,
+        noColor: globalOptions.noColor,
+      });
     } catch (err) {
       handleError(err, resolvedContext);
     }
@@ -327,7 +351,7 @@ async function performDeploy(
   labels: string[] | undefined,
   password: string | undefined,
   cmdOptions: DeployCommandOptions | undefined,
-  globalOptions: GlobalOptions
+  globalOptions: GlobalOptions,
 ): Promise<Deployment> {
   if (!existsSync(deployPath)) {
     throw ShipError.file(`${deployPath} path does not exist`, { filePath: deployPath });
@@ -335,7 +359,9 @@ async function performDeploy(
 
   const stats = statSync(deployPath);
   if (!stats.isDirectory() && !stats.isFile()) {
-    throw ShipError.file(`${deployPath} path must be a file or directory`, { filePath: deployPath });
+    throw ShipError.file(`${deployPath} path must be a file or directory`, {
+      filePath: deployPath,
+    });
   }
 
   const deployOptions: {
@@ -368,7 +394,12 @@ async function performDeploy(
 
   // Spinner (TTY only, not JSON, not --no-color)
   let spinner: Spinner | null = null;
-  if (process.stdout.isTTY && !globalOptions.json && !globalOptions.quiet && !globalOptions.noColor) {
+  if (
+    process.stdout.isTTY &&
+    !globalOptions.json &&
+    !globalOptions.quiet &&
+    !globalOptions.noColor
+  ) {
     const { default: yoctoSpinner } = await import('yocto-spinner');
     spinner = yoctoSpinner({ text: 'uploading…' }).start();
   }
@@ -387,8 +418,6 @@ async function performDeploy(
     if (spinner) spinner.stop();
   }
 }
-
-
 
 program
   .name('ship')
@@ -443,10 +472,12 @@ program
 program
   .command('whoami')
   .description('Get current account information')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions) => client.whoami(),
-    { operation: 'get', resourceType: 'Account' }
-  ));
+  .action(
+    withErrorHandling((client: Ship, _options: GlobalOptions) => client.whoami(), {
+      operation: 'get',
+      resourceType: 'Account',
+    }),
+  );
 
 // Deployments commands
 const deploymentsCmd = program
@@ -468,54 +499,94 @@ deploymentsCmd
   .option('--password <password>', 'Password-protect this deployment')
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
-  .action(withErrorHandling(
-    (client: Ship, options: GlobalOptions, deployPath: string, cmdOptions: DeployCommandOptions) =>
-      performDeploy(
-        client,
-        deployPath,
-        mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
-        mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
-        cmdOptions,
-        options,
-      ),
-    { operation: 'upload' }
-  ));
+  .action(
+    withErrorHandling(
+      (
+        client: Ship,
+        options: GlobalOptions,
+        deployPath: string,
+        cmdOptions: DeployCommandOptions,
+      ) =>
+        performDeploy(
+          client,
+          deployPath,
+          mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
+          mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
+          cmdOptions,
+          options,
+        ),
+      { operation: 'upload' },
+    ),
+  );
 
 deploymentsCmd
   .command('get <deployment>')
   .description('Show deployment information')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, deployment: string) => client.deployments.get(deployment),
-    { operation: 'get', resourceType: 'Deployment', getResourceId: (id: string) => id }
-  ));
+  .action(
+    withErrorHandling(
+      (client: Ship, _options: GlobalOptions, deployment: string) =>
+        client.deployments.get(deployment),
+      { operation: 'get', resourceType: 'Deployment', getResourceId: (id: string) => id },
+    ),
+  );
 
 deploymentsCmd
   .command('set <deployment>')
   .description('Set deployment labels')
   .passThroughOptions()
   .option('--label <label>', 'Label to set (can be repeated)', collect, [])
-  .action(withErrorHandling(
-    async (client: Ship, _options: GlobalOptions, deployment: string, cmdOptions: LabelOptions) => {
-      const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions) || [];
-      return client.deployments.set(deployment, { labels });
-    },
-    { operation: 'set', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
-  ));
+  .action(
+    withErrorHandling(
+      async (
+        client: Ship,
+        _options: GlobalOptions,
+        deployment: string,
+        cmdOptions: LabelOptions,
+      ) => {
+        const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions) || [];
+        return client.deployments.set(deployment, { labels });
+      },
+      {
+        operation: 'set',
+        resourceType: 'Deployment',
+        getResourceId: (deployment: string) => deployment,
+      },
+    ),
+  );
 
 deploymentsCmd
   .command('remove <deployment>')
   .description('Delete deployment permanently')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, deployment: string) => client.deployments.remove(deployment),
-    { operation: 'remove', resourceType: 'Deployment', getResourceId: (deployment: string) => deployment }
-  ));
+  .action(
+    withErrorHandling(
+      (client: Ship, _options: GlobalOptions, deployment: string) =>
+        client.deployments.remove(deployment),
+      {
+        operation: 'remove',
+        resourceType: 'Deployment',
+        getResourceId: (deployment: string) => deployment,
+      },
+    ),
+  );
 
 // Domains commands
 const domainsCmd = program
   .command('domains')
   .description('Manage domains')
   .enablePositionalOptions()
-  .action(handleUnknownSubcommand('domains', ['list', 'get', 'set', 'validate', 'records', 'dns', 'share', 'verify', 'remove']));
+  .action(
+    handleUnknownSubcommand('domains', [
+      'list',
+      'get',
+      'set',
+      'validate',
+      'records',
+      'dns',
+      'share',
+      'verify',
+      'remove',
+    ]),
+  );
 
 domainsCmd
   .command('list')
@@ -525,109 +596,131 @@ domainsCmd
 domainsCmd
   .command('get <name>')
   .description('Show domain information')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, name: string) => client.domains.get(name),
-    { operation: 'get', resourceType: 'Domain', getResourceId: (name: string) => name }
-  ));
+  .action(
+    withErrorHandling(
+      (client: Ship, _options: GlobalOptions, name: string) => client.domains.get(name),
+      { operation: 'get', resourceType: 'Domain', getResourceId: (name: string) => name },
+    ),
+  );
 
 domainsCmd
   .command('validate <name>')
   .description('Check if domain name is valid and available')
-  .action(withErrorHandling(
-    async (client: Ship, _options: GlobalOptions, name: string) => {
-      const result = await client.domains.validate(name);
-      if (!result.valid) process.exitCode = 1;
-      return result;
-    },
-    { operation: 'validate', resourceType: 'Domain', getResourceId: (name: string) => name }
-  ));
+  .action(
+    withErrorHandling(
+      async (client: Ship, _options: GlobalOptions, name: string) => {
+        const result = await client.domains.validate(name);
+        if (!result.valid) process.exitCode = 1;
+        return result;
+      },
+      { operation: 'validate', resourceType: 'Domain', getResourceId: (name: string) => name },
+    ),
+  );
 
 domainsCmd
   .command('verify <name>')
   .description('Trigger DNS verification for external domain')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, name: string) => client.domains.verify(name),
-    { operation: 'verify', resourceType: 'Domain', getResourceId: (name: string) => name }
-  ));
+  .action(
+    withErrorHandling(
+      (client: Ship, _options: GlobalOptions, name: string) => client.domains.verify(name),
+      { operation: 'verify', resourceType: 'Domain', getResourceId: (name: string) => name },
+    ),
+  );
 
 domainsCmd
   .command('records <name>')
   .description('Show required DNS records for domain setup')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, name: string) => client.domains.records(name),
-    { operation: 'records', resourceType: 'Domain', getResourceId: (name: string) => name }
-  ));
+  .action(
+    withErrorHandling(
+      (client: Ship, _options: GlobalOptions, name: string) => client.domains.records(name),
+      { operation: 'records', resourceType: 'Domain', getResourceId: (name: string) => name },
+    ),
+  );
 
 domainsCmd
   .command('dns <name>')
   .description('Look up DNS provider for a domain')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, name: string) => client.domains.dns(name),
-    { operation: 'dns', resourceType: 'Domain', getResourceId: (name: string) => name }
-  ));
+  .action(
+    withErrorHandling(
+      (client: Ship, _options: GlobalOptions, name: string) => client.domains.dns(name),
+      { operation: 'dns', resourceType: 'Domain', getResourceId: (name: string) => name },
+    ),
+  );
 
 domainsCmd
   .command('share <name>')
   .description('Get shareable DNS setup link')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, name: string) => client.domains.share(name),
-    { operation: 'share', resourceType: 'Domain', getResourceId: (name: string) => name }
-  ));
+  .action(
+    withErrorHandling(
+      (client: Ship, _options: GlobalOptions, name: string) => client.domains.share(name),
+      { operation: 'share', resourceType: 'Domain', getResourceId: (name: string) => name },
+    ),
+  );
 
 domainsCmd
   .command('set <name> [deployment]')
   .description('Create domain, link to deployment, or update labels')
   .passThroughOptions()
   .option('--label <label>', 'Label to set (can be repeated)', collect, [])
-  .action(withErrorHandling(
-    async (client: Ship, _options: GlobalOptions, name: string, deployment: string | undefined, cmdOptions: LabelOptions) => {
-      // Read deployment from stdin when piped (e.g., ship ./dist -q | ship domains set mysite.com)
-      if (!deployment && !process.stdin.isTTY) {
-        deployment = await new Promise<string | undefined>(resolve => {
-          let data = '';
-          process.stdin.on('data', chunk => data += chunk);
-          process.stdin.on('end', () => resolve(data.trim() || undefined));
-        });
-      }
-
-      const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
-
-      const setOptions: { deployment?: string; labels?: string[] } = {};
-      if (deployment) setOptions.deployment = deployment;
-      if (labels !== undefined) setOptions.labels = labels;
-
-      // SDK returns DomainSetResult (Domain + isCreate derived from HTTP 201/200) —
-      // the resource interface in @shipstatic/types declares this directly, no cast needed.
-      const result = await client.domains.set(name, setOptions);
-
-      // Enrich with DNS info for new external domains (pure formatter will display it)
-      if (result.isCreate && name.includes('.')) {
-        try {
-          const [records, share] = await Promise.all([
-            client.domains.records(name),
-            client.domains.share(name)
-          ]);
-          return {
-            ...result,
-            _dnsRecords: records.records,
-            _shareHash: share.hash
-          };
-        } catch {
-          // Graceful degradation - return without DNS info
+  .action(
+    withErrorHandling(
+      async (
+        client: Ship,
+        _options: GlobalOptions,
+        name: string,
+        deployment: string | undefined,
+        cmdOptions: LabelOptions,
+      ) => {
+        // Read deployment from stdin when piped (e.g., ship ./dist -q | ship domains set mysite.com)
+        if (!deployment && !process.stdin.isTTY) {
+          deployment = await new Promise<string | undefined>((resolve) => {
+            let data = '';
+            process.stdin.on('data', (chunk) => (data += chunk));
+            process.stdin.on('end', () => resolve(data.trim() || undefined));
+          });
         }
-      }
-      return result;
-    },
-    { operation: 'set', resourceType: 'Domain', getResourceId: (name: string) => name }
-  ));
+
+        const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
+
+        const setOptions: { deployment?: string; labels?: string[] } = {};
+        if (deployment) setOptions.deployment = deployment;
+        if (labels !== undefined) setOptions.labels = labels;
+
+        // SDK returns DomainSetResult (Domain + isCreate derived from HTTP 201/200) —
+        // the resource interface in @shipstatic/types declares this directly, no cast needed.
+        const result = await client.domains.set(name, setOptions);
+
+        // Enrich with DNS info for new external domains (pure formatter will display it)
+        if (result.isCreate && name.includes('.')) {
+          try {
+            const [records, share] = await Promise.all([
+              client.domains.records(name),
+              client.domains.share(name),
+            ]);
+            return {
+              ...result,
+              _dnsRecords: records.records,
+              _shareHash: share.hash,
+            };
+          } catch {
+            // Graceful degradation - return without DNS info
+          }
+        }
+        return result;
+      },
+      { operation: 'set', resourceType: 'Domain', getResourceId: (name: string) => name },
+    ),
+  );
 
 domainsCmd
   .command('remove <name>')
   .description('Delete domain permanently')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, name: string) => client.domains.remove(name),
-    { operation: 'remove', resourceType: 'Domain', getResourceId: (name: string) => name }
-  ));
+  .action(
+    withErrorHandling(
+      (client: Ship, _options: GlobalOptions, name: string) => client.domains.remove(name),
+      { operation: 'remove', resourceType: 'Domain', getResourceId: (name: string) => name },
+    ),
+  );
 
 // Tokens commands
 const tokensCmd = program
@@ -646,24 +739,28 @@ tokensCmd
   .description('Create a new deploy token')
   .option('--ttl <seconds>', 'Time to live in seconds (default: never expires)', parseInt)
   .option('--label <label>', 'Label to set (can be repeated)', collect, [])
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, cmdOptions: TokenCreateCommandOptions) => {
-      const options: { ttl?: number; labels?: string[] } = {};
-      if (cmdOptions?.ttl !== undefined) options.ttl = cmdOptions.ttl;
-      const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
-      if (labels !== undefined) options.labels = labels;
-      return client.tokens.create(options);
-    },
-    { operation: 'create', resourceType: 'Token' }
-  ));
+  .action(
+    withErrorHandling(
+      (client: Ship, _options: GlobalOptions, cmdOptions: TokenCreateCommandOptions) => {
+        const options: { ttl?: number; labels?: string[] } = {};
+        if (cmdOptions?.ttl !== undefined) options.ttl = cmdOptions.ttl;
+        const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
+        if (labels !== undefined) options.labels = labels;
+        return client.tokens.create(options);
+      },
+      { operation: 'create', resourceType: 'Token' },
+    ),
+  );
 
 tokensCmd
   .command('remove <token>')
   .description('Delete token permanently')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions, token: string) => client.tokens.remove(token),
-    { operation: 'remove', resourceType: 'Token', getResourceId: (token: string) => token }
-  ));
+  .action(
+    withErrorHandling(
+      (client: Ship, _options: GlobalOptions, token: string) => client.tokens.remove(token),
+      { operation: 'remove', resourceType: 'Token', getResourceId: (token: string) => token },
+    ),
+  );
 
 // Account commands
 const accountCmd = program
@@ -674,10 +771,12 @@ const accountCmd = program
 accountCmd
   .command('get')
   .description('Show account information')
-  .action(withErrorHandling(
-    (client: Ship, _options: GlobalOptions) => client.whoami(),
-    { operation: 'get', resourceType: 'Account' }
-  ));
+  .action(
+    withErrorHandling((client: Ship, _options: GlobalOptions) => client.whoami(), {
+      operation: 'get',
+      resourceType: 'Account',
+    }),
+  );
 
 // Completion commands
 const completionCmd = program
@@ -715,7 +814,6 @@ program
     }
   });
 
-
 // Deploy shortcut as default action
 program
   .argument('[path]', 'Path to deploy')
@@ -723,39 +821,47 @@ program
   .option('--password <password>', 'Password-protect this deployment')
   .option('--no-path-detect', 'Disable automatic path optimization and flattening')
   .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
-  .action(withErrorHandling(
-    async (client: Ship, options: GlobalOptions, deployPath?: string, cmdOptions?: DeployCommandOptions) => {
-      if (!deployPath) {
-        displayHelp(options.noColor);
-        process.exit(0);
-      }
-
-      // Check if the argument is a valid path by checking filesystem
-      // This correctly handles paths like "dist", "build", "public" without slashes
-      if (!existsSync(deployPath)) {
-        // Path doesn't exist - could be unknown command or typo
-        // Check if it looks like a command (no path separators, no extension)
-        const looksLikeCommand = !deployPath.includes('/') && !deployPath.includes('\\') &&
-                                  !deployPath.includes('.') && !deployPath.startsWith('~');
-        if (looksLikeCommand) {
-          throw ShipError.validation(`unknown command '${deployPath}'`);
+  .action(
+    withErrorHandling(
+      async (
+        client: Ship,
+        options: GlobalOptions,
+        deployPath?: string,
+        cmdOptions?: DeployCommandOptions,
+      ) => {
+        if (!deployPath) {
+          displayHelp(options.noColor);
+          process.exit(0);
         }
-        // Otherwise let performDeploy handle the "path does not exist" error
-      }
 
-      return performDeploy(
-        client,
-        deployPath,
-        mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
-        mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
-        cmdOptions,
-        options,
-      );
-    },
-    { operation: 'upload' }
-  ));
+        // Check if the argument is a valid path by checking filesystem
+        // This correctly handles paths like "dist", "build", "public" without slashes
+        if (!existsSync(deployPath)) {
+          // Path doesn't exist - could be unknown command or typo
+          // Check if it looks like a command (no path separators, no extension)
+          const looksLikeCommand =
+            !deployPath.includes('/') &&
+            !deployPath.includes('\\') &&
+            !deployPath.includes('.') &&
+            !deployPath.startsWith('~');
+          if (looksLikeCommand) {
+            throw ShipError.validation(`unknown command '${deployPath}'`);
+          }
+          // Otherwise let performDeploy handle the "path does not exist" error
+        }
 
-
+        return performDeploy(
+          client,
+          deployPath,
+          mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
+          mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
+          cmdOptions,
+          options,
+        );
+      },
+      { operation: 'upload' },
+    ),
+  );
 
 /**
  * Simple completion handler - no self-invocation, just static completions
@@ -768,13 +874,27 @@ function handleCompletion() {
 
   if (!isBash && !isZsh && !isFish) return;
 
-  const completions = ['ping', 'whoami', 'deployments', 'domains', 'tokens', 'account', 'config', 'completion'];
+  const completions = [
+    'ping',
+    'whoami',
+    'deployments',
+    'domains',
+    'tokens',
+    'account',
+    'config',
+    'completion',
+  ];
   console.log(completions.join(isFish ? '\n' : ' '));
   process.exit(0);
 }
 
 // Handle completion requests (before any other processing)
-if (process.env.NODE_ENV !== 'test' && (process.argv.includes('--compbash') || process.argv.includes('--compzsh') || process.argv.includes('--compfish'))) {
+if (
+  process.env.NODE_ENV !== 'test' &&
+  (process.argv.includes('--compbash') ||
+    process.argv.includes('--compzsh') ||
+    process.argv.includes('--compfish'))
+) {
   handleCompletion();
 }
 

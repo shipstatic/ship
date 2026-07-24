@@ -2,27 +2,28 @@
  * Ship SDK resource factory functions.
  */
 import {
-  ShipError,
-  type StaticFile,
+  type AccountResource,
   type DeployInput,
   type DeploymentResource,
   type DomainResource,
-  type AccountResource,
-  type TokenResource
+  ShipError,
+  type StaticFile,
+  type TokenResource,
 } from '@shipstatic/types';
 
 export type {
-  StaticFile,
+  AccountResource,
   DeployInput,
   DeploymentResource,
   DomainResource,
-  AccountResource,
-  TokenResource
+  StaticFile,
+  TokenResource,
 };
+
 import type { ApiHttp } from './api/http.js';
-import type { ShipClientOptions, DeploymentOptions } from './types.js';
 import { mergeDeployOptions } from './core/config.js';
 import { detectAndConfigureSPA } from './lib/spa.js';
+import type { DeploymentOptions, ShipClientOptions } from './types.js';
 
 /**
  * Shared context for all resource factories.
@@ -55,9 +56,7 @@ export function createDeploymentResource(ctx: DeploymentResourceContext): Deploy
     upload: async (input: DeployInput, options: DeploymentOptions = {}) => {
       await ensureInit();
 
-      const mergedOptions = clientDefaults
-        ? mergeDeployOptions(options, clientDefaults)
-        : options;
+      const mergedOptions = clientDefaults ? mergeDeployOptions(options, clientDefaults) : options;
 
       if (!processInput) {
         throw ShipError.config('processInput function is not provided.');
@@ -88,7 +87,7 @@ export function createDeploymentResource(ctx: DeploymentResourceContext): Deploy
     remove: async (id: string) => {
       await ensureInit();
       await getApi().removeDeployment(id);
-    }
+    },
   };
 }
 
@@ -151,7 +150,7 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
     share: async (name: string) => {
       await ensureInit();
       return getApi().getDomainShare(name);
-    }
+    },
   };
 }
 
@@ -165,7 +164,7 @@ export function createAccountResource(ctx: ResourceContext): AccountResource {
     get: async () => {
       await ensureInit();
       return getApi().getAccount();
-    }
+    },
   };
 }
 
@@ -189,6 +188,6 @@ export function createTokenResource(ctx: ResourceContext): TokenResource {
     remove: async (token: string) => {
       await ensureInit();
       await getApi().removeToken(token);
-    }
+    },
   };
 }

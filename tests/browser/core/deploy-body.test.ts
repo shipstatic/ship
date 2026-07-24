@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createDeployBody } from '../../../src/browser/core/deploy-body';
 import { ShipError } from '@shipstatic/types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDeployBody } from '../../../src/browser/core/deploy-body';
 import type { StaticFile } from '../../../src/shared/types';
 
 describe('createDeployBody (browser)', () => {
@@ -14,7 +14,7 @@ describe('createDeployBody (browser)', () => {
       path,
       content: new File([blob], path, { type: 'text/plain' }),
       size: content.length,
-      md5
+      md5,
     };
   }
 
@@ -22,7 +22,7 @@ describe('createDeployBody (browser)', () => {
     it('should create FormData with files and checksums', async () => {
       const files: StaticFile[] = [
         createMockFile('index.html', '<html></html>', 'abc123'),
-        createMockFile('style.css', 'body {}', 'def456')
+        createMockFile('style.css', 'body {}', 'def456'),
       ];
 
       const result = await createDeployBody(files);
@@ -40,7 +40,7 @@ describe('createDeployBody (browser)', () => {
 
     it('should preserve file paths in FormData', async () => {
       const files: StaticFile[] = [
-        createMockFile('src/components/Button.tsx', 'export default Button', 'hash1')
+        createMockFile('src/components/Button.tsx', 'export default Button', 'hash1'),
       ];
 
       const result = await createDeployBody(files);
@@ -121,25 +121,31 @@ describe('createDeployBody (browser)', () => {
 
   describe('error handling', () => {
     it('should throw for non-File/Blob content', async () => {
-      const files: StaticFile[] = [{
-        path: 'test.txt',
-        content: Buffer.from('test') as any,
-        size: 4,
-        md5: 'abc123'
-      }];
+      const files: StaticFile[] = [
+        {
+          path: 'test.txt',
+          content: Buffer.from('test') as any,
+          size: 4,
+          md5: 'abc123',
+        },
+      ];
 
       await expect(createDeployBody(files)).rejects.toThrow(ShipError);
-      await expect(createDeployBody(files)).rejects.toThrow('Unsupported file.content type for browser');
+      await expect(createDeployBody(files)).rejects.toThrow(
+        'Unsupported file.content type for browser',
+      );
     });
 
     it('should throw for missing md5', async () => {
       const blob = new Blob(['test'], { type: 'text/plain' });
-      const files: StaticFile[] = [{
-        path: 'test.txt',
-        content: new File([blob], 'test.txt', { type: 'text/plain' }),
-        size: 4,
-        md5: undefined as any
-      }];
+      const files: StaticFile[] = [
+        {
+          path: 'test.txt',
+          content: new File([blob], 'test.txt', { type: 'text/plain' }),
+          size: 4,
+          md5: undefined as any,
+        },
+      ];
 
       await expect(createDeployBody(files)).rejects.toThrow(ShipError);
       await expect(createDeployBody(files)).rejects.toThrow('File missing md5 checksum');
@@ -149,12 +155,14 @@ describe('createDeployBody (browser)', () => {
   describe('content type handling', () => {
     it('should use application/octet-stream for all files (API derives Content-Type from extension)', async () => {
       const blob = new Blob(['test'], { type: 'application/json' });
-      const files: StaticFile[] = [{
-        path: 'data.json',
-        content: new File([blob], 'data.json', { type: 'application/json' }),
-        size: 4,
-        md5: 'abc123'
-      }];
+      const files: StaticFile[] = [
+        {
+          path: 'data.json',
+          content: new File([blob], 'data.json', { type: 'application/json' }),
+          size: 4,
+          md5: 'abc123',
+        },
+      ];
 
       const result = await createDeployBody(files);
       const formData = result.body as FormData;
@@ -165,12 +173,14 @@ describe('createDeployBody (browser)', () => {
 
     it('should handle Blob content', async () => {
       const blob = new Blob(['test'], { type: 'text/plain' });
-      const files: StaticFile[] = [{
-        path: 'test.txt',
-        content: blob,
-        size: 4,
-        md5: 'abc123'
-      }];
+      const files: StaticFile[] = [
+        {
+          path: 'test.txt',
+          content: blob,
+          size: 4,
+          md5: 'abc123',
+        },
+      ];
 
       const result = await createDeployBody(files);
       const formData = result.body as FormData;

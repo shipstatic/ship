@@ -18,32 +18,32 @@ export interface DeployFile {
 /**
  * Core path optimization logic.
  * Transforms messy local paths into clean deployment paths.
- * 
+ *
  * @example
  * Input:  ["dist/index.html", "dist/assets/app.js"]
  * Output: ["index.html", "assets/app.js"]
- * 
+ *
  * @param filePaths - Raw file paths from the local filesystem
  * @param options - Path processing options
  */
 export function optimizeDeployPaths(
-  filePaths: string[], 
-  options: { flatten?: boolean } = {}
+  filePaths: string[],
+  options: { flatten?: boolean } = {},
 ): DeployFile[] {
   // When flattening is disabled, keep original structure
   if (options.flatten === false) {
-    return filePaths.map(path => ({
+    return filePaths.map((path) => ({
       path: normalizeWebPath(path),
-      name: extractFileName(path)
+      name: extractFileName(path),
     }));
   }
 
   // Find the common directory prefix to strip
   const commonPrefix = findCommonDirectory(filePaths);
-  
-  return filePaths.map(filePath => {
+
+  return filePaths.map((filePath) => {
     let deployPath = normalizeWebPath(filePath);
-    
+
     // Strip the common prefix to create clean deployment paths
     if (commonPrefix) {
       const prefixToRemove = commonPrefix.endsWith('/') ? commonPrefix : `${commonPrefix}/`;
@@ -51,15 +51,15 @@ export function optimizeDeployPaths(
         deployPath = deployPath.substring(prefixToRemove.length);
       }
     }
-    
+
     // Fallback to filename if path becomes empty
     if (!deployPath) {
       deployPath = extractFileName(filePath);
     }
-    
+
     return {
       path: deployPath,
-      name: extractFileName(filePath)
+      name: extractFileName(filePath),
     };
   });
 }
@@ -67,7 +67,7 @@ export function optimizeDeployPaths(
 /**
  * Finds the common directory shared by all file paths.
  * This is what gets stripped to create clean deployment URLs.
- * 
+ *
  * @example
  * ["dist/index.html", "dist/assets/app.js"] → "dist"
  * ["src/components/A.tsx", "src/utils/B.ts"] → "src"
@@ -75,25 +75,26 @@ export function optimizeDeployPaths(
  */
 function findCommonDirectory(filePaths: string[]): string {
   if (!filePaths.length) return '';
-  
+
   // Normalize all paths first
-  const normalizedPaths = filePaths.map(path => normalizeWebPath(path));
-  
+  const normalizedPaths = filePaths.map((path) => normalizeWebPath(path));
+
   // Find the common prefix among all file paths (not just directories)
-  const pathSegments = normalizedPaths.map(path => path.split('/'));
+  const pathSegments = normalizedPaths.map((path) => path.split('/'));
   const commonSegments: string[] = [];
-  const minLength = Math.min(...pathSegments.map(segments => segments.length));
-  
+  const minLength = Math.min(...pathSegments.map((segments) => segments.length));
+
   // Check each segment level to find the longest common prefix
-  for (let i = 0; i < minLength - 1; i++) { // -1 because we don't want to include the filename
+  for (let i = 0; i < minLength - 1; i++) {
+    // -1 because we don't want to include the filename
     const segment = pathSegments[0][i];
-    if (pathSegments.every(segments => segments[i] === segment)) {
+    if (pathSegments.every((segments) => segments[i] === segment)) {
       commonSegments.push(segment);
     } else {
       break;
     }
   }
-  
+
   return commonSegments.join('/');
 }
 

@@ -3,8 +3,14 @@
  * Simple, deterministic responses based on our actual API implementation
  */
 
-import { http, HttpResponse } from 'msw';
-import type { DeploymentListResponse, DomainListResponse, Deployment, Domain, Account } from '@shipstatic/types';
+import type {
+  Account,
+  Deployment,
+  DeploymentListResponse,
+  Domain,
+  DomainListResponse,
+} from '@shipstatic/types';
+import { HttpResponse, http } from 'msw';
 
 // Mock data - predictable and minimal for testing
 const mockDeployments: Deployment[] = [
@@ -19,7 +25,7 @@ const mockDeployments: Deployment[] = [
     labels: ['production', 'v1.0.0'],
     via: null,
     created: 1640995200, // 2022-01-01
-    expires: 1672531200  // 2023-01-01
+    expires: 1672531200, // 2023-01-01
   },
   {
     deployment: 'test-deployment-2.shipstatic.com',
@@ -32,8 +38,8 @@ const mockDeployments: Deployment[] = [
     labels: [],
     via: null,
     created: 1640995100,
-    expires: 1672531100
-  }
+    expires: 1672531100,
+  },
 ];
 
 const mockDomains: Domain[] = [
@@ -45,7 +51,7 @@ const mockDomains: Domain[] = [
     labels: [],
     created: 1640995200,
     linked: null,
-    links: 0
+    links: 0,
   },
   {
     domain: 'production',
@@ -55,8 +61,8 @@ const mockDomains: Domain[] = [
     labels: [],
     created: 1640995100,
     linked: null,
-    links: 0
-  }
+    links: 0,
+  },
 ];
 
 const mockAccount: Account = {
@@ -74,7 +80,7 @@ const mockAccount: Account = {
 // Default: Return empty lists for deterministic tests
 const emptyState = {
   deployments: [],
-  domains: []
+  domains: [],
 };
 
 /**
@@ -93,7 +99,7 @@ export async function setupMockApiServer() {
     },
     reset() {
       (globalThis as any).__lastMockRequest = null;
-    }
+    },
   };
 }
 
@@ -112,7 +118,7 @@ export const apiHandlers = [
   http.get('*/ping', () => {
     return HttpResponse.json({
       success: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }),
 
@@ -129,7 +135,7 @@ export const apiHandlers = [
     const response: DeploymentListResponse = {
       deployments: populate === 'true' ? mockDeployments : emptyState.deployments,
       cursor: null,
-      total: populate === 'true' ? mockDeployments.length : 0
+      total: populate === 'true' ? mockDeployments.length : 0,
     };
 
     return HttpResponse.json(response);
@@ -137,15 +143,15 @@ export const apiHandlers = [
 
   // GET /deployments/:id
   http.get('*/deployments/:id', ({ params }) => {
-    const deployment = mockDeployments.find(d => d.deployment === params.id);
+    const deployment = mockDeployments.find((d) => d.deployment === params.id);
     if (!deployment) {
       return HttpResponse.json(
         {
           error: 'not_found',
           message: `Deployment ${params.id} not found`,
-          status: 404
+          status: 404,
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
     return HttpResponse.json(deployment);
@@ -156,7 +162,7 @@ export const apiHandlers = [
     // Extract files from multipart form data to test directory structure
     const formData = await request.formData();
     const files: any[] = [];
-    let labels: string[] | undefined = undefined;
+    let labels: string[] | undefined;
 
     // Process uploaded files and labels
     for (const [key, value] of formData.entries()) {
@@ -164,13 +170,13 @@ export const apiHandlers = [
         files.push({
           path: value.name, // This should preserve the directory structure
           size: value.size,
-          type: value.type
+          type: value.type,
         });
       }
       if (key === 'labels' && typeof value === 'string') {
         try {
           labels = JSON.parse(value);
-        } catch (e) {
+        } catch (_e) {
           // Invalid labels format
         }
       }
@@ -184,11 +190,11 @@ export const apiHandlers = [
       size: files.reduce((total, f) => total + (f.size || 0), 0),
       status: 'success',
       config: false,
-    password: false,
+      password: false,
       labels: labels,
       via: null,
       created: Math.floor(Date.now() / 1000),
-      expires: Math.floor(Date.now() / 1000) + 86400
+      expires: Math.floor(Date.now() / 1000) + 86400,
     };
 
     // Store request for testing inspection
@@ -196,7 +202,7 @@ export const apiHandlers = [
       method: 'POST',
       formData,
       files,
-      labels
+      labels,
     };
 
     return HttpResponse.json(newDeployment, { status: 201 });
@@ -204,22 +210,25 @@ export const apiHandlers = [
 
   // DELETE /deployments/:id
   http.delete('*/deployments/:id', ({ params }) => {
-    const deployment = mockDeployments.find(d => d.deployment === params.id);
+    const deployment = mockDeployments.find((d) => d.deployment === params.id);
     if (!deployment) {
       return HttpResponse.json(
         {
           error: 'not_found',
           message: `Deployment ${params.id} not found`,
-          status: 404
+          status: 404,
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
-    return HttpResponse.json({
-      message: 'Deployment marked for removal',
-      deployment: params.id,
-      status: 'deleting'
-    }, { status: 202 });
+    return HttpResponse.json(
+      {
+        message: 'Deployment marked for removal',
+        deployment: params.id,
+        status: 'deleting',
+      },
+      { status: 202 },
+    );
   }),
 
   // GET /domains - Default: empty list for predictable tests
@@ -230,7 +239,7 @@ export const apiHandlers = [
     const response: DomainListResponse = {
       domains: populate === 'true' ? mockDomains : emptyState.domains,
       cursor: null,
-      total: populate === 'true' ? mockDomains.length : 0
+      total: populate === 'true' ? mockDomains.length : 0,
     };
 
     return HttpResponse.json(response);
@@ -238,15 +247,15 @@ export const apiHandlers = [
 
   // GET /domains/:name
   http.get('*/domains/:name', ({ params }) => {
-    const domain = mockDomains.find(d => d.domain === params.name);
+    const domain = mockDomains.find((d) => d.domain === params.name);
     if (!domain) {
       return HttpResponse.json(
         {
           error: 'not_found',
           message: `Domain ${params.name} not found`,
-          status: 404
+          status: 404,
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
     return HttpResponse.json(domain);
@@ -254,19 +263,19 @@ export const apiHandlers = [
 
   // PUT /domains/:name - Create/update domain (deployment is optional — supports reservation)
   http.put('*/domains/:name', async ({ params, request }) => {
-    const body = await request.json() as { deployment?: string; labels?: string[] };
+    const body = (await request.json()) as { deployment?: string; labels?: string[] };
 
     // Check if deployment exists (only when linking)
     if (body.deployment) {
-      const deploymentExists = mockDeployments.some(d => d.deployment === body.deployment);
+      const deploymentExists = mockDeployments.some((d) => d.deployment === body.deployment);
       if (!deploymentExists) {
         return HttpResponse.json(
           {
             error: 'not_found',
             message: `Deployment ${body.deployment} not found`,
-            status: 404
+            status: 404,
           },
-          { status: 404 }
+          { status: 404 },
         );
       }
     }
@@ -275,13 +284,17 @@ export const apiHandlers = [
     const domainResult: Domain & { isCreate: boolean } = {
       domain: domainName,
       url: `https://${domainName}`,
-      deployment: body.deployment ? (body.deployment.includes('.') ? body.deployment : `${body.deployment}.shipstatic.com`) : null,
+      deployment: body.deployment
+        ? body.deployment.includes('.')
+          ? body.deployment
+          : `${body.deployment}.shipstatic.com`
+        : null,
       status: 'success',
       labels: body.labels ?? [],
       created: Math.floor(Date.now() / 1000),
       linked: null,
       links: 0,
-      isCreate: true
+      isCreate: true,
     };
 
     return HttpResponse.json(domainResult, { status: 201 });
@@ -289,17 +302,17 @@ export const apiHandlers = [
 
   // DELETE /domains/:name
   http.delete('*/domains/:name', ({ params }) => {
-    const domain = mockDomains.find(d => d.domain === params.name);
+    const domain = mockDomains.find((d) => d.domain === params.name);
     if (!domain) {
       return HttpResponse.json(
         {
           error: 'not_found',
           message: `Domain ${params.name} not found`,
-          status: 404
+          status: 404,
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
     return new HttpResponse(null, { status: 204 });
-  })
+  }),
 ];

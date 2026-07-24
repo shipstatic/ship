@@ -1,10 +1,10 @@
 /**
- * @file Consolidated flag tests  
+ * @file Consolidated flag tests
  * Tests all global flags without network calls - the "impossible simplicity" approach
  * Replaces: flag-combinations.test.ts
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { runCli } from './helpers';
 
 describe('CLI Flags', () => {
@@ -25,7 +25,7 @@ describe('CLI Flags', () => {
 
   describe('Token Flag', () => {
     it('should accept a token without network call', async () => {
-      const validKey = 'ship-' + 'a'.repeat(64);
+      const validKey = `ship-${'a'.repeat(64)}`;
       const result = await runCli(['--token', validKey, '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
@@ -75,30 +75,30 @@ describe('CLI Flags', () => {
   describe('Flag Combinations', () => {
     it('should handle multiple flags together', async () => {
       const result = await runCli([
-        '--token', 'test-key',
-        '--api-url', 'https://test.com',
+        '--token',
+        'test-key',
+        '--api-url',
+        'https://test.com',
         '--json',
-        '--help'
+        '--help',
       ]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
     });
 
     it('should handle flag order variations', async () => {
-      const result = await runCli([
-        '--help',
-        '--token', 'test-key',
-        '--json'
-      ]);
+      const result = await runCli(['--help', '--token', 'test-key', '--json']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
     });
 
     it('should prioritize CLI flags over config', async () => {
       const result = await runCli([
-        '--config', '/nonexistent/config.json',
-        '--token', 'override-token',
-        '--help'
+        '--config',
+        '/nonexistent/config.json',
+        '--token',
+        'override-token',
+        '--help',
       ]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
@@ -118,5 +118,4 @@ describe('CLI Flags', () => {
       expect(result.stderr).toContain('token');
     });
   });
-
 });

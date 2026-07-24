@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
 import Ship from '@shipstatic/ship';
+import { useRef, useState } from 'react';
 
 function App() {
   const fileInputRef = useRef(null);
@@ -23,7 +23,7 @@ function App() {
         labels: ['production', 'v1.0.0'],
         onProgress: ({ percent }) => {
           setStatus(`Deploy progress: ${Math.round(percent)}%`);
-        }
+        },
       });
       setStatus(`Deployed: ${result.url}\nLabels: ${result.labels?.join(', ') || 'none'}`);
     } catch (error) {
@@ -35,7 +35,8 @@ function App() {
     <div>
       <h1>Ship SDK - React Example</h1>
       <input ref={fileInputRef} type="file" webkitdirectory="true" multiple />
-      <br /><br />
+      <br />
+      <br />
       <button onClick={handleDeploy}>Deploy</button>
       <br />
       <pre>{status}</pre>

@@ -13,7 +13,7 @@
  * identity construct another Ship.
  */
 
-import type { ShipClientOptions, DeploymentOptions } from '../types.js';
+import type { DeploymentOptions, ShipClientOptions } from '../types.js';
 
 /**
  * Overlay client-level defaults under per-call deploy options.

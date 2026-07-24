@@ -4,12 +4,12 @@
  * folder structures when deploying directories and file arrays.
  */
 
-import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { processFilesForNode } from '@/node/core/node-files';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 
 describe('Node.js SDK Directory Structure Preservation', () => {
   let tempDir: string;
@@ -17,15 +17,17 @@ describe('Node.js SDK Directory Structure Preservation', () => {
   beforeEach(async () => {
     // Create temporary directory with nested structure
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ship-sdk-test-'));
-    
+
     // Create realistic web app structure
     fs.mkdirSync(path.join(tempDir, 'assets'), { recursive: true });
     fs.mkdirSync(path.join(tempDir, 'assets', 'js'), { recursive: true });
     fs.mkdirSync(path.join(tempDir, 'assets', 'css'), { recursive: true });
     fs.mkdirSync(path.join(tempDir, 'components', 'ui'), { recursive: true });
-    
+
     // Write test files
-    fs.writeFileSync(path.join(tempDir, 'index.html'), `
+    fs.writeFileSync(
+      path.join(tempDir, 'index.html'),
+      `
 <!DOCTYPE html>
 <html>
 <head>
@@ -36,11 +38,18 @@ describe('Node.js SDK Directory Structure Preservation', () => {
   <div id="root"></div>
 </body>
 </html>
-    `);
-    
+    `,
+    );
+
     fs.writeFileSync(path.join(tempDir, 'assets', 'js', 'bundle'), 'console.log("bundle loaded");');
-    fs.writeFileSync(path.join(tempDir, 'assets', 'css', 'main.css'), 'body { font-family: Arial; }');
-    fs.writeFileSync(path.join(tempDir, 'components', 'ui', 'Button'), 'export const Button = () => {};');
+    fs.writeFileSync(
+      path.join(tempDir, 'assets', 'css', 'main.css'),
+      'body { font-family: Arial; }',
+    );
+    fs.writeFileSync(
+      path.join(tempDir, 'components', 'ui', 'Button'),
+      'export const Button = () => {};',
+    );
   });
 
   afterEach(async () => {
@@ -50,7 +59,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
 
   test('should preserve directory structure by default when processing directory path', async () => {
     const files = await processFilesForNode([tempDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
-    const filePaths = files.map(f => f.path);
+    const filePaths = files.map((f) => f.path);
 
     // Verify nested paths are preserved
     expect(filePaths).toContain('assets/js/bundle');
@@ -70,7 +79,9 @@ describe('Node.js SDK Directory Structure Preservation', () => {
     fs.mkdirSync(viteDir, { recursive: true });
     fs.mkdirSync(path.join(viteDir, 'assets'), { recursive: true });
 
-    fs.writeFileSync(path.join(viteDir, 'index.html'), `
+    fs.writeFileSync(
+      path.join(viteDir, 'index.html'),
+      `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -82,7 +93,8 @@ describe('Node.js SDK Directory Structure Preservation', () => {
   <div id="app"></div>
 </body>
 </html>
-    `);
+    `,
+    );
 
     // These are the exact file patterns that were broken
     fs.writeFileSync(path.join(viteDir, 'assets', 'index-8ac629b0.css'), '/* Vite CSS */');
@@ -90,7 +102,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
     fs.writeFileSync(path.join(viteDir, 'assets', 'vue-logo-a1b2c3d4.png'), 'png-data');
 
     const files = await processFilesForNode([viteDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
-    const filePaths = files.map(f => f.path);
+    const filePaths = files.map((f) => f.path);
 
     // THE CRITICAL TEST: These must NOT be flattened
     expect(filePaths).toContain('assets/index-8ac629b0.css');
@@ -110,18 +122,18 @@ describe('Node.js SDK Directory Structure Preservation', () => {
       path.join(tempDir, 'index.html'),
       path.join(tempDir, 'assets', 'js', 'bundle'),
       path.join(tempDir, 'assets', 'css', 'main.css'),
-      path.join(tempDir, 'components', 'ui', 'Button')
+      path.join(tempDir, 'components', 'ui', 'Button'),
     ];
 
     const files = await processFilesForNode(filePaths, { pathDetect: false }, TEST_PLATFORM_LIMITS);
-    const processedFilePaths = files.map(f => f.path);
+    const processedFilePaths = files.map((f) => f.path);
 
     // When processing individual files, each gets its own commonParent (dirname),
     // so the structure is based on each file's immediate directory
-    expect(processedFilePaths).toContain('index.html');  // from tempDir
-    expect(processedFilePaths).toContain('bundle');   // from tempDir/assets/js
-    expect(processedFilePaths).toContain('main.css');    // from tempDir/assets/css
-    expect(processedFilePaths).toContain('Button');   // from tempDir/components/ui
+    expect(processedFilePaths).toContain('index.html'); // from tempDir
+    expect(processedFilePaths).toContain('bundle'); // from tempDir/assets/js
+    expect(processedFilePaths).toContain('main.css'); // from tempDir/assets/css
+    expect(processedFilePaths).toContain('Button'); // from tempDir/components/ui
   });
 
   test('should handle deeply nested paths without truncation', async () => {
@@ -129,14 +141,14 @@ describe('Node.js SDK Directory Structure Preservation', () => {
     const deepPath = path.join(tempDir, 'src', 'components', 'ui', 'forms', 'inputs', 'text');
     fs.mkdirSync(deepPath, { recursive: true });
     fs.writeFileSync(path.join(deepPath, 'TextInput.tsx'), 'export const TextInput = () => {};');
-    
+
     // Also create a parallel deep path
     const deepPath2 = path.join(tempDir, 'src', 'utils', 'api', 'endpoints', 'v1');
     fs.mkdirSync(deepPath2, { recursive: true });
     fs.writeFileSync(path.join(deepPath2, 'users.ts'), 'export const userAPI = {};');
 
     const files = await processFilesForNode([tempDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
-    const filePaths = files.map(f => f.path);
+    const filePaths = files.map((f) => f.path);
 
     // Verify deep paths are preserved
     expect(filePaths).toContain('src/components/ui/forms/inputs/text/TextInput.tsx');
@@ -156,7 +168,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
       ['src/styles/globals.scss', '$primary: blue;'],
       ['src/app.tsx', 'import React from "react";'],
       ['docs/README.md', '# Documentation'],
-      ['docs/api.yml', 'openapi: 3.0.0']
+      ['docs/api.yml', 'openapi: 3.0.0'],
     ];
 
     testFiles.forEach(([filePath, content]) => {
@@ -166,7 +178,7 @@ describe('Node.js SDK Directory Structure Preservation', () => {
     });
 
     const files = await processFilesForNode([tempDir], { pathDetect: false }, TEST_PLATFORM_LIMITS);
-    const filePaths = files.map(f => f.path);
+    const filePaths = files.map((f) => f.path);
 
     // Verify all file types preserve their nested paths
     expect(filePaths).toContain('public/favicon.ico');

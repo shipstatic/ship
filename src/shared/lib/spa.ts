@@ -6,9 +6,9 @@
  */
 
 import { DEPLOYMENT_CONFIG_FILENAME, SPA_DEFAULT_CONFIG } from '@shipstatic/types';
-import { calculateMD5 } from './md5.js';
-import type { StaticFile, DeploymentOptions } from '../types.js';
 import type { ApiHttp } from '../api/http.js';
+import type { DeploymentOptions, StaticFile } from '../types.js';
+import { calculateMD5 } from './md5.js';
 
 /**
  * Creates ship.json configuration for SPA projects.
@@ -33,7 +33,7 @@ export async function createSPAConfig(): Promise<StaticFile> {
     path: DEPLOYMENT_CONFIG_FILENAME,
     content,
     size: configString.length,
-    md5
+    md5,
   };
 }
 
@@ -49,10 +49,16 @@ export async function createSPAConfig(): Promise<StaticFile> {
 export async function detectAndConfigureSPA(
   files: StaticFile[],
   apiClient: ApiHttp,
-  options: DeploymentOptions
+  options: DeploymentOptions,
 ): Promise<StaticFile[]> {
   // Skip if disabled, config already exists, or server will handle detection
-  if (options.spaDetect === false || options.spa || options.build || options.prerender || files.some(f => f.path === DEPLOYMENT_CONFIG_FILENAME)) {
+  if (
+    options.spaDetect === false ||
+    options.spa ||
+    options.build ||
+    options.prerender ||
+    files.some((f) => f.path === DEPLOYMENT_CONFIG_FILENAME)
+  ) {
     return files;
   }
 
@@ -63,7 +69,7 @@ export async function detectAndConfigureSPA(
       const spaConfig = await createSPAConfig();
       return [...files, spaConfig];
     }
-  } catch (error) {
+  } catch (_error) {
     // SPA detection failed, continue silently without auto-config
   }
 
