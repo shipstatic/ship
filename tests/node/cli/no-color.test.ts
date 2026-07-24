@@ -68,7 +68,7 @@ describe('CLI --no-color Flag', () => {
     it('should accept --no-color flag with version', async () => {
       const result = await runCli(['--version', '--no-color']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
     });
 
     it('should accept --no-color with subcommand help', async () => {
@@ -84,7 +84,7 @@ describe('CLI --no-color Flag', () => {
     it('should work with --json and --no-color together', async () => {
       const result = await runCli(['--version', '--json', '--no-color']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
     });
 
     it('should work with --api-key and --no-color together', async () => {

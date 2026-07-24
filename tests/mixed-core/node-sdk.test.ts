@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 import * as path from 'path';
 import type { Ship as ShipClass } from '../../src/index'; // Import type for client
+import type { DeploymentOptions } from '../../src/shared/types';
 
 // 1. Use vi.hoisted() for variables used in vi.mock factories
 const mockApiHttpInstance = {
@@ -48,25 +49,10 @@ const { PATH_HELPERS_MOCK } = vi.hoisted(() => ({
   }
 }));
 
-const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
-  CONFIG_LOADER_MOCK_IMPLEMENTATION: {
-    DEFAULT_API_HOST: 'https://loaded.config.host',
-    resolveConfig: vi.fn((userDeployOptions: Record<string, any> = {}) => ({
-      apiUrl: userDeployOptions.apiUrl || 'https://api.shipstatic.com',
-      ...(userDeployOptions.apiKey !== undefined ? { apiKey: userDeployOptions.apiKey } : {}),
-    })),
-    mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
-      ...clientDefaults,
-      ...userOptions,
-    })),
-  },
-}));
-
 // Mock modules using the predefined implementations
 vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
 vi.mock('../../src/node/core/node-files', () => NODE_FILE_UTILS_MOCK);
 vi.mock('../../src/shared/lib/path', () => PATH_HELPERS_MOCK);
-vi.mock('../../src/shared/core/config', () => CONFIG_LOADER_MOCK_IMPLEMENTATION);
 
 // Aliases to the mocked implementations
 const apiClientMock = mockApiHttpInstance;
@@ -80,7 +66,9 @@ const MAX_FILES_COUNT = 100; // Maximum number of files
 describe('NodeShipClient', () => {
   let client: ShipClass; // Typed client
   const MOCK_API_HOST = 'https://custom.example.com';
-  const MOCK_API_KEY = 'custom_test_key';
+  const MOCK_TOKEN = 'custom_test_key';
+  const ENV_TOKEN = 'ship-' + 'a'.repeat(64);
+  const DIRECT_TOKEN = 'ship-' + 'b'.repeat(64);
   let originalEnv: NodeJS.ProcessEnv;
 
   afterEach(async () => {
@@ -93,21 +81,20 @@ describe('NodeShipClient', () => {
   beforeEach(async () => {
     originalEnv = { ...process.env }; // Save original environment
     // Clear relevant env vars before each test
-    delete process.env.SHIP_API_KEY;
+    delete process.env.SHIP_TOKEN;
     delete process.env.SHIP_API_URL;
-    delete process.env.SHIP_TIMEOUT;
 
     const { __setTestEnvironment } = await import('../../src/shared/lib/env');
     await __setTestEnvironment('node');
     fileUtilsMock.processFilesForNode.mockReset();
     const { Ship } = await import('../../src/index'); // Ship class for instantiation
-    client = new Ship({ apiUrl: MOCK_API_HOST, apiKey: MOCK_API_KEY });
+    client = new Ship({ apiUrl: MOCK_API_HOST, token: MOCK_TOKEN });
   });
   
   it('prioritizes direct options over environment variables', async () => {
     // Env vars are the SDK's "process boundary" credential source. Constructor
     // args always win — explicit beats ambient.
-    process.env.SHIP_API_KEY = 'ship-from-env';
+    process.env.SHIP_TOKEN = ENV_TOKEN;
     process.env.SHIP_API_URL = 'https://env.api.host';
 
     vi.resetModules();
@@ -115,13 +102,13 @@ describe('NodeShipClient', () => {
 
     new Ship({
       apiUrl: 'https://direct.option.host',
-      apiKey: 'ship-direct-option',
+      token: DIRECT_TOKEN,
     });
 
     expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenLastCalledWith(
       expect.objectContaining({
         apiUrl: 'https://direct.option.host',
-        apiKey: 'ship-direct-option',
+        token: DIRECT_TOKEN,
       })
     );
   });
@@ -130,19 +117,19 @@ describe('NodeShipClient', () => {
     // The SDK fills in missing fields from SHIP_* env vars. This is the
     // "process boundary" — how containers, CI, and embedded consumers
     // (MCP, n8n, Action) deliver credentials without code changes.
-    process.env.SHIP_API_KEY = 'ship-env-key';
+    process.env.SHIP_TOKEN = ENV_TOKEN;
     process.env.SHIP_API_URL = 'https://env.api.host';
 
     vi.resetModules();
     const { Ship } = await import('../../src/index');
 
-    // Constructor sets apiUrl explicitly but leaves apiKey to env.
+    // Constructor sets apiUrl explicitly but leaves the token to env.
     new Ship({ apiUrl: 'https://direct.option.host' });
 
     expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenLastCalledWith(
       expect.objectContaining({
         apiUrl: 'https://direct.option.host', // direct wins
-        apiKey: 'ship-env-key',                // env fills the gap
+        token: ENV_TOKEN,                      // env fills the gap
       })
     );
   });
@@ -154,10 +141,7 @@ describe('NodeShipClient', () => {
       await client.deployments.upload(['/path/to/file'], {});
       expect(fileUtilsMock.processFilesForNode).toHaveBeenCalledWith(
         ['/path/to/file'],
-        expect.objectContaining({
-          apiKey: 'custom_test_key',
-          apiUrl: 'https://custom.example.com',
-        }),
+        expect.any(Object),
         // Platform limits — hydrated from the mocked /config fetch.
         expect.objectContaining({ maxFileSize: expect.any(Number) }),
       );
@@ -172,7 +156,7 @@ describe('NodeShipClient', () => {
         { path: 'file1.txt', content: Buffer.from('a'), md5: 'm', size: 1 },
         { path: 'nested/file2.txt', content: Buffer.from('b'), md5: 'm', size: 1 }
       ]);
-      await client.deployments.upload(['/base/folder/file1.txt', '/base/folder/nested/file2.txt'], { stripCommonPrefix: true });
+      await client.deployments.upload(['/base/folder/file1.txt', '/base/folder/nested/file2.txt'], { pathDetect: true } as DeploymentOptions);
       // The returned paths should be root-relative, not prefixed with basePath
       expect((apiClientMock.deploy.mock.calls[0][0] as any[]).map(f => f.path)).toEqual(['file1.txt', 'nested/file2.txt']);
     });
@@ -183,7 +167,7 @@ describe('NodeShipClient', () => {
       
       // Create a new client in browser environment using browser Ship
       const { Ship: BrowserShip } = await import('../../src/browser/index');
-      const browserClient = new BrowserShip({ deployToken: 'test-token', apiUrl: MOCK_API_HOST });
+      const browserClient = new BrowserShip({ token: 'test-token', apiUrl: MOCK_API_HOST });
       
       // In browser environment, string[] input should throw validation error
       try {
@@ -197,24 +181,20 @@ describe('NodeShipClient', () => {
       await __setTestEnvironment('node');
     });
 
-    it('should pass apiKey, apiUrl, and timeout options to uploadFiles', async () => {
+    it('should pass timeout option to uploadFiles', async () => {
       fileUtilsMock.processFilesForNode.mockResolvedValueOnce([{ path: 'file.txt', content: Buffer.from("content"), md5:'m', size:1 }]);
-      
-      const options = {
-        stripCommonPrefix: false,
-        timeout: 12345,
-        apiKey: 'specific_key_for_upload',
-        apiUrl: 'https://specific.host.for.upload'
+
+      const options: DeploymentOptions = {
+        pathDetect: false,
+        timeout: 12345
       };
-      
+
       await client.deployments.upload(['/path/to/file'], options);
-      
+
       expect(apiClientMock.deploy).toHaveBeenCalledWith(
         expect.any(Array),
         expect.objectContaining({
-          timeout: 12345,
-          apiKey: 'specific_key_for_upload',
-          apiUrl: 'https://specific.host.for.upload'
+          timeout: 12345
         })
       );
     });
@@ -337,7 +317,7 @@ describe('NodeShipClient', () => {
     it('should create token without parameters', async () => {
       apiClientMock.createToken = vi.fn().mockResolvedValue({
         token: 'a1b2c3d',
-        secret: 'token-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        secret: 'deploy-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         expires: null,
         labels: []
       });
@@ -351,7 +331,7 @@ describe('NodeShipClient', () => {
     it('should create token with ttl', async () => {
       apiClientMock.createToken = vi.fn().mockResolvedValue({
         token: 'd3f4567',
-        secret: 'token-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        secret: 'deploy-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         expires: 1234567890,
         labels: []
       });
@@ -366,7 +346,7 @@ describe('NodeShipClient', () => {
       const labels = ['production', 'api', 'automated'];
       apiClientMock.createToken = vi.fn().mockResolvedValue({
         token: 'g7h8i9j',
-        secret: 'token-g7h8i9j0123456789abcdef0123456789abcdef0123456789abcdef01234567',
+        secret: 'deploy-g7h8i9j0123456789abcdef0123456789abcdef0123456789abcdef01234567',
         expires: null,
         labels: ['production', 'api', 'automated']
       });

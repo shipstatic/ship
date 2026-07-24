@@ -1,25 +1,26 @@
 /**
  * @file Interactive config file creation for `ship config`.
- * Asks for API key, merges into existing ~/.shiprc, preserves all other fields.
+ * Asks for a token, merges into existing ~/.shiprc, preserves all other fields.
  * Uses Node.js built-in readline/promises — zero additional dependencies.
  */
 
 import { createInterface } from 'node:readline/promises';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, chmodSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
-import { DEFAULT_API, validateApiKey } from '@shipstatic/types';
+import { DEFAULT_API, validateToken } from '@shipstatic/types';
 import { dim, green } from 'yoctocolors';
 
 /** Path to the global config file */
 const CONFIG_PATH = join(homedir(), '.shiprc');
 
 /**
- * Mask an API key for display: ship-a1b2...c3d4
+ * Mask a token for display: ship-a1b2...c3d4. A token too short to keep a
+ * useful prefix + suffix is masked entirely — never printed verbatim.
  */
-function maskApiKey(key: string): string {
-  if (key.length < 13) return key;
-  return key.slice(0, 9) + '...' + key.slice(-4);
+function maskToken(token: string): string {
+  if (token.length < 13) return '...';
+  return token.slice(0, 9) + '...' + token.slice(-4);
 }
 
 /**
@@ -37,7 +38,7 @@ function readExistingConfig(): Record<string, unknown> {
 
 /**
  * Run the interactive config flow.
- * Asks for API key, merges into existing config, writes ~/.shiprc.
+ * Asks for a token, merges into existing config, writes ~/.shiprc.
  */
 export async function runConfig(options: { noColor?: boolean; json?: boolean } = {}): Promise<void> {
   const { noColor, json } = options;
@@ -47,19 +48,19 @@ export async function runConfig(options: { noColor?: boolean; json?: boolean } =
   // JSON mode: show current config status
   if (json) {
     const existing = readExistingConfig();
-    const apiKey = typeof existing.apiKey === 'string' ? existing.apiKey : undefined;
+    const token = typeof existing.token === 'string' ? existing.token : undefined;
     const apiUrl = typeof existing.apiUrl === 'string' ? existing.apiUrl : undefined;
     console.log(JSON.stringify({
       path: CONFIG_PATH,
       exists: existsSync(CONFIG_PATH),
-      ...(apiKey ? { apiKey: maskApiKey(apiKey) } : {}),
+      ...(token ? { token: maskToken(token) } : {}),
       ...(apiUrl && apiUrl !== DEFAULT_API ? { apiUrl } : {}),
     }, null, 2) + '\n');
     return;
   }
 
   const existing = readExistingConfig();
-  const existingApiKey = typeof existing.apiKey === 'string' ? existing.apiKey : undefined;
+  const existingToken = typeof existing.token === 'string' ? existing.token : undefined;
 
   const rl = createInterface({
     input: process.stdin,
@@ -70,9 +71,9 @@ export async function runConfig(options: { noColor?: boolean; json?: boolean } =
   console.log(`  ${applyDim('Create a free API key at')} https://my.shipstatic.com/api-key`);
   console.log('');
 
-  const prompt = existingApiKey
-    ? `  API Key (${applyDim(maskApiKey(existingApiKey))}): `
-    : '  API Key: ';
+  const prompt = existingToken
+    ? `  Token (${applyDim(maskToken(existingToken))}): `
+    : '  Token: ';
 
   let input: string;
   try {
@@ -82,10 +83,13 @@ export async function runConfig(options: { noColor?: boolean; json?: boolean } =
   }
 
   if (input) {
-    validateApiKey(input);
-    existing.apiKey = input;
+    validateToken(input);
+    existing.token = input;
   }
 
-  writeFileSync(CONFIG_PATH, JSON.stringify(existing, null, 2) + '\n');
+  // The file holds a credential: owner-only, like ~/.netrc. `mode` only
+  // applies on creation, so chmod repairs files written before this rule.
+  writeFileSync(CONFIG_PATH, JSON.stringify(existing, null, 2) + '\n', { mode: 0o600 });
+  chmodSync(CONFIG_PATH, 0o600);
   console.log(`\n  ${applyGreen('saved to')} ${applyDim(CONFIG_PATH)}\n`);
 }

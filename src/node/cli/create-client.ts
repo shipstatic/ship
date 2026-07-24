@@ -21,25 +21,24 @@ import { loadShipFile } from './shiprc.js';
 import type { ShipClientOptions } from '../../shared/types.js';
 
 /**
- * The subset of CLI flags that participate in credential resolution.
+ * The subset of CLI flags that participate in config resolution.
  * Other flags (`--json`, `--quiet`, etc.) flow through Commander separately.
  */
 export interface CliFlags {
   /** Path to a specific config file, from `--config <file>`. */
   config?: string;
   apiUrl?: string;
-  apiKey?: string;
-  deployToken?: string;
+  token?: string;
 }
 
 /**
- * Pure precedence merge. Each credential field resolves independently —
- * a flag-supplied `apiUrl` does not suppress an env-supplied `apiKey`.
+ * Pure precedence merge: flag > env > file, per value. There is one token
+ * and one API URL — nothing to arbitrate beyond source order.
  *
  * Empty strings are treated as absence and fall through to the next source
  * (mirrors the env reader, which normalizes empty `process.env` values to
  * `undefined`). This handles CI/CD shell-expansion of unset variables —
- * `--api-key "$KEY"` with `KEY` unset becomes `--api-key ""`, which we
+ * `--token "$TOKEN"` with `TOKEN` unset becomes `--token ""`, which we
  * must not lock in as a credential. Without this, an empty flag would
  * silently demote an authenticated deploy to anonymous PUBLIC_ACCOUNT.
  *
@@ -53,8 +52,7 @@ export function mergeCliConfig(
 ): ShipClientOptions {
   return {
     apiUrl: flags.apiUrl || env.apiUrl || file.apiUrl,
-    apiKey: flags.apiKey || env.apiKey || file.apiKey,
-    deployToken: flags.deployToken || env.deployToken || file.deployToken,
+    token: flags.token || env.token || file.token,
   };
 }
 

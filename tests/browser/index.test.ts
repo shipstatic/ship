@@ -12,6 +12,9 @@ vi.mock('../../src/browser/core/browser-files', () => ({
   ])
 }));
 
+// Deploy token in the canonical format: 'deploy-' + 64 hex chars
+const TEST_DEPLOY_TOKEN = 'deploy-' + 'a'.repeat(64);
+
 describe('Ship - Browser Implementation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -21,7 +24,7 @@ describe('Ship - Browser Implementation', () => {
   describe('constructor', () => {
     it('should create Ship instance with explicit configuration', () => {
       const ship = new Ship({ 
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com' 
       });
       expect(ship).toBeInstanceOf(Ship);
@@ -29,7 +32,7 @@ describe('Ship - Browser Implementation', () => {
 
     it('should work without API key (using deploy tokens)', () => {
       const ship = new Ship({ 
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com' 
       });
       expect(ship).toBeInstanceOf(Ship);
@@ -39,7 +42,7 @@ describe('Ship - Browser Implementation', () => {
   describe('configuration handling', () => {
     it('should use constructor options directly (no client config storage)', async () => {
       const ship = new Ship({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://custom-api.com'
       });
 
@@ -55,7 +58,7 @@ describe('Ship - Browser Implementation', () => {
       // Verify that platform config was fetched from API
       expect(getLimitsSpy).toHaveBeenCalled();
 
-      // Browser doesn't store client config - loadConfig just returns empty
+      // Browser has no ambient config source
       // All config comes through constructor options
     });
   });
@@ -63,7 +66,7 @@ describe('Ship - Browser Implementation', () => {
   describe('deploy functionality', () => {
     it('should process File[] correctly', async () => {
       const ship = new Ship({ 
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com' 
       });
       
@@ -96,7 +99,7 @@ describe('Ship - Browser Implementation', () => {
   describe('SPA detection in browser', () => {
     it('should apply SPA detection for browser files (unified pipeline)', async () => {
       const ship = new Ship({ 
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com' 
       });
       
@@ -142,7 +145,7 @@ describe('Ship - Browser Implementation', () => {
   describe('resource functionality', () => {
     it('should provide access to all resources (same as Node.js)', () => {
       const ship = new Ship({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com'
       });
 
@@ -155,7 +158,7 @@ describe('Ship - Browser Implementation', () => {
   describe('browser-specific behavior', () => {
     it('should receive all config via constructor (no file loading)', async () => {
       const ship = new Ship({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com'
       });
 
@@ -168,7 +171,7 @@ describe('Ship - Browser Implementation', () => {
 
       await ship.ping(); // This triggers initialization
 
-      // Browser loadFullConfig should only fetch platform config, not load client config files
+      // Browser initialization should only fetch platform config, not load client config files
       expect(getLimitsSpy).toHaveBeenCalled();
     });
   });
@@ -176,7 +179,7 @@ describe('Ship - Browser Implementation', () => {
   describe('deployment edge cases (migrated from browser-sdk.test.ts)', () => {
     it('should throw error for invalid input type in browser', async () => {
       const ship = new Ship({ 
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com' 
       });
 
@@ -188,7 +191,7 @@ describe('Ship - Browser Implementation', () => {
 
     it('should pass deployment options correctly', async () => {
       const ship = new Ship({ 
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com' 
       });
       
@@ -225,7 +228,7 @@ describe('Ship - Browser Implementation', () => {
 
     it('should handle empty File[]', async () => {
       const ship = new Ship({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com'
       });
 
@@ -246,7 +249,7 @@ describe('Ship - Browser Implementation', () => {
 
     it('should handle File objects with different MIME types', async () => {
       const ship = new Ship({ 
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com' 
       });
       
@@ -279,7 +282,7 @@ describe('Ship - Browser Implementation', () => {
   describe('standardized error handling', () => {
     it('should reject string paths with consistent error message', async () => {
       const ship = new Ship({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com'
       });
 
@@ -293,7 +296,7 @@ describe('Ship - Browser Implementation', () => {
 
     it('should reject Node.js-style string arrays with consistent error message', async () => {
       const ship = new Ship({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com'
       });
 
@@ -307,7 +310,7 @@ describe('Ship - Browser Implementation', () => {
 
     it('should reject invalid object types with consistent error message', async () => {
       const ship = new Ship({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com'
       });
 
@@ -321,7 +324,7 @@ describe('Ship - Browser Implementation', () => {
 
     it('should handle network errors consistently', async () => {
       const ship = new Ship({ 
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com' 
       });
 
@@ -340,7 +343,7 @@ describe('Ship - Browser Implementation', () => {
 
     it('should handle API errors consistently', async () => {
       const ship = new Ship({ 
-        deployToken: 'invalid-token',
+        token: 'invalid-token',
         apiUrl: 'https://api.shipstatic.com' 
       });
 

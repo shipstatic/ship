@@ -8,7 +8,7 @@ export async function createDeployBody(
   files: StaticFile[],
   context: DeployBodyContext = {},
 ): Promise<DeployBody> {
-  const { labels, via, password, flags } = context;
+  const { labels, via, password, flags, captcha } = context;
   const formData = new FormData();
   const checksums: string[] = [];
 
@@ -37,6 +37,7 @@ export async function createDeployBody(
   if (flags?.build) formData.append('build', 'true');
   if (flags?.prerender) formData.append('prerender', 'true');
   if (flags?.spa) formData.append('spa', 'true');
+  if (captcha) formData.append('captcha', captcha);
 
   return { body: formData, headers: {} };
 }

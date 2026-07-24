@@ -38,7 +38,7 @@ describe('Ship - Node.js Implementation', () => {
 
   describe('constructor', () => {
     it('should create Ship instance in Node.js environment', () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
       expect(ship).toBeInstanceOf(Ship);
     });
 
@@ -46,7 +46,7 @@ describe('Ship - Node.js Implementation', () => {
       __setTestEnvironment('browser');
       
       expect(() => {
-        new Ship({ apiKey: 'test-key' });
+        new Ship({ token: 'test-key' });
       }).toThrow('Node.js Ship class can only be used in Node.js environment.');
     });
 
@@ -54,37 +54,59 @@ describe('Ship - Node.js Implementation', () => {
       __setTestEnvironment('unknown');
       
       expect(() => {
-        new Ship({ apiKey: 'test-key' });
+        new Ship({ token: 'test-key' });
       }).toThrow('Node.js Ship class can only be used in Node.js environment.');
     });
   });
 
   describe('env-var resolution', () => {
-    it('reads SHIP_* env vars and adopts them as auth', async () => {
+    it('reads SHIP_TOKEN and adopts it as the credential', async () => {
       const { readEnvConfig } = await import('../../src/node/core/config');
       (readEnvConfig as any).mockReturnValue({
-        apiKey: 'ship-from-env',
+        token: 'env-token',
         apiUrl: 'https://env.example.com',
       });
 
       const ship = new Ship({});
 
-      // Auth state is set synchronously from the merged constructor args.
-      expect((ship as any).auth).toEqual({ type: 'apiKey', value: 'ship-from-env' });
+      // The credential is set synchronously from the merged constructor args.
+      expect((ship as any).credential).toBe('env-token');
       expect((ship as any).clientOptions.apiUrl).toBe('https://env.example.com');
     });
 
     it('prefers constructor args over env vars', async () => {
       const { readEnvConfig } = await import('../../src/node/core/config');
       (readEnvConfig as any).mockReturnValue({
-        apiKey: 'ship-from-env',
+        token: 'env-token',
         apiUrl: 'https://env.example.com',
       });
 
-      const ship = new Ship({ apiKey: 'ship-explicit', apiUrl: 'https://explicit.example.com' });
+      const ship = new Ship({ token: 'explicit-token', apiUrl: 'https://explicit.example.com' });
 
-      expect((ship as any).auth).toEqual({ type: 'apiKey', value: 'ship-explicit' });
+      expect((ship as any).credential).toBe('explicit-token');
       expect((ship as any).clientOptions.apiUrl).toBe('https://explicit.example.com');
+    });
+
+    it('session is a credential choice — the ambient token does not ride along', async () => {
+      const { readEnvConfig } = await import('../../src/node/core/config');
+      (readEnvConfig as any).mockReturnValue({ token: 'env-token' });
+
+      const ship = new Ship({ session: true });
+
+      // Cookie session: no token credential, no Authorization header.
+      expect((ship as any).credential).toBeNull();
+      expect(await (ship as any).getAuthHeaders()).toEqual({});
+    });
+
+    it('empty-string constructor token is absence — env supplies the credential', async () => {
+      const { readEnvConfig } = await import('../../src/node/core/config');
+      (readEnvConfig as any).mockReturnValue({ token: 'env-token' });
+
+      // Shell expansion of an unset CI variable produces '' — absence of
+      // intent, so the constructor is credential-less and env is the source.
+      const ship = new Ship({ token: '' });
+
+      expect((ship as any).credential).toBe('env-token');
     });
 
     it('does not read the filesystem (no .shiprc lookup in SDK)', async () => {
@@ -97,13 +119,13 @@ describe('Ship - Node.js Implementation', () => {
       const ship = new Ship({});
 
       // No env, no constructor args → genuinely anonymous.
-      expect((ship as any).auth).toBeNull();
+      expect((ship as any).credential).toBeNull();
     });
   });
 
   describe('deploy functionality', () => {
     it('should process directory paths correctly', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
       
       // Mock the API client
       (ship as any).http = {
@@ -130,7 +152,7 @@ describe('Ship - Node.js Implementation', () => {
         url: 'https://dep_456.shipstatic.com'
       });
 
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
       const result = await ship.deploy(['./index.html', './style.css']);
 
       expect(result).toEqual({
@@ -153,7 +175,7 @@ describe('Ship - Node.js Implementation', () => {
 
   describe('resource functionality', () => {
     it('should provide access to all resources', () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
 
       expect(ship.deployments).toBeDefined();
       expect(ship.domains).toBeDefined();
@@ -163,7 +185,7 @@ describe('Ship - Node.js Implementation', () => {
 
   describe('Node.js deployment edge cases (migrated from node-sdk.test.ts)', () => {
     it('should call processInput for string[] input (file paths)', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
       
       // Mock the processInput method
       const mockProcessInput = vi.fn().mockResolvedValue([
@@ -189,7 +211,7 @@ describe('Ship - Node.js Implementation', () => {
     });
 
     it('should throw error for File[] input in Node.js (browser-only input)', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
 
       const mockFiles = [new File(['content'], 'test.txt')] as any;
       
@@ -199,7 +221,7 @@ describe('Ship - Node.js Implementation', () => {
     });
 
     it('should throw error for FileList input in Node.js (browser-only input)', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
 
       const mockFileList = {
         0: new File(['content'], 'test.txt'),
@@ -213,7 +235,7 @@ describe('Ship - Node.js Implementation', () => {
     });
 
     it('should throw error for HTMLInputElement in Node.js (browser-only input)', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
 
       const mockInput = {
         tagName: 'INPUT',
@@ -229,24 +251,24 @@ describe('Ship - Node.js Implementation', () => {
     it('should prioritize constructor options over environment variables', async () => {
       // Set environment variables
       process.env.SHIP_API_URL = 'https://env.example.com';
-      process.env.SHIP_API_KEY = 'env-key';
+      process.env.SHIP_TOKEN = 'env-token';
 
-      const ship = new Ship({ 
+      const ship = new Ship({
         apiUrl: 'https://constructor.example.com',
-        apiKey: 'constructor-key'
+        token: 'constructor-token'
       });
 
       // Constructor options should take precedence
       expect((ship as any).clientOptions.apiUrl).toBe('https://constructor.example.com');
-      expect((ship as any).clientOptions.apiKey).toBe('constructor-key');
+      expect((ship as any).clientOptions.token).toBe('constructor-token');
 
       // Clean up
       delete process.env.SHIP_API_URL;
-      delete process.env.SHIP_API_KEY;
+      delete process.env.SHIP_TOKEN;
     });
 
     it('should handle directory paths correctly', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
       
       const mockProcessInput = vi.fn().mockResolvedValue([
         { path: 'index.html', content: Buffer.from('<html></html>'), size: 13, md5: 'hash1' },
@@ -271,7 +293,7 @@ describe('Ship - Node.js Implementation', () => {
     });
 
     it('should pass deployment options correctly to processInput', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
       
       const mockProcessInput = vi.fn().mockResolvedValue([]);
       (ship as any).processInput = mockProcessInput;
@@ -302,7 +324,7 @@ describe('Ship - Node.js Implementation', () => {
 
   describe('standardized error handling', () => {
     it('should reject File[] input with consistent error message', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
 
       const mockFiles = [new File(['content'], 'test.txt')] as any;
       
@@ -311,7 +333,7 @@ describe('Ship - Node.js Implementation', () => {
     });
 
     it('should reject FileList input with consistent error message', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
 
       const mockFileList = {
         0: new File(['content'], 'test.txt'),
@@ -324,7 +346,7 @@ describe('Ship - Node.js Implementation', () => {
     });
 
     it('should reject HTMLInputElement input with consistent error message', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
 
       const mockInput = {
         tagName: 'INPUT',
@@ -337,14 +359,14 @@ describe('Ship - Node.js Implementation', () => {
     });
 
     it('should reject invalid object types with consistent error message', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
 
       await expect(ship.deploy({ invalid: 'object' } as any))
         .rejects.toThrow('Invalid input type for Node.js environment. Expected string or string[].');
     });
 
     it('should handle empty path arrays with consistent error message', async () => {
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
 
       await expect(ship.deploy([]))
         .rejects.toThrow('No files to deploy.');
@@ -354,7 +376,7 @@ describe('Ship - Node.js Implementation', () => {
       // Set up the global mock to reject with network error
       mockApiClient.deploy.mockRejectedValue(new Error('Request timeout after 30000ms'));
       
-      const ship = new Ship({ apiKey: 'test-key' });
+      const ship = new Ship({ token: 'test-key' });
 
       await expect(ship.deploy(['./test.html']))
         .rejects.toThrow('Request timeout after 30000ms');
@@ -364,7 +386,7 @@ describe('Ship - Node.js Implementation', () => {
       // Set up the global mock to reject with API error
       mockApiClient.deploy.mockRejectedValue(new Error('API key is invalid'));
       
-      const ship = new Ship({ apiKey: 'invalid-key' });
+      const ship = new Ship({ token: 'invalid-key' });
 
       await expect(ship.deploy(['./test.html']))
         .rejects.toThrow('API key is invalid');

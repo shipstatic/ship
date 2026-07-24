@@ -12,7 +12,7 @@ import type {
   DomainDnsResponse,
   DomainRecordsResponse,
   DomainValidateResponse,
-  Account,
+  AccountGetResponse,
   SPACheckRequest,
   SPACheckResponse,
   StaticFile,
@@ -45,7 +45,8 @@ const DEFAULT_REQUEST_TIMEOUT = 30000;
 // =============================================================================
 
 export interface ApiHttpOptions extends ShipClientOptions {
-  getAuthHeaders: () => Record<string, string>;
+  /** Resolves the credential slot per request — async so token providers can mint/refresh. */
+  getAuthHeaders: () => Record<string, string> | Promise<Record<string, string>>;
   createDeployBody: DeployBodyCreator;
 }
 
@@ -60,8 +61,9 @@ interface RequestResult<T> {
 
 export class ApiHttp extends SimpleEvents {
   private readonly apiUrl: string;
-  private readonly getAuthHeadersCallback: () => Record<string, string>;
-  private readonly useCredentials: boolean;
+  private readonly getAuthHeadersCallback: () => Record<string, string> | Promise<Record<string, string>>;
+  private readonly session: boolean;
+  private readonly caller: string | undefined;
   private readonly timeout: number;
   private readonly fetch: Fetch;
   private readonly createDeployBody: DeployBodyCreator;
@@ -72,7 +74,8 @@ export class ApiHttp extends SimpleEvents {
     super();
     this.apiUrl = options.apiUrl || DEFAULT_API;
     this.getAuthHeadersCallback = options.getAuthHeaders;
-    this.useCredentials = options.useCredentials ?? false;
+    this.session = options.session ?? false;
+    this.caller = options.caller;
     this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
     // Bind to globalThis when falling back to the platform `fetch` — browsers
     // require `this === window` on `window.fetch` and throw "Illegal invocation"
@@ -102,19 +105,25 @@ export class ApiHttp extends SimpleEvents {
     options: RequestInit,
     operationName: string
   ): Promise<RequestResult<T>> {
-    const headers = this.mergeHeaders(options.headers as Record<string, string>);
-    const { signal, cleanup } = this.createTimeoutSignal(options.signal);
-
-    const fetchOptions: RequestInit = {
-      ...options,
-      headers,
-      credentials: this.useCredentials && !headers.Authorization ? 'include' : undefined,
-      signal,
-    };
-
-    this.emit('request', url, fetchOptions);
+    let cleanup = () => {};
 
     try {
+      // Credential resolution runs inside the error boundary: a token
+      // provider that throws or yields nothing fails the request through
+      // the same typed path (and `error` event) as any transport failure.
+      const headers = await this.mergeHeaders(options.headers as Record<string, string>);
+      const timeout = this.createTimeoutSignal(options.signal);
+      cleanup = timeout.cleanup;
+
+      const fetchOptions: RequestInit = {
+        ...options,
+        headers,
+        credentials: this.session && !headers.Authorization ? 'include' : undefined,
+        signal: timeout.signal,
+      };
+
+      this.emit('request', url, fetchOptions);
+
       const response = await this.fetch(url, fetchOptions);
       cleanup();
 
@@ -127,7 +136,8 @@ export class ApiHttp extends SimpleEvents {
       return { data, status: response.status };
     } catch (error) {
       cleanup();
-      // Normalize anything thrown above (fetch failure, abort, response error) into a ShipError.
+      // Normalize anything thrown above (credential resolution, fetch
+      // failure, abort, response error) into a ShipError.
       // fromFetchError passes existing ShipErrors through unchanged.
       const shipError = ShipError.fromFetchError(error, operationName);
       this.emit('error', shipError, url);
@@ -154,8 +164,16 @@ export class ApiHttp extends SimpleEvents {
   // REQUEST HELPERS
   // ===========================================================================
 
-  private mergeHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
-    return { ...this.globalHeaders, ...this.getAuthHeadersCallback(), ...customHeaders };
+  private async mergeHeaders(customHeaders: Record<string, string> = {}): Promise<Record<string, string>> {
+    // `caller` is instance identity metadata, like the credential: the
+    // rate limiter buckets by X-Caller on every write, so it rides every
+    // request rather than any single operation.
+    return {
+      ...this.globalHeaders,
+      ...(this.caller ? { 'X-Caller': this.caller } : {}),
+      ...(await this.getAuthHeadersCallback()),
+      ...customHeaders,
+    };
   }
 
   private createTimeoutSignal(existingSignal?: AbortSignal | null): { signal: AbortSignal; cleanup: () => void } {
@@ -215,21 +233,12 @@ export class ApiHttp extends SimpleEvents {
       via: options.via,
       password: options.password,
       flags,
+      captcha: options.captcha,
     });
 
-    const authHeaders: Record<string, string> = {};
-    if (options.deployToken) {
-      authHeaders['Authorization'] = `Bearer ${options.deployToken}`;
-    } else if (options.apiKey) {
-      authHeaders['Authorization'] = `Bearer ${options.apiKey}`;
-    }
-    if (options.caller) {
-      authHeaders['X-Caller'] = options.caller;
-    }
-
     return this.request<DeploymentCreateResponse>(
-      `${options.apiUrl || this.apiUrl}${this.deployEndpoint}`,
-      { method: 'POST', body, headers: { ...bodyHeaders, ...authHeaders }, signal: options.signal || null },
+      `${this.apiUrl}${this.deployEndpoint}`,
+      { method: 'POST', body, headers: bodyHeaders, signal: options.signal || null },
       'Deploy'
     );
   }
@@ -341,19 +350,11 @@ export class ApiHttp extends SimpleEvents {
     await this.request<void>(`${this.apiUrl}${ENDPOINTS.TOKENS}/${encodeURIComponent(token)}`, { method: 'DELETE' }, 'Remove token');
   }
 
-  async fetchAgentToken(): Promise<TokenCreateResponse> {
-    return this.request<TokenCreateResponse>(
-      `${this.apiUrl}${ENDPOINTS.TOKENS}/agent`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
-      'Fetch agent token'
-    );
-  }
-
   // ===========================================================================
   // PUBLIC API - ACCOUNT & CONFIG
   // ===========================================================================
 
-  async getAccount(): Promise<Account> {
+  async getAccount(): Promise<AccountGetResponse> {
     return this.request(`${this.apiUrl}${ENDPOINTS.ACCOUNT}`, { method: 'GET' }, 'Get account');
   }
 
@@ -387,17 +388,10 @@ export class ApiHttp extends SimpleEvents {
       return false;
     }
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (options.deployToken) {
-      headers['Authorization'] = `Bearer ${options.deployToken}`;
-    } else if (options.apiKey) {
-      headers['Authorization'] = `Bearer ${options.apiKey}`;
-    }
-
     const body: SPACheckRequest = { files: files.map(f => f.path), index: indexContent };
     const response = await this.request<SPACheckResponse>(
       `${this.apiUrl}${ENDPOINTS.SPA_CHECK}`,
-      { method: 'POST', headers, body: JSON.stringify(body) },
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
       'SPA check'
     );
 

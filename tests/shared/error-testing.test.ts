@@ -127,7 +127,7 @@ export const browserErrorTests = {
     const { Ship } = await import('../../src/browser/index');
     __setTestEnvironment('browser');
     
-    const ship = new Ship({ deployToken: 'test-token' });
+    const ship = new Ship({ token: 'test-token' });
     
     // Mock HTTP client to avoid network calls
     (ship as any).http = createMockApiClient();
@@ -154,7 +154,7 @@ export const browserErrorTests = {
     const { Ship } = await import('../../src/browser/index');
     __setTestEnvironment('browser');
     
-    const ship = new Ship({ deployToken: 'test-token' });
+    const ship = new Ship({ token: 'test-token' });
     (ship as any).http = createMockApiClient();
     
     return {
@@ -165,7 +165,7 @@ export const browserErrorTests = {
         } as FileList;
         
         // Should not throw for empty FileList (might be valid use case)
-        const result = await ship.deploy(emptyFileList);
+        const result = await ship.deploy(emptyFileList as any);
         expect(result).toBeDefined();
       },
       
@@ -191,7 +191,7 @@ export const nodeErrorTests = {
     const { Ship } = await import('../../src/node/index');
     __setTestEnvironment('node');
     
-    const ship = new Ship({ apiKey: 'test-key' });
+    const ship = new Ship({ token: 'test-key' });
     (ship as any).http = createMockApiClient();
     
     return {
@@ -224,7 +224,7 @@ export const nodeErrorTests = {
     const { Ship } = await import('../../src/node/index');
     __setTestEnvironment('node');
     
-    const ship = new Ship({ apiKey: 'test-key' });
+    const ship = new Ship({ token: 'test-key' });
     (ship as any).http = createMockApiClient();
     
     return {

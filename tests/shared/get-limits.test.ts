@@ -9,6 +9,9 @@ import { Ship as BrowserShip } from '../../src/browser/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
 import type { PlatformLimits } from '@shipstatic/types';
 
+// Deploy token in the canonical format: 'deploy-' + 64 hex chars
+const TEST_DEPLOY_TOKEN = 'deploy-' + 'a'.repeat(64);
+
 describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
   const mockLimits: PlatformLimits = {
     maxFileSize: 10 * 1024 * 1024,
@@ -52,7 +55,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
     describe('Basic Functionality', () => {
       it('should fetch config from API on first call', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
         createMockedShip(ship, { getLimits: getLimitsSpy });
 
@@ -64,7 +67,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       });
 
       it('should return cached config on subsequent calls', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
         createMockedShip(ship, { getLimits: getLimitsSpy });
 
@@ -86,7 +89,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       });
 
       it('should trigger initialization on first call', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
 
         // Spy on ensureInitialized instead since fetchPlatformLimits is mocked by helper
         const ensureInitializedSpy = vi.spyOn(ship as any, 'ensureInitialized');
@@ -98,7 +101,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       });
 
       it('should not trigger duplicate initialization if already initialized', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
 
         // Spy on ensureInitialized before creating mocked ship
         const ensureInitializedSpy = vi.spyOn(ship as any, 'ensureInitialized');
@@ -118,7 +121,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
     describe('Error Handling', () => {
       it('should propagate API errors when fetching config', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const apiError = new Error('Failed to fetch config from API');
         const getLimitsSpy = vi.fn().mockRejectedValue(apiError);
 
@@ -137,7 +140,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       // Note: Error retry testing is covered by base-ship initialization tests
 
       it('should handle 401 authentication errors', async () => {
-        const ship = new NodeShip({ apiKey: 'invalid-key' });
+        const ship = new NodeShip({ token: 'invalid-key' });
         const authError = new Error('Invalid API key');
 
         // Mock fetchPlatformLimits to simulate auth failure
@@ -153,7 +156,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       });
 
       it('should handle network errors gracefully', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const networkError = new Error('ECONNREFUSED: Connection refused');
 
         // Mock fetchPlatformLimits to simulate network failure
@@ -171,7 +174,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
     describe('Concurrent Calls', () => {
       it('should handle concurrent getLimits calls and cache result', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
         createMockedShip(ship, { getLimits: getLimitsSpy });
 
@@ -198,7 +201,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       });
 
       it('should handle mixed concurrent getLimits and other method calls', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const getLimitsSpy = vi.fn().mockImplementation(async () => {
           await new Promise(resolve => setTimeout(resolve, 50));
           return mockLimits;
@@ -220,7 +223,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
     describe('Initialization Integration', () => {
       it('should work correctly when called before any other methods', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         createMockedShip(ship);
 
         // getLimits is the first method called
@@ -231,7 +234,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       });
 
       it('should work correctly when called after other methods', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const pingSpy = vi.fn().mockResolvedValue(true);
         createMockedShip(ship, { ping: pingSpy });
 
@@ -245,7 +248,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       });
 
       it('should share initialization state with resource methods', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         createMockedShip(ship);
 
         // Call whoami (triggers initialization)
@@ -263,7 +266,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
     describe('Configuration Values', () => {
       it('should return maxFileSize from API config', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const customConfig = {
           maxFileSize: 5242880,
           maxFilesCount: 500,
@@ -286,7 +289,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       });
 
       it('should return maxFilesCount from API config', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const customConfig = {
           maxFileSize: 10485760,
           maxFilesCount: 2000,
@@ -308,7 +311,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       });
 
       it('should return maxTotalSize from API config', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const customConfig = {
           maxFileSize: 10485760,
           maxFilesCount: 1000,
@@ -330,7 +333,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       });
 
       it('should return complete config object with all properties', async () => {
-        const ship = new NodeShip({ apiKey: 'test-key' });
+        const ship = new NodeShip({ token: 'test-key' });
         const fullConfig = {
           maxFileSize: 10485760,
           maxFilesCount: 1000,
@@ -362,7 +365,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
     describe('Basic Functionality', () => {
       it('should fetch config from API on first call', async () => {
         const ship = new BrowserShip({
-          deployToken: 'token-xxxx',
+          token: TEST_DEPLOY_TOKEN,
           apiUrl: 'https://api.shipstatic.com'
         });
         const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
@@ -375,7 +378,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
       it('should return cached config on subsequent calls', async () => {
         const ship = new BrowserShip({
-          deployToken: 'token-xxxx',
+          token: TEST_DEPLOY_TOKEN,
           apiUrl: 'https://api.shipstatic.com'
         });
         const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
@@ -392,7 +395,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
       it('should trigger initialization on first call', async () => {
         const ship = new BrowserShip({
-          deployToken: 'token-xxxx',
+          token: TEST_DEPLOY_TOKEN,
           apiUrl: 'https://api.shipstatic.com'
         });
 
@@ -409,7 +412,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
     describe('Error Handling', () => {
       it('should propagate API errors when fetching config', async () => {
         const ship = new BrowserShip({
-          deployToken: 'token-xxxx',
+          token: TEST_DEPLOY_TOKEN,
           apiUrl: 'https://api.shipstatic.com'
         });
         const apiError = new Error('Failed to fetch config from API');
@@ -430,7 +433,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
       it('should handle CORS errors in browser', async () => {
         const ship = new BrowserShip({
-          deployToken: 'token-xxxx',
+          token: TEST_DEPLOY_TOKEN,
           apiUrl: 'https://api.shipstatic.com'
         });
         const corsError = new Error('CORS policy blocked the request');
@@ -451,7 +454,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
     describe('Concurrent Calls', () => {
       it('should handle concurrent getLimits calls and cache result', async () => {
         const ship = new BrowserShip({
-          deployToken: 'token-xxxx',
+          token: TEST_DEPLOY_TOKEN,
           apiUrl: 'https://api.shipstatic.com'
         });
         const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
@@ -480,7 +483,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
     describe('Browser-Specific Scenarios', () => {
       it('should work with deploy token authentication', async () => {
         const ship = new BrowserShip({
-          deployToken: 'token-abc123',
+          token: TEST_DEPLOY_TOKEN,
           apiUrl: 'https://api.shipstatic.com'
         });
         createMockedShip(ship);
@@ -491,7 +494,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
       it('should work with custom API URL', async () => {
         const ship = new BrowserShip({
-          deployToken: 'token-xxxx',
+          token: TEST_DEPLOY_TOKEN,
           apiUrl: 'https://custom-api.example.com'
         });
         createMockedShip(ship);
@@ -505,12 +508,12 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
   describe('Cross-Environment Consistency', () => {
     it('should return identical config structure in both Node.js and Browser', async () => {
       __setTestEnvironment('node');
-      const nodeShip = new NodeShip({ apiKey: 'test-key' });
+      const nodeShip = new NodeShip({ token: 'test-key' });
       createMockedShip(nodeShip);
 
       __setTestEnvironment('browser');
       const browserShip = new BrowserShip({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com'
       });
       createMockedShip(browserShip);
@@ -524,13 +527,13 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
     it('should cache config identically in both environments', async () => {
       __setTestEnvironment('node');
-      const nodeShip = new NodeShip({ apiKey: 'test-key' });
+      const nodeShip = new NodeShip({ token: 'test-key' });
       const nodeGetConfigSpy = vi.fn().mockResolvedValue(mockLimits);
       createMockedShip(nodeShip, { getLimits: nodeGetConfigSpy });
 
       __setTestEnvironment('browser');
       const browserShip = new BrowserShip({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com'
       });
       const browserGetConfigSpy = vi.fn().mockResolvedValue(mockLimits);
@@ -549,7 +552,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
   describe('Cache Invalidation', () => {
     it('should not provide a way to invalidate cache (by design)', async () => {
       __setTestEnvironment('node');
-      const ship = new NodeShip({ apiKey: 'test-key' });
+      const ship = new NodeShip({ token: 'test-key' });
       const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
       createMockedShip(ship, { getLimits: getLimitsSpy });
 
@@ -567,7 +570,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       __setTestEnvironment('node');
 
       // First instance
-      const ship1 = new NodeShip({ apiKey: 'test-key' });
+      const ship1 = new NodeShip({ token: 'test-key' });
       createMockedShip(ship1);
 
       await ship1.getLimits();
@@ -575,7 +578,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       expect(result1).toEqual(mockLimits);
 
       // Second instance - fresh fetch (each instance has its own cache)
-      const ship2 = new NodeShip({ apiKey: 'test-key' });
+      const ship2 = new NodeShip({ token: 'test-key' });
       createMockedShip(ship2);
 
       const result2 = await ship2.getLimits();
@@ -590,7 +593,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
   describe('Edge Cases', () => {
     it('should handle config with zero values', async () => {
       __setTestEnvironment('node');
-      const ship = new NodeShip({ apiKey: 'test-key' });
+      const ship = new NodeShip({ token: 'test-key' });
       const zeroConfig = {
         maxFileSize: 0,
         maxFilesCount: 0,
@@ -613,7 +616,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
     it('should handle config with very large values', async () => {
       __setTestEnvironment('node');
-      const ship = new NodeShip({ apiKey: 'test-key' });
+      const ship = new NodeShip({ token: 'test-key' });
       const largeConfig = {
         maxFileSize: Number.MAX_SAFE_INTEGER,
         maxFilesCount: Number.MAX_SAFE_INTEGER,
@@ -636,7 +639,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
 
     it('should preserve config object reference when cached', async () => {
       __setTestEnvironment('node');
-      const ship = new NodeShip({ apiKey: 'test-key' });
+      const ship = new NodeShip({ token: 'test-key' });
       createMockedShip(ship);
 
       const result1 = await ship.getLimits();
@@ -654,7 +657,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
     it('should only call /limits API once during cold start in Browser', async () => {
       __setTestEnvironment('browser');
       const ship = new BrowserShip({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com'
       });
 
@@ -679,7 +682,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
     it('should reuse platform config across multiple method calls in Browser', async () => {
       __setTestEnvironment('browser');
       const ship = new BrowserShip({
-        deployToken: 'token-xxxx',
+        token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com'
       });
 

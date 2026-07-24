@@ -3,7 +3,7 @@ import { __setTestEnvironment } from '../../src/shared/lib/env';
 
 // Mock environment-specific modules to avoid actual filesystem/network calls.
 vi.mock('../../src/node/core/config', () => ({
-  readEnvConfig: vi.fn(() => ({ apiKey: 'test-key' })),
+  readEnvConfig: vi.fn(() => ({ token: 'test-key' })),
 }));
 
 vi.mock('../../src/node/core/node-files', () => ({
@@ -27,11 +27,11 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
     it('should provide identical public APIs across environments', async () => {
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      const nodeShip = new NodeShip({ apiKey: 'test-key' });
+      const nodeShip = new NodeShip({ token: 'test-key' });
 
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
-      const browserShip = new BrowserShip({ deployToken: 'test-token', apiUrl: 'https://test.com' });
+      const browserShip = new BrowserShip({ token: 'test-token', apiUrl: 'https://test.com' });
 
       // Both should have identical resource getters
       expect(nodeShip.deployments).toBeDefined();
@@ -55,11 +55,11 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
     it('should provide identical resource method signatures', async () => {
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      const nodeShip = new NodeShip({ apiKey: 'test-key' });
+      const nodeShip = new NodeShip({ token: 'test-key' });
 
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
-      const browserShip = new BrowserShip({ deployToken: 'test-token', apiUrl: 'https://test.com' });
+      const browserShip = new BrowserShip({ token: 'test-token', apiUrl: 'https://test.com' });
 
       // Deployment resource methods
       expect(typeof nodeShip.deployments.upload).toBe('function');
@@ -97,7 +97,7 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       // Test Node.js Ship
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      const nodeShip = new NodeShip({ apiKey: 'test-key' });
+      const nodeShip = new NodeShip({ token: 'test-key' });
       
       // Spy on the resource method directly
       vi.spyOn(nodeShip.deployments, 'upload').mockResolvedValue(mockDeployResult);
@@ -107,7 +107,7 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       // Test Browser Ship
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
-      const browserShip = new BrowserShip({ deployToken: 'test-token', apiUrl: 'https://test.com' });
+      const browserShip = new BrowserShip({ token: 'test-token', apiUrl: 'https://test.com' });
       
       // Spy on the resource method directly
       vi.spyOn(browserShip.deployments, 'upload').mockResolvedValue(mockDeployResult);
@@ -128,12 +128,12 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       const { Ship: NodeShip } = await import('../../src/node/index');
       
       expect(() => {
-        new NodeShip({ apiKey: 'test-key' });
+        new NodeShip({ token: 'test-key' });
       }).toThrow('Node.js Ship class can only be used in Node.js environment.');
 
       __setTestEnvironment('unknown');
       expect(() => {
-        new NodeShip({ apiKey: 'test-key' });
+        new NodeShip({ token: 'test-key' });
       }).toThrow('Node.js Ship class can only be used in Node.js environment.');
 
       // Browser Ship should work in any environment (more permissive)
@@ -141,12 +141,12 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       const { Ship: BrowserShip } = await import('../../src/browser/index');
       
       expect(() => {
-        new BrowserShip({ deployToken: 'test-token', apiUrl: 'https://test.com' });
+        new BrowserShip({ token: 'test-token', apiUrl: 'https://test.com' });
       }).not.toThrow();
 
       __setTestEnvironment('unknown');
       expect(() => {
-        new BrowserShip({ deployToken: 'test-token', apiUrl: 'https://test.com' });
+        new BrowserShip({ token: 'test-token', apiUrl: 'https://test.com' });
       }).not.toThrow();
     });
   });
@@ -155,24 +155,24 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
     it('should resolve initial configuration consistently', async () => {
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      const nodeShip = new NodeShip({ 
+      const nodeShip = new NodeShip({
         apiUrl: 'https://custom-node.com',
-        apiKey: 'node-key'
+        token: 'node-key'
       });
 
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
-      const browserShip = new BrowserShip({ 
+      const browserShip = new BrowserShip({
         apiUrl: 'https://custom-browser.com',
-        deployToken: 'browser-token'
+        token: 'browser-token'
       });
 
       // Both should have stored their options correctly
       expect((nodeShip as any).clientOptions.apiUrl).toBe('https://custom-node.com');
-      expect((nodeShip as any).clientOptions.apiKey).toBe('node-key');
+      expect((nodeShip as any).clientOptions.token).toBe('node-key');
 
       expect((browserShip as any).clientOptions.apiUrl).toBe('https://custom-browser.com');
-      expect((browserShip as any).clientOptions.deployToken).toBe('browser-token');
+      expect((browserShip as any).clientOptions.token).toBe('browser-token');
     });
   });
 
@@ -180,11 +180,11 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
     it('should handle lazy initialization consistently across environments', async () => {
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      const nodeShip = new NodeShip({ apiKey: 'test-key' });
+      const nodeShip = new NodeShip({ token: 'test-key' });
 
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
-      const browserShip = new BrowserShip({ deployToken: 'test-token', apiUrl: 'https://test.com' });
+      const browserShip = new BrowserShip({ token: 'test-token', apiUrl: 'https://test.com' });
 
       // Mock HTTP clients
       (nodeShip as any).http = {

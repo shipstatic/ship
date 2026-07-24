@@ -103,7 +103,7 @@ if [[ -n ${ZSH_VERSION-} ]]; then
 
     # Flag completion
     if [[ "$current_word" == --* ]]; then
-      completions=("--api-key:API key for authentication" "--deploy-token:Deploy token for authenticated deployments" "--config:Custom config file path" "--api-url:API URL (for development)" "--label:Label (can be repeated)" "--password:Password-protect this deployment" "--no-path-detect:Disable automatic path optimization and flattening" "--no-spa-detect:Disable automatic SPA detection and configuration" "--json:Output results in JSON format" "--no-color:Disable colored output" "--version:Show version information" "--help:Display help for command")
+      completions=("--token:Any ship token — API key (ship-…) or deploy token (deploy-…)" "--config:Custom config file path" "--api-url:API URL (for development)" "--label:Label (can be repeated)" "--password:Password-protect this deployment" "--no-path-detect:Disable automatic path optimization and flattening" "--no-spa-detect:Disable automatic SPA detection and configuration" "--json:Output results in JSON format" "--no-color:Disable colored output" "--version:Show version information" "--help:Display help for command")
       _describe 'options' completions
       return
     fi

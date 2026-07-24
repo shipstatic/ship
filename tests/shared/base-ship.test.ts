@@ -1,27 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
+import type { DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
 
 // Mock deploy body creator for tests
-const mockDeployBodyCreator: DeployBodyCreator = async (files, labels, via) => ({
+const mockDeployBodyCreator: DeployBodyCreator = async (files, context) => ({
   body: new ArrayBuffer(0),
   headers: { 'Content-Type': 'multipart/form-data' }
 });
 
+// API key in the canonical format: 'ship-' + 64 hex chars
+const TEST_API_KEY = 'ship-' + 'a'.repeat(64);
+
 // Create a concrete test implementation of the abstract Ship class
 class TestShip extends Ship {
-  protected resolveInitialConfig(options: ShipClientOptions): any {
-    return {
-      apiUrl: options.apiUrl || 'https://test-api.com',
-      apiKey: options.apiKey,
-      deployToken: options.deployToken
-    };
-  }
-
-  protected async loadFullConfig(): Promise<void> {
-    return Promise.resolve();
-  }
-
   protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
     return Promise.resolve([
       {
@@ -40,7 +31,7 @@ class TestShip extends Ship {
 
 describe('Base Ship Class (Abstract)', () => {
   let ship: TestShip;
-  let mockApiDeploy: vi.Mock;
+  let mockApiDeploy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,8 +42,8 @@ describe('Base Ship Class (Abstract)', () => {
       url: 'https://dep_123.shipstatic.com'
     });
 
-    // Initialize with apiKey for authentication
-    ship = new TestShip({ apiUrl: 'https://test-api.com', apiKey: 'ship-test-key-1234567890' });
+    // Initialize with a token for authentication
+    ship = new TestShip({ apiUrl: 'https://test-api.com', token: TEST_API_KEY });
     
     // Override the http client with our mock
     (ship as any).http = {
@@ -71,7 +62,7 @@ describe('Base Ship Class (Abstract)', () => {
 
   describe('constructor', () => {
     it('should initialize with provided options', () => {
-      const options = { apiUrl: 'https://custom-api.com', apiKey: 'test-key' };
+      const options = { apiUrl: 'https://custom-api.com', token: 'test-key' };
       const testShip = new TestShip(options);
 
       expect((testShip as any).clientOptions).toEqual(options);

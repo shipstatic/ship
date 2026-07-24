@@ -97,7 +97,7 @@ describe('onProgress Callback in DeploymentOptions', () => {
 describe('onProgress Callback in ShipClientOptions', () => {
     it('should accept ProgressInfo callback as client default', () => {
         const options: ShipClientOptions = {
-            apiKey: 'ship-test-key',
+            token: 'test-key',
             onProgress: ({ percent, loaded, total }) => {
                 console.log(`Client default: ${percent}% (${loaded}/${total})`);
             }
@@ -111,7 +111,7 @@ describe('onProgress Callback in ShipClientOptions', () => {
 
         const options: ShipClientOptions = {
             apiUrl: 'https://api.example.com',
-            apiKey: 'ship-test-key',
+            token: 'test-key',
             timeout: 30000,
             maxConcurrency: 4,
             onProgress: ({ percent }) => {

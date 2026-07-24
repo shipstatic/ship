@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import { ApiHttp } from '../../src/shared/api/http';
-import type { ShipClientOptions, DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
+import type { DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
+
+const TEST_API_KEY = 'ship-' + 'a'.repeat(64);
+const TEST_DEPLOY_TOKEN = 'deploy-' + 'b'.repeat(64);
 
 const mockDeployBodyCreator: DeployBodyCreator = async () => ({
   body: new ArrayBuffer(0),
@@ -9,8 +11,8 @@ const mockDeployBodyCreator: DeployBodyCreator = async () => ({
 });
 
 // Concrete test implementation. The `ensureInitialized` no-op skips the
-// `GET /limits` fetch so these tests can focus on auth lifecycle without
-// needing to mock platform-limits wiring.
+// `GET /limits` fetch so these tests can focus on the credential lifecycle
+// without needing to mock platform-limits wiring.
 class TestShip extends Ship {
   protected async ensureInitialized(): Promise<void> { /* no platform-limits fetch in tests */ }
   protected async processInput(_input: DeployInput, _options: DeploymentOptions): Promise<StaticFile[]> {
@@ -26,7 +28,7 @@ class TestShip extends Ship {
   }
 }
 
-describe('Authentication Lifecycle', () => {
+describe('Credential Lifecycle', () => {
   let mockApiDeploy: vi.Mock;
 
   beforeEach(() => {
@@ -38,25 +40,24 @@ describe('Authentication Lifecycle', () => {
     });
   });
 
-  describe('setDeployToken()', () => {
-    it('should allow setting deploy token after initialization', async () => {
+  describe('setToken()', () => {
+    it('should take effect immediately, without rebuilding the client', async () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
       // Override http with mock
       (ship as any).http = {
         deploy: mockApiDeploy,
-        fetchAgentToken: vi.fn().mockResolvedValue({ secret: 'token-agent-auto', token: 'agt1d00', labels: [], expires: null }),
         ping: vi.fn().mockResolvedValue(true),
         getLimits: vi.fn().mockResolvedValue({})
       };
 
-      // Initially no auth - deploys via auto-fetched agent token
-      await ship.deploy(['./test'] as any);
-      expect((ship as any).http.fetchAgentToken).toHaveBeenCalled();
+      // Anonymous first — no Authorization header.
+      expect(await (ship as any).getAuthHeaders()).toEqual({});
 
-      // Set deploy token explicitly - should use it instead of agent token
-      vi.clearAllMocks();
-      ship.setDeployToken('token-1234567890abcdef');
+      ship.setToken(TEST_DEPLOY_TOKEN);
+      expect(await (ship as any).getAuthHeaders()).toEqual({
+        'Authorization': `Bearer ${TEST_DEPLOY_TOKEN}`
+      });
 
       const result = await ship.deploy(['./test'] as any);
       expect(result).toEqual({
@@ -66,75 +67,62 @@ describe('Authentication Lifecycle', () => {
       expect(mockApiDeploy).toHaveBeenCalled();
     });
 
-    it('should validate deploy token input', () => {
+    it('should validate input', () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
-      expect(() => ship.setDeployToken('')).toThrow('Invalid deploy token');
-      expect(() => ship.setDeployToken(null as any)).toThrow('Invalid deploy token');
-      expect(() => ship.setDeployToken(undefined as any)).toThrow('Invalid deploy token');
+      expect(() => ship.setToken('')).toThrow('Invalid token');
+      expect(() => ship.setToken(null as any)).toThrow('Invalid token');
+      expect(() => ship.setToken(undefined as any)).toThrow('Invalid token');
+      // Prefixed tokens carry format guarantees — malformed ones fail fast.
+      expect(() => ship.setToken('ship-tooshort')).toThrow(/characters total/);
+      expect(() => ship.setToken('deploy-tooshort')).toThrow(/characters total/);
     });
 
-    it('should override existing apiKey', async () => {
+    it('should replace the previous credential — last write wins', async () => {
       const ship = new TestShip({
         apiUrl: 'https://test-api.com',
-        apiKey: 'ship-oldkey123'
+        token: TEST_API_KEY
       });
 
-      // Override http with mock
-      (ship as any).http = {
-        deploy: mockApiDeploy,
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({})
-      };
+      expect(await (ship as any).getAuthHeaders()).toEqual({
+        'Authorization': `Bearer ${TEST_API_KEY}`
+      });
 
-      // Set deploy token - should override apiKey
-      ship.setDeployToken('token-newtoken456');
+      ship.setToken(TEST_DEPLOY_TOKEN);
 
-      await ship.deploy(['./test'] as any);
-      expect(mockApiDeploy).toHaveBeenCalled();
+      expect(await (ship as any).getAuthHeaders()).toEqual({
+        'Authorization': `Bearer ${TEST_DEPLOY_TOKEN}`
+      });
+    });
+
+    it('should accept a provider function', async () => {
+      const ship = new TestShip({
+        apiUrl: 'https://test-api.com',
+        token: TEST_API_KEY
+      });
+
+      ship.setToken(() => 'minted-access-token');
+
+      expect(await (ship as any).getAuthHeaders()).toEqual({
+        'Authorization': 'Bearer minted-access-token'
+      });
+    });
+
+    it('rejects on a session client — the constructor exclusion holds for the client\'s life', async () => {
+      const ship = new TestShip({ apiUrl: 'https://test-api.com', session: true });
+
+      expect(() => ship.setToken(TEST_API_KEY)).toThrow('Provide either `token` or `session`, not both.');
+      expect(() => ship.setToken(() => TEST_API_KEY)).toThrow('Provide either `token` or `session`, not both.');
+      // Still cookie-identified — no Authorization header was armed.
+      expect(await (ship as any).getAuthHeaders()).toEqual({});
     });
   });
 
-  describe('setApiKey()', () => {
-    it('should allow setting API key after initialization', async () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      // Override http with mock
-      (ship as any).http = {
-        deploy: mockApiDeploy,
-        fetchAgentToken: vi.fn().mockResolvedValue({ secret: 'token-agent-auto', token: 'agt1d00', labels: [], expires: null }),
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({})
-      };
-
-      // Initially no auth - deploys via auto-fetched agent token
-      await ship.deploy(['./test'] as any);
-      expect((ship as any).http.fetchAgentToken).toHaveBeenCalled();
-
-      // Set API key explicitly - should use it instead of agent token
-      vi.clearAllMocks();
-      ship.setApiKey('ship-apikey789');
-
-      const result = await ship.deploy(['./test'] as any);
-      expect(result).toEqual({
-        id: 'dep_123',
-        url: 'https://dep_123.shipstatic.com'
-      });
-      expect(mockApiDeploy).toHaveBeenCalled();
-    });
-
-    it('should validate API key input', () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      expect(() => ship.setApiKey('')).toThrow('Invalid API key');
-      expect(() => ship.setApiKey(null as any)).toThrow('Invalid API key');
-      expect(() => ship.setApiKey(undefined as any)).toThrow('Invalid API key');
-    });
-
-    it('should override existing deployToken', async () => {
+  describe('constructor initialization', () => {
+    it('should adopt a constructor token', async () => {
       const ship = new TestShip({
         apiUrl: 'https://test-api.com',
-        deployToken: 'token-oldtoken123'
+        token: TEST_DEPLOY_TOKEN
       });
 
       // Override http with mock
@@ -143,222 +131,9 @@ describe('Authentication Lifecycle', () => {
         ping: vi.fn().mockResolvedValue(true),
         getLimits: vi.fn().mockResolvedValue({})
       };
-
-      // Set API key - should override deployToken
-      ship.setApiKey('ship-newapikey456');
 
       await ship.deploy(['./test'] as any);
       expect(mockApiDeploy).toHaveBeenCalled();
-    });
-  });
-
-  describe('per-deployment auth override', () => {
-    it('should allow deployment with per-deploy token even without instance auth', async () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      // Override http with mock
-      (ship as any).http = {
-        deploy: mockApiDeploy,
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({})
-      };
-
-      // Deployment with per-deploy token should succeed
-      const result = await ship.deploy(['./test'] as any, {
-        deployToken: 'token-perdeploy123'
-      });
-
-      expect(result).toEqual({
-        id: 'dep_123',
-        url: 'https://dep_123.shipstatic.com'
-      });
-      expect(mockApiDeploy).toHaveBeenCalled();
-    });
-
-    it('should allow deployment with per-deploy apiKey even without instance auth', async () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      // Override http with mock
-      (ship as any).http = {
-        deploy: mockApiDeploy,
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({})
-      };
-
-      // Deployment with per-deploy apiKey should succeed
-      const result = await ship.deploy(['./test'] as any, {
-        apiKey: 'ship-perdeploykey123'
-      });
-
-      expect(result).toEqual({
-        id: 'dep_123',
-        url: 'https://dep_123.shipstatic.com'
-      });
-      expect(mockApiDeploy).toHaveBeenCalled();
-    });
-  });
-
-  describe('constructor auth initialization', () => {
-    it('should initialize with deployToken from constructor', async () => {
-      const ship = new TestShip({
-        apiUrl: 'https://test-api.com',
-        deployToken: 'token-constructor123'
-      });
-
-      // Override http with mock
-      (ship as any).http = {
-        deploy: mockApiDeploy,
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({})
-      };
-
-      // Should succeed with constructor auth
-      await ship.deploy(['./test'] as any);
-      expect(mockApiDeploy).toHaveBeenCalled();
-    });
-
-    it('should initialize with apiKey from constructor', async () => {
-      const ship = new TestShip({
-        apiUrl: 'https://test-api.com',
-        apiKey: 'ship-constructor123'
-      });
-
-      // Override http with mock
-      (ship as any).http = {
-        deploy: mockApiDeploy,
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({})
-      };
-
-      // Should succeed with constructor auth
-      await ship.deploy(['./test'] as any);
-      expect(mockApiDeploy).toHaveBeenCalled();
-    });
-
-    it('should prioritize deployToken over apiKey in constructor', async () => {
-      const ship = new TestShip({
-        apiUrl: 'https://test-api.com',
-        deployToken: 'token-priority123',
-        apiKey: 'ship-secondary123'
-      });
-
-      // Override http with mock
-      (ship as any).http = {
-        deploy: mockApiDeploy,
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({})
-      };
-
-      // Should succeed with deployToken (higher priority)
-      await ship.deploy(['./test'] as any);
-      expect(mockApiDeploy).toHaveBeenCalled();
-    });
-  });
-
-  describe('getAuthHeaders branch coverage', () => {
-    it('should return empty object when auth is null', () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      // Access the private method through the callback
-      const headers = (ship as any).getAuthHeaders();
-
-      expect(headers).toEqual({});
-    });
-
-    it('should return Bearer token for deployToken', () => {
-      const ship = new TestShip({
-        apiUrl: 'https://test-api.com',
-        deployToken: 'token-test123'
-      });
-
-      const headers = (ship as any).getAuthHeaders();
-
-      expect(headers).toEqual({
-        'Authorization': 'Bearer token-test123'
-      });
-    });
-
-    it('should return Bearer token for apiKey', () => {
-      const ship = new TestShip({
-        apiUrl: 'https://test-api.com',
-        apiKey: 'ship-test123'
-      });
-
-      const headers = (ship as any).getAuthHeaders();
-
-      expect(headers).toEqual({
-        'Authorization': 'Bearer ship-test123'
-      });
-    });
-
-    it('should update headers after setDeployToken', () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      // Initially empty
-      expect((ship as any).getAuthHeaders()).toEqual({});
-
-      // Set token
-      ship.setDeployToken('token-new123');
-
-      // Now has auth header
-      expect((ship as any).getAuthHeaders()).toEqual({
-        'Authorization': 'Bearer token-new123'
-      });
-    });
-
-    it('should update headers after setApiKey', () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      // Initially empty
-      expect((ship as any).getAuthHeaders()).toEqual({});
-
-      // Set api key
-      ship.setApiKey('ship-new123');
-
-      // Now has auth header
-      expect((ship as any).getAuthHeaders()).toEqual({
-        'Authorization': 'Bearer ship-new123'
-      });
-    });
-
-    it('should override apiKey with deployToken', () => {
-      const ship = new TestShip({
-        apiUrl: 'https://test-api.com',
-        apiKey: 'ship-initial123'
-      });
-
-      // Initially has apiKey
-      expect((ship as any).getAuthHeaders()).toEqual({
-        'Authorization': 'Bearer ship-initial123'
-      });
-
-      // Override with deployToken
-      ship.setDeployToken('token-override123');
-
-      // Now has deployToken
-      expect((ship as any).getAuthHeaders()).toEqual({
-        'Authorization': 'Bearer token-override123'
-      });
-    });
-
-    it('should override deployToken with apiKey', () => {
-      const ship = new TestShip({
-        apiUrl: 'https://test-api.com',
-        deployToken: 'token-initial123'
-      });
-
-      // Initially has deployToken
-      expect((ship as any).getAuthHeaders()).toEqual({
-        'Authorization': 'Bearer token-initial123'
-      });
-
-      // Override with apiKey
-      ship.setApiKey('ship-override123');
-
-      // Now has apiKey
-      expect((ship as any).getAuthHeaders()).toEqual({
-        'Authorization': 'Bearer ship-override123'
-      });
     });
   });
 

@@ -20,8 +20,8 @@ vi.mock('../../src/shared/api/http', () => ({
 /**
  * Authentication Flow Cross-Environment Validation Tests
  * 
- * These tests validate that authentication (API keys vs deploy tokens)
- * works consistently across browser and Node.js environments.
+ * These tests validate that token authentication (API keys, deploy tokens,
+ * opaque bearers) works consistently across browser and Node.js environments.
  */
 
 describe('Authentication Flow Cross-Environment Validation', () => {
@@ -45,7 +45,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       const { Ship } = await import('../../src/node/index');
       
       // Test valid API key
-      const shipWithValidKey = new Ship({ apiKey: 'valid-api-key' });
+      const shipWithValidKey = new Ship({ token: 'valid-api-key' });
       expect(shipWithValidKey).toBeDefined();
       
       // Test missing API key - constructor should succeed but API calls should fail
@@ -57,7 +57,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       __setTestEnvironment('node');
       
       const { Ship } = await import('../../src/node/index');
-      const ship = new Ship({ apiKey: 'test-api-key' });
+      const ship = new Ship({ token: 'test-api-key' });
       
       await ship.ping();
       expect(defaultMockApiClient.ping).toHaveBeenCalled();
@@ -67,7 +67,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       __setTestEnvironment('node');
       
       const { Ship } = await import('../../src/node/index');
-      const ship = new Ship({ apiKey: 'invalid-api-key' });
+      const ship = new Ship({ token: 'invalid-api-key' });
       
       // Mock authentication failure
       defaultMockApiClient.ping.mockRejectedValue(new Error('Invalid API key'));
@@ -90,7 +90,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       
       // Test valid deploy token
       const shipWithValidToken = new Ship({ 
-        deployToken: 'valid-deploy-token',
+        token: 'valid-deploy-token',
         apiUrl: 'https://api.shipstatic.com'
       });
       expect(shipWithValidToken).toBeDefined();
@@ -105,7 +105,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       
       const { Ship } = await import('../../src/browser/index');
       const ship = new Ship({ 
-        deployToken: 'test-deploy-token',
+        token: 'test-deploy-token',
         apiUrl: 'https://api.shipstatic.com'
       });
       
@@ -121,7 +121,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       
       const { Ship } = await import('../../src/browser/index');
       const ship = new Ship({ 
-        deployToken: 'invalid-deploy-token',
+        token: 'invalid-deploy-token',
         apiUrl: 'https://api.shipstatic.com'
       });
       
@@ -143,14 +143,14 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       // Test Node.js authentication
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      const nodeShip = new NodeShip({ apiKey: 'test-key' });
+      const nodeShip = new NodeShip({ token: 'test-key' });
       (nodeShip as any).http = defaultMockApiClient;
       
       // Test Browser authentication
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
       const browserShip = new BrowserShip({ 
-        deployToken: 'test-token',
+        token: 'test-token',
         apiUrl: 'https://api.shipstatic.com'
       });
       (browserShip as any).http = defaultMockApiClient;
@@ -170,14 +170,14 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       // Test Node.js authentication failure
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      const nodeShip = new NodeShip({ apiKey: 'invalid-key' });
+      const nodeShip = new NodeShip({ token: 'invalid-key' });
       (nodeShip as any).http = defaultMockApiClient;
       
       // Test Browser authentication failure
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
       const browserShip = new BrowserShip({ 
-        deployToken: 'invalid-token',
+        token: 'invalid-token',
         apiUrl: 'https://api.shipstatic.com'
       });
       (browserShip as any).http = defaultMockApiClient;
@@ -214,14 +214,14 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       // Test Node.js Ship
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      const nodeShip = new NodeShip({ apiKey: 'test-key' });
+      const nodeShip = new NodeShip({ token: 'test-key' });
       await resourceTests(nodeShip);
       
       // Test Browser Ship
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
       const browserShip = new BrowserShip({ 
-        deployToken: 'test-token',
+        token: 'test-token',
         apiUrl: 'https://api.shipstatic.com'
       });
       await resourceTests(browserShip);
@@ -233,24 +233,24 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       __setTestEnvironment('node');
       
       // Set environment variables
-      process.env.SHIP_API_KEY = 'env-api-key';
+      process.env.SHIP_TOKEN = 'env-token';
       process.env.SHIP_API_URL = 'https://env-api.com';
-      
+
       try {
         const { Ship } = await import('../../src/node/index');
-        
+
         // Constructor options should take precedence
-        const ship = new Ship({ 
-          apiKey: 'constructor-api-key',
+        const ship = new Ship({
+          token: 'constructor-token',
           apiUrl: 'https://constructor-api.com'
         });
-        
+
         // Verify constructor options were used
-        expect((ship as any).clientOptions.apiKey).toBe('constructor-api-key');
+        expect((ship as any).clientOptions.token).toBe('constructor-token');
         expect((ship as any).clientOptions.apiUrl).toBe('https://constructor-api.com');
       } finally {
         // Clean up environment variables
-        delete process.env.SHIP_API_KEY;
+        delete process.env.SHIP_TOKEN;
         delete process.env.SHIP_API_URL;
       }
     });
@@ -284,11 +284,11 @@ describe('Authentication Flow Cross-Environment Validation', () => {
         let ship: any;
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          ship = new Ship({ apiKey: 'test-key' });
+          ship = new Ship({ token: 'test-key' });
         } else {
           const { Ship } = await import('../../src/browser/index');
           ship = new Ship({ 
-            deployToken: 'test-token',
+            token: 'test-token',
             apiUrl: 'https://api.shipstatic.com'
           });
         }
@@ -356,11 +356,11 @@ describe('Authentication Flow Cross-Environment Validation', () => {
         let ship: any;
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          ship = new Ship({ apiKey: 'test-key' });
+          ship = new Ship({ token: 'test-key' });
         } else {
           const { Ship } = await import('../../src/browser/index');
           ship = new Ship({ 
-            deployToken: 'test-token',
+            token: 'test-token',
             apiUrl: 'https://api.shipstatic.com'
           });
         }
@@ -389,8 +389,8 @@ describe('Authentication Flow Cross-Environment Validation', () => {
       __setTestEnvironment('node');
       const { Ship } = await import('../../src/node/index');
 
-      const ship1 = new Ship({ apiKey: 'account1-key' });
-      const ship2 = new Ship({ apiKey: 'account2-key' });
+      const ship1 = new Ship({ token: 'account1-key' });
+      const ship2 = new Ship({ token: 'account2-key' });
 
       // Directly mock the 'get' method on the account resource for each instance
       vi.spyOn(ship1.account, 'get').mockResolvedValue({ email: 'account1@example.com' });
@@ -407,11 +407,11 @@ describe('Authentication Flow Cross-Environment Validation', () => {
 
   describe('Authentication Security Validation', () => {
     it('should not expose authentication credentials in error messages', async () => {
-      const sensitiveApiKey = 'sk_live_sensitive_key_12345';
-      
+      const sensitiveToken = 'sk_live_sensitive_key_12345';
+
       __setTestEnvironment('node');
       const { Ship } = await import('../../src/node/index');
-      const ship = new Ship({ apiKey: sensitiveApiKey });
+      const ship = new Ship({ token: sensitiveToken });
       
       // Mock authentication failure
       defaultMockApiClient.ping.mockRejectedValue(new Error('Authentication failed'));
@@ -421,7 +421,7 @@ describe('Authentication Flow Cross-Environment Validation', () => {
         await ship.ping();
       } catch (error: any) {
         // Error message should not contain the sensitive API key
-        expect(error.message).not.toContain(sensitiveApiKey);
+        expect(error.message).not.toContain(sensitiveToken);
         expect(error.message).not.toContain('sk_live_sensitive');
       }
     });
@@ -436,11 +436,11 @@ describe('Authentication Flow Cross-Environment Validation', () => {
         let ship: any;
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          ship = new Ship({ apiKey: 'test-key' });
+          ship = new Ship({ token: 'test-key' });
         } else {
           const { Ship } = await import('../../src/browser/index');
           ship = new Ship({ 
-            deployToken: 'test-token',
+            token: 'test-token',
             apiUrl: 'https://api.shipstatic.com'
           });
         }

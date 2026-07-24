@@ -15,7 +15,7 @@ describe('Advanced Domain Operations', () => {
   beforeEach(() => {
     resetMockServer();
     ship = new Ship({
-      apiKey: 'test-api-key',
+      token: 'test-api-key',
       apiUrl: 'http://localhost:13579',
     });
   });
