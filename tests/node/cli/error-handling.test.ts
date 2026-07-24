@@ -37,42 +37,21 @@ describe('CLI Error Handling', () => {
     });
 
     describe('authentication errors', () => {
-      it('should show invalid API key message when apiKey is provided', () => {
+      it('should show invalid token message when a token was provided', () => {
         const err = ShipError.authentication('Auth failed');
-        const options: ErrorOptions = { apiKey: 'ship-abc123' };
+        const options: ErrorOptions = { token: 'ship-abc123' };
 
         const message = getUserMessage(err, undefined, options);
 
-        expect(message).toBe('authentication failed: invalid API key');
+        expect(message).toBe('authentication failed: invalid or expired token');
       });
 
-      it('should show invalid deploy token message when deployToken is provided', () => {
-        const err = ShipError.authentication('Auth failed');
-        const options: ErrorOptions = { deployToken: 'dt_abc123' };
-
-        const message = getUserMessage(err, undefined, options);
-
-        expect(message).toBe('authentication failed: invalid or expired deploy token');
-      });
-
-      it('should show auth required message when no credentials provided', () => {
+      it('should show auth required message when no token was provided', () => {
         const err = ShipError.authentication('Auth failed');
 
         const message = getUserMessage(err);
 
-        expect(message).toBe('authentication required: use --api-key or --deploy-token, or set SHIP_API_KEY');
-      });
-
-      it('should prefer apiKey message over deployToken when both provided', () => {
-        const err = ShipError.authentication('Auth failed');
-        const options: ErrorOptions = {
-          apiKey: 'ship-abc123',
-          deployToken: 'dt_abc123'
-        };
-
-        const message = getUserMessage(err, undefined, options);
-
-        expect(message).toBe('authentication failed: invalid API key');
+        expect(message).toBe('authentication required: pass --token, set SHIP_TOKEN, or run ship config');
       });
     });
 

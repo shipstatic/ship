@@ -19,14 +19,14 @@ describe('CLI Flags', () => {
     it('should work with version command', async () => {
       const result = await runCli(['--version', '--json']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
     });
   });
 
-  describe('API Key Flag', () => {
-    it('should accept custom API key without network call', async () => {
+  describe('Token Flag', () => {
+    it('should accept a token without network call', async () => {
       const validKey = 'ship-' + 'a'.repeat(64);
-      const result = await runCli(['--api-key', validKey, '--help']);
+      const result = await runCli(['--token', validKey, '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
     });
@@ -75,7 +75,7 @@ describe('CLI Flags', () => {
   describe('Flag Combinations', () => {
     it('should handle multiple flags together', async () => {
       const result = await runCli([
-        '--api-key', 'test-key',
+        '--token', 'test-key',
         '--api-url', 'https://test.com',
         '--json',
         '--help'
@@ -87,7 +87,7 @@ describe('CLI Flags', () => {
     it('should handle flag order variations', async () => {
       const result = await runCli([
         '--help',
-        '--api-key', 'test-key',
+        '--token', 'test-key',
         '--json'
       ]);
       expect(result.exitCode).toBe(0);
@@ -97,7 +97,7 @@ describe('CLI Flags', () => {
     it('should prioritize CLI flags over config', async () => {
       const result = await runCli([
         '--config', '/nonexistent/config.json',
-        '--api-key', 'override-key',
+        '--token', 'override-token',
         '--help'
       ]);
       expect(result.exitCode).toBe(0);
@@ -106,16 +106,16 @@ describe('CLI Flags', () => {
   });
 
   describe('Flag Validation', () => {
-    it('should handle empty API key', async () => {
-      const result = await runCli(['--api-key', '', '--help'], { expectFailure: true });
+    it('should handle empty token', async () => {
+      const result = await runCli(['--token', '', '--help'], { expectFailure: true });
       // This might fail or succeed depending on validation - either is OK for help
       expect([0, 1]).toContain(result.exitCode);
     });
 
     it('should handle missing flag values', async () => {
-      const result = await runCli(['--api-key'], { expectFailure: true });
+      const result = await runCli(['--token'], { expectFailure: true });
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api-key');
+      expect(result.stderr).toContain('token');
     });
   });
 

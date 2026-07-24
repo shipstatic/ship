@@ -1,34 +1,54 @@
 /**
  * @file CLI validation tests
- * Tests early validation of API keys and URLs
+ * Tests early validation of the --token flag and --api-url.
+ *
+ * Token validation is prefix-classified: `ship-` and `deploy-` values carry
+ * format guarantees and are checked strictly; anything else is an opaque
+ * platform bearer (e.g. an OAuth access token) and passes through — its
+ * validity is the server's to decide.
  */
 
 import { describe, it, expect } from 'vitest';
 import { runCli } from './helpers';
 
 describe('CLI Validation', () => {
-  describe('API Key Validation', () => {
-    it('should reject API key without ship- prefix', async () => {
-      const result = await runCli(['--api-key', 'invalid-key', 'ping']);
+  describe('Token Validation', () => {
+    it('should reject a ship- token with wrong length', async () => {
+      const result = await runCli(['--token', 'ship-short', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api key must start with "ship-"');
+      expect(result.stderr).toContain('API key must be 69 characters total');
     });
 
-    it('should reject API key with wrong length', async () => {
-      const result = await runCli(['--api-key', 'ship-short', 'ping']);
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api key must be 69 characters total');
-    });
-
-    it('should reject API key with invalid hex chars', async () => {
-      const result = await runCli(['--api-key', 'ship-' + 'g'.repeat(64), 'ping']);
+    it('should reject a ship- token with invalid hex chars', async () => {
+      const result = await runCli(['--token', 'ship-' + 'g'.repeat(64), 'ping']);
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('must contain 64 hexadecimal characters');
     });
 
-    it('should accept valid API key format', async () => {
+    it('should reject a deploy- token with wrong length', async () => {
+      const result = await runCli(['--token', 'deploy-short', 'ping']);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('deploy token must be 71 characters total');
+    });
+
+    it('should accept a valid API key', async () => {
       const validKey = 'ship-' + 'a'.repeat(64);
-      const result = await runCli(['--api-key', validKey, '--help']);
+      const result = await runCli(['--token', validKey, '--help']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('USAGE');
+    });
+
+    it('should accept a valid deploy token', async () => {
+      const validToken = 'deploy-' + 'a'.repeat(64);
+      const result = await runCli(['--token', validToken, '--help']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('USAGE');
+    });
+
+    it('should accept an opaque token (no known prefix)', async () => {
+      // Opaque bearers are classified server-side — the CLI passes them
+      // through verbatim rather than guessing at their format.
+      const result = await runCli(['--token', 'opaque-access-token', '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
     });
@@ -38,25 +58,25 @@ describe('CLI Validation', () => {
     it('should reject invalid URL format', async () => {
       const result = await runCli(['--api-url', 'not-a-url', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api url must be a valid url');
+      expect(result.stderr).toContain('API URL must be a valid URL');
     });
 
     it('should reject URL without protocol', async () => {
       const result = await runCli(['--api-url', 'api.example.com', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api url must be a valid url');
+      expect(result.stderr).toContain('API URL must be a valid URL');
     });
 
     it('should reject URL with path', async () => {
       const result = await runCli(['--api-url', 'https://api.example.com/path', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api url must not contain a path');
+      expect(result.stderr).toContain('API URL must not contain a path');
     });
 
     it('should reject URL with query parameters', async () => {
       const result = await runCli(['--api-url', 'https://api.example.com?param=value', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api url must not contain query parameters');
+      expect(result.stderr).toContain('API URL must not contain query parameters');
     });
 
     it('should accept valid HTTPS URL', async () => {
@@ -75,9 +95,9 @@ describe('CLI Validation', () => {
   describe('Validation Timing', () => {
     it('should validate before making network calls', async () => {
       // This ensures validation happens in option processing, not during API calls
-      const result = await runCli(['--api-key', 'invalid', 'ping']);
+      const result = await runCli(['--token', 'ship-invalid', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api key must start with "ship-"');
+      expect(result.stderr).toContain('API key must be 69 characters total');
       // Should fail fast without attempting network request
     });
   });

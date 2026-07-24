@@ -37,23 +37,16 @@ const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => ({
 
 vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
 
-// Mock for configLoader
-const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
-  CONFIG_LOADER_MOCK_IMPLEMENTATION: {
-    loadConfig: vi.fn(),
-    DEFAULT_API_HOST: 'https://default.node.loaded.host',
-    resolveConfig: vi.fn((userOptions: Record<string, any> = {}, loadedConfig: Record<string, any> = {}) => ({ // Added basic types
-      apiUrl: userOptions.apiUrl || loadedConfig.apiUrl || 'https://api.shipstatic.com',
-      apiKey: userOptions.apiKey !== undefined ? userOptions.apiKey : loadedConfig.apiKey
-    })),
+// Mock for config helpers
+const { CONFIG_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
+  CONFIG_MOCK_IMPLEMENTATION: {
     mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
       ...clientDefaults,
       ...userOptions
     }))
   }
 }));
-vi.mock('../../src/shared/core/config', () => CONFIG_LOADER_MOCK_IMPLEMENTATION);
-const configLoaderMock = CONFIG_LOADER_MOCK_IMPLEMENTATION;
+vi.mock('../../src/shared/core/config', () => CONFIG_MOCK_IMPLEMENTATION);
 
 
 // 1. Define mock implementations using vi.hoisted()
@@ -87,10 +80,6 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
   beforeEach(() => {
     vi.clearAllMocks();
     MOCK_CALCULATE_MD5_FN.mockResolvedValue({ md5: 'mocked-md5-hash' });
-    configLoaderMock.loadConfig.mockResolvedValue({
-      apiUrl: 'https://mock.node.host',
-      apiKey: 'mock_node_key'
-    });
     __setTestEnvironment('node');
 
     // Properly handle absolute and relative paths
@@ -244,7 +233,7 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
     
     // Instead of testing the internal function directly, test the behavior via the public API
     
-    it('should strip parent folder when stripCommonPrefix option is used', async () => {
+    it('should strip parent folder when pathDetect option is enabled', async () => {
       // Since process.cwd() is mocked to '/mock/cwd', we'll use paths relative to that
       // to ensure path resolution works correctly
       const mockFilesWithCwd: Record<string, string | { type: "dir" | "file"; content?: string; size?: number } | null> = {
@@ -293,7 +282,7 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
       const result = await processFilesForNode([
         'project/src/file1.txt',
         'project/src/components/file2.txt'
-      ], { stripCommonPrefix: true }, {}, TEST_PLATFORM_LIMITS);
+      ], { pathDetect: true }, TEST_PLATFORM_LIMITS);
       
       expect(result).toHaveLength(2);
       

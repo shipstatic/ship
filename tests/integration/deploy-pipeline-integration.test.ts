@@ -50,7 +50,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
       // Test Node.js pipeline
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      const nodeShip = new NodeShip({ apiKey: 'test-key' });
+      const nodeShip = new NodeShip({ token: 'test-key' });
       (nodeShip as any).http = mockApiClient;
       
       // Mock the processInput to return consistent data
@@ -69,7 +69,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
       // Test Browser pipeline
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
-      const browserShip = new BrowserShip({ deployToken: 'test-token', apiUrl: 'https://api.test.com' });
+      const browserShip = new BrowserShip({ token: 'test-token', apiUrl: 'https://api.test.com' });
       (browserShip as any).http = mockApiClient;
       
       // Mock the processInput to return consistent data
@@ -113,7 +113,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
         
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          const ship = new Ship({ apiKey: 'test-key' });
+          const ship = new Ship({ token: 'test-key' });
           (ship as any).http = mockApiClient;
           
           // Mock processInput to simulate the pipeline
@@ -130,7 +130,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
           results.push(result);
         } else {
           const { Ship } = await import('../../src/browser/index');
-          const ship = new Ship({ deployToken: 'test-token', apiUrl: 'https://api.test.com' });
+          const ship = new Ship({ token: 'test-token', apiUrl: 'https://api.test.com' });
           (ship as any).http = mockApiClient;
           
           // Mock processInput to simulate the pipeline
@@ -170,7 +170,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
         
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          const ship = new Ship({ apiKey: 'test-key' });
+          const ship = new Ship({ token: 'test-key' });
           (ship as any).http = mockApiClient;
           
           const mockProcessInput = vi.fn().mockResolvedValue([
@@ -182,7 +182,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
           results.push({ result, processInputCall: mockProcessInput.mock.calls[0] });
         } else {
           const { Ship } = await import('../../src/browser/index');
-          const ship = new Ship({ deployToken: 'test-token', apiUrl: 'https://api.test.com' });
+          const ship = new Ship({ token: 'test-token', apiUrl: 'https://api.test.com' });
           (ship as any).http = mockApiClient;
           
           const mockProcessInput = vi.fn().mockResolvedValue([
@@ -218,7 +218,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
         
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          const ship = new Ship({ apiKey: 'test-key' });
+          const ship = new Ship({ token: 'test-key' });
           (ship as any).http = mockApiClient;
           
           // Mock processInput to throw error
@@ -232,7 +232,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
           }
         } else {
           const { Ship } = await import('../../src/browser/index');
-          const ship = new Ship({ deployToken: 'test-token', apiUrl: 'https://api.test.com' });
+          const ship = new Ship({ token: 'test-token', apiUrl: 'https://api.test.com' });
           (ship as any).http = mockApiClient;
           
           // Mock processInput to throw error
@@ -258,7 +258,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
         
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          const ship = new Ship({ apiKey: 'test-key' });
+          const ship = new Ship({ token: 'test-key' });
           (ship as any).http = mockApiClient;
           
           (ship as any).processInput = vi.fn().mockResolvedValue([
@@ -273,7 +273,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
           }
         } else {
           const { Ship } = await import('../../src/browser/index');
-          const ship = new Ship({ deployToken: 'test-token', apiUrl: 'https://api.test.com' });
+          const ship = new Ship({ token: 'test-token', apiUrl: 'https://api.test.com' });
           (ship as any).http = mockApiClient;
           
           (ship as any).processInput = vi.fn().mockResolvedValue([
@@ -300,7 +300,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
         
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          const ship = new Ship({ apiKey: 'test-key' });
+          const ship = new Ship({ token: 'test-key' });
           (ship as any).http = mockApiClient;
           
           (ship as any).processInput = vi.fn().mockResolvedValue([
@@ -315,7 +315,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
           }
         } else {
           const { Ship } = await import('../../src/browser/index');
-          const ship = new Ship({ deployToken: 'test-token', apiUrl: 'https://api.test.com' });
+          const ship = new Ship({ token: 'test-token', apiUrl: 'https://api.test.com' });
           (ship as any).http = mockApiClient;
           
           (ship as any).processInput = vi.fn().mockResolvedValue([
@@ -350,7 +350,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
         
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          const ship = new Ship({ apiKey: 'test-key' });
+          const ship = new Ship({ token: 'test-key' });
           (ship as any).http = mockApiClient;
           
           (ship as any).processInput = vi.fn().mockResolvedValue(
@@ -366,7 +366,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
           results.push(result);
         } else {
           const { Ship } = await import('../../src/browser/index');
-          const ship = new Ship({ deployToken: 'test-token', apiUrl: 'https://api.test.com' });
+          const ship = new Ship({ token: 'test-token', apiUrl: 'https://api.test.com' });
           (ship as any).http = mockApiClient;
           
           (ship as any).processInput = vi.fn().mockResolvedValue(
@@ -403,7 +403,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
         
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          const ship = new Ship({ apiKey: 'test-key' });
+          const ship = new Ship({ token: 'test-key' });
           (ship as any).http = mockApiClient;
           
           (ship as any).processInput = vi.fn().mockResolvedValue(
@@ -420,7 +420,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
           results.push(result);
         } else {
           const { Ship } = await import('../../src/browser/index');
-          const ship = new Ship({ deployToken: 'test-token', apiUrl: 'https://api.test.com' });
+          const ship = new Ship({ token: 'test-token', apiUrl: 'https://api.test.com' });
           (ship as any).http = mockApiClient;
           
           (ship as any).processInput = vi.fn().mockResolvedValue(
@@ -451,7 +451,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
         
         if (env === 'node') {
           const { Ship } = await import('../../src/node/index');
-          const ship = new Ship({ apiKey: 'test-key' });
+          const ship = new Ship({ token: 'test-key' });
           (ship as any).http = mockApiClient;
           
           // Track state changes through the pipeline
@@ -476,7 +476,7 @@ describe('Deploy Pipeline Cross-Environment Integration', () => {
           ]);
         } else {
           const { Ship } = await import('../../src/browser/index');
-          const ship = new Ship({ deployToken: 'test-token', apiUrl: 'https://api.test.com' });
+          const ship = new Ship({ token: 'test-token', apiUrl: 'https://api.test.com' });
           (ship as any).http = mockApiClient;
           
           // Track state changes through the pipeline

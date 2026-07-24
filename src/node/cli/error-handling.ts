@@ -33,11 +33,15 @@ export function toShipError(err: unknown): ShipError {
 }
 
 /**
- * CLI options relevant to error message generation
+ * CLI options relevant to error message generation.
  */
 export interface ErrorOptions {
-  apiKey?: string;
-  deployToken?: string;
+  /**
+   * The credential the CLI resolved (flag > env > file) — not the raw
+   * `--token` flag. Presence selects the "invalid or expired" auth message;
+   * absence selects the "how to authenticate" one.
+   */
+  token?: string;
 }
 
 /**
@@ -54,13 +58,10 @@ export function getUserMessage(
 ): string {
   // Auth errors - tell user what credentials to provide
   if (err.isAuthError()) {
-    if (options?.apiKey) {
-      return 'authentication failed: invalid API key';
-    } else if (options?.deployToken) {
-      return 'authentication failed: invalid or expired deploy token';
-    } else {
-      return 'authentication required: use --api-key or --deploy-token, or set SHIP_API_KEY';
+    if (options?.token) {
+      return 'authentication failed: invalid or expired token';
     }
+    return 'authentication required: pass --token, set SHIP_TOKEN, or run ship config';
   }
 
   // Network errors - include context about what failed

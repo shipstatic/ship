@@ -27,7 +27,13 @@ jobs:
       
       - run: pnpm run build
       
-      - run: pnpm publish --access public --no-git-checks --provenance
+      # The dist-tag derives from the version: prerelease versions (any `-`
+      # suffix) publish under `beta` so `latest` keeps resolving the last
+      # stable; promoting a stable version needs no workflow change.
+      - run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then TAG=beta; else TAG=latest; fi
+          pnpm publish --access public --no-git-checks --provenance --tag "$TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
       

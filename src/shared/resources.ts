@@ -3,8 +3,6 @@
  */
 import {
   ShipError,
-  isShipError,
-  ErrorType,
   type StaticFile,
   type DeployInput,
   type DeploymentResource,
@@ -40,14 +38,18 @@ export interface ResourceContext {
 export interface DeploymentResourceContext extends ResourceContext {
   processInput: (input: DeployInput, options: DeploymentOptions) => Promise<StaticFile[]>;
   clientDefaults?: ShipClientOptions;
-  hasAuth?: () => boolean;
 }
 
 /**
  * Upload deployment resource with all CRUD operations.
+ *
+ * There is no client-side auth branching: an upload from a credential-less
+ * client simply carries no `Authorization` header, and the API grants the
+ * public-account agent identity per request (claim URL + expiry on the
+ * response). The SDK stays a transparent pipe either way.
  */
 export function createDeploymentResource(ctx: DeploymentResourceContext): DeploymentResource {
-  const { getApi, ensureInit, processInput, clientDefaults, hasAuth } = ctx;
+  const { getApi, ensureInit, processInput, clientDefaults } = ctx;
 
   return {
     upload: async (input: DeployInput, options: DeploymentOptions = {}) => {
@@ -56,22 +58,6 @@ export function createDeploymentResource(ctx: DeploymentResourceContext): Deploy
       const mergedOptions = clientDefaults
         ? mergeDeployOptions(options, clientDefaults)
         : options;
-
-      // No credentials — deploy publicly via agent token (short-lived, IP-locked, under PUBLIC_ACCOUNT)
-      if (hasAuth && !hasAuth() && !mergedOptions.deployToken && !mergedOptions.apiKey) {
-        try {
-          const api = getApi();
-          const { secret } = await api.fetchAgentToken();
-          mergedOptions.deployToken = secret;
-        } catch (err) {
-          if (isShipError(err) && err.type === ErrorType.RateLimit) {
-            throw ShipError.rateLimit(
-              'public deploy rate limit exceeded, try again later or run \'ship config\' for a free account with higher limits'
-            );
-          }
-          throw err;
-        }
-      }
 
       if (!processInput) {
         throw ShipError.config('processInput function is not provided.');

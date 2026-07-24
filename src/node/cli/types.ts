@@ -27,8 +27,7 @@ import type { DomainSetResult } from '../../shared/types.js';
  * These are defined on the root program.
  */
 export interface GlobalOptions {
-  apiKey?: string;
-  deployToken?: string;
+  token?: string;
   config?: string;
   apiUrl?: string;
   json?: boolean;

@@ -18,8 +18,6 @@ export * from '@shipstatic/types';
  * Extends the API contract (DeploymentUploadOptions) with SDK-specific options.
  */
 export interface DeploymentOptions extends DeploymentUploadOptions {
-  /** The API URL to use for this specific deploy. Overrides client's default. */
-  apiUrl?: string;
   /** An AbortSignal to allow cancellation of the deploy operation. */
   signal?: AbortSignal;
   /** Callback invoked if the deploy is cancelled via the AbortSignal. */
@@ -28,18 +26,12 @@ export interface DeploymentOptions extends DeploymentUploadOptions {
   maxConcurrency?: number;
   /** Timeout in milliseconds for the deploy request. */
   timeout?: number;
-  /** API key for this specific deploy. Overrides client's default (format: ship-<64-char-hex>, total 69 chars). */
-  apiKey?: string;
-  /** Deploy token for this specific deploy. Overrides client's default (format: token-<64-char-hex>, total 70 chars). */
-  deployToken?: string;
   /** Whether to auto-detect and optimize file paths by flattening common directories. Defaults to true. */
   pathDetect?: boolean;
   /** Whether to auto-detect SPAs and generate ship.json configuration. Defaults to true. */
   spaDetect?: boolean;
   /** Callback for deploy progress with detailed statistics. */
   onProgress?: (info: ProgressInfo) => void;
-  /** Caller identifier for multi-tenant deployments (alphanumeric, dot, underscore, hyphen). */
-  caller?: string;
 }
 
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
@@ -73,6 +65,8 @@ export interface DeployBodyContext {
   password?: string;
   /** @internal Server-side processing flags. */
   flags?: { build?: boolean; prerender?: boolean; spa?: boolean };
+  /** @internal reCAPTCHA proof for the anonymous human deploy channel (/upload). */
+  captcha?: string;
 }
 
 /**
@@ -92,16 +86,36 @@ export type DeployBodyCreator = (
 export type Fetch = typeof fetch;
 
 /**
+ * Supplies the client token per request — synchronously or asynchronously.
+ * The provider owns freshness: callers holding short-lived credentials
+ * (e.g. OAuth access tokens) refresh inside the provider; the SDK just asks.
+ * A provider that yields nothing fails the request — a configured provider
+ * is credential intent, and intent never degrades to an anonymous request.
+ */
+export type TokenProvider = () => string | Promise<string>;
+
+/**
  * Options for configuring a `Ship` instance.
- * Sets default API host, authentication credentials, progress callbacks, concurrency, and timeouts for the client.
+ * Sets default API host, the client credential, progress callbacks, concurrency, and timeouts for the client.
  */
 export interface ShipClientOptions {
   /** Default API URL for the client instance. */
   apiUrl?: string | undefined;
-  /** API key for authenticated deployments (format: ship-<64-char-hex>, total 69 chars). */
-  apiKey?: string | undefined;
-  /** Deploy token for authenticated deployments (format: token-<64-char-hex>, total 70 chars). */
-  deployToken?: string | undefined;
+  /**
+   * The client credential — any platform token, sent verbatim as
+   * `Authorization: Bearer <value>` on every request. The token's prefix says
+   * what it is: `ship-` API key (durable, full account), `deploy-` deploy
+   * token (deploy-scoped, revocable, optional TTL), anything else an opaque
+   * pre-issued bearer such as an OAuth access token. The server classifies by
+   * value — the client never has to say which kind it holds.
+   *
+   * Pass a {@link TokenProvider} function instead of a string when the token
+   * must be minted or refreshed per request.
+   *
+   * Omitted entirely: deploys still work — they land in the public account
+   * with a claim URL and an expiry; every other operation requires a token.
+   */
+  token?: string | TokenProvider | undefined;
   /**
    * Default callback for deploy progress for deploys made with this client.
    * @param info - Progress information including percentage and byte counts.
@@ -119,14 +133,19 @@ export interface ShipClientOptions {
    */
   timeout?: number | undefined;
   /**
-   * When true, indicates the client should use HTTP-only cookies for authentication
-   * instead of explicit tokens. This is useful for internal browser applications
-   * where authentication is handled via secure cookies set by the API.
+   * When true, the client authenticates with the first-party cookie session
+   * (`AuthMethod.SESSION`) — requests are sent with `credentials: 'include'`
+   * and carry no `Authorization` header. For browser apps living on the
+   * platform's own domains, where the API sets HTTP-only session cookies.
+   * Mutually exclusive with `token`: a client holds one identity.
    *
-   * When set, the pre-request authentication check is skipped, allowing requests
-   * to proceed with cookie-based credentials.
+   * Requires a cookie-capable transport. Browsers send first-party cookies
+   * natively; in Node, pair it with an injected `fetch` that forwards the
+   * session cookie (the default fetch has no cookie jar, and `session: true`
+   * deliberately suppresses the `SHIP_TOKEN` fallback — a session client
+   * never silently switches identity).
    */
-  useCredentials?: boolean | undefined;
+  session?: boolean | undefined;
   /**
    * Custom `fetch` implementation. Defaults to `globalThis.fetch`.
    *
@@ -136,14 +155,19 @@ export interface ShipClientOptions {
    */
   fetch?: Fetch | undefined;
   /**
-   * Default caller identifier for multi-tenant deployments.
-   * Alphanumeric characters, dots, underscores, and hyphens allowed (max 128 chars).
+   * Caller identifier for multi-tenant orchestration — sent as `X-Caller`
+   * on every request. Validated at construction against the shared `CALLER`
+   * shape (`validateCaller` in `@shipstatic/types`: alphanumeric, dots,
+   * underscores, hyphens; max 128 chars) — a value the API would silently
+   * drop throws here instead.
    *
-   * Used by orchestrators (e.g. n8n nodes processing many tenants from one
-   * worker) so the API's rate-limit bucket keys per caller rather than per
-   * shared IP. **Programmatic-only by design** — there is no `--caller`
-   * CLI flag because every CLI invocation belongs to one human; a per-tenant
-   * rate-limit bucket would defeat the purpose.
+   * Used by orchestrators (e.g. the hosted MCP Worker processing many end
+   * users from one egress) so the API's rate-limit buckets key per caller
+   * rather than per shared IP. Instance identity metadata, like the
+   * credential: one client speaks for one end user, and every write the
+   * client makes is bucketed the same way. **Programmatic-only by design**
+   * — there is no `--caller` CLI flag because every CLI invocation belongs
+   * to one human; a per-tenant rate-limit bucket would defeat the purpose.
    *
    * Distinct from `via` (the client identifier — `'cli'`, `'sdk'`, `'web'`,
    * `'git'`, etc.). `via` is for analytics/origin tracking and is

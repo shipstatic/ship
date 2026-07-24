@@ -40,7 +40,7 @@ ship config    # paste your API key when prompted
 ```
 
 ```javascript
-const ship = new Ship({ apiKey: 'ship-...' });
+const ship = new Ship({ token: 'ship-...' });
 ```
 
 ### Deployments
@@ -158,8 +158,7 @@ Available on every command:
 
 | Flag | Description |
 |------|-------------|
-| `--api-key <key>` | API key for authenticated requests |
-| `--deploy-token <token>` | Deploy token for authenticated deployments |
+| `--token <token>` | Any ship token: API key (`ship-…`) or deploy token (`deploy-…`) |
 | `--api-url <url>` | API URL override (for development) |
 | `--config <file>` | Custom config file path |
 | `--json` | Output results in JSON format |
@@ -183,8 +182,7 @@ Available on `ship <path>` and `ship deployments upload`:
 
 | Var | Purpose |
 |---|---|
-| `SHIP_API_KEY` | Default for `--api-key` |
-| `SHIP_DEPLOY_TOKEN` | Default for `--deploy-token` |
+| `SHIP_TOKEN` | Default for `--token` |
 | `SHIP_API_URL` | Default for `--api-url` |
 | `SHIP_PASSWORD` | Default for `--password` (empty string normalized to absence) |
 
@@ -193,18 +191,26 @@ Available on `ship <path>` and `ship deployments upload`:
 ### Authentication
 
 ```javascript
-// No credentials — deploy only, 3-day expiry
+// No token — deploy only: lands in the public account with a claim URL, 3-day expiry
 const ship = new Ship();
 
-// API key — permanent, full access
-const ship = new Ship({ apiKey: 'ship-...' });
+// API key — durable, full account
+const ship = new Ship({ token: 'ship-...' });
 
 // Deploy token — scoped to deploys, optional TTL, revocable
-const ship = new Ship({ deployToken: 'token-...' });
+const ship = new Ship({ token: 'deploy-...' });
 
-// Set credentials after construction
-ship.setApiKey('ship-...');
-ship.setDeployToken('token-...');
+// OAuth access token — delegated, short-lived, sent verbatim
+const ship = new Ship({ token: accessToken });
+
+// Token provider — invoked per request; refresh lives with you
+const ship = new Ship({ token: () => mintToken() });
+
+// Cookie session — first-party browser apps
+const ship = new Ship({ session: true });
+
+// Set or rotate the token after construction
+ship.setToken('ship-...');
 ```
 
 ### Deploy Options
@@ -221,9 +227,6 @@ ship.deploy(input, {
   maxConcurrency?: number,    // Concurrent uploads (default: 4)
   timeout?: number,           // Request timeout in ms
   via?: string,               // Client identifier
-  apiUrl?: string,            // Per-request API URL override
-  apiKey?: string,            // Per-request API key override
-  deployToken?: string,       // Per-request deploy token override
 });
 ```
 
@@ -246,7 +249,7 @@ The CLI also reads `SHIP_PASSWORD` from the environment when `--password` is not
 ```javascript
 import Ship from '@shipstatic/ship';
 
-const ship = new Ship({ apiKey: 'ship-...' });
+const ship = new Ship({ token: 'ship-...' });
 
 // From file input
 const deployment = await ship.deploy(fileInput.files);
@@ -308,21 +311,23 @@ try {
 
 ## Configuration
 
-The **CLI** (`ship`) resolves credentials in this order:
+The **CLI** (`ship`) resolves its token in this order:
 
-1. CLI flags: `--api-key`, `--api-url`, `--deploy-token`
-2. Environment variables: `SHIP_API_KEY`, `SHIP_API_URL`, `SHIP_DEPLOY_TOKEN`
+1. CLI flag: `--token`
+2. Environment variable: `SHIP_TOKEN`
 3. Config files: `.shiprc` or `package.json` `"ship"` key (run `ship config` to create one)
 
-The **SDK** (`new Ship(...)`) resolves credentials in this order:
+The **SDK** (`new Ship(...)`) resolves its token in this order:
 
-1. Constructor options: `new Ship({ apiUrl, apiKey })`
-2. Environment variables: `SHIP_API_KEY`, `SHIP_API_URL`, `SHIP_DEPLOY_TOKEN`
+1. Constructor option: `new Ship({ token })`
+2. Environment variable: `SHIP_TOKEN`
+
+`--api-url` / `SHIP_API_URL` / `apiUrl` resolve the same way for the API endpoint.
 
 The SDK never reads `.shiprc` or `package.json` — file resolution is a CLI feature, not an SDK feature. This keeps `new Ship({})` safe to use from embedded contexts (MCP, n8n, library wrappers) without inheriting the host developer's personal credentials.
 
 ```bash
-SHIP_API_KEY=ship-... ship deployments list
+SHIP_TOKEN=ship-... ship deployments list
 ```
 
 ## TypeScript

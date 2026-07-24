@@ -16,7 +16,7 @@
 
 import { createServer } from 'http';
 import type { Server, IncomingMessage, ServerResponse } from 'http';
-import type { Deployment, DeploymentListResponse, Domain, DomainListResponse, Token, TokenListResponse } from '@shipstatic/types';
+import type { Deployment, DeploymentListResponse, Domain, DomainListResponse, TokenListItem, TokenListResponse } from '@shipstatic/types';
 import {
   deployments as deploymentFixtures,
   domains as domainFixtures,
@@ -47,7 +47,7 @@ let server: Server | null = null;
 
 let mockDeployments: Deployment[] = [];
 let mockDomains: Domain[] = [];
-let mockTokens: Token[] = [];
+let mockTokens: TokenListItem[] = [];
 
 // Track rate-limited domains for verify endpoint
 const rateLimitedDomains = new Set<string>();
@@ -98,8 +98,12 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
     return;
   }
 
-  // Authentication check
-  const isPublicEndpoint = path === '/ping' || path === '/limits' || (path === '/tokens' && method === 'POST');
+  // Authentication check. Deploy creation is public: an unauthenticated
+  // POST /deployments is granted the public-account agent identity by the
+  // API (claim URL + expiry on the response) — mirrored below.
+  const isPublicEndpoint = path === '/ping' || path === '/limits'
+    || (path === '/tokens' && method === 'POST')
+    || (path === '/deployments' && method === 'POST');
   const hasAuth = req.headers.authorization || req.headers['x-api-key'];
 
   if (!isPublicEndpoint && !hasAuth) {
@@ -266,10 +270,17 @@ function handleDeploymentUpload(req: IncomingMessage, res: ServerResponse): void
   let body = '';
   req.on('data', (chunk) => (body += chunk));
   req.on('end', () => {
-    const deployment = createDynamicDeployment();
+    // Anonymous deploys land under the public account: expiring, claimable.
+    const anonymous = !req.headers.authorization;
+    const deployment = anonymous
+      ? createDynamicDeployment({ expires: Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60 })
+      : createDynamicDeployment();
     mockDeployments.push(deployment);
+    const response = anonymous
+      ? { ...deployment, claim: `https://my.shipstatic.com/claim/${'a'.repeat(64)}` }
+      : deployment;
     res.writeHead(201);
-    res.end(JSON.stringify(deployment));
+    res.end(JSON.stringify(response));
   });
 }
 
@@ -534,17 +545,9 @@ function handleDomainValidate(req: IncomingMessage, res: ServerResponse): void {
 // =============================================================================
 
 function handleTokensList(res: ServerResponse): void {
-  // Return tokens with 7-char management ID (no truncation needed)
-  const sanitizedTokens = mockTokens.map(token => ({
-    token: token.token,
-    labels: token.labels,
-    created: token.created,
-    expires: token.expires ?? null,
-    used: token.used ?? null,
-  }));
   const response: TokenListResponse = {
-    tokens: sanitizedTokens,
-    total: sanitizedTokens.length,
+    tokens: mockTokens,
+    total: mockTokens.length,
   };
   res.writeHead(200);
   res.end(JSON.stringify(response));
@@ -566,7 +569,7 @@ function handleTokenCreate(req: IncomingMessage, res: ServerResponse): void {
       // Return token ID + secret with labels and expires
       const response: { token: string; secret: string; labels: string[]; expires: number | null } = {
         token: token.token,
-        secret: `token-${Date.now()}${Math.random().toString(36).substring(2, 10)}`.padEnd(70, '0'),
+        secret: `deploy-${Date.now()}${Math.random().toString(36).substring(2, 10)}`.padEnd(71, "0"),
         labels: data.labels || [],
         expires: data.ttl ? Math.floor(Date.now() / 1000) + data.ttl : null,
       };

@@ -2,8 +2,8 @@
  * @file Ship SDK for browser environments.
  *
  * Configuration is fully explicit — the browser has no env vars or config files
- * to inherit. All credentials are supplied via constructor options (or, for
- * first-party browser apps, an HTTP-only cookie via `useCredentials: true`).
+ * to inherit. The credential is supplied via the `token` constructor option
+ * (or, for first-party browser apps, the cookie session via `session: true`).
  */
 
 import { Ship as BaseShip } from '../shared/base-ship.js';
@@ -27,7 +27,7 @@ export * from '../shared/index.js';
  * ```typescript
  * // Deploy with a token obtained from your server
  * const ship = new Ship({
- *   deployToken: 'token-xxxx',
+ *   token: 'deploy-xxxx',
  *   apiUrl: 'https://api.shipstatic.com',
  * });
  *
