@@ -60,7 +60,7 @@ export function loadShipFile(configFile?: string): Partial<ShipClientOptions> {
     stopDir: home,
   });
 
-  let result;
+  let result: ReturnType<typeof explorer.search>;
   try {
     result = explicitPath ? explorer.load(explicitPath) : explorer.search();
   } catch (error) {
