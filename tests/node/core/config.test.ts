@@ -16,8 +16,7 @@ describe('Node.js SDK env-var resolution', () => {
     originalEnv = { ...process.env };
 
     delete process.env.SHIP_API_URL;
-    delete process.env.SHIP_API_KEY;
-    delete process.env.SHIP_DEPLOY_TOKEN;
+    delete process.env.SHIP_TOKEN;
 
     const { getENV } = await import('../../../src/shared/lib/env');
     (getENV as any).mockReturnValue('node');
@@ -40,13 +39,11 @@ describe('Node.js SDK env-var resolution', () => {
 
     it('reads SHIP_* env vars', () => {
       process.env.SHIP_API_URL = 'https://api.example.com';
-      process.env.SHIP_API_KEY = 'ship-key';
-      process.env.SHIP_DEPLOY_TOKEN = 'token-token';
+      process.env.SHIP_TOKEN = 'env-token';
 
       expect(config.readEnvConfig()).toEqual({
         apiUrl: 'https://api.example.com',
-        apiKey: 'ship-key',
-        deployToken: 'token-token',
+        token: 'env-token',
       });
     });
 
@@ -55,8 +52,7 @@ describe('Node.js SDK env-var resolution', () => {
       // unsetting them. Without this normalization, an empty string would either
       // fail zod's "min length 1" check or override a legitimate constructor arg.
       process.env.SHIP_API_URL = '';
-      process.env.SHIP_API_KEY = '';
-      process.env.SHIP_DEPLOY_TOKEN = '';
+      process.env.SHIP_TOKEN = '';
 
       expect(config.readEnvConfig()).toEqual({});
     });
@@ -78,55 +74,40 @@ describe('Node.js SDK env-var resolution', () => {
     });
   });
 
-  describe('resolveConfig', () => {
-    it('uses the default API URL when none is provided', () => {
-      expect(sharedConfig.resolveConfig()).toEqual({
-        apiUrl: 'https://api.shipstatic.com',
-      });
-    });
-
-    it('passes through a user-supplied apiUrl', () => {
-      expect(sharedConfig.resolveConfig({
-        apiUrl: 'https://user.example.com',
-        apiKey: 'ship-key',
-      })).toEqual({
-        apiUrl: 'https://user.example.com',
-        apiKey: 'ship-key',
-      });
-    });
-
-    it('omits apiKey and deployToken when undefined (rather than including them as undefined)', () => {
-      // Spread merges downstream rely on absent fields; an undefined value
-      // would shadow defaults from `clientDefaults` in `mergeDeployOptions`.
-      const result = sharedConfig.resolveConfig({ apiUrl: 'https://x.com' });
-      expect(result).toEqual({ apiUrl: 'https://x.com' });
-      expect('apiKey' in result).toBe(false);
-      expect('deployToken' in result).toBe(false);
-    });
-  });
-
   describe('mergeDeployOptions', () => {
     it('merges per-deploy options with client defaults', () => {
       const result = sharedConfig.mergeDeployOptions(
         { timeout: 5000 },
-        { apiUrl: 'https://api.example.com', apiKey: 'default-key', timeout: 10000, maxConcurrency: 3 }
+        { timeout: 10000, maxConcurrency: 3 }
       );
       expect(result).toEqual({
         timeout: 5000,
         maxConcurrency: 3,
-        apiKey: 'default-key',
-        apiUrl: 'https://api.example.com',
       });
     });
 
     it('does not override user options with defaults', () => {
       const result = sharedConfig.mergeDeployOptions(
-        { timeout: 5000, apiKey: 'user-key' },
-        { timeout: 10000, apiKey: 'default-key' }
+        { timeout: 5000, maxConcurrency: 8 },
+        { timeout: 10000, maxConcurrency: 3 }
       );
       expect(result).toEqual({
         timeout: 5000,
-        apiKey: 'user-key',
+        maxConcurrency: 8,
+      });
+    });
+
+    it('merges only deploy concerns — the client identity stays on the instance', () => {
+      // Credentials, the API URL, and the caller identifier are not deploy
+      // options: one client is one principal speaking for one end user. Only
+      // progress, timing, and concurrency flow from client defaults into a
+      // deploy.
+      const result = sharedConfig.mergeDeployOptions(
+        {},
+        { apiUrl: 'https://api.example.com', token: 'default-token', timeout: 10000, caller: 'tenant-1' }
+      );
+      expect(result).toEqual({
+        timeout: 10000,
       });
     });
   });

@@ -3,9 +3,9 @@
  *
  * The Node-side `Ship` adds two things on top of the base class:
  *   1. Environment detection — refuses to construct outside Node.
- *   2. `SHIP_*` env-var resolution as the universal "process boundary" credential
- *      source, mirroring the OpenAI / Anthropic SDK convention. Constructor
- *      arguments win over env vars.
+ *   2. `SHIP_TOKEN` / `SHIP_API_URL` env-var resolution as the universal
+ *      "process boundary" credential source — the industry's one-token
+ *      convention. Constructor arguments win over env vars.
  *
  * The SDK does NOT read `~/.shiprc` or `package.json` `"ship"` keys — that's
  * the CLI's job (see `cli/shiprc.ts`). Keeping file resolution out of the SDK
@@ -36,13 +36,13 @@ export * from '../shared/index.js';
  *
  * @example
  * ```typescript
- * // Authenticated — explicit API key
- * const ship = new Ship({ apiKey: 'ship-xxxx' });
+ * // Authenticated — explicit token (API key, deploy token, or OAuth bearer)
+ * const ship = new Ship({ token: 'ship-xxxx' });
  *
- * // Authenticated — picks up SHIP_API_KEY from env
+ * // Authenticated — picks up SHIP_TOKEN from env
  * const ship = new Ship({});
  *
- * // Anonymous public deploy — works when neither constructor nor env provides creds
+ * // Anonymous public deploy — works when neither constructor nor env provides a token
  * const ship = new Ship({});
  * await ship.deploy('./dist');
  * ```
@@ -54,19 +54,19 @@ export class Ship extends BaseShip {
     }
 
     // Layer env vars under constructor options. The merged result is what the
-    // base class sees, so auth state and the HTTP client are fully formed by
-    // the time the constructor returns — no async config phase needed.
+    // base class sees, so the credential and the HTTP client are fully formed
+    // by the time the constructor returns — no async config phase needed.
     //
-    // `||` (not `??`) is deliberate: empty strings on `options` fall through
-    // to env, matching the CLI's `mergeCliConfig` behavior and preventing the
-    // surprising case where a caller passing `apiKey: ''` (e.g. from an
-    // unset variable) silently suppresses a perfectly good `SHIP_API_KEY`.
+    // Truthiness (not `??`) is deliberate: an empty-string token is absence
+    // (shell expansion of unset CI variables), so `token: ''` falls through
+    // to `SHIP_TOKEN` instead of locking in a phantom credential. A client
+    // constructed with `session: true` has chosen its identity — the ambient
+    // token does not ride along.
     const env = readEnvConfig();
     super({
       ...options,
       apiUrl: options.apiUrl || env.apiUrl,
-      apiKey: options.apiKey || env.apiKey,
-      deployToken: options.deployToken || env.deployToken,
+      token: options.token || (options.session ? undefined : env.token),
     });
   }
 

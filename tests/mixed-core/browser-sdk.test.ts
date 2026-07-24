@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 import type { Ship as ShipClass } from '../../src/browser/index'; // Import type for client
+import type { DeploymentOptions } from '../../src/shared/types';
 
 // 1. Use vi.hoisted() for variables used in vi.mock factories
 const mockApiHttpInstance = {
@@ -39,24 +40,9 @@ const { BROWSER_FILE_UTILS_MOCK } = vi.hoisted(() => ({
   }
 }));
 
-const { CONFIG_LOADER_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
-  CONFIG_LOADER_MOCK_IMPLEMENTATION: {
-    DEFAULT_API_HOST: 'https://loaded.config.host',
-    resolveConfig: vi.fn((userDeployOptions: Record<string, any> = {}) => ({
-      apiUrl: userDeployOptions.apiUrl || 'https://api.shipstatic.com',
-      ...(userDeployOptions.apiKey !== undefined ? { apiKey: userDeployOptions.apiKey } : {}),
-    })),
-    mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
-      ...clientDefaults,
-      ...userOptions,
-    })),
-  },
-}));
-
 // 2. Mock modules using the predefined implementations
 vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
 vi.mock('../../src/browser/core/browser-files', () => BROWSER_FILE_UTILS_MOCK);
-vi.mock('../../src/shared/core/config', () => CONFIG_LOADER_MOCK_IMPLEMENTATION);
 
 // Helper to create a mock File object for browser tests
 function mockF(name: string, content: string = '', path?: string): File {
@@ -77,7 +63,7 @@ describe('BrowserShipClient', () => {
   let client: ShipClass; // Typed client
   let mockInput: HTMLInputElement;
   const MOCK_API_HOST = 'https://custom.example.com';
-  const MOCK_API_KEY = 'custom_test_key';
+  const MOCK_TOKEN = 'custom_test_key';
 
   afterEach(async () => {
     const { __setTestEnvironment } = await import('../../src/shared/lib/env');
@@ -94,7 +80,7 @@ describe('BrowserShipClient', () => {
     fileUtilsMock.processFilesForBrowser.mockResolvedValue([{ path: 'browserfile.txt', content: new Blob(['content']), md5: 'md5-browser', size: 7 }]);
     
     const { Ship } = await import('../../src/browser/index'); // Ship class for instantiation
-    client = new Ship({ apiUrl: MOCK_API_HOST, apiKey: MOCK_API_KEY });
+    client = new Ship({ apiUrl: MOCK_API_HOST, token: MOCK_TOKEN });
     
     // Create mock HTML input element for tests
     mockInput = document.createElement('input') as HTMLInputElement;
@@ -117,10 +103,7 @@ describe('BrowserShipClient', () => {
       await client.deployments.upload([mockF('f.txt', 'c')], {});
       expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
         [expect.any(File)],
-        expect.objectContaining({
-          apiKey: 'custom_test_key',
-          apiUrl: 'https://custom.example.com',
-        }),
+        expect.any(Object),
         // Platform limits — hydrated from the mocked /config fetch.
         expect.objectContaining({ maxFileSize: expect.any(Number) }),
       );
@@ -133,12 +116,10 @@ describe('BrowserShipClient', () => {
     });
 
 
-    it('should pass API and timeout options to deployFiles', async () => {
-      const specificDeployOptions = {
-        stripCommonPrefix: false,
-        timeout: 12345,
-        apiKey: 'specific_key_for_deploy',
-        apiUrl: 'https://specific.host.for.deploy'
+    it('should pass deploy options through to deployFiles', async () => {
+      const specificDeployOptions: DeploymentOptions = {
+        pathDetect: false,
+        timeout: 12345
       };
 
       // Create a valid browser input (File array) and mock processFilesForBrowser
@@ -152,7 +133,7 @@ describe('BrowserShipClient', () => {
       // Verify we're passing the options through correctly to processFiles
       expect(fileUtilsMock.processFilesForBrowser).toHaveBeenCalledWith(
         expect.any(Array),
-        expect.objectContaining({ stripCommonPrefix: false }),
+        expect.objectContaining({ pathDetect: false }),
         expect.objectContaining({ maxFileSize: expect.any(Number) }),
       );
 
@@ -161,9 +142,7 @@ describe('BrowserShipClient', () => {
       expect(apiClientMock.deploy).toHaveBeenCalledWith(
         expect.any(Array), // The static files from processFilesForBrowser
         expect.objectContaining({
-          timeout: 12345,
-          apiKey: 'specific_key_for_deploy',
-          apiUrl: 'https://specific.host.for.deploy'
+          timeout: 12345
         })
       );
     });
@@ -193,7 +172,7 @@ describe('BrowserShipClient', () => {
     it('should create token without parameters', async () => {
       apiClientMock.createToken = vi.fn().mockResolvedValue({
         token: 'a1b2c3d',
-        secret: 'token-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        secret: 'deploy-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         expires: null,
         labels: []
       });
@@ -207,7 +186,7 @@ describe('BrowserShipClient', () => {
     it('should create token with ttl', async () => {
       apiClientMock.createToken = vi.fn().mockResolvedValue({
         token: 'd3f4567',
-        secret: 'token-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        secret: 'deploy-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         expires: 1234567890,
         labels: []
       });
@@ -222,7 +201,7 @@ describe('BrowserShipClient', () => {
       const labels = ['production', 'api', 'automated'];
       apiClientMock.createToken = vi.fn().mockResolvedValue({
         token: 'g7h8i9j',
-        secret: 'token-g7h8i9j0123456789abcdef0123456789abcdef0123456789abcdef01234567',
+        secret: 'deploy-g7h8i9j0123456789abcdef0123456789abcdef0123456789abcdef01234567',
         expires: null,
         labels: ['production', 'api', 'automated']
       });

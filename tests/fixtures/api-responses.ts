@@ -17,8 +17,7 @@ import type {
   DomainDnsResponse,
   DomainRecordsResponse,
   DomainValidateResponse,
-  Account,
-  Token,
+  AccountGetResponse,
   TokenListItem,
   TokenListResponse,
   TokenCreateResponse,
@@ -301,7 +300,8 @@ export const accounts = {
     activated: null,
     hint: null,
     grace: null,
-  } satisfies Account,
+    authMethod: 'apiKey',
+  } satisfies AccountGetResponse,
 
   /**
    * Standard paid account
@@ -316,7 +316,8 @@ export const accounts = {
     activated: timestamps.jan2022,
     hint: null,
     grace: null,
-  } satisfies Account,
+    authMethod: 'apiKey',
+  } satisfies AccountGetResponse,
 
   /**
    * Account without profile picture
@@ -331,95 +332,14 @@ export const accounts = {
     activated: null,
     hint: null,
     grace: null,
-  } satisfies Account,
+    authMethod: 'apiKey',
+  } satisfies AccountGetResponse,
 } as const;
 
 // =============================================================================
 // TOKENS
 // =============================================================================
 
-export const tokens = {
-  /**
-   * Standard token
-   */
-  standard: {
-    token: 'a1b2c3d',
-    account: 'test@example.com',
-    hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-    ip: null,
-    labels: [],
-    created: timestamps.jan2022,
-    expires: null,
-    used: null,
-  } satisfies Token,
-
-  /**
-   * Token with expiration
-   */
-  withExpiry: {
-    token: 'x9y8z7w',
-    account: 'test@example.com',
-    hash: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
-    ip: null,
-    labels: [],
-    created: timestamps.jan2022,
-    expires: timestamps.jan2023,
-    used: null,
-  } satisfies Token,
-
-  /**
-   * Token with labels
-   */
-  withLabels: {
-    token: 'lbl12ab',
-    account: 'test@example.com',
-    hash: 'f1e2d3c4b5a6f1e2d3c4b5a6f1e2d3c4b5a6f1e2d3c4b5a6f1e2d3c4b5a6f1e2',
-    ip: null,
-    labels: ['ci', 'github-actions'],
-    created: timestamps.jan2022,
-    expires: null,
-    used: null,
-  } satisfies Token,
-} as const;
-
-/**
- * Token list items (security-redacted for list display).
- * Mirrors the shape returned by GET /tokens.
- */
-export const tokenListItems = {
-  /**
-   * Standard token list item (7-char ID, no account/ip/hash)
-   */
-  standard: {
-    token: 'a1b2c3d',
-    labels: [],
-    created: timestamps.jan2022,
-    expires: null,
-    used: null,
-  } satisfies TokenListItem,
-
-  /**
-   * Token list item with expiration
-   */
-  withExpiry: {
-    token: 'x9y8z7w',
-    labels: [],
-    created: timestamps.jan2022,
-    expires: timestamps.jan2023,
-    used: null,
-  } satisfies TokenListItem,
-
-  /**
-   * Token list item with labels
-   */
-  withLabels: {
-    token: 'lbl12ab',
-    labels: ['ci', 'github-actions'],
-    created: timestamps.jan2022,
-    expires: null,
-    used: null,
-  } satisfies TokenListItem,
-} as const;
 
 export const tokenListResponses = {
   /**
@@ -434,7 +354,13 @@ export const tokenListResponses = {
    * Single token
    */
   single: {
-    tokens: [tokenListItems.standard],
+    tokens: [{
+      token: 'a1b2c3d',
+      labels: [],
+      created: timestamps.jan2022,
+      expires: null,
+      used: null,
+    }],
     total: 1,
   } satisfies TokenListResponse,
 } as const;
@@ -445,7 +371,7 @@ export const tokenCreateResponses = {
    */
   success: {
     token: 'n3wt0kn',
-    secret: 'token-newtoken123newtoken123newtoken123newtoken123newtoken123newtoken1',
+    secret: 'deploy-newtoken123newtoken123newtoken123newtoken123newtoken123newtoken1',
     labels: [],
     expires: null,
   } satisfies TokenCreateResponse,
@@ -455,7 +381,7 @@ export const tokenCreateResponses = {
    */
   withTtl: {
     token: 'ttlt0kn',
-    secret: 'token-ttltoken123ttltoken123ttltoken123ttltoken123ttltoken123ttltoken',
+    secret: 'deploy-ttltoken123ttltoken123ttltoken123ttltoken123ttltoken123ttltoken',
     labels: [],
     expires: timestamps.jan2023,
   } satisfies TokenCreateResponse,
@@ -465,7 +391,7 @@ export const tokenCreateResponses = {
    */
   withLabels: {
     token: 'lbl0tkn',
-    secret: 'token-labeled123labeled123labeled123labeled123labeled123labeled12345',
+    secret: 'deploy-labeled123labeled123labeled123labeled123labeled123labeled12345',
     labels: ['production'],
     expires: null,
   } satisfies TokenCreateResponse,
@@ -719,6 +645,7 @@ export function createDynamicDeployment(overrides: Partial<Deployment> = {}): De
     via: null,
     created: now,
     expires: now + (7 * 24 * 60 * 60), // 7 days
+    screenshot: `https://screenshots.shipstatic.com/${deploymentSlug}/mock`,
     ...overrides,
   };
 }
@@ -733,15 +660,12 @@ export function isExternalDomain(domain: string): boolean {
 /**
  * Create a dynamic token for testing
  */
-export function createDynamicToken(overrides: Partial<Token> = {}): Token {
+export function createDynamicToken(overrides: Partial<TokenListItem> = {}): TokenListItem {
   const now = Math.floor(Date.now() / 1000);
   const tokenId = Math.random().toString(36).substring(2, 9); // 7-char ID
 
   return {
     token: tokenId,
-    account: 'test@example.com',
-    hash: `hash-${Date.now()}${Math.random().toString(36).substring(2, 8)}`.padEnd(64, '0'),
-    ip: null,
     labels: [],
     created: now,
     expires: null,
@@ -796,8 +720,6 @@ export const fixtures = {
   domainVerifyResponses,
   domainValidateResponses,
   accounts,
-  tokens,
-  tokenListItems,
   tokenListResponses,
   tokenCreateResponses,
   configs,

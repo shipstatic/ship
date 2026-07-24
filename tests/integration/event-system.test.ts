@@ -15,9 +15,9 @@ describe('Ship SDK Events - Final Demo', () => {
       });
     });
 
-    const ship = new Ship({ 
+    const ship = new Ship({
       apiUrl: 'https://api.example.com',
-      apiKey: 'test-key'
+      token: 'test-key'
     });
 
     // Capture complete observability with just 3 events
@@ -70,7 +70,7 @@ describe('Ship SDK Events - Final Demo', () => {
     expect(pingRequest).toMatchObject({
       type: 'request',
       method: 'GET',
-      hasAuth: true // Should have API key
+      hasAuth: true // Should carry the token
     });
     
     expect(pingResponse).toMatchObject({

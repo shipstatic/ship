@@ -1,7 +1,8 @@
 /**
  * @file Locks in the CLI's credential precedence: flag > env > file.
  *
- * `mergeCliConfig` is a pure function — these tests don't touch the
+ * There is one token and one API URL — precedence is per value, source order
+ * only. `mergeCliConfig` is a pure function — these tests don't touch the
  * filesystem, env vars, or the SDK. If a future refactor ever flips the
  * precedence, these will fail loudly.
  */
@@ -12,10 +13,10 @@ import { mergeCliConfig } from '../../../src/node/cli/create-client';
 describe('mergeCliConfig — CLI credential precedence', () => {
   it('flag wins over env and file', () => {
     expect(mergeCliConfig(
-      { apiKey: 'flag-key' },
-      { apiKey: 'env-key' },
-      { apiKey: 'file-key' },
-    )).toMatchObject({ apiKey: 'flag-key' });
+      { token: 'flag-token' },
+      { token: 'env-token' },
+      { token: 'file-token' },
+    )).toMatchObject({ token: 'flag-token' });
   });
 
   it('env wins over file when no flag is given', () => {
@@ -24,39 +25,37 @@ describe('mergeCliConfig — CLI credential precedence', () => {
     // override them.
     expect(mergeCliConfig(
       {},
-      { apiKey: 'env-key' },
-      { apiKey: 'file-key' },
-    )).toMatchObject({ apiKey: 'env-key' });
+      { token: 'env-token' },
+      { token: 'file-token' },
+    )).toMatchObject({ token: 'env-token' });
   });
 
   it('file is the deepest fallback', () => {
     expect(mergeCliConfig(
       {},
       {},
-      { apiKey: 'file-key' },
-    )).toMatchObject({ apiKey: 'file-key' });
+      { token: 'file-token' },
+    )).toMatchObject({ token: 'file-token' });
   });
 
   it('returns undefined for fields absent from all sources', () => {
-    // Anonymous deploy path — the SDK fetches an agent token at request time.
+    // Anonymous deploy path — the API grants the public-account agent
+    // identity per request.
     expect(mergeCliConfig({}, {}, {})).toEqual({
       apiUrl: undefined,
-      apiKey: undefined,
-      deployToken: undefined,
+      token: undefined,
     });
   });
 
-  it('per-field precedence is independent', () => {
-    // A flag-supplied apiUrl must not suppress an env-supplied apiKey,
-    // and an env-supplied apiKey must not suppress a file-supplied deployToken.
+  it('apiUrl resolves independently of the token', () => {
+    // A flag-supplied apiUrl must not suppress an env-supplied token.
     expect(mergeCliConfig(
       { apiUrl: 'https://flag.example.com' },
-      { apiKey: 'env-key' },
-      { deployToken: 'file-token' },
+      { token: 'env-token' },
+      {},
     )).toEqual({
       apiUrl: 'https://flag.example.com',
-      apiKey: 'env-key',
-      deployToken: 'file-token',
+      token: 'env-token',
     });
   });
 
@@ -64,29 +63,28 @@ describe('mergeCliConfig — CLI credential precedence', () => {
     // Commander hands missing flags through as `undefined`, not as omitted
     // properties. Nullish coalescing must treat them identically.
     expect(mergeCliConfig(
-      { apiKey: undefined },
-      { apiKey: 'env-key' },
+      { token: undefined },
+      { token: 'env-token' },
       {},
-    )).toMatchObject({ apiKey: 'env-key' });
+    )).toMatchObject({ token: 'env-token' });
   });
 
   it('treats empty-string flags as absence (falls through to env, then file)', () => {
     // Regression: CI/CD shell expansion of an unset variable produces
-    // `--api-key ""`. Treating that as a deliberate empty credential would
-    // silently demote an authenticated deploy to anonymous PUBLIC_ACCOUNT
-    // — the agent-token fallback fires when the auth state is null, which
-    // it is for an empty string (falsy). Empty must fall through.
+    // `--token ""`. Treating that as a deliberate empty credential would
+    // silently demote an authenticated deploy to anonymous PUBLIC_ACCOUNT.
+    // Empty must fall through.
     expect(mergeCliConfig(
-      { apiKey: '' },
-      { apiKey: 'env-key' },
+      { token: '' },
+      { token: 'env-token' },
       {},
-    )).toMatchObject({ apiKey: 'env-key' });
+    )).toMatchObject({ token: 'env-token' });
 
     // And again, all the way to file:
     expect(mergeCliConfig(
-      { apiKey: '' },
-      { apiKey: '' },
-      { apiKey: 'file-key' },
-    )).toMatchObject({ apiKey: 'file-key' });
+      { token: '' },
+      { token: '' },
+      { token: 'file-token' },
+    )).toMatchObject({ token: 'file-token' });
   });
 });

@@ -1,10 +1,11 @@
 /**
  * @file Environment variable resolution for the Node.js Ship SDK.
  *
- * The SDK has exactly one ambient credential source: process environment variables.
- * `SHIP_API_KEY`, `SHIP_DEPLOY_TOKEN`, and `SHIP_API_URL` are honored as the
- * universal "process boundary" — the same idiom used by the OpenAI and Anthropic
- * SDKs. Constructor arguments always win over env vars.
+ * The SDK has exactly one ambient credential source: process environment
+ * variables. `SHIP_TOKEN` (any platform token — the value's prefix says what
+ * it is) and `SHIP_API_URL` are honored as the universal "process boundary" —
+ * the one-token idiom used across the industry (`GITHUB_TOKEN`, `NPM_TOKEN`,
+ * `VERCEL_TOKEN`). Constructor arguments win over env vars.
  *
  * File-based config (`~/.shiprc`, `package.json` `"ship"` key) is the CLI's
  * responsibility — see `src/node/cli/shiprc.ts`. The SDK does not read files,
@@ -36,8 +37,7 @@ const EnvConfigSchema = z.object(CREDENTIAL_FIELDS).strict();
  */
 const ENV_VAR_BY_FIELD: Record<string, string> = {
   apiUrl: 'SHIP_API_URL',
-  apiKey: 'SHIP_API_KEY',
-  deployToken: 'SHIP_DEPLOY_TOKEN',
+  token: 'SHIP_TOKEN',
 };
 
 /**
@@ -55,8 +55,7 @@ export function readEnvConfig(): Partial<ShipClientOptions> {
 
   const raw = {
     apiUrl: process.env.SHIP_API_URL || undefined,
-    apiKey: process.env.SHIP_API_KEY || undefined,
-    deployToken: process.env.SHIP_DEPLOY_TOKEN || undefined,
+    token: process.env.SHIP_TOKEN || undefined,
   };
 
   try {

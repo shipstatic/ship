@@ -42,7 +42,7 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
 
   beforeAll(() => {
     ship = new Ship({
-      apiKey: E2E_API_KEY!,
+      token: E2E_API_KEY!,
       apiUrl: E2E_API_URL,
     });
   });
@@ -235,7 +235,7 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
 describe.skipIf(!E2E_ENABLED)('E2E Invalid Credentials', () => {
   it('should fail with invalid API key', async () => {
     const invalidShip = new Ship({
-      apiKey: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+      token: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
       apiUrl: E2E_API_URL,
     });
 

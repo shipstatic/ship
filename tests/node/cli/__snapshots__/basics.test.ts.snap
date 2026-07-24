@@ -47,7 +47,7 @@ COMMANDS
   ship tokens remove <token>            Delete token permanently
 
   Setup
-  ship config                           Save your API key
+  ship config                           Save your token
   ship whoami                           Get current account information
 
   Completion
@@ -55,8 +55,7 @@ COMMANDS
   ship completion uninstall             Uninstall shell completion script
 
 FLAGS
-  --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for authenticated deployments
+  --token <token>           Any ship token: API key (ship-…) or deploy token (deploy-…)
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
@@ -106,7 +105,7 @@ COMMANDS
   ship tokens remove <token>            Delete token permanently
 
   Setup
-  ship config                           Save your API key
+  ship config                           Save your token
   ship whoami                           Get current account information
 
   Completion
@@ -114,8 +113,7 @@ COMMANDS
   ship completion uninstall             Uninstall shell completion script
 
 FLAGS
-  --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for authenticated deployments
+  --token <token>           Any ship token: API key (ship-…) or deploy token (deploy-…)
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
@@ -165,7 +163,7 @@ COMMANDS
   ship tokens remove <token>            Delete token permanently
 
   Setup
-  ship config                           Save your API key
+  ship config                           Save your token
   ship whoami                           Get current account information
 
   Completion
@@ -173,8 +171,7 @@ COMMANDS
   ship completion uninstall             Uninstall shell completion script
 
 FLAGS
-  --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for authenticated deployments
+  --token <token>           Any ship token: API key (ship-…) or deploy token (deploy-…)
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment

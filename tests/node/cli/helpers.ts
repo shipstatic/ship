@@ -6,9 +6,18 @@
 
 import { spawn } from 'child_process';
 import * as path from 'path';
+import * as os from 'os';
+import * as fs from 'fs';
 
 // Test configuration
 export const CLI_PATH = path.resolve(process.cwd(), './dist/cli.cjs');
+
+// Hermetic file config: an explicit --config path bypasses the cosmiconfig
+// search entirely, so the developer's real ~/.shiprc (or any .shiprc on the
+// walk up from the test cwd) can never leak into CLI tests. Tests that
+// exercise file config pass their own --config or HOME.
+const EMPTY_CONFIG = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ship-cli-test-')), 'shiprc.json');
+fs.writeFileSync(EMPTY_CONFIG, '{}\n');
 
 // CLI execution result type
 export interface CliResult {
@@ -33,35 +42,44 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
   return new Promise((resolve) => {
     // Remove NODE_ENV from the environment so CLI runs normally
     // Don't set environment variables if the test is providing explicit CLI options
-    const hasApiKey = args.includes('--api-key');
+    const hasToken = args.includes('--token');
     const hasApiUrl = args.includes('--api-url');
-    
-    const testEnv = { 
-      ...process.env, 
-      ...options.env,
-      NO_COLOR: '1',
-      CI: '1'
-    };
+    const hasConfig = args.includes('--config');
+
+    const testEnv: Record<string, string | undefined> = { ...process.env };
     delete testEnv.NODE_ENV;
-    
+
+    // Hermeticity: the developer's own SHIP_* environment must never reach
+    // the spawned CLI — a stray SHIP_API_URL would aim the suite at a real
+    // API. Scrub inherited values first; a test's own `options.env` wins.
+    for (const key of Object.keys(testEnv)) {
+      if (key.startsWith('SHIP_')) delete testEnv[key];
+    }
+    Object.assign(testEnv, options.env, { NO_COLOR: '1', CI: '1' });
+
     // Only set environment variables if not explicitly testing CLI validation
     // and if they're not already set via options.env
-    if (!hasApiKey && !hasApiUrl) {
+    if (!hasToken && !hasApiUrl) {
       if (!testEnv.SHIP_API_URL) {
         testEnv.SHIP_API_URL = 'http://localhost:13579';
       }
-      if (!testEnv.SHIP_API_KEY) {
-        testEnv.SHIP_API_KEY = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+      if (!testEnv.SHIP_TOKEN) {
+        testEnv.SHIP_TOKEN = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
       }
     }
-    
-    // Add the --api-key flag to ensure explicit authentication (69 chars: ship- + 64 hex chars)
-    // But only if no --api-key is already provided (for validation tests)
-    const executionArgs = hasApiKey ? [...args] : [
+
+    // Add the --token flag to ensure explicit authentication (69 chars: ship- + 64 hex chars)
+    // But only if no --token is already provided (for validation tests)
+    const executionArgs = hasToken ? [...args] : [
       ...args,
-      '--api-key',
+      '--token',
       'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
     ];
+    if (!hasConfig) {
+      // Prepended, never appended — appending would let `--config` be
+      // swallowed as the value of a trailing value-taking flag under test.
+      executionArgs.unshift('--config', EMPTY_CONFIG);
+    }
     
     const child = spawn('node', [CLI_PATH, ...executionArgs], {
       env: testEnv,

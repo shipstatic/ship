@@ -106,12 +106,12 @@ Deploy works without credentials. Everything else requires an API key.
 | Permanent deploys, domains, tokens, account | Deploy (public, 3-day TTL) |
 
 ```bash
-export SHIP_API_KEY=<key>          # Environment variable (best for automation)
-ship --api-key <key> ...           # Per-command override
+export SHIP_TOKEN=<token>          # Environment variable (best for automation)
+ship --token <token> ...           # Per-command override
 ship config                        # Interactive setup → ~/.shiprc (requires TTY)
 ```
 
-Deploy tokens (`--deploy-token`) are scoped, revocable deploy credentials. Set a short TTL for one-shot CI/CD workflows.
+Any ship token works: an API key (`ship-…`, durable, full account) or a deploy token (`deploy-…`, scoped, revocable — set a short TTL for one-shot CI/CD workflows).
 
 Free API key: https://my.shipstatic.com/api-key
 
@@ -271,8 +271,7 @@ ship tokens remove <token>            # Revoke
 |------|---------|
 | `--json` | JSON output |
 | `-q, --quiet` | Identifier only |
-| `--api-key <key>` | API key for this command |
-| `--deploy-token <token>` | Single-use deploy token |
+| `--token <token>` | Any ship token: API key or deploy token |
 | `--label <label>` | Set label (repeatable, replaces all) |
 | `--password <pwd>` | Password-protect deployment (6–128 chars) |
 | `--no-path-detect` | Skip build output auto-detection |

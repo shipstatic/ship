@@ -24,7 +24,7 @@ function createMockResponse(data: any, status = 200) {
 }
 
 // Mock deploy body creator for tests
-const mockCreateDeployBody = async (files: any[], labels?: string[], via?: string) => ({
+const mockCreateDeployBody = async (files: any[], context?: any) => ({
   body: new ArrayBuffer(0),
   headers: { 'Content-Type': 'multipart/form-data' }
 });
@@ -79,6 +79,48 @@ describe('ApiHttp', () => {
     });
   });
 
+  describe('credential resolution failures', () => {
+    // Credential resolution runs inside executeRequest's error boundary:
+    // whatever a token provider throws must surface as a typed ShipError
+    // and an `error` event, exactly like a transport failure.
+    it('normalizes a throwing token provider into a typed ShipError and emits the error event', async () => {
+      const api = new ApiHttp({
+        apiUrl: 'https://api.test.com',
+        getAuthHeaders: async () => { throw new Error('refresh failed'); },
+        createDeployBody: mockCreateDeployBody
+      });
+      const errors: ShipError[] = [];
+      api.on('error', (err: ShipError) => errors.push(err));
+
+      let caught: unknown;
+      try {
+        await api.ping();
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(ShipError);
+      expect((caught as ShipError).message).toContain('refresh failed');
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toBe(caught);
+      // The failure happened at credential resolution — fetch was never reached.
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('passes the fail-closed authentication error through the boundary unchanged', async () => {
+      const providerError = ShipError.authentication('Token provider returned no token.');
+      const api = new ApiHttp({
+        apiUrl: 'https://api.test.com',
+        getAuthHeaders: async () => { throw providerError; },
+        createDeployBody: mockCreateDeployBody
+      });
+      const errors: ShipError[] = [];
+      api.on('error', (err: ShipError) => errors.push(err));
+
+      await expect(api.ping()).rejects.toBe(providerError);
+      expect(errors).toEqual([providerError]);
+    });
+  });
+
   describe('ping', () => {
     it('should make GET request to /ping endpoint', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
@@ -128,7 +170,7 @@ describe('ApiHttp', () => {
     });
 
     it('should map HTTP 401 to ShipError with ErrorType.Authentication', async () => {
-      // Companion check: 401 must classify as Authentication so MCP shows the SHIP_API_KEY hint.
+      // Companion check: 401 must classify as Authentication so MCP shows the SHIP_TOKEN hint.
       (global.fetch as any).mockResolvedValue({
         ok: false,
         status: 401,
@@ -270,7 +312,16 @@ describe('ApiHttp', () => {
       expect(result.via).toBe('cli');
     });
 
-    it('should include X-Caller header when caller option is provided', async () => {
+    it('forwards the captcha proof into the deploy body', async () => {
+      // The anonymous human channel: the reCAPTCHA proof rides the deploy
+      // body as a form field — the API grants the public-account identity
+      // per request. The body creator is where the field is appended.
+      const spyCreateDeployBody = vi.fn(mockCreateDeployBody);
+      const api = new ApiHttp({
+        apiUrl: 'https://api.test.com',
+        getAuthHeaders: () => ({}),
+        createDeployBody: spyCreateDeployBody
+      });
       const mockFiles = [
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
       ];
@@ -280,17 +331,41 @@ describe('ApiHttp', () => {
         size: 13
       }));
 
-      await apiHttp.deploy(mockFiles, { caller: 'my-ci-system' });
+      await api.deploy(mockFiles, { captcha: 'captcha-proof', via: 'web' });
 
-      expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/deployments',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'X-Caller': 'my-ci-system'
-          })
-        })
+      expect(spyCreateDeployBody).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({ captcha: 'captcha-proof', via: 'web' })
       );
+    });
+
+    it('sends X-Caller on every request when the caller option is set', async () => {
+      // Caller is instance identity metadata, like the credential: the API
+      // buckets rate limits by X-Caller on every write, so the header rides
+      // every request, not just deploys.
+      const api = new ApiHttp({
+        apiUrl: 'https://api.test.com',
+        caller: 'end-user-42',
+        getAuthHeaders: () => ({}),
+        createDeployBody: mockCreateDeployBody
+      });
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({
+        deployment: 'test-deployment',
+        files: 1,
+        size: 13
+      }));
+
+      await api.deploy(mockFiles);
+      await api.ping();
+
+      for (const call of (global.fetch as any).mock.calls) {
+        expect(call[1].headers).toEqual(
+          expect.objectContaining({ 'X-Caller': 'end-user-42' })
+        );
+      }
     });
 
     it('should not include X-Caller header when caller option is not provided', async () => {
@@ -686,16 +761,16 @@ describe('ApiHttp', () => {
 
     beforeEach(() => {
       vi.clearAllMocks();
-      // First-party browser app: useCredentials opts into cookie-based auth
+      // First-party browser app: session opts into cookie-based auth
       apiHttpCookieAuth = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        useCredentials: true,
+        session: true,
         getAuthHeaders: () => ({}),
         createDeployBody: mockCreateDeployBody
       });
     });
 
-    it('should include credentials when useCredentials is true', async () => {
+    it('should include credentials when session is true', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
 
       await apiHttpCookieAuth.ping();
@@ -712,7 +787,7 @@ describe('ApiHttp', () => {
       );
     });
 
-    it('should NOT include credentials when useCredentials is not set', async () => {
+    it('should NOT include credentials when session is not set', async () => {
       const apiHttpDefault = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
@@ -729,7 +804,7 @@ describe('ApiHttp', () => {
     it('should NOT include credentials when Authorization header is present', async () => {
       const apiHttpWithKey = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        useCredentials: true,
+        session: true,
         getAuthHeaders: () => ({ 'Authorization': 'Bearer test-key' }),
         createDeployBody: mockCreateDeployBody
       });
@@ -817,58 +892,11 @@ describe('ApiHttp', () => {
       expect(result).toEqual(mockDeployment);
     });
 
-    it('should prioritize explicit token over cookies', async () => {
-      const mockDeployment = { deployment: 'dep123', url: 'https://example.com' };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockDeployment));
-
-      const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
-      ];
-
-      const result = await apiHttpCookieAuth.deploy(mockFiles, {
-        apiKey: 'explicit-key'
-      });
-
-      expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/deployments',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Authorization': 'Bearer explicit-key'
-          })
-        })
-      );
-
-      const fetchCall = (fetch as any).mock.calls[0][1];
-      expect(fetchCall.credentials).toBeUndefined();
-      expect(result).toEqual(mockDeployment);
-    });
-
-    it('should prioritize per-request deploy token over instance API key', async () => {
-      const apiHttpWithApiKey = new ApiHttp({
-        apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({ 'Authorization': 'Bearer ship-instance-key' }),
-        createDeployBody: mockCreateDeployBody
-      });
-      const mockDeployment = { deployment: 'dep123', url: 'https://example.com' };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockDeployment));
-
-      const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
-      ];
-
-      await apiHttpWithApiKey.deploy(mockFiles, {
-        deployToken: 'token-per-request'
-      });
-
-      const fetchCall = (fetch as any).mock.calls[0][1];
-      expect(fetchCall.headers['Authorization']).toBe('Bearer token-per-request');
-    });
   });
 
   describe('token operations', () => {
     it('should create token with ttl', async () => {
-      const mockResponse = { token: 'a1b2c3d', secret: 'token-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', expires: 1234567890, labels: [] };
+      const mockResponse = { token: 'a1b2c3d', secret: 'deploy-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', expires: 1234567890, labels: [] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken(3600);
@@ -887,7 +915,7 @@ describe('ApiHttp', () => {
     });
 
     it('should create token with labels', async () => {
-      const mockResponse = { token: 'd3f4567', secret: 'token-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', expires: 1234567890, labels: ['cicd', 'deploy'] };
+      const mockResponse = { token: 'd3f4567', secret: 'deploy-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', expires: 1234567890, labels: ['cicd', 'deploy'] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken(undefined, ['cicd', 'deploy']);
@@ -903,7 +931,7 @@ describe('ApiHttp', () => {
     });
 
     it('should create token with both ttl and labels', async () => {
-      const mockResponse = { token: 'g7h8i9j', secret: 'token-g7h8i9j0123456789abcdef0123456789abcdef0123456789abcdef01234567', expires: 1234567890, labels: ['production'] };
+      const mockResponse = { token: 'g7h8i9j', secret: 'deploy-g7h8i9j0123456789abcdef0123456789abcdef0123456789abcdef01234567', expires: 1234567890, labels: ['production'] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken(7200, ['production']);
@@ -919,7 +947,7 @@ describe('ApiHttp', () => {
     });
 
     it('should create token without parameters', async () => {
-      const mockResponse = { token: 't0kn001', secret: 'token-t0kn0010123456789abcdef0123456789abcdef0123456789abcdef01234567', expires: 1234567890, labels: [] };
+      const mockResponse = { token: 't0kn001', secret: 'deploy-t0kn0010123456789abcdef0123456789abcdef0123456789abcdef01234567', expires: 1234567890, labels: [] };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken();
@@ -950,10 +978,10 @@ describe('ApiHttp', () => {
     it('should remove token', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse(undefined, 204));
 
-      await apiHttp.removeToken('token-to-delete');
+      await apiHttp.removeToken('deploy-to-delete');
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/tokens/token-to-delete',
+        'https://api.test.com/tokens/deploy-to-delete',
         expect.objectContaining({ method: 'DELETE' })
       );
     });

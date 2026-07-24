@@ -25,7 +25,7 @@ import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
 
 // `.strict()` rejects unknown keys — catches typos like `apikey` (lowercase)
 // in user-authored `.shiprc` files. The env reader doesn't need this because
-// its input is exactly the three SHIP_* vars we read.
+// its input is exactly the two SHIP_* vars we read.
 const FileConfigSchema = z.object(CREDENTIAL_FIELDS).strict();
 
 const MODULE_NAME = 'ship';
@@ -49,7 +49,7 @@ const MODULE_NAME = 'ship';
  */
 export function loadShipFile(configFile?: string): Partial<ShipClientOptions> {
   // Empty path is treated as absence — matches credential-flag handling
-  // (`--api-key ""` falls through to env). A user passing `--config "$VAR"`
+  // (`--token ""` falls through to env). A user passing `--config "$VAR"`
   // with `VAR` unset gets `--config ""`, which should not error: it should
   // fall through to the normal cosmiconfig search.
   const explicitPath = configFile || undefined;
@@ -83,6 +83,17 @@ export function loadShipFile(configFile?: string): Partial<ShipClientOptions> {
   } catch (error) {
     if (error instanceof z.ZodError) {
       const issue = error.issues[0];
+      // Keys from retired credential vocabularies get a rename hint instead
+      // of a bare rejection — the fix is one edit, so the error names it.
+      if (issue.code === 'unrecognized_keys') {
+        const legacy = issue.keys.filter((key) => key === 'apiKey' || key === 'deployToken');
+        if (legacy.length > 0) {
+          const keys = legacy.map((key) => `"${key}"`).join(' and ');
+          throw ShipError.config(
+            `Invalid config in ${result.filepath}: ${keys} ${legacy.length > 1 ? 'are' : 'is'} no longer supported — the key is now "token". Run \`ship config\` to rewrite it.`
+          );
+        }
+      }
       const path = issue.path.length > 0 ? ` at ${issue.path.join('.')}` : '';
       throw ShipError.config(
         `Invalid config in ${result.filepath}${path}: ${issue.message}`

@@ -35,7 +35,10 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     format: ['esm', 'cjs'],
     platform: 'node',
     target: 'node18',
-    dts: true,
+    // `@shipstatic/types` is a devDependency bundled into the artifact — the
+    // declaration files must inline it too, or consumers get a runtime surface
+    // whose types reference a package they don't have.
+    dts: { resolve: ['@shipstatic/types'] },
     sourcemap: true,
     splitting: false,
     clean: true,
@@ -51,7 +54,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     format: ['esm'],
     platform: 'browser',
     target: 'es2020',
-    dts: true,
+    dts: { resolve: ['@shipstatic/types'] },
     sourcemap: true,
     splitting: false,
     clean: false,

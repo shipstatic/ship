@@ -11,7 +11,7 @@ export async function createDeployBody(
   const { FormData, File } = await import('formdata-node');
   const { FormDataEncoder } = await import('form-data-encoder');
 
-  const { labels, via, password, flags } = context;
+  const { labels, via, password, flags, captcha } = context;
   const formData = new FormData();
   const checksums: string[] = [];
 
@@ -40,6 +40,7 @@ export async function createDeployBody(
   if (flags?.build) formData.append('build', 'true');
   if (flags?.prerender) formData.append('prerender', 'true');
   if (flags?.spa) formData.append('spa', 'true');
+  if (captcha) formData.append('captcha', captcha);
 
   const encoder = new FormDataEncoder(formData);
   const chunks = [];
