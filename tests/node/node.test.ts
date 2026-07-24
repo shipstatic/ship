@@ -142,7 +142,7 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
     );
 
     vi.spyOn(process, 'cwd').mockReturnValue('/mock/cwd');
-    Object.values(MOCK_FS_IMPLEMENTATION).forEach((fn) => fn.mockReset());
+    for (const fn of Object.values(MOCK_FS_IMPLEMENTATION)) fn.mockReset();
   });
 
   afterEach(() => {

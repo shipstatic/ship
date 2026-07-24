@@ -124,7 +124,7 @@ describe('Cross-Platform Error Standardization', () => {
 /**
  * Browser-specific error testing
  */
-export const browserErrorTests = {
+const browserErrorTests = {
   async testInvalidInputTypes() {
     const { Ship } = await import('../../src/browser/index');
     __setTestEnvironment('browser');
@@ -190,7 +190,7 @@ export const browserErrorTests = {
 /**
  * Node.js-specific error testing
  */
-export const nodeErrorTests = {
+const nodeErrorTests = {
   async testInvalidInputTypes() {
     const { Ship } = await import('../../src/node/index');
     __setTestEnvironment('node');
