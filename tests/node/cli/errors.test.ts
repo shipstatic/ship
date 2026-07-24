@@ -4,7 +4,7 @@
  * Replaces: error-scenarios.test.ts
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { runCli } from './helpers';
 
 describe('CLI Error Handling', () => {
@@ -94,5 +94,4 @@ describe('CLI Error Handling', () => {
       expect(true).toBe(true);
     });
   });
-
 });

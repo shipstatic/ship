@@ -2,7 +2,7 @@
  * @file Shared security validation for the deploy pipeline.
  * Used by both Node.js and browser file processing pipelines.
  */
-import { ShipError, isBlockedExtension } from '@shipstatic/types';
+import { isBlockedExtension, ShipError } from '@shipstatic/types';
 import { validateFileName } from './file-validation.js';
 
 /**
@@ -28,7 +28,9 @@ export function validateDeployPath(deployPath: string, sourceIdentifier: string)
     deployPath.startsWith('../') ||
     deployPath.endsWith('/..')
   ) {
-    throw ShipError.business(`Security error: Unsafe file path "${deployPath}" for file: ${sourceIdentifier}`);
+    throw ShipError.business(
+      `Security error: Unsafe file path "${deployPath}" for file: ${sourceIdentifier}`,
+    );
   }
 }
 

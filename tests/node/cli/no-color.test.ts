@@ -4,9 +4,9 @@
  * Note: commander.js help/version outputs are naturally uncolored
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { error, formatDetails, formatTable, info, success, warn } from '@/node/cli/utils';
 import { runCli } from './helpers';
-import { success, error, warn, info, formatTable, formatDetails } from '@/node/cli/utils';
 
 describe('CLI --no-color Flag', () => {
   describe('Utility Functions with --no-color', () => {
@@ -34,7 +34,7 @@ describe('CLI --no-color Flag', () => {
     it('should format tables without colors', () => {
       const data = [
         { name: 'test1', status: 'active', created: 1640995200 },
-        { name: 'test2', status: 'inactive', created: 1640995300 }
+        { name: 'test2', status: 'inactive', created: 1640995300 },
       ];
       const formatted = formatTable(data, undefined, true);
       expect(formatted).toContain('name');
@@ -95,11 +95,13 @@ describe('CLI --no-color Flag', () => {
 
     it('should work with multiple flags and --no-color', async () => {
       const result = await runCli([
-        '--api-key', 'test-key',
-        '--api-url', 'https://test.com',
+        '--api-key',
+        'test-key',
+        '--api-url',
+        'https://test.com',
         '--no-path-detect',
         '--no-color',
-        '--help'
+        '--help',
       ]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
@@ -129,18 +131,18 @@ describe('CLI --no-color Flag', () => {
   describe('Color vs No-Color Utility Functions', () => {
     it('should produce different output with and without noColor flag', () => {
       const data = [{ name: 'test', created: 1640995200 }];
-      
+
       // With colors (default)
       const withColors = formatTable(data, undefined, false);
-      // Without colors (noColor = true)  
+      // Without colors (noColor = true)
       const withoutColors = formatTable(data, undefined, true);
-      
+
       // Both should contain the same content
       expect(withColors).toContain('name');
       expect(withColors).toContain('test');
       expect(withoutColors).toContain('name');
       expect(withoutColors).toContain('test');
-      
+
       // The colorless version should not have ANSI codes
       expect(withoutColors).not.toMatch(/\u001b\[[0-9;]*m/);
     });

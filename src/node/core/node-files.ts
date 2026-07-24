@@ -2,19 +2,18 @@
  * @file Node.js-specific file utilities for the Ship SDK.
  * Provides helpers for recursively discovering, filtering, and preparing files for deploy in Node.js.
  */
-import { getENV } from '../../shared/lib/env.js';
+
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { PlatformLimits } from '@shipstatic/types';
-import type { StaticFile, DeploymentOptions } from '../../shared/types.js';
-import { calculateMD5 } from '../../shared/lib/md5.js';
-import { filterJunk } from '../../shared/lib/junk.js';
-import { validateDeployPath, validateDeployFile } from '../../shared/lib/security.js';
-import { ShipError, isShipError, UNBUILT_PROJECT_MARKERS } from '@shipstatic/types';
+import { isShipError, ShipError, UNBUILT_PROJECT_MARKERS } from '@shipstatic/types';
 import { optimizeDeployPaths } from '../../shared/lib/deploy-paths.js';
+import { getENV } from '../../shared/lib/env.js';
+import { filterJunk } from '../../shared/lib/junk.js';
+import { calculateMD5 } from '../../shared/lib/md5.js';
 import { findCommonParent } from '../../shared/lib/path.js';
-
-import * as fs from 'fs';
-import * as path from 'path';
-
+import { validateDeployFile, validateDeployPath } from '../../shared/lib/security.js';
+import type { DeploymentOptions, StaticFile } from '../../shared/types.js';
 
 /**
  * Recursive function to walk directory and return all file paths.
@@ -55,7 +54,7 @@ function findAllFilePaths(dirPath: string, visited: Set<string> = new Set()): st
  * Processes Node.js file and directory paths into an array of StaticFile objects ready for deploy.
  * Computes content paths relative to the upload root before filtering, so only the deployed
  * directory structure is evaluated — not the user's filesystem above it.
- * 
+ *
  * @param paths - File or directory paths to scan and process.
  * @param options - Processing options (pathDetect, etc.).
  * @param platformLimits - Per-instance platform limits (file-size / count /
@@ -68,7 +67,7 @@ function findAllFilePaths(dirPath: string, visited: Set<string> = new Set()): st
 export async function processFilesForNode(
   paths: string[],
   options: DeploymentOptions = {},
-  platformLimits?: PlatformLimits
+  platformLimits?: PlatformLimits,
 ): Promise<StaticFile[]> {
   if (getENV() !== 'node') {
     throw ShipError.business('processFilesForNode can only be called in Node.js environment.');
@@ -79,9 +78,11 @@ export async function processFilesForNode(
     const absPath = path.resolve(p);
     try {
       if (fs.statSync(absPath).isDirectory()) {
-        const marker = fs.readdirSync(absPath).find(e => UNBUILT_PROJECT_MARKERS.has(e));
+        const marker = fs.readdirSync(absPath).find((e) => UNBUILT_PROJECT_MARKERS.has(e));
         if (marker) {
-          throw ShipError.business(`"${marker}" detected — deploy your build output (dist/, build/, out/), not the project folder`);
+          throw ShipError.business(
+            `"${marker}" detected — deploy your build output (dist/, build/, out/), not the project folder`,
+          );
         }
       }
     } catch (e) {
@@ -91,30 +92,32 @@ export async function processFilesForNode(
   }
 
   // 1. Discover all unique, absolute file paths from the input list
-  const absolutePaths = paths.flatMap(p => {
+  const absolutePaths = paths.flatMap((p) => {
     const absPath = path.resolve(p);
     try {
       const stats = fs.statSync(absPath);
       return stats.isDirectory() ? findAllFilePaths(absPath) : [absPath];
-    } catch (error) {
+    } catch (_error) {
       throw ShipError.file(`Path does not exist: ${p}`, { filePath: p });
     }
   });
   const uniquePaths = [...new Set(absolutePaths)];
 
   // 2. Determine base path for content paths (from INPUT paths, not discovered files)
-  const inputAbsolutePaths = paths.map(p => path.resolve(p));
-  const inputBasePath = findCommonParent(inputAbsolutePaths.map(p => {
-    try {
-      const stats = fs.statSync(p);
-      return stats.isDirectory() ? p : path.dirname(p);
-    } catch {
-      return path.dirname(p);
-    }
-  }));
+  const inputAbsolutePaths = paths.map((p) => path.resolve(p));
+  const inputBasePath = findCommonParent(
+    inputAbsolutePaths.map((p) => {
+      try {
+        const stats = fs.statSync(p);
+        return stats.isDirectory() ? p : path.dirname(p);
+      } catch {
+        return path.dirname(p);
+      }
+    }),
+  );
 
   // 3. Compute content paths (relative to upload root)
-  const contentPaths = uniquePaths.map(absPath => {
+  const contentPaths = uniquePaths.map((absPath) => {
     if (inputBasePath && inputBasePath.length > 0) {
       const rel = path.relative(inputBasePath, absPath);
       if (rel && typeof rel === 'string' && !rel.startsWith('..')) {
@@ -126,9 +129,9 @@ export async function processFilesForNode(
 
   // 4. Optimize paths for deployment (strip common root, flatten)
   const deployFiles = optimizeDeployPaths(contentPaths, {
-    flatten: options.pathDetect !== false
+    flatten: options.pathDetect !== false,
   });
-  const deployPaths = deployFiles.map(f => f.path);
+  const deployPaths = deployFiles.map((f) => f.path);
 
   // 5. Filter junk from deploy paths
   const filteredSet = new Set(filterJunk(deployPaths));
@@ -152,14 +155,14 @@ export async function processFilesForNode(
   if (!platformLimits) {
     throw ShipError.config(
       'Platform limits not provided. processFilesForNode requires the limits ' +
-      'argument — pass `ship.getLimits()` result.'
+        'argument — pass `ship.getLimits()` result.',
     );
   }
 
   for (let i = 0; i < validAbsPaths.length; i++) {
     const filePath = validAbsPaths[i];
     const deployPath = validDeployPaths[i];
-    
+
     try {
       // Security validation (shared with browser) — fail fast before any I/O
       validateDeployPath(deployPath, filePath);
@@ -176,11 +179,15 @@ export async function processFilesForNode(
 
       // Validate file sizes
       if (stats.size > platformLimits.maxFileSize) {
-        throw ShipError.business(`File ${filePath} is too large. Maximum allowed size is ${platformLimits.maxFileSize / (1024 * 1024)}MB.`);
+        throw ShipError.business(
+          `File ${filePath} is too large. Maximum allowed size is ${platformLimits.maxFileSize / (1024 * 1024)}MB.`,
+        );
       }
       totalSize += stats.size;
       if (totalSize > platformLimits.maxTotalSize) {
-        throw ShipError.business(`Total deploy size is too large. Maximum allowed is ${platformLimits.maxTotalSize / (1024 * 1024)}MB.`);
+        throw ShipError.business(
+          `Total deploy size is too large. Maximum allowed is ${platformLimits.maxTotalSize / (1024 * 1024)}MB.`,
+        );
       }
 
       const content = fs.readFileSync(filePath);
@@ -205,8 +212,10 @@ export async function processFilesForNode(
 
   // Final validation
   if (results.length > platformLimits.maxFilesCount) {
-    throw ShipError.business(`Too many files to deploy. Maximum allowed is ${platformLimits.maxFilesCount} files.`);
+    throw ShipError.business(
+      `Too many files to deploy. Maximum allowed is ${platformLimits.maxFilesCount} files.`,
+    );
   }
-  
+
   return results;
 }

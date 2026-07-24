@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSPAConfig, detectAndConfigureSPA } from '../../../src/shared/lib/spa';
-import { ShipError, DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
-import type { StaticFile, DeploymentOptions } from '../../../src/shared/types';
+import type { DeploymentOptions, StaticFile } from '../../../src/shared/types';
 
 // Mock the MD5 calculation
 vi.mock('../../../src/shared/lib/md5', () => ({
-  calculateMD5: vi.fn().mockResolvedValue({ md5: 'mock-md5-hash' })
+  calculateMD5: vi.fn().mockResolvedValue({ md5: 'mock-md5-hash' }),
 }));
 
 describe('SPA Detection (spa.ts)', () => {
@@ -20,10 +20,12 @@ describe('SPA Detection (spa.ts)', () => {
       // Parse the content to verify it's valid JSON with the right structure
       const content = JSON.parse(spaConfig.content.toString());
       expect(content).toEqual({
-        rewrites: [{
-          source: "/(.*)",
-          destination: "/index.html"
-        }]
+        rewrites: [
+          {
+            source: '/(.*)',
+            destination: '/index.html',
+          },
+        ],
       });
     });
   });
@@ -35,7 +37,7 @@ describe('SPA Detection (spa.ts)', () => {
 
     beforeEach(() => {
       mockApiClient = {
-        checkSPA: vi.fn()
+        checkSPA: vi.fn(),
       };
 
       mockFiles = [
@@ -43,8 +45,8 @@ describe('SPA Detection (spa.ts)', () => {
           path: 'index.html',
           content: Buffer.from('<html><body>Test</body></html>'),
           size: 100,
-          md5: 'test-hash'
-        }
+          md5: 'test-hash',
+        },
       ];
 
       options = { spaDetect: true };
@@ -69,8 +71,8 @@ describe('SPA Detection (spa.ts)', () => {
           path: DEPLOYMENT_CONFIG_FILENAME,
           content: Buffer.from('{}'),
           size: 2,
-          md5: 'config-hash'
-        }
+          md5: 'config-hash',
+        },
       ];
 
       const result = await detectAndConfigureSPA(filesWithConfig, mockApiClient, options);
@@ -122,7 +124,10 @@ describe('SPA Detection (spa.ts)', () => {
     });
 
     it('should skip SPA detection when both build and prerender are true', async () => {
-      const result = await detectAndConfigureSPA(mockFiles, mockApiClient, { build: true, prerender: true });
+      const result = await detectAndConfigureSPA(mockFiles, mockApiClient, {
+        build: true,
+        prerender: true,
+      });
 
       expect(mockApiClient.checkSPA).not.toHaveBeenCalled();
       expect(result).toEqual(mockFiles);

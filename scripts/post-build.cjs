@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 /**
  * Post-build script for Ship SDK CommonJS exports
@@ -45,7 +45,6 @@ if (originalExports && originalExports.Ship) {
 
   fs.writeFileSync(cjsFilePath, content, 'utf-8');
   console.log('✅ Ship SDK CommonJS exports configured');
-
 } catch (err) {
   console.error('❌ Post-build transformation failed:', err.message);
   process.exit(1);

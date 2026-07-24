@@ -4,8 +4,8 @@
  * Fast, reliable, and easy to reason about
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { formatTimestamp, success, error, warn, info, formatTable } from '@/node/cli/utils';
+import { describe, expect, it, vi } from 'vitest';
+import { error, formatTable, formatTimestamp, info, success, warn } from '@/node/cli/utils';
 
 describe('CLI Pure Functions', () => {
   describe('formatTimestamp', () => {
@@ -49,82 +49,66 @@ describe('CLI Pure Functions', () => {
 
     it('success should format message correctly in non-JSON mode', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
+
       success('deployment created ✨', false);
-      
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('deployment created ✨'));
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('deployment created ✨')
+        expect.stringContaining('\n'), // Should end with newline
       );
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('\n') // Should end with newline
-      );
-      
+
       consoleSpy.mockRestore();
     });
 
     it('success should format message correctly in JSON mode', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
+
       success('deployment created ✨', true);
-      
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('"success"')
-      );
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('"deployment created ✨"')
-      );
-      
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"success"'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"deployment created ✨"'));
+
       consoleSpy.mockRestore();
     });
 
     it('error should format message correctly in non-JSON mode', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
+
       error('something went wrong', false);
-      
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('something went wrong')
-      );
-      
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('something went wrong'));
+
       consoleSpy.mockRestore();
     });
 
     it('error should format message correctly in JSON mode', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
+
       error('something went wrong', true);
-      
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('"error"')
-      );
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('"something went wrong"')
-      );
-      
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"error"'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"something went wrong"'));
+
       consoleSpy.mockRestore();
     });
 
     it('warn should format message correctly in non-JSON mode', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
+
       warn('cache miss detected', false);
-      
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('cache miss detected')
-      );
-      
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('cache miss detected'));
+
       consoleSpy.mockRestore();
     });
 
     it('info should format message correctly in non-JSON mode', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
+
       info('processing files', false);
-      
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('processing files')
-      );
-      
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('processing files'));
+
       consoleSpy.mockRestore();
     });
   });
@@ -139,7 +123,7 @@ describe('CLI Pure Functions', () => {
     it('should format simple table with string values', async () => {
       const data = [
         { name: 'app1', endpoint: 'https://app1.example.com' },
-        { name: 'app2', endpoint: 'https://app2.example.com' }
+        { name: 'app2', endpoint: 'https://app2.example.com' },
       ];
 
       const result = formatTable(data);
@@ -161,11 +145,11 @@ describe('CLI Pure Functions', () => {
     it('should handle mixed data types correctly', async () => {
       const data = [
         { id: 'abc123', count: 42, active: true, size: null },
-        { id: 'def456', count: 0, active: false, size: undefined }
+        { id: 'def456', count: 0, active: false, size: undefined },
       ];
-      
+
       const result = formatTable(data);
-      
+
       expect(result).toContain('abc123');
       expect(result).toContain('42');
       expect(result).toContain('true');
@@ -177,11 +161,11 @@ describe('CLI Pure Functions', () => {
     it('should use custom column order when provided', async () => {
       const data = [
         { created: '2022-01-01', name: 'test1', id: 'abc123' },
-        { created: '2022-01-02', name: 'test2', id: 'def456' }
+        { created: '2022-01-02', name: 'test2', id: 'def456' },
       ];
-      
+
       const result = formatTable(data, ['name', 'id', 'created']);
-      
+
       // Should start with name column - account for ANSI codes
       expect(result).toMatch(/name/);
       // Should not start with created (which would be natural order)
@@ -192,9 +176,9 @@ describe('CLI Pure Functions', () => {
       const data = [
         {
           name: 'test',
-          isCreate: false,   // Should be filtered (internal field)
-          url: 'example.com'
-        }
+          isCreate: false, // Should be filtered (internal field)
+          url: 'example.com',
+        },
       ];
 
       const result = formatTable(data);
@@ -205,27 +189,25 @@ describe('CLI Pure Functions', () => {
     });
 
     it('should preserve property order from first item', async () => {
-      const data = [
-        { z_last: 'last', a_first: 'first', m_middle: 'middle' }
-      ];
-      
+      const data = [{ z_last: 'last', a_first: 'first', m_middle: 'middle' }];
+
       const result = formatTable(data);
       const lines = result.split('\n');
       const headerLine = lines[0];
-      
+
       // Should maintain insertion order: z_last, a_first, m_middle
       // Extract headers by removing ANSI codes first
       const cleanLine = headerLine.replace(/\u001b\[[0-9;]*m/g, '');
       const headers = cleanLine.split(/\s{2,}/);
       expect(headers[0].trim()).toBe('z_last');
-      expect(headers[1].trim()).toBe('a_first'); 
+      expect(headers[1].trim()).toBe('a_first');
       expect(headers[2].trim()).toBe('m_middle');
     });
 
     it('should handle empty values gracefully', async () => {
       const data = [
         { name: '', site: 'test.com', count: 0 },
-        { name: 'app', site: '', count: null }
+        { name: 'app', site: '', count: null },
       ];
 
       const result = formatTable(data);

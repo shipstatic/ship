@@ -8,14 +8,14 @@
  * credentialed deploys carry neither.
  */
 
-import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Ship from '../../../src/node';
 import { resetMockServer } from '../../mocks/server';
 
-const API_KEY = 'ship-' + 'a'.repeat(64);
+const API_KEY = `ship-${'a'.repeat(64)}`;
 
 const site = mkdtempSync(join(tmpdir(), 'ship-claim-test-'));
 writeFileSync(join(site, 'index.html'), '<html>claim me</html>');

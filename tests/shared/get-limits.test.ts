@@ -3,20 +3,20 @@
  * Tests all execution branches for both Node.js and Browser environments
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Ship as NodeShip } from '../../src/node/index';
-import { Ship as BrowserShip } from '../../src/browser/index';
-import { __setTestEnvironment } from '../../src/shared/lib/env';
 import type { PlatformLimits } from '@shipstatic/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Ship as BrowserShip } from '../../src/browser/index';
+import { Ship as NodeShip } from '../../src/node/index';
+import { __setTestEnvironment } from '../../src/shared/lib/env';
 
 // Deploy token in the canonical format: 'deploy-' + 64 hex chars
-const TEST_DEPLOY_TOKEN = 'deploy-' + 'a'.repeat(64);
+const TEST_DEPLOY_TOKEN = `deploy-${'a'.repeat(64)}`;
 
 describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
   const mockLimits: PlatformLimits = {
     maxFileSize: 10 * 1024 * 1024,
     maxFilesCount: 1000,
-    maxTotalSize: 100 * 1024 * 1024
+    maxTotalSize: 100 * 1024 * 1024,
   };
 
   beforeEach(() => {
@@ -41,7 +41,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
     const defaultMocks = {
       getLimits: vi.fn().mockResolvedValue(mockLimits),
       ping: vi.fn().mockResolvedValue(true),
-      getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+      getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
     };
 
     (ship as any).http = { ...defaultMocks, ...httpMocks };
@@ -131,7 +131,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         (ship as any).http = {
           getLimits: getLimitsSpy,
           ping: vi.fn().mockResolvedValue(true),
-          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
         };
 
         await expect(ship.getLimits()).rejects.toThrow('Failed to fetch config from API');
@@ -149,7 +149,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         (ship as any).http = {
           getLimits: vi.fn().mockRejectedValue(authError),
           ping: vi.fn().mockResolvedValue(true),
-          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
         };
 
         await expect(ship.getLimits()).rejects.toThrow('Invalid API key');
@@ -165,7 +165,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         (ship as any).http = {
           getLimits: vi.fn().mockRejectedValue(networkError),
           ping: vi.fn().mockResolvedValue(true),
-          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
         };
 
         await expect(ship.getLimits()).rejects.toThrow('ECONNREFUSED: Connection refused');
@@ -184,11 +184,11 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
           ship.getLimits(),
           ship.getLimits(),
           ship.getLimits(),
-          ship.getLimits()
+          ship.getLimits(),
         ]);
 
         // All should return the same config values
-        results.forEach(result => {
+        results.forEach((result) => {
           expect(result).toEqual(mockLimits);
         });
 
@@ -203,7 +203,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       it('should handle mixed concurrent getLimits and other method calls', async () => {
         const ship = new NodeShip({ token: 'test-key' });
         const getLimitsSpy = vi.fn().mockImplementation(async () => {
-          await new Promise(resolve => setTimeout(resolve, 50));
+          await new Promise((resolve) => setTimeout(resolve, 50));
           return mockLimits;
         });
         createMockedShip(ship, { getLimits: getLimitsSpy });
@@ -212,7 +212,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         const [configResult, pingResult, whoamiResult] = await Promise.all([
           ship.getLimits(),
           ship.ping(),
-          ship.whoami()
+          ship.whoami(),
         ]);
 
         expect(configResult).toEqual(mockLimits);
@@ -270,7 +270,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         const customConfig = {
           maxFileSize: 5242880,
           maxFilesCount: 500,
-          maxTotalSize: 52428800
+          maxTotalSize: 52428800,
         };
 
         // Mock fetchPlatformLimits to set custom config
@@ -281,7 +281,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         (ship as any).http = {
           getLimits: vi.fn().mockResolvedValue(customConfig),
           ping: vi.fn().mockResolvedValue(true),
-          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
         };
 
         const result = await ship.getLimits();
@@ -293,7 +293,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         const customConfig = {
           maxFileSize: 10485760,
           maxFilesCount: 2000,
-          maxTotalSize: 104857600
+          maxTotalSize: 104857600,
         };
 
         vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
@@ -303,7 +303,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         (ship as any).http = {
           getLimits: vi.fn().mockResolvedValue(customConfig),
           ping: vi.fn().mockResolvedValue(true),
-          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
         };
 
         const result = await ship.getLimits();
@@ -315,7 +315,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         const customConfig = {
           maxFileSize: 10485760,
           maxFilesCount: 1000,
-          maxTotalSize: 209715200
+          maxTotalSize: 209715200,
         };
 
         vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
@@ -325,7 +325,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         (ship as any).http = {
           getLimits: vi.fn().mockResolvedValue(customConfig),
           ping: vi.fn().mockResolvedValue(true),
-          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
         };
 
         const result = await ship.getLimits();
@@ -337,7 +337,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         const fullConfig = {
           maxFileSize: 10485760,
           maxFilesCount: 1000,
-          maxTotalSize: 104857600
+          maxTotalSize: 104857600,
         };
 
         vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
@@ -347,7 +347,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         (ship as any).http = {
           getLimits: vi.fn().mockResolvedValue(fullConfig),
           ping: vi.fn().mockResolvedValue(true),
-          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
         };
 
         const result = await ship.getLimits();
@@ -366,7 +366,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       it('should fetch config from API on first call', async () => {
         const ship = new BrowserShip({
           token: TEST_DEPLOY_TOKEN,
-          apiUrl: 'https://api.shipstatic.com'
+          apiUrl: 'https://api.shipstatic.com',
         });
         const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
         createMockedShip(ship, { getLimits: getLimitsSpy });
@@ -379,7 +379,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       it('should return cached config on subsequent calls', async () => {
         const ship = new BrowserShip({
           token: TEST_DEPLOY_TOKEN,
-          apiUrl: 'https://api.shipstatic.com'
+          apiUrl: 'https://api.shipstatic.com',
         });
         const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
         createMockedShip(ship, { getLimits: getLimitsSpy });
@@ -396,7 +396,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       it('should trigger initialization on first call', async () => {
         const ship = new BrowserShip({
           token: TEST_DEPLOY_TOKEN,
-          apiUrl: 'https://api.shipstatic.com'
+          apiUrl: 'https://api.shipstatic.com',
         });
 
         // Spy on ensureInitialized instead since fetchPlatformLimits is mocked by helper
@@ -413,7 +413,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       it('should propagate API errors when fetching config', async () => {
         const ship = new BrowserShip({
           token: TEST_DEPLOY_TOKEN,
-          apiUrl: 'https://api.shipstatic.com'
+          apiUrl: 'https://api.shipstatic.com',
         });
         const apiError = new Error('Failed to fetch config from API');
 
@@ -423,7 +423,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         (ship as any).http = {
           getLimits: vi.fn().mockRejectedValue(apiError),
           ping: vi.fn().mockResolvedValue(true),
-          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
         };
 
         await expect(ship.getLimits()).rejects.toThrow('Failed to fetch config from API');
@@ -434,7 +434,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       it('should handle CORS errors in browser', async () => {
         const ship = new BrowserShip({
           token: TEST_DEPLOY_TOKEN,
-          apiUrl: 'https://api.shipstatic.com'
+          apiUrl: 'https://api.shipstatic.com',
         });
         const corsError = new Error('CORS policy blocked the request');
 
@@ -444,7 +444,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         (ship as any).http = {
           getLimits: vi.fn().mockRejectedValue(corsError),
           ping: vi.fn().mockResolvedValue(true),
-          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+          getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
         };
 
         await expect(ship.getLimits()).rejects.toThrow('CORS policy blocked the request');
@@ -455,19 +455,15 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       it('should handle concurrent getLimits calls and cache result', async () => {
         const ship = new BrowserShip({
           token: TEST_DEPLOY_TOKEN,
-          apiUrl: 'https://api.shipstatic.com'
+          apiUrl: 'https://api.shipstatic.com',
         });
         const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
         createMockedShip(ship, { getLimits: getLimitsSpy });
 
         // Make concurrent calls - these will race and may all call API
-        const results = await Promise.all([
-          ship.getLimits(),
-          ship.getLimits(),
-          ship.getLimits()
-        ]);
+        const results = await Promise.all([ship.getLimits(), ship.getLimits(), ship.getLimits()]);
 
-        results.forEach(result => {
+        results.forEach((result) => {
           expect(result).toEqual(mockLimits);
         });
 
@@ -484,7 +480,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       it('should work with deploy token authentication', async () => {
         const ship = new BrowserShip({
           token: TEST_DEPLOY_TOKEN,
-          apiUrl: 'https://api.shipstatic.com'
+          apiUrl: 'https://api.shipstatic.com',
         });
         createMockedShip(ship);
 
@@ -495,7 +491,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       it('should work with custom API URL', async () => {
         const ship = new BrowserShip({
           token: TEST_DEPLOY_TOKEN,
-          apiUrl: 'https://custom-api.example.com'
+          apiUrl: 'https://custom-api.example.com',
         });
         createMockedShip(ship);
 
@@ -514,7 +510,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       __setTestEnvironment('browser');
       const browserShip = new BrowserShip({
         token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.shipstatic.com'
+        apiUrl: 'https://api.shipstatic.com',
       });
       createMockedShip(browserShip);
 
@@ -534,7 +530,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       __setTestEnvironment('browser');
       const browserShip = new BrowserShip({
         token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.shipstatic.com'
+        apiUrl: 'https://api.shipstatic.com',
       });
       const browserGetConfigSpy = vi.fn().mockResolvedValue(mockLimits);
       createMockedShip(browserShip, { getLimits: browserGetConfigSpy });
@@ -597,17 +593,17 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       const zeroConfig = {
         maxFileSize: 0,
         maxFilesCount: 0,
-        maxTotalSize: 0
+        maxTotalSize: 0,
       };
 
       vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
-          (ship as any).platformLimits = zeroConfig;
-        });
+        (ship as any).platformLimits = zeroConfig;
+      });
 
       (ship as any).http = {
         getLimits: vi.fn().mockResolvedValue(zeroConfig),
         ping: vi.fn().mockResolvedValue(true),
-        getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+        getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
       };
 
       const result = await ship.getLimits();
@@ -620,17 +616,17 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       const largeConfig = {
         maxFileSize: Number.MAX_SAFE_INTEGER,
         maxFilesCount: Number.MAX_SAFE_INTEGER,
-        maxTotalSize: Number.MAX_SAFE_INTEGER
+        maxTotalSize: Number.MAX_SAFE_INTEGER,
       };
 
       vi.spyOn(ship as any, 'fetchPlatformLimits').mockImplementation(async () => {
-          (ship as any).platformLimits = largeConfig;
-        });
+        (ship as any).platformLimits = largeConfig;
+      });
 
       (ship as any).http = {
         getLimits: vi.fn().mockResolvedValue(largeConfig),
         ping: vi.fn().mockResolvedValue(true),
-        getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+        getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
       };
 
       const result = await ship.getLimits();
@@ -658,7 +654,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       __setTestEnvironment('browser');
       const ship = new BrowserShip({
         token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.shipstatic.com'
+        apiUrl: 'https://api.shipstatic.com',
       });
 
       // DO NOT mock fetchPlatformLimits - let it run to verify real integration
@@ -666,7 +662,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       (ship as any).http = {
         getLimits: getLimitsSpy,
         ping: vi.fn().mockResolvedValue(true),
-        getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+        getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
       };
 
       // First call to getLimits() triggers initialization
@@ -683,14 +679,14 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
       __setTestEnvironment('browser');
       const ship = new BrowserShip({
         token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.shipstatic.com'
+        apiUrl: 'https://api.shipstatic.com',
       });
 
       const getLimitsSpy = vi.fn().mockResolvedValue(mockLimits);
       (ship as any).http = {
         getLimits: getLimitsSpy,
         ping: vi.fn().mockResolvedValue(true),
-        getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' })
+        getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
       };
 
       // Call ping first

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
 
 // Mock environment-specific modules to avoid actual filesystem/network calls.
@@ -7,15 +7,19 @@ vi.mock('../../src/node/core/config', () => ({
 }));
 
 vi.mock('../../src/node/core/node-files', () => ({
-  processFilesForNode: vi.fn().mockResolvedValue([
-    { path: 'test.html', content: Buffer.from('<html></html>'), size: 13, md5: 'node-hash' }
-  ])
+  processFilesForNode: vi
+    .fn()
+    .mockResolvedValue([
+      { path: 'test.html', content: Buffer.from('<html></html>'), size: 13, md5: 'node-hash' },
+    ]),
 }));
 
 vi.mock('../../src/browser/core/browser-files', () => ({
-  processFilesForBrowser: vi.fn().mockResolvedValue([
-    { path: 'test.html', content: new ArrayBuffer(13), size: 13, md5: 'browser-hash' }
-  ])
+  processFilesForBrowser: vi
+    .fn()
+    .mockResolvedValue([
+      { path: 'test.html', content: new ArrayBuffer(13), size: 13, md5: 'browser-hash' },
+    ]),
 }));
 
 describe('Ship Implementation Integration - Cross-Environment Consistency', () => {
@@ -91,14 +95,14 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
     it('should handle deploy calls with identical return format', async () => {
       const mockDeployResult = {
         id: 'consistent_deploy',
-        url: 'https://consistent_deploy.shipstatic.com'
+        url: 'https://consistent_deploy.shipstatic.com',
       };
 
       // Test Node.js Ship
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
       const nodeShip = new NodeShip({ token: 'test-key' });
-      
+
       // Spy on the resource method directly
       vi.spyOn(nodeShip.deployments, 'upload').mockResolvedValue(mockDeployResult);
 
@@ -108,7 +112,7 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
       const browserShip = new BrowserShip({ token: 'test-token', apiUrl: 'https://test.com' });
-      
+
       // Spy on the resource method directly
       vi.spyOn(browserShip.deployments, 'upload').mockResolvedValue(mockDeployResult);
 
@@ -126,7 +130,7 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       // Node.js Ship should reject non-Node environments
       __setTestEnvironment('browser');
       const { Ship: NodeShip } = await import('../../src/node/index');
-      
+
       expect(() => {
         new NodeShip({ token: 'test-key' });
       }).toThrow('Node.js Ship class can only be used in Node.js environment.');
@@ -139,7 +143,7 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       // Browser Ship should work in any environment (more permissive)
       __setTestEnvironment('node');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
-      
+
       expect(() => {
         new BrowserShip({ token: 'test-token', apiUrl: 'https://test.com' });
       }).not.toThrow();
@@ -157,14 +161,14 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       const { Ship: NodeShip } = await import('../../src/node/index');
       const nodeShip = new NodeShip({
         apiUrl: 'https://custom-node.com',
-        token: 'node-key'
+        token: 'node-key',
       });
 
       __setTestEnvironment('browser');
       const { Ship: BrowserShip } = await import('../../src/browser/index');
       const browserShip = new BrowserShip({
         apiUrl: 'https://custom-browser.com',
-        token: 'browser-token'
+        token: 'browser-token',
       });
 
       // Both should have stored their options correctly
@@ -189,12 +193,20 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       // Mock HTTP clients
       (nodeShip as any).http = {
         ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({
+          maxFileSize: 10485760,
+          maxFilesCount: 1000,
+          maxTotalSize: 52428800,
+        }),
       };
 
       (browserShip as any).http = {
         ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 })
+        getLimits: vi.fn().mockResolvedValue({
+          maxFileSize: 10485760,
+          maxFilesCount: 1000,
+          maxTotalSize: 52428800,
+        }),
       };
 
       // Both should handle ping (which triggers initialization) successfully
@@ -211,15 +223,15 @@ describe('Ship Implementation Integration - Cross-Environment Consistency', () =
       // Test Node.js exports
       __setTestEnvironment('node');
       const nodeModule = await import('../../src/node/index');
-      
+
       expect(nodeModule.getENV).toBeDefined();
       expect(nodeModule.__setTestEnvironment).toBeDefined();
       expect(nodeModule.ShipError).toBeDefined();
 
-      // Test Browser exports  
+      // Test Browser exports
       __setTestEnvironment('browser');
       const browserModule = await import('../../src/browser/index');
-      
+
       expect(browserModule.getENV).toBeDefined();
       expect(browserModule.__setTestEnvironment).toBeDefined();
       expect(browserModule.ShipError).toBeDefined();

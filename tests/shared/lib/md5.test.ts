@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { calculateMD5 } from '../../../src/shared/lib/md5';
+
 import { ShipError } from '@shipstatic/types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { calculateMD5 } from '../../../src/shared/lib/md5';
 
 const { MOCK_SPARK_MD5_INSTANCE, MOCK_SPARK_MD5_ARRAY_BUFFER_FN } = vi.hoisted(() => {
   const instance = { append: vi.fn(), end: vi.fn() };
-  return { MOCK_SPARK_MD5_INSTANCE: instance, MOCK_SPARK_MD5_ARRAY_BUFFER_FN: vi.fn(() => instance) };
+  return {
+    MOCK_SPARK_MD5_INSTANCE: instance,
+    MOCK_SPARK_MD5_ARRAY_BUFFER_FN: vi.fn(() => instance),
+  };
 });
 const { MOCK_CRYPTO_HASH_INSTANCE, MOCK_CREATE_HASH_FN } = vi.hoisted(() => {
   const instance = { update: vi.fn().mockReturnThis(), digest: vi.fn() };
@@ -13,7 +17,10 @@ const { MOCK_CRYPTO_HASH_INSTANCE, MOCK_CREATE_HASH_FN } = vi.hoisted(() => {
 });
 const { MOCK_FS_STREAM_INSTANCE, MOCK_CREATE_READ_STREAM_FN } = vi.hoisted(() => {
   const streamInstance = { on: vi.fn() };
-  return { MOCK_FS_STREAM_INSTANCE: streamInstance, MOCK_CREATE_READ_STREAM_FN: vi.fn(() => streamInstance) };
+  return {
+    MOCK_FS_STREAM_INSTANCE: streamInstance,
+    MOCK_CREATE_READ_STREAM_FN: vi.fn(() => streamInstance),
+  };
 });
 
 vi.mock('spark-md5', () => ({ default: { ArrayBuffer: MOCK_SPARK_MD5_ARRAY_BUFFER_FN } }));
@@ -77,12 +84,14 @@ describe('calculateMD5', () => {
 
   describe('file path', () => {
     function mockStream(handlers: { data?: Buffer; end?: boolean; error?: Error }) {
-      MOCK_FS_STREAM_INSTANCE.on.mockImplementation((event: string, cb: (...args: any[]) => void) => {
-        if (event === 'data' && handlers.data) setTimeout(() => cb(handlers.data), 0);
-        if (event === 'end' && handlers.end) setTimeout(() => cb(), 0);
-        if (event === 'error' && handlers.error) setTimeout(() => cb(handlers.error), 0);
-        return MOCK_FS_STREAM_INSTANCE;
-      });
+      MOCK_FS_STREAM_INSTANCE.on.mockImplementation(
+        (event: string, cb: (...args: any[]) => void) => {
+          if (event === 'data' && handlers.data) setTimeout(() => cb(handlers.data), 0);
+          if (event === 'end' && handlers.end) setTimeout(() => cb(), 0);
+          if (event === 'error' && handlers.error) setTimeout(() => cb(handlers.error), 0);
+          return MOCK_FS_STREAM_INSTANCE;
+        },
+      );
     }
 
     it('hashes a file via fs.createReadStream', async () => {
@@ -100,7 +109,7 @@ describe('calculateMD5', () => {
       mockStream({ error: streamError });
 
       await expect(calculateMD5('/mock/errorfile.txt')).rejects.toThrow(
-        ShipError.business(`Failed to read file for MD5: ${streamError.message}`)
+        ShipError.business(`Failed to read file for MD5: ${streamError.message}`),
       );
     });
   });

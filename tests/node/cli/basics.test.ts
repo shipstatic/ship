@@ -4,7 +4,7 @@
  * Replaces: snapshots.test.ts, simple-cli.test.ts, debug.test.ts
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { runCli } from './helpers';
 
 describe('CLI Basics', () => {

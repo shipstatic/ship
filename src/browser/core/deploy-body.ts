@@ -2,7 +2,7 @@
  * Browser-specific deploy body creation.
  */
 import { ShipError } from '@shipstatic/types';
-import type { StaticFile, DeployBody, DeployBodyContext } from '../../shared/types.js';
+import type { DeployBody, DeployBodyContext, StaticFile } from '../../shared/types.js';
 
 export async function createDeployBody(
   files: StaticFile[],
@@ -15,7 +15,9 @@ export async function createDeployBody(
   for (const file of files) {
     // 1. Validate content type
     if (!(file.content instanceof File || file.content instanceof Blob)) {
-      throw ShipError.file(`Unsupported file.content type for browser: ${file.path}`, { filePath: file.path });
+      throw ShipError.file(`Unsupported file.content type for browser: ${file.path}`, {
+        filePath: file.path,
+      });
     }
 
     // 2. Validate md5

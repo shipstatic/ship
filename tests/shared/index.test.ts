@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
 // This test file is for src/index.ts itself, focusing on re-exports.
 
 describe('Main SDK Index (src/index.ts)', () => {
@@ -28,7 +29,9 @@ describe('Main SDK Index (src/index.ts)', () => {
   it('should re-export __setTestEnvironment from utils/env', async () => {
     const Exports = await import('../../src/shared/lib/env');
     expect(Exports.__setTestEnvironment).toBeDefined();
-    expect(Exports.__setTestEnvironment).toBe((await import('../../src/shared/lib/env')).__setTestEnvironment);
+    expect(Exports.__setTestEnvironment).toBe(
+      (await import('../../src/shared/lib/env')).__setTestEnvironment,
+    );
   });
 
   it('should re-export all common types from types/index', async () => {
@@ -76,4 +79,3 @@ describe('Main SDK Index (src/index.ts)', () => {
     expect(typeof Exports.default).toBe('function');
   });
 });
-

@@ -2,16 +2,16 @@
  * @file Tests to verify SDK initialization order prevents race conditions
  */
 
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
-import { setupMockServer, cleanupMockServer } from '../mocks/server';
+import { cleanupMockServer, setupMockServer } from '../mocks/server';
 
-const TEST_DEPLOY_TOKEN = 'deploy-' + 'a'.repeat(64);
+const TEST_DEPLOY_TOKEN = `deploy-${'a'.repeat(64)}`;
 
 describe('SDK Initialization Order', () => {
   const mockServerPort = 13579; // Standard port used by the mock server
-  
+
   beforeAll(async () => {
     __setTestEnvironment('node');
     await setupMockServer();
@@ -24,49 +24,58 @@ describe('SDK Initialization Order', () => {
   it('should ensure API client is fully initialized before SPA detection', async () => {
     // Create a spy to track API calls and their order
     const apiCalls: string[] = [];
-    
+
     // Mock fetch to track calls
     const originalFetch = global.fetch;
     global.fetch = vi.fn().mockImplementation(async (url: string, options: any) => {
       const urlObj = new URL(url);
       apiCalls.push(urlObj.pathname);
-      
+
       // Mock responses
       if (urlObj.pathname === '/limits') {
-        return new Response(JSON.stringify({ 
-          maxFileSize: 10485760, 
-          maxFilesCount: 1000, 
-          maxTotalSize: 104857600 
-        }), { 
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(
+          JSON.stringify({
+            maxFileSize: 10485760,
+            maxFilesCount: 1000,
+            maxTotalSize: 104857600,
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
       }
-      
+
       if (urlObj.pathname === '/spa-check') {
-        return new Response(JSON.stringify({ 
-          isSPA: true,
-          debug: { tier: 'inclusions', reason: 'React mount point detected' }
-        }), { 
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(
+          JSON.stringify({
+            isSPA: true,
+            debug: { tier: 'inclusions', reason: 'React mount point detected' },
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
       }
-      
+
       if (urlObj.pathname === '/deployments') {
-        return new Response(JSON.stringify({
-          deployment: 'test-deployment-id',
-          files: 1,
-          size: 100,
-          status: 'success',
-          url: 'https://test-deployment.example.com',
-          created: Math.floor(Date.now() / 1000)
-        }), { 
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(
+          JSON.stringify({
+            deployment: 'test-deployment-id',
+            files: 1,
+            size: 100,
+            status: 'success',
+            url: 'https://test-deployment.example.com',
+            created: Math.floor(Date.now() / 1000),
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
       }
-      
+
       return originalFetch(url, options);
     });
 
@@ -74,15 +83,15 @@ describe('SDK Initialization Order', () => {
       // Create Ship instance with custom API URL
       const ship = new Ship({
         token: TEST_DEPLOY_TOKEN,
-        apiUrl: `http://localhost:${mockServerPort}`
+        apiUrl: `http://localhost:${mockServerPort}`,
       });
 
       // Create a simple file for deployment (Node.js expects file paths)
       const files = ['./tests/fixtures/demo-site/index.html'];
-      
+
       // Deploy - this should trigger initialization and SPA detection
       await ship.deployments.upload(files);
-      
+
       // Verify that /limits was called before /spa-check
       expect(apiCalls).toContain('/limits');
       expect(apiCalls).toContain('/spa-check');
@@ -93,7 +102,6 @@ describe('SDK Initialization Order', () => {
 
       // Limits should be called before SPA check (initialization order)
       expect(limitsIndex).toBeLessThan(spaCheckIndex);
-      
     } finally {
       global.fetch = originalFetch;
     }
@@ -102,39 +110,48 @@ describe('SDK Initialization Order', () => {
   it('should use correct API URL for all calls after initialization', async () => {
     const customApiUrl = `http://localhost:${mockServerPort}`;
     const apiUrls: string[] = [];
-    
+
     // Mock fetch to track URLs
     const originalFetch = global.fetch;
     global.fetch = vi.fn().mockImplementation(async (url: string, options: any) => {
       apiUrls.push(url);
-      
+
       // Mock responses with correct host
       if (url.includes('/limits')) {
-        return new Response(JSON.stringify({ 
-          maxFileSize: 10485760, 
-          maxFilesCount: 1000, 
-          maxTotalSize: 104857600 
-        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            maxFileSize: 10485760,
+            maxFilesCount: 1000,
+            maxTotalSize: 104857600,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
       }
-      
+
       if (url.includes('/spa-check')) {
-        return new Response(JSON.stringify({ 
-          isSPA: false,
-          debug: { tier: 'exclusions', reason: 'No SPA indicators found' }
-        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            isSPA: false,
+            debug: { tier: 'exclusions', reason: 'No SPA indicators found' },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
       }
-      
+
       if (url.includes('/deployments')) {
-        return new Response(JSON.stringify({
-          deployment: 'test-deployment-id',
-          files: 1,
-          size: 100,
-          status: 'success',
-          url: 'https://test-deployment.example.com',
-          created: Math.floor(Date.now() / 1000)
-        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        return new Response(
+          JSON.stringify({
+            deployment: 'test-deployment-id',
+            files: 1,
+            size: 100,
+            status: 'success',
+            url: 'https://test-deployment.example.com',
+            created: Math.floor(Date.now() / 1000),
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
       }
-      
+
       return originalFetch(url, options);
     });
 
@@ -142,21 +159,20 @@ describe('SDK Initialization Order', () => {
       // Create Ship instance with custom API URL
       const ship = new Ship({
         token: TEST_DEPLOY_TOKEN,
-        apiUrl: customApiUrl
+        apiUrl: customApiUrl,
       });
 
-      // Create a simple file for deployment (Node.js expects file paths)  
+      // Create a simple file for deployment (Node.js expects file paths)
       const files = ['./tests/fixtures/demo-site/index.html'];
-      
+
       // Deploy
       await ship.deployments.upload(files);
-      
+
       // All API calls should use the custom API URL, not the default
-      apiUrls.forEach(url => {
+      apiUrls.forEach((url) => {
         expect(url.startsWith(customApiUrl)).toBe(true);
         expect(url).not.toContain('api.shipstatic.com'); // Should not use default
       });
-      
     } finally {
       global.fetch = originalFetch;
     }

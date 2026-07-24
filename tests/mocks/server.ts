@@ -14,25 +14,31 @@
  * - Server stops when last cleanupMockServer() call happens
  */
 
-import { createServer } from 'http';
-import type { Server, IncomingMessage, ServerResponse } from 'http';
-import type { Deployment, DeploymentListResponse, Domain, DomainListResponse, TokenListItem, TokenListResponse } from '@shipstatic/types';
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
+import { createServer } from 'node:http';
+import type {
+  Deployment,
+  DeploymentListResponse,
+  Domain,
+  DomainListResponse,
+  TokenListItem,
+  TokenListResponse,
+} from '@shipstatic/types';
 import {
-  deployments as deploymentFixtures,
-  domains as domainFixtures,
   accounts,
   configs,
-  spaCheckResponses,
-  errors,
   createDynamicDeployment,
   createDynamicDomain,
   createDynamicToken,
-  domainDnsResponses,
+  deployments as deploymentFixtures,
+  domains as domainFixtures,
   domainRecordsResponses,
   domainShareResponses,
-  domainVerifyResponses,
   domainValidateResponses,
+  domainVerifyResponses,
+  errors,
   isExternalDomain,
+  spaCheckResponses,
 } from '../fixtures/api-responses';
 
 // =============================================================================
@@ -101,9 +107,11 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
   // Authentication check. Deploy creation is public: an unauthenticated
   // POST /deployments is granted the public-account agent identity by the
   // API (claim URL + expiry on the response) — mirrored below.
-  const isPublicEndpoint = path === '/ping' || path === '/limits'
-    || (path === '/tokens' && method === 'POST')
-    || (path === '/deployments' && method === 'POST');
+  const isPublicEndpoint =
+    path === '/ping' ||
+    path === '/limits' ||
+    (path === '/tokens' && method === 'POST') ||
+    (path === '/deployments' && method === 'POST');
   const hasAuth = req.headers.authorization || req.headers['x-api-key'];
 
   if (!isPublicEndpoint && !hasAuth) {
@@ -130,7 +138,7 @@ function routeRequest(
   res: ServerResponse,
   method: string,
   path: string,
-  url: URL
+  url: URL,
 ): void {
   // Ping
   if (path === '/ping' && method === 'GET') {
@@ -285,7 +293,9 @@ function handleDeploymentUpload(req: IncomingMessage, res: ServerResponse): void
 }
 
 function findDeployment(id: string): Deployment | undefined {
-  return mockDeployments.find((d) => d.deployment === id || d.deployment === `${id}.shipstatic.com`);
+  return mockDeployments.find(
+    (d) => d.deployment === id || d.deployment === `${id}.shipstatic.com`,
+  );
 }
 
 function handleDeploymentGet(res: ServerResponse, id: string): void {
@@ -307,11 +317,13 @@ function handleDeploymentDelete(res: ServerResponse, id: string): void {
     return;
   }
   res.writeHead(202);
-  res.end(JSON.stringify({
-    message: 'Deployment marked for removal',
-    deployment: deployment.deployment,
-    status: 'deleting',
-  }));
+  res.end(
+    JSON.stringify({
+      message: 'Deployment marked for removal',
+      deployment: deployment.deployment,
+      status: 'deleting',
+    }),
+  );
 }
 
 // =============================================================================
@@ -349,7 +361,11 @@ function handleDomainSet(req: IncomingMessage, res: ServerResponse, domainName: 
 
       // Validate deployment exists if provided
       if (data.deployment) {
-        const deploymentExists = mockDeployments.some((d) => d.deployment === data.deployment || d.deployment === `${data.deployment}.shipstatic.com`);
+        const deploymentExists = mockDeployments.some(
+          (d) =>
+            d.deployment === data.deployment ||
+            d.deployment === `${data.deployment}.shipstatic.com`,
+        );
         if (!deploymentExists) {
           res.writeHead(404);
           res.end(JSON.stringify(errors.notFound('Deployment', data.deployment)));
@@ -363,7 +379,8 @@ function handleDomainSet(req: IncomingMessage, res: ServerResponse, domainName: 
       if (existingIndex >= 0) {
         // Update existing domain — merge semantics: omitted fields preserve existing values
         const existing = mockDomains[existingIndex];
-        const mergedDeployment = data.deployment !== undefined ? data.deployment : existing.deployment;
+        const mergedDeployment =
+          data.deployment !== undefined ? data.deployment : existing.deployment;
         const mergedLabels = data.labels !== undefined ? data.labels : existing.labels;
         const domain = createDynamicDomain(domainName, mergedDeployment, {
           labels: mergedLabels,
@@ -408,7 +425,11 @@ function handleDomainDns(res: ServerResponse, domainName: string): void {
   // Only available for external domains
   if (!isExternalDomain(domainName)) {
     res.writeHead(400);
-    res.end(JSON.stringify(errors.validationError('DNS information is only available for external domains')));
+    res.end(
+      JSON.stringify(
+        errors.validationError('DNS information is only available for external domains'),
+      ),
+    );
     return;
   }
 
@@ -422,22 +443,32 @@ function handleDomainDns(res: ServerResponse, domainName: string): void {
   // Only available for unverified domains (status='pending' means not yet verified)
   if (domain.status !== 'pending') {
     res.writeHead(400);
-    res.end(JSON.stringify(errors.validationError('DNS information is only available for unverified domains')));
+    res.end(
+      JSON.stringify(
+        errors.validationError('DNS information is only available for unverified domains'),
+      ),
+    );
     return;
   }
 
   res.writeHead(200);
-  res.end(JSON.stringify({
-    domain: domainName,
-    dns: { provider: { name: 'Cloudflare' } },
-  }));
+  res.end(
+    JSON.stringify({
+      domain: domainName,
+      dns: { provider: { name: 'Cloudflare' } },
+    }),
+  );
 }
 
 function handleDomainRecords(res: ServerResponse, domainName: string): void {
   // Only available for external domains
   if (!isExternalDomain(domainName)) {
     res.writeHead(400);
-    res.end(JSON.stringify(errors.validationError('DNS information is only available for external domains')));
+    res.end(
+      JSON.stringify(
+        errors.validationError('DNS information is only available for external domains'),
+      ),
+    );
     return;
   }
 
@@ -452,18 +483,24 @@ function handleDomainRecords(res: ServerResponse, domainName: string): void {
   const apex = domainName.startsWith('www.') ? domainName.slice(4) : domainName;
 
   res.writeHead(200);
-  res.end(JSON.stringify({
-    domain: domainName,
-    apex,
-    records: domainRecordsResponses.standard.records,
-  }));
+  res.end(
+    JSON.stringify({
+      domain: domainName,
+      apex,
+      records: domainRecordsResponses.standard.records,
+    }),
+  );
 }
 
 function handleDomainShare(res: ServerResponse, domainName: string): void {
   // Only available for external domains
   if (!isExternalDomain(domainName)) {
     res.writeHead(400);
-    res.end(JSON.stringify(errors.validationError('Setup sharing is only available for external domains')));
+    res.end(
+      JSON.stringify(
+        errors.validationError('Setup sharing is only available for external domains'),
+      ),
+    );
     return;
   }
 
@@ -477,22 +514,32 @@ function handleDomainShare(res: ServerResponse, domainName: string): void {
   // Only available for unverified domains (status='pending' means not yet verified)
   if (domain.status !== 'pending') {
     res.writeHead(400);
-    res.end(JSON.stringify(errors.validationError('Setup sharing is only available for unverified domains')));
+    res.end(
+      JSON.stringify(
+        errors.validationError('Setup sharing is only available for unverified domains'),
+      ),
+    );
     return;
   }
 
   res.writeHead(200);
-  res.end(JSON.stringify({
-    domain: domainName,
-    hash: domainShareResponses.standard.hash,
-  }));
+  res.end(
+    JSON.stringify({
+      domain: domainName,
+      hash: domainShareResponses.standard.hash,
+    }),
+  );
 }
 
 function handleDomainVerify(res: ServerResponse, domainName: string): void {
   // Only available for external domains
   if (!isExternalDomain(domainName)) {
     res.writeHead(400);
-    res.end(JSON.stringify(errors.validationError('DNS verification is only available for external domains')));
+    res.end(
+      JSON.stringify(
+        errors.validationError('DNS verification is only available for external domains'),
+      ),
+    );
     return;
   }
 
@@ -506,14 +553,24 @@ function handleDomainVerify(res: ServerResponse, domainName: string): void {
   // Only available for unverified domains (status='pending' means not yet verified)
   if (domain.status !== 'pending') {
     res.writeHead(400);
-    res.end(JSON.stringify(errors.validationError('DNS verification is only available for unverified domains')));
+    res.end(
+      JSON.stringify(
+        errors.validationError('DNS verification is only available for unverified domains'),
+      ),
+    );
     return;
   }
 
   // Rate limit check (simulates real API behavior)
   if (rateLimitedDomains.has(domainName)) {
     res.writeHead(429);
-    res.end(JSON.stringify(errors.validationError('DNS verification already requested recently. Please wait before retrying.')));
+    res.end(
+      JSON.stringify(
+        errors.validationError(
+          'DNS verification already requested recently. Please wait before retrying.',
+        ),
+      ),
+    );
     return;
   }
 
@@ -567,12 +624,16 @@ function handleTokenCreate(req: IncomingMessage, res: ServerResponse): void {
       mockTokens.push(token);
 
       // Return token ID + secret with labels and expires
-      const response: { token: string; secret: string; labels: string[]; expires: number | null } = {
-        token: token.token,
-        secret: `deploy-${Date.now()}${Math.random().toString(36).substring(2, 10)}`.padEnd(71, "0"),
-        labels: data.labels || [],
-        expires: data.ttl ? Math.floor(Date.now() / 1000) + data.ttl : null,
-      };
+      const response: { token: string; secret: string; labels: string[]; expires: number | null } =
+        {
+          token: token.token,
+          secret: `deploy-${Date.now()}${Math.random().toString(36).substring(2, 10)}`.padEnd(
+            71,
+            '0',
+          ),
+          labels: data.labels || [],
+          expires: data.ttl ? Math.floor(Date.now() / 1000) + data.ttl : null,
+        };
 
       res.writeHead(201);
       res.end(JSON.stringify(response));

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { optimizeDeployPaths } from '../../src/shared/lib/deploy-paths';
 
 describe('Path Handling Cross-Environment Integration', () => {
@@ -13,43 +13,38 @@ describe('Path Handling Cross-Environment Integration', () => {
             'dist/vite.svg',
             'dist/assets/browser-SQEQcwkt',
             'dist/assets/index-BaplGdt4',
-            'dist/assets/style-CuqkljXd.css'
+            'dist/assets/style-CuqkljXd.css',
           ],
           expectedOptimized: [
             'index.html',
             'vite.svg',
             'assets/browser-SQEQcwkt',
             'assets/index-BaplGdt4',
-            'assets/style-CuqkljXd.css'
+            'assets/style-CuqkljXd.css',
           ],
           expectedPreserved: [
             'dist/index.html',
             'dist/vite.svg',
             'dist/assets/browser-SQEQcwkt',
             'dist/assets/index-BaplGdt4',
-            'dist/assets/style-CuqkljXd.css'
-          ]
+            'dist/assets/style-CuqkljXd.css',
+          ],
         },
         {
           name: 'Mixed directory structure (no common root)',
-          paths: [
-            'index.html',
-            'assets/js/app',
-            'assets/css/styles.css',
-            'images/logo.png'
-          ],
+          paths: ['index.html', 'assets/js/app', 'assets/css/styles.css', 'images/logo.png'],
           expectedOptimized: [
             'index.html',
             'assets/js/app',
             'assets/css/styles.css',
-            'images/logo.png'
+            'images/logo.png',
           ],
           expectedPreserved: [
             'index.html',
             'assets/js/app',
             'assets/css/styles.css',
-            'images/logo.png'
-          ]
+            'images/logo.png',
+          ],
         },
         {
           name: 'React build structure',
@@ -57,36 +52,36 @@ describe('Path Handling Cross-Environment Integration', () => {
             'build/index.html',
             'build/static/css/main.abc123.css',
             'build/static/js/main.def456',
-            'build/manifest.json'
+            'build/manifest.json',
           ],
           expectedOptimized: [
             'index.html',
             'static/css/main.abc123.css',
             'static/js/main.def456',
-            'manifest.json'
+            'manifest.json',
           ],
           expectedPreserved: [
             'build/index.html',
             'build/static/css/main.abc123.css',
             'build/static/js/main.def456',
-            'build/manifest.json'
-          ]
-        }
+            'build/manifest.json',
+          ],
+        },
       ];
 
-      scenarios.forEach(scenario => {
+      scenarios.forEach((scenario) => {
         // Test with optimization enabled (default)
         const optimized = optimizeDeployPaths(scenario.paths, { flatten: true });
-        const optimizedPaths = optimized.map(f => f.path);
-        
+        const optimizedPaths = optimized.map((f) => f.path);
+
         expect(optimizedPaths).toEqual(scenario.expectedOptimized);
-        
+
         // Test with optimization disabled
         const preserved = optimizeDeployPaths(scenario.paths, { flatten: false });
-        const preservedPaths = preserved.map(f => f.path);
-        
+        const preservedPaths = preserved.map((f) => f.path);
+
         expect(preservedPaths).toEqual(scenario.expectedPreserved);
-        
+
         // Verify filenames are correctly extracted
         optimized.forEach((file, index) => {
           const expectedName = scenario.paths[index].split('/').pop();
@@ -97,27 +92,19 @@ describe('Path Handling Cross-Environment Integration', () => {
 
     it('should handle the original regression scenario correctly', () => {
       // This is the exact scenario that was reported as broken
-      const distFiles = [
-        'dist/index.html',
-        'dist/vite.svg',
-        'dist/assets/browser-SQEQcwkt'
-      ];
+      const distFiles = ['dist/index.html', 'dist/vite.svg', 'dist/assets/browser-SQEQcwkt'];
 
       const result = optimizeDeployPaths(distFiles, { flatten: true });
-      const paths = result.map(f => f.path);
+      const paths = result.map((f) => f.path);
 
       // Should strip 'dist/' but preserve 'assets/' subdirectory
-      expect(paths).toEqual([
-        'index.html',
-        'vite.svg', 
-        'assets/browser-SQEQcwkt'
-      ]);
+      expect(paths).toEqual(['index.html', 'vite.svg', 'assets/browser-SQEQcwkt']);
 
       // Should NOT be completely flattened to root level
       expect(paths).not.toContain('browser-SQEQcwkt');
-      
+
       // The assets folder should be preserved in the deployment URL
-      expect(paths.find(p => p.includes('assets/'))).toBe('assets/browser-SQEQcwkt');
+      expect(paths.find((p) => p.includes('assets/'))).toBe('assets/browser-SQEQcwkt');
     });
 
     it('should demonstrate the elegance of the algorithm', () => {
@@ -126,29 +113,29 @@ describe('Path Handling Cross-Environment Integration', () => {
         {
           input: ['file.txt'],
           expected: ['file.txt'],
-          description: 'Single file - no optimization needed'
+          description: 'Single file - no optimization needed',
         },
         {
           input: ['dir/file1.txt', 'dir/file2.txt'],
           expected: ['file1.txt', 'file2.txt'],
-          description: 'Flat directory - strips common parent'
+          description: 'Flat directory - strips common parent',
         },
         {
           input: ['dir/sub1/file1.txt', 'dir/sub2/file2.txt'],
           expected: ['sub1/file1.txt', 'sub2/file2.txt'],
-          description: 'Parallel subdirectories - preserves structure'
+          description: 'Parallel subdirectories - preserves structure',
         },
         {
           input: ['app/index.html', 'docs/readme.md'],
           expected: ['app/index.html', 'docs/readme.md'],
-          description: 'Different roots - no common parent'
-        }
+          description: 'Different roots - no common parent',
+        },
       ];
 
-      testCases.forEach(testCase => {
+      testCases.forEach((testCase) => {
         const result = optimizeDeployPaths(testCase.input, { flatten: true });
-        const paths = result.map(f => f.path);
-        
+        const paths = result.map((f) => f.path);
+
         expect(paths).toEqual(testCase.expected);
       });
     });
@@ -156,23 +143,19 @@ describe('Path Handling Cross-Environment Integration', () => {
     it('should maintain consistency regardless of path separators', () => {
       // Test that the algorithm works with mixed path separators
       const mixedPaths = [
-        'dist\\index.html',      // Windows-style
-        'dist/vite.svg',         // Unix-style
-        'dist\\assets/app'    // Mixed style
+        'dist\\index.html', // Windows-style
+        'dist/vite.svg', // Unix-style
+        'dist\\assets/app', // Mixed style
       ];
 
       const result = optimizeDeployPaths(mixedPaths, { flatten: true });
-      const paths = result.map(f => f.path);
+      const paths = result.map((f) => f.path);
 
       // Should normalize all to forward slashes and optimize correctly
-      expect(paths).toEqual([
-        'index.html',
-        'vite.svg',
-        'assets/app'
-      ]);
+      expect(paths).toEqual(['index.html', 'vite.svg', 'assets/app']);
 
       // Should not contain any backslashes
-      paths.forEach(path => {
+      paths.forEach((path) => {
         expect(path).not.toContain('\\');
       });
     });

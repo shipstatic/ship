@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createDomainResource, type DomainResource } from '../../../src/shared/resources';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApiHttp } from '../../../src/shared/api/http';
+import { createDomainResource, type DomainResource } from '../../../src/shared/resources';
 
 describe('DomainResource', () => {
   let mockApi: ApiHttp;
@@ -15,7 +15,7 @@ describe('DomainResource', () => {
       removeDomain: vi.fn(),
       verifyDomain: vi.fn(),
       deploy: vi.fn(),
-      ping: vi.fn()
+      ping: vi.fn(),
     } as unknown as ApiHttp;
 
     domains = createDomainResource({ getApi: () => mockApi, ensureInit: async () => {} });
@@ -23,7 +23,12 @@ describe('DomainResource', () => {
 
   describe('set (always PUT)', () => {
     it('should PUT with deployment', async () => {
-      const mockSetResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.com', isCreate: true };
+      const mockSetResponse = {
+        domain: 'staging',
+        deployment: 'abc123',
+        url: 'https://staging.shipstatic.com',
+        isCreate: true,
+      };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('staging', { deployment: 'abc123' });
@@ -35,7 +40,13 @@ describe('DomainResource', () => {
 
     it('should PUT with deployment and labels', async () => {
       const labels = ['production', 'v1.0.0'];
-      const mockSetResponse = { domain: 'prod', deployment: 'xyz789', url: 'https://prod.shipstatic.com', labels, isCreate: true };
+      const mockSetResponse = {
+        domain: 'prod',
+        deployment: 'xyz789',
+        url: 'https://prod.shipstatic.com',
+        labels,
+        isCreate: true,
+      };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('prod', { deployment: 'xyz789', labels });
@@ -46,7 +57,12 @@ describe('DomainResource', () => {
 
     it('should PUT with labels only', async () => {
       const labels = ['production', 'v2.0.0'];
-      const mockSetResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.com', labels };
+      const mockSetResponse = {
+        domain: 'staging',
+        deployment: 'abc123',
+        url: 'https://staging.shipstatic.com',
+        labels,
+      };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('staging', { labels });
@@ -57,7 +73,12 @@ describe('DomainResource', () => {
     });
 
     it('should PUT with no options (reserve)', async () => {
-      const mockSetResponse = { domain: 'reserved', deployment: null, url: 'https://reserved.shipstatic.com', isCreate: true };
+      const mockSetResponse = {
+        domain: 'reserved',
+        deployment: null,
+        url: 'https://reserved.shipstatic.com',
+        isCreate: true,
+      };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('reserved');
@@ -68,7 +89,12 @@ describe('DomainResource', () => {
     });
 
     it('should PUT with empty options', async () => {
-      const mockSetResponse = { domain: 'reserved', deployment: null, url: 'https://reserved.shipstatic.com', isCreate: true };
+      const mockSetResponse = {
+        domain: 'reserved',
+        deployment: null,
+        url: 'https://reserved.shipstatic.com',
+        isCreate: true,
+      };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('reserved', {});
@@ -78,7 +104,12 @@ describe('DomainResource', () => {
     });
 
     it('should PUT with empty labels array', async () => {
-      const mockSetResponse = { domain: 'staging', deployment: null, url: 'https://staging.shipstatic.com', labels: [] };
+      const mockSetResponse = {
+        domain: 'staging',
+        deployment: null,
+        url: 'https://staging.shipstatic.com',
+        labels: [],
+      };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('staging', { labels: [] });
@@ -88,7 +119,12 @@ describe('DomainResource', () => {
     });
 
     it('should PUT with deployment and empty labels', async () => {
-      const mockSetResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.com', labels: [] };
+      const mockSetResponse = {
+        domain: 'staging',
+        deployment: 'abc123',
+        url: 'https://staging.shipstatic.com',
+        labels: [],
+      };
       (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
 
       const result = await domains.set('staging', { deployment: 'abc123', labels: [] });
@@ -103,8 +139,8 @@ describe('DomainResource', () => {
       const mockResponse = {
         domains: [
           { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.com' },
-          { domain: 'production', deployment: 'def456', url: 'https://production.shipstatic.com' }
-        ]
+          { domain: 'production', deployment: 'def456', url: 'https://production.shipstatic.com' },
+        ],
       };
       (mockApi.listDomains as any).mockResolvedValue(mockResponse);
 
@@ -139,7 +175,11 @@ describe('DomainResource', () => {
 
   describe('get', () => {
     it('should call api.getDomain with correct parameter', async () => {
-      const mockResponse = { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.com' };
+      const mockResponse = {
+        domain: 'staging',
+        deployment: 'abc123',
+        url: 'https://staging.shipstatic.com',
+      };
       (mockApi.getDomain as any).mockResolvedValue(mockResponse);
 
       const result = await domains.get('staging');
@@ -173,7 +213,11 @@ describe('DomainResource', () => {
 
   describe('validate', () => {
     it('should call api.validateDomain and return validation result', async () => {
-      const mockValidateResponse = { valid: true, normalized: 'my-site.shipstatic.com', available: true };
+      const mockValidateResponse = {
+        valid: true,
+        normalized: 'my-site.shipstatic.com',
+        available: true,
+      };
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
 
       const result = await domains.validate('my-site.shipstatic.com');
@@ -183,7 +227,11 @@ describe('DomainResource', () => {
     });
 
     it('should return normalized domain and availability for valid platform domain', async () => {
-      const mockValidateResponse = { valid: true, normalized: 'my-site.shipstatic.com', available: true };
+      const mockValidateResponse = {
+        valid: true,
+        normalized: 'my-site.shipstatic.com',
+        available: true,
+      };
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
 
       const result = await domains.validate('my-site.shipstatic.com');
@@ -205,7 +253,11 @@ describe('DomainResource', () => {
     });
 
     it('should indicate when platform domain is taken', async () => {
-      const mockValidateResponse = { valid: true, normalized: 'taken-site.shipstatic.com', available: false };
+      const mockValidateResponse = {
+        valid: true,
+        normalized: 'taken-site.shipstatic.com',
+        available: false,
+      };
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
 
       const result = await domains.validate('taken-site.shipstatic.com');
@@ -216,7 +268,10 @@ describe('DomainResource', () => {
     });
 
     it('should return error for invalid domain', async () => {
-      const mockValidateResponse = { valid: false, error: 'Domain must be a fully qualified domain name' };
+      const mockValidateResponse = {
+        valid: false,
+        error: 'Domain must be a fully qualified domain name',
+      };
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
 
       const result = await domains.validate('invalid');
@@ -227,7 +282,11 @@ describe('DomainResource', () => {
     });
 
     it('should handle uppercase normalization', async () => {
-      const mockValidateResponse = { valid: true, normalized: 'mysite.shipstatic.com', available: true };
+      const mockValidateResponse = {
+        valid: true,
+        normalized: 'mysite.shipstatic.com',
+        available: true,
+      };
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
 
       const result = await domains.validate('MySite.SHIPSTATIC.DEV');
@@ -258,7 +317,9 @@ describe('DomainResource', () => {
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue({});
 
       expect(domains.set('test', { deployment: 'abc123' })).toBeInstanceOf(Promise);
-      expect(domains.set('test', { deployment: 'abc123', labels: ['tag1'] })).toBeInstanceOf(Promise);
+      expect(domains.set('test', { deployment: 'abc123', labels: ['tag1'] })).toBeInstanceOf(
+        Promise,
+      );
       expect(domains.set('test', { labels: ['tag1', 'tag2'] })).toBeInstanceOf(Promise);
       expect(domains.get('test')).toBeInstanceOf(Promise);
       expect(domains.list()).toBeInstanceOf(Promise);

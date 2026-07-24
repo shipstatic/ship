@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { optimizeDeployPaths } from '../../../src/shared/lib/deploy-paths';
 
 describe('Deploy Path Optimization', () => {
@@ -9,18 +9,18 @@ describe('Deploy Path Optimization', () => {
         'dist/vite.svg',
         'dist/assets/browser-SQEQcwkt',
         'dist/assets/index-BaplGdt4',
-        'dist/assets/style-CuqkljXd.css'
+        'dist/assets/style-CuqkljXd.css',
       ];
 
       const result = optimizeDeployPaths(filePaths);
-      const deployPaths = result.map(f => f.path);
+      const deployPaths = result.map((f) => f.path);
 
       expect(deployPaths).toEqual([
         'index.html',
-        'vite.svg', 
+        'vite.svg',
         'assets/browser-SQEQcwkt',
         'assets/index-BaplGdt4',
-        'assets/style-CuqkljXd.css'
+        'assets/style-CuqkljXd.css',
       ]);
     });
 
@@ -29,17 +29,17 @@ describe('Deploy Path Optimization', () => {
         'build/index.html',
         'build/static/css/main.abc123.css',
         'build/static/js/main.def456',
-        'build/static/media/logo.789xyz.png'
+        'build/static/media/logo.789xyz.png',
       ];
 
       const result = optimizeDeployPaths(filePaths);
-      const deployPaths = result.map(f => f.path);
+      const deployPaths = result.map((f) => f.path);
 
       expect(deployPaths).toEqual([
         'index.html',
         'static/css/main.abc123.css',
         'static/js/main.def456',
-        'static/media/logo.789xyz.png'
+        'static/media/logo.789xyz.png',
       ]);
     });
 
@@ -48,74 +48,49 @@ describe('Deploy Path Optimization', () => {
         'project/src/components/Header.tsx',
         'project/src/components/Footer.tsx',
         'project/src/utils/helpers.ts',
-        'project/public/favicon.ico'
+        'project/public/favicon.ico',
       ];
 
       const result = optimizeDeployPaths(filePaths);
-      const deployPaths = result.map(f => f.path);
+      const deployPaths = result.map((f) => f.path);
 
       expect(deployPaths).toEqual([
         'src/components/Header.tsx',
         'src/components/Footer.tsx',
         'src/utils/helpers.ts',
-        'public/favicon.ico'
+        'public/favicon.ico',
       ]);
     });
 
     it('should handle flat directory structure', () => {
-      const filePaths = [
-        'site/index.html',
-        'site/style.css',
-        'site/script'
-      ];
+      const filePaths = ['site/index.html', 'site/style.css', 'site/script'];
 
       const result = optimizeDeployPaths(filePaths);
-      const deployPaths = result.map(f => f.path);
+      const deployPaths = result.map((f) => f.path);
 
-      expect(deployPaths).toEqual([
-        'index.html',
-        'style.css',
-        'script'
-      ]);
+      expect(deployPaths).toEqual(['index.html', 'style.css', 'script']);
     });
 
     it('should preserve structure when no common directory exists', () => {
-      const filePaths = [
-        'app/index.html',
-        'docs/readme.md',
-        'tests/unit'
-      ];
+      const filePaths = ['app/index.html', 'docs/readme.md', 'tests/unit'];
 
       const result = optimizeDeployPaths(filePaths);
-      const deployPaths = result.map(f => f.path);
+      const deployPaths = result.map((f) => f.path);
 
-      expect(deployPaths).toEqual([
-        'app/index.html',
-        'docs/readme.md', 
-        'tests/unit'
-      ]);
+      expect(deployPaths).toEqual(['app/index.html', 'docs/readme.md', 'tests/unit']);
     });
 
     it('should handle mixed depth files', () => {
-      const filePaths = [
-        'src/index.html',
-        'src/deep/nested/component.tsx'
-      ];
+      const filePaths = ['src/index.html', 'src/deep/nested/component.tsx'];
 
       const result = optimizeDeployPaths(filePaths);
-      const deployPaths = result.map(f => f.path);
+      const deployPaths = result.map((f) => f.path);
 
-      expect(deployPaths).toEqual([
-        'index.html',
-        'deep/nested/component.tsx'
-      ]);
+      expect(deployPaths).toEqual(['index.html', 'deep/nested/component.tsx']);
     });
 
     it('should extract correct filenames', () => {
-      const filePaths = [
-        'dist/assets/browser-SQEQcwkt',
-        'dist/index.html'
-      ];
+      const filePaths = ['dist/assets/browser-SQEQcwkt', 'dist/index.html'];
 
       const result = optimizeDeployPaths(filePaths);
 
@@ -129,32 +104,26 @@ describe('Deploy Path Optimization', () => {
       const filePaths = [
         'dist/index.html',
         'dist/assets/browser-SQEQcwkt',
-        'dist/assets/style.css'
+        'dist/assets/style.css',
       ];
 
       const result = optimizeDeployPaths(filePaths, { flatten: false });
-      const deployPaths = result.map(f => f.path);
+      const deployPaths = result.map((f) => f.path);
 
       expect(deployPaths).toEqual([
         'dist/index.html',
-        'dist/assets/browser-SQEQcwkt', 
-        'dist/assets/style.css'
+        'dist/assets/browser-SQEQcwkt',
+        'dist/assets/style.css',
       ]);
     });
 
     it('should normalize paths even when not flattening', () => {
-      const filePaths = [
-        '\\Windows\\path\\file.txt',
-        '/unix/path/file.txt'
-      ];
+      const filePaths = ['\\Windows\\path\\file.txt', '/unix/path/file.txt'];
 
       const result = optimizeDeployPaths(filePaths, { flatten: false });
-      const deployPaths = result.map(f => f.path);
+      const deployPaths = result.map((f) => f.path);
 
-      expect(deployPaths).toEqual([
-        'Windows/path/file.txt',
-        'unix/path/file.txt'
-      ]);
+      expect(deployPaths).toEqual(['Windows/path/file.txt', 'unix/path/file.txt']);
     });
   });
 
@@ -173,18 +142,15 @@ describe('Deploy Path Optimization', () => {
     it('should handle files with no extension', () => {
       const filePaths = ['dist/LICENSE', 'dist/README'];
       const result = optimizeDeployPaths(filePaths);
-      const deployPaths = result.map(f => f.path);
+      const deployPaths = result.map((f) => f.path);
 
       expect(deployPaths).toEqual(['LICENSE', 'README']);
     });
 
     it('should handle complex file extensions', () => {
-      const filePaths = [
-        'dist/app.config',
-        'dist/package.json.backup'
-      ];
+      const filePaths = ['dist/app.config', 'dist/package.json.backup'];
       const result = optimizeDeployPaths(filePaths);
-      
+
       expect(result[0].name).toBe('app.config');
       expect(result[1].name).toBe('package.json.backup');
     });

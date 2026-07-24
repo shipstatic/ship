@@ -4,17 +4,17 @@
  */
 
 import type {
+  Account,
   Deployment,
   DeploymentListResponse,
-  Domain,
-  DomainListResponse,
-  DomainValidateResponse,
-  DomainRecordsResponse,
-  DomainDnsResponse,
   DnsRecord,
-  Account,
+  Domain,
+  DomainDnsResponse,
+  DomainListResponse,
+  DomainRecordsResponse,
+  DomainValidateResponse,
   TokenCreateResponse,
-  TokenListResponse
+  TokenListResponse,
 } from '@shipstatic/types';
 import type { DomainSetResult } from '../../shared/types.js';
 
@@ -109,5 +109,5 @@ export type CLIResult =
   | TokenCreateResponse
   | MessageResult
   | boolean
+  // biome-ignore lint/suspicious/noConfusingVoidType: removal handlers resolve with nothing; formatOutput routes undefined to the removal success message
   | void;
-

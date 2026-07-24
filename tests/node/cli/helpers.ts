@@ -4,10 +4,10 @@
  * Replaces: test-helpers.ts (simplified version)
  */
 
-import { spawn } from 'child_process';
-import * as path from 'path';
-import * as os from 'os';
-import * as fs from 'fs';
+import { spawn } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 // Test configuration
 export const CLI_PATH = path.resolve(process.cwd(), './dist/cli.cjs');
@@ -16,7 +16,10 @@ export const CLI_PATH = path.resolve(process.cwd(), './dist/cli.cjs');
 // search entirely, so the developer's real ~/.shiprc (or any .shiprc on the
 // walk up from the test cwd) can never leak into CLI tests. Tests that
 // exercise file config pass their own --config or HOME.
-const EMPTY_CONFIG = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ship-cli-test-')), 'shiprc.json');
+const EMPTY_CONFIG = path.join(
+  fs.mkdtempSync(path.join(os.tmpdir(), 'ship-cli-test-')),
+  'shiprc.json',
+);
 fs.writeFileSync(EMPTY_CONFIG, '{}\n');
 
 // CLI execution result type
@@ -64,27 +67,30 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
         testEnv.SHIP_API_URL = 'http://localhost:13579';
       }
       if (!testEnv.SHIP_TOKEN) {
-        testEnv.SHIP_TOKEN = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+        testEnv.SHIP_TOKEN =
+          'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
       }
     }
 
     // Add the --token flag to ensure explicit authentication (69 chars: ship- + 64 hex chars)
     // But only if no --token is already provided (for validation tests)
-    const executionArgs = hasToken ? [...args] : [
-      ...args,
-      '--token',
-      'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
-    ];
+    const executionArgs = hasToken
+      ? [...args]
+      : [
+          ...args,
+          '--token',
+          'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        ];
     if (!hasConfig) {
       // Prepended, never appended — appending would let `--config` be
       // swallowed as the value of a trailing value-taking flag under test.
       executionArgs.unshift('--config', EMPTY_CONFIG);
     }
-    
+
     const child = spawn('node', [CLI_PATH, ...executionArgs], {
       env: testEnv,
       cwd: path.resolve(__dirname, '../..'),
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     let stdout = '';
@@ -102,7 +108,7 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
       resolve({
         stdout,
         stderr,
-        exitCode: code || 0
+        exitCode: code || 0,
       });
     });
 
@@ -110,13 +116,13 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
       resolve({
         stdout: '',
         stderr: err.message,
-        exitCode: 1
+        exitCode: 1,
       });
     });
 
     // Write stdin lines if provided, otherwise close stdin immediately
     if (options.stdin) {
-      child.stdin.write(options.stdin.join('\n') + '\n');
+      child.stdin.write(`${options.stdin.join('\n')}\n`);
     }
     child.stdin.end();
 
@@ -126,8 +132,8 @@ export async function runCli(args: string[], options: CliOptions = {}): Promise<
       child.kill();
       resolve({
         stdout,
-        stderr: stderr + '\nTimeout exceeded',
-        exitCode: 1
+        stderr: `${stderr}\nTimeout exceeded`,
+        exitCode: 1,
       });
     }, timeout);
   });
@@ -144,7 +150,7 @@ export function parseJsonOutput(output: string): any {
 
   try {
     return JSON.parse(jsonString);
-  } catch (e) {
+  } catch (_e) {
     throw new Error(`Failed to parse JSON. Content: "${jsonString}"`);
   }
 }

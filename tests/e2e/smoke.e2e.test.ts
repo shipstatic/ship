@@ -18,8 +18,8 @@
  * - Tokens (could accumulate without cleanup)
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import path from 'path';
+import path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Ship from '../../src/node';
 import { E2E_API_KEY, E2E_API_URL, E2E_ENABLED, E2E_TEST_RUN_ID } from '../setup-e2e';
 
@@ -139,7 +139,7 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
       expect(Array.isArray(result.deployments)).toBe(true);
 
       // The test deployment should be in the list
-      const found = result.deployments.find(d => d.deployment === testDeploymentId);
+      const found = result.deployments.find((d) => d.deployment === testDeploymentId);
       expect(found).toBeDefined();
     });
 
@@ -215,15 +215,11 @@ describe.skipIf(!E2E_ENABLED)('E2E Smoke Tests', () => {
 
   describe('Error Handling', () => {
     it('should throw on invalid deployment ID', async () => {
-      await expect(
-        ship.deployments.get('nonexistent-deployment-id-12345')
-      ).rejects.toThrow();
+      await expect(ship.deployments.get('nonexistent-deployment-id-12345')).rejects.toThrow();
     });
 
     it('should throw on removing nonexistent deployment', async () => {
-      await expect(
-        ship.deployments.remove('nonexistent-deployment-id-12345')
-      ).rejects.toThrow();
+      await expect(ship.deployments.remove('nonexistent-deployment-id-12345')).rejects.toThrow();
     });
   });
 });

@@ -14,11 +14,11 @@
  * personal credentials.
  */
 
-import { z } from 'zod';
-import type { ShipClientOptions } from '../../shared/types.js';
 import { ShipError } from '@shipstatic/types';
-import { getENV } from '../../shared/lib/env.js';
+import { z } from 'zod';
 import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
+import { getENV } from '../../shared/lib/env.js';
+import type { ShipClientOptions } from '../../shared/types.js';
 
 // `.strict()` matches the file-config schema. The `raw` object below is
 // constructed from a fixed set of keys, so .strict() doesn't catch user

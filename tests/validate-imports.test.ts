@@ -3,7 +3,7 @@
  * This test verifies that our restructured imports are working
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 describe('Import Validation for New Structure', () => {
   it('should import shared environment utilities', async () => {
@@ -18,7 +18,9 @@ describe('Import Validation for New Structure', () => {
   });
 
   it('should import shared resources', async () => {
-    const { createDeploymentResource, createDomainResource } = await import('../src/shared/resources');
+    const { createDeploymentResource, createDomainResource } = await import(
+      '../src/shared/resources'
+    );
     expect(typeof createDeploymentResource).toBe('function');
     expect(typeof createDomainResource).toBe('function');
   });

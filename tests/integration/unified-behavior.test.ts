@@ -1,13 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { __setTestEnvironment } from '../../src/shared/lib/env';
-import { detectAndConfigureSPA, createSPAConfig } from '../../src/shared/lib/spa';
-import { createDeploymentResource } from '../../src/shared/resources';
 import { DEPLOYMENT_CONFIG_FILENAME } from '@shipstatic/types';
-import type { StaticFile, DeploymentOptions } from '../../src/shared/types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { __setTestEnvironment } from '../../src/shared/lib/env';
+import { createSPAConfig, detectAndConfigureSPA } from '../../src/shared/lib/spa';
+import { createDeploymentResource } from '../../src/shared/resources';
+import type { DeploymentOptions, StaticFile } from '../../src/shared/types';
 
 // Mock MD5 for consistent testing
 vi.mock('../../src/shared/lib/md5', () => ({
-  calculateMD5: vi.fn().mockResolvedValue({ md5: 'consistent-hash' })
+  calculateMD5: vi.fn().mockResolvedValue({ md5: 'consistent-hash' }),
 }));
 
 describe('Cross-Environment Integration - Unified Behavior', () => {
@@ -16,13 +16,13 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockApiClient = {
       checkSPA: vi.fn(),
       deploy: vi.fn().mockResolvedValue({
         id: 'integration_test',
-        url: 'https://integration_test.shipstatic.com'
-      })
+        url: 'https://integration_test.shipstatic.com',
+      }),
     };
 
     mockFiles = [
@@ -30,14 +30,14 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
         path: 'index.html',
         content: Buffer.from('<html><script src="app.js"></script></html>'),
         size: 43,
-        md5: 'html-hash'
+        md5: 'html-hash',
       },
       {
         path: 'app',
         content: Buffer.from('console.log("SPA app");'),
         size: 22,
-        md5: 'js-hash'
-      }
+        md5: 'js-hash',
+      },
     ];
   });
 
@@ -51,14 +51,16 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
 
       expect(result).toHaveLength(3); // 2 original + 1 SPA config
       expect(result[2].path).toBe(DEPLOYMENT_CONFIG_FILENAME);
-      
+
       // Verify SPA config content is consistent
       const spaConfigContent = JSON.parse(result[2].content.toString());
       expect(spaConfigContent).toEqual({
-        rewrites: [{
-          source: "/(.*)",
-          destination: "/index.html"
-        }]
+        rewrites: [
+          {
+            source: '/(.*)',
+            destination: '/index.html',
+          },
+        ],
       });
     });
 
@@ -99,11 +101,13 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
           path: DEPLOYMENT_CONFIG_FILENAME,
           content: Buffer.from('{"custom": "config"}'),
           size: 19,
-          md5: 'config-hash'
-        }
+          md5: 'config-hash',
+        },
       ];
 
-      const result = await detectAndConfigureSPA(filesWithConfig, mockApiClient, { spaDetect: true });
+      const result = await detectAndConfigureSPA(filesWithConfig, mockApiClient, {
+        spaDetect: true,
+      });
 
       expect(mockApiClient.checkSPA).not.toHaveBeenCalled();
       expect(result).toEqual(filesWithConfig); // Unchanged
@@ -122,33 +126,35 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       const nodeResource = createDeploymentResource({
         getApi: () => mockApiClient,
         ensureInit: vi.fn(),
-        processInput: nodeProcessInput
+        processInput: nodeProcessInput,
       });
 
-      const nodeResult = await nodeResource.upload(['./dist'] as any, { spaDetect: true });
+      const _nodeResult = await nodeResource.upload(['./dist'] as any, { spaDetect: true });
 
       // Test browser deployment resource
       const browserResource = createDeploymentResource({
         getApi: () => mockApiClient,
         ensureInit: vi.fn(),
-        processInput: browserProcessInput
+        processInput: browserProcessInput,
       });
 
       const mockFileList = {} as FileList;
-      const browserResult = await browserResource.upload(mockFileList, { spaDetect: true });
+      const _browserResult = await browserResource.upload(mockFileList, { spaDetect: true });
 
       // Both should have called SPA detection
       expect(mockApiClient.checkSPA).toHaveBeenCalledTimes(2);
-      
+
       // Both should have deployed files with SPA config
       const nodeDeployedFiles = mockApiClient.deploy.mock.calls[0][0];
       const browserDeployedFiles = mockApiClient.deploy.mock.calls[1][0];
-      
+
       expect(nodeDeployedFiles).toHaveLength(3); // 2 + SPA config
       expect(browserDeployedFiles).toHaveLength(3); // 2 + SPA config
-      
+
       expect(nodeDeployedFiles.some((f: any) => f.path === DEPLOYMENT_CONFIG_FILENAME)).toBe(true);
-      expect(browserDeployedFiles.some((f: any) => f.path === DEPLOYMENT_CONFIG_FILENAME)).toBe(true);
+      expect(browserDeployedFiles.some((f: any) => f.path === DEPLOYMENT_CONFIG_FILENAME)).toBe(
+        true,
+      );
     });
 
     it('should handle API errors consistently across environments', async () => {
@@ -159,7 +165,7 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       const nodeResource = createDeploymentResource({
         getApi: () => mockApiClient,
         ensureInit: vi.fn(),
-        processInput: nodeProcessInput
+        processInput: nodeProcessInput,
       });
 
       await nodeResource.upload(['./dist'] as any, { spaDetect: true });
@@ -182,7 +188,7 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
         getApi: () => mockApiClient,
         ensureInit: vi.fn(),
         processInput: mockProcessInput,
-        clientDefaults
+        clientDefaults,
       });
 
       await resource.upload(['./test'] as any, userOptions);
@@ -200,11 +206,12 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       const resource = createDeploymentResource({
         getApi: () => mockApiClient,
         ensureInit: vi.fn(),
-        processInput: undefined as any
+        processInput: undefined as any,
       });
 
-      await expect(resource.upload(['./test'] as any, {}))
-        .rejects.toThrow('processInput function is not provided.');
+      await expect(resource.upload(['./test'] as any, {})).rejects.toThrow(
+        'processInput function is not provided.',
+      );
     });
   });
 
@@ -213,8 +220,16 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       const nodeProcessInput = vi.fn();
       const browserProcessInput = vi.fn();
 
-      const nodeResource = createDeploymentResource({ getApi: () => mockApiClient, ensureInit: vi.fn(), processInput: nodeProcessInput });
-      const browserResource = createDeploymentResource({ getApi: () => mockApiClient, ensureInit: vi.fn(), processInput: browserProcessInput });
+      const nodeResource = createDeploymentResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn(),
+        processInput: nodeProcessInput,
+      });
+      const browserResource = createDeploymentResource({
+        getApi: () => mockApiClient,
+        ensureInit: vi.fn(),
+        processInput: browserProcessInput,
+      });
 
       // Both should have identical interfaces
       expect(Object.keys(nodeResource)).toEqual(Object.keys(browserResource));
@@ -222,7 +237,7 @@ describe('Cross-Environment Integration - Unified Behavior', () => {
       expect(typeof nodeResource.list).toBe('function');
       expect(typeof nodeResource.get).toBe('function');
       expect(typeof nodeResource.remove).toBe('function');
-      
+
       expect(typeof browserResource.upload).toBe('function');
       expect(typeof browserResource.list).toBe('function');
       expect(typeof browserResource.get).toBe('function');

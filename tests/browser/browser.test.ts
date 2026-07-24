@@ -3,7 +3,7 @@
  */
 /**
  * Browser Ship SDK Tests
- * 
+ *
  * This file tests the browser-specific Ship SDK functionality including:
  * - File processing from File[], FileList, and HTMLInputElement
  * - Browser environment validation
@@ -11,20 +11,18 @@
  * - Cross-browser compatibility
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-// For TypeScript type checking
-type Constructor<T> = new (...args: any[]) => T;
-// Import directly from '../../src/browser/index' to test browser exports
-import BrowserIndex, {
-    Ship,
-    processFilesForBrowser,
-    // We also need __setTestEnvironment for the test setup itself.
-    __setTestEnvironment
-} from '../../src/browser/index';
-// Import ShipClient as a type
-import type { StaticFile, Fetch } from '../../src/browser/index';
 // Import error class
 import { ShipError } from '@shipstatic/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// Import ShipClient as a type
+import type { Fetch } from '../../src/browser/index';
+// Import directly from '../../src/browser/index' to test browser exports
+import BrowserIndex, {
+  // We also need __setTestEnvironment for the test setup itself.
+  __setTestEnvironment,
+  processFilesForBrowser,
+  Ship,
+} from '../../src/browser/index';
 import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 
 // Mock API HTTP client
@@ -39,31 +37,33 @@ const mockApiHttpInstance = {
 const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => ({
   MOCK_API_HTTP_MODULE: {
     ApiHttp: vi.fn(() => mockApiHttpInstance),
-  }
+  },
 }));
 
 vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
-
 
 // Mock for config helpers
 const { CONFIG_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
   CONFIG_MOCK_IMPLEMENTATION: {
     mergeDeployOptions: vi.fn((userOptions = {}, clientDefaults = {}) => ({
       ...clientDefaults,
-      ...userOptions
-    }))
-  }
+      ...userOptions,
+    })),
+  },
 }));
 vi.mock('../../src/shared/core/config', () => CONFIG_MOCK_IMPLEMENTATION);
-
 
 const { MOCK_CALCULATE_MD5_FN } = vi.hoisted(() => ({ MOCK_CALCULATE_MD5_FN: vi.fn() }));
 vi.mock('../../src/shared/lib/md5', () => ({ calculateMD5: MOCK_CALCULATE_MD5_FN }));
 // __setTestEnvironment is imported from @/browser, so direct mock of ../../src/shared/lib/env.js is not needed here
 // if the re-export chain for __setTestEnvironment is correct.
 
-
-const createMockFile = (name: string, content: string, type = 'text/plain', webkitRelativePath?: string): File => {
+const createMockFile = (
+  name: string,
+  content: string,
+  type = 'text/plain',
+  webkitRelativePath?: string,
+): File => {
   const blob = new Blob([content], { type });
   // Temporarily cast to any to add webkitRelativePath if it doesn't exist on the type
   const file = new File([blob], name, { type, lastModified: Date.now() }) as any;
@@ -74,7 +74,6 @@ const createMockFile = (name: string, content: string, type = 'text/plain', webk
 };
 
 describe('Browser Entry Point (@/browser)', () => {
-
   beforeEach(() => {
     vi.clearAllMocks();
     MOCK_CALCULATE_MD5_FN.mockResolvedValue({ md5: 'mocked-md5-hash' });
@@ -96,20 +95,18 @@ describe('Browser Entry Point (@/browser)', () => {
     });
 
     it('should re-export __setTestEnvironment (used by tests)', () => {
-        expect(__setTestEnvironment).toBeDefined();
+      expect(__setTestEnvironment).toBeDefined();
     });
 
     it('should have Ship as the default export', () => {
-        expect(BrowserIndex).toBeDefined();
-        expect(BrowserIndex).toBe(Ship);
+      expect(BrowserIndex).toBeDefined();
+      expect(BrowserIndex).toBe(Ship);
     });
 
     it('should forward fetch through to the ApiHttp transport', () => {
       const fetch = vi.fn<Fetch>();
       new Ship({ fetch });
-      expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
-        expect.objectContaining({ fetch }),
-      );
+      expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(expect.objectContaining({ fetch }));
     });
   });
 
@@ -129,9 +126,8 @@ describe('Browser Entry Point (@/browser)', () => {
     it('should throw ShipError.business if called in non-browser env', async () => {
       __setTestEnvironment('node'); // Force non-browser env for this test
       await expect(processFilesForBrowser([])).rejects.toThrow(
-        ShipError.business('processFilesForBrowser can only be called in a browser environment.')
+        ShipError.business('processFilesForBrowser can only be called in a browser environment.'),
       );
     });
   });
-
 });

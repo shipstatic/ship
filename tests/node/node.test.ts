@@ -1,6 +1,6 @@
 /**
  * Node.js Ship SDK Tests
- * 
+ *
  * This file tests the Node.js-specific Ship SDK functionality including:
  * - File processing and upload
  * - Configuration loading
@@ -8,16 +8,12 @@
  * - Platform-specific features
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-    Ship,
-    StaticFile
-} from '../../src/index';
+import { ShipError } from '@shipstatic/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Fetch } from '../../src/index';
+import { __setTestEnvironment, Ship } from '../../src/index';
 // NodeShipClient no longer exists, using Ship class instead
 import { processFilesForNode } from '../../src/node/core/node-files'; // Import processFilesForNode for testing
-import { __setTestEnvironment } from '../../src/index';
-import { ShipError } from '@shipstatic/types';
 import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 
 // Mock API HTTP client
@@ -32,7 +28,7 @@ const mockApiHttpInstance = {
 const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => ({
   MOCK_API_HTTP_MODULE: {
     ApiHttp: vi.fn(() => mockApiHttpInstance),
-  }
+  },
 }));
 
 vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
@@ -40,32 +36,38 @@ vi.mock('../../src/shared/api/http', () => MOCK_API_HTTP_MODULE);
 // Mock for config helpers
 const { CONFIG_MOCK_IMPLEMENTATION } = vi.hoisted(() => ({
   CONFIG_MOCK_IMPLEMENTATION: {
-    mergeDeployOptions: vi.fn((userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
-      ...clientDefaults,
-      ...userOptions
-    }))
-  }
+    mergeDeployOptions: vi.fn(
+      (userOptions: Record<string, any> = {}, clientDefaults: Record<string, any> = {}) => ({
+        ...clientDefaults,
+        ...userOptions,
+      }),
+    ),
+  },
 }));
 vi.mock('../../src/shared/core/config', () => CONFIG_MOCK_IMPLEMENTATION);
-
 
 // 1. Define mock implementations using vi.hoisted()
 const { MOCK_CALCULATE_MD5_FN } = vi.hoisted(() => ({ MOCK_CALCULATE_MD5_FN: vi.fn() }));
 const { MOCK_FS_IMPLEMENTATION } = vi.hoisted(() => ({
-    MOCK_FS_IMPLEMENTATION: { readdirSync: vi.fn(), statSync: vi.fn(), readFileSync: vi.fn(), realpathSync: vi.fn() }
+  MOCK_FS_IMPLEMENTATION: {
+    readdirSync: vi.fn(),
+    statSync: vi.fn(),
+    readFileSync: vi.fn(),
+    realpathSync: vi.fn(),
+  },
 }));
 const { MOCK_PATH_MODULE_IMPLEMENTATION } = vi.hoisted(() => {
-    const basenameFn = (p: string) => p.split(/[\/\\]/).pop() || '';
-    return {
-        MOCK_PATH_MODULE_IMPLEMENTATION: {
-            resolve: vi.fn(),
-            join: vi.fn(),
-            relative: vi.fn(),
-            dirname: vi.fn(),
-            basename: vi.fn(basenameFn),
-            sep: '/' // Add path separator needed by _findCommonParentPath
-        }
-    };
+  const basenameFn = (p: string) => p.split(/[/\\]/).pop() || '';
+  return {
+    MOCK_PATH_MODULE_IMPLEMENTATION: {
+      resolve: vi.fn(),
+      join: vi.fn(),
+      relative: vi.fn(),
+      dirname: vi.fn(),
+      basename: vi.fn(basenameFn),
+      sep: '/', // Add path separator needed by _findCommonParentPath
+    },
+  };
 });
 
 // 2. Mock modules
@@ -74,9 +76,7 @@ vi.mock('fs', () => MOCK_FS_IMPLEMENTATION);
 vi.mock('path', () => MOCK_PATH_MODULE_IMPLEMENTATION);
 // vi.mock('../../src/shared/lib/env', () => ({ getENV: () => "node" })); // Already effectively handled by __setTestEnvironment
 
-
 describe('Node.js Specific Tests (using exports from src/index and utils)', () => {
-
   beforeEach(() => {
     vi.clearAllMocks();
     MOCK_CALCULATE_MD5_FN.mockResolvedValue({ md5: 'mocked-md5-hash' });
@@ -84,21 +84,24 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
 
     // Properly handle absolute and relative paths
     MOCK_PATH_MODULE_IMPLEMENTATION.resolve.mockImplementation((...args: string[]) => {
-        // If the first argument is an absolute path, use it directly, otherwise prepend /mock/cwd
-        let current = args[0] && args[0].startsWith('/') ? args[0] : '/mock/cwd';
-        
-        args.forEach((p, i) => {
-            if (i === 0 && p.startsWith('/')) return; // Skip the first arg if it's absolute
-            if (p.startsWith('/')) current = p; // If any arg is absolute, use it directly
-            else current = `${current}/${p}`.replace(/\/+/g, '/'); // Join paths, normalize slashes
-        });
-        return current.replace(/\\/g, '/').replace(/\/+/g, '/'); // Clean up any repeated slashes
+      // If the first argument is an absolute path, use it directly, otherwise prepend /mock/cwd
+      let current = args[0]?.startsWith('/') ? args[0] : '/mock/cwd';
+
+      args.forEach((p, i) => {
+        if (i === 0 && p.startsWith('/')) return; // Skip the first arg if it's absolute
+        if (p.startsWith('/'))
+          current = p; // If any arg is absolute, use it directly
+        else current = `${current}/${p}`.replace(/\/+/g, '/'); // Join paths, normalize slashes
+      });
+      return current.replace(/\\/g, '/').replace(/\/+/g, '/'); // Clean up any repeated slashes
     });
-    MOCK_PATH_MODULE_IMPLEMENTATION.join.mockImplementation((...args: string[]) => args.join('/').replace(/\/+/g, '/'));
+    MOCK_PATH_MODULE_IMPLEMENTATION.join.mockImplementation((...args: string[]) =>
+      args.join('/').replace(/\/+/g, '/'),
+    );
     MOCK_PATH_MODULE_IMPLEMENTATION.relative.mockImplementation((from: string, to: string) => {
       // For tests, ensure path.relative strips the common prefix to match the expected behavior
       // with the new preserveDirs=false default
-      
+
       // Special case for 'mydir' directory tests
       if (to.startsWith('/mock/cwd/mydir/')) {
         // For subdir files, preserve the subdir in the path
@@ -108,7 +111,7 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
         // For files at the root level of mydir, just return the filename
         return to.substring('/mock/cwd/mydir/'.length);
       }
-      
+
       // Handle project/src test case
       if (to.startsWith('/mock/cwd/project/src/')) {
         if (to.includes('components/')) {
@@ -117,25 +120,29 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
         // Get the filename without using path.basename
         return to.substring(to.lastIndexOf('/') + 1);
       }
-      
+
       // Handle the case where the 'to' path is a direct child of 'from'
-      if (to.startsWith(from + '/')) {
-        return to.substring(from.length + 1); 
+      if (to.startsWith(`${from}/`)) {
+        return to.substring(from.length + 1);
       }
-      
+
       // Basic case
       if (to.startsWith(from)) {
         return to.substring(from.length).replace(/^\//, '');
       }
-      
+
       // Default: return the filename
       return to.substring(to.lastIndexOf('/') + 1);
     });
-    MOCK_PATH_MODULE_IMPLEMENTATION.dirname.mockImplementation((p: string) => p.substring(0, p.lastIndexOf('/')) || '.');
-    MOCK_PATH_MODULE_IMPLEMENTATION.basename.mockImplementation((p: string) => p.substring(p.lastIndexOf('/') + 1));
+    MOCK_PATH_MODULE_IMPLEMENTATION.dirname.mockImplementation(
+      (p: string) => p.substring(0, p.lastIndexOf('/')) || '.',
+    );
+    MOCK_PATH_MODULE_IMPLEMENTATION.basename.mockImplementation((p: string) =>
+      p.substring(p.lastIndexOf('/') + 1),
+    );
 
     vi.spyOn(process, 'cwd').mockReturnValue('/mock/cwd');
-    Object.values(MOCK_FS_IMPLEMENTATION).forEach(fn => fn.mockReset());
+    Object.values(MOCK_FS_IMPLEMENTATION).forEach((fn) => fn.mockReset());
   });
 
   afterEach(() => {
@@ -152,28 +159,46 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
     it('should forward fetch through to the ApiHttp transport', () => {
       const fetch = vi.fn<Fetch>();
       new Ship({ fetch });
-      expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
-        expect.objectContaining({ fetch }),
-      );
+      expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(expect.objectContaining({ fetch }));
     });
   });
 
   describe('node-files utilities (imported from utils)', () => {
-    const setupMockFs = (files: Record<string, string | null | { type: 'dir' | 'file'; content?: string; size?: number }>) => {
+    const setupMockFs = (
+      files: Record<
+        string,
+        string | null | { type: 'dir' | 'file'; content?: string; size?: number }
+      >,
+    ) => {
       MOCK_FS_IMPLEMENTATION.statSync.mockImplementation((filePath: string) => {
         const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString());
         const fileData = files[normalizedPath];
-        if (normalizedPath === '/mock/cwd' && !fileData) return { isDirectory: () => true, isFile: () => false, size: 0 } as any;
+        if (normalizedPath === '/mock/cwd' && !fileData)
+          return { isDirectory: () => true, isFile: () => false, size: 0 } as any;
         if (!fileData) {
-          if (Object.keys(files).some(k => k.startsWith(normalizedPath + '/'))) return { isDirectory: () => true, isFile: () => false, size: 0 } as any;
-          throw Object.assign(new Error(`ENOENT: no such file or directory, stat '${normalizedPath}'`), { code: 'ENOENT' });
+          if (Object.keys(files).some((k) => k.startsWith(`${normalizedPath}/`)))
+            return { isDirectory: () => true, isFile: () => false, size: 0 } as any;
+          throw Object.assign(
+            new Error(`ENOENT: no such file or directory, stat '${normalizedPath}'`),
+            { code: 'ENOENT' },
+          );
         }
-        if (typeof fileData === 'object' && fileData?.type === 'dir') return { isDirectory: () => true, isFile: () => false, size: 0 } as any;
+        if (typeof fileData === 'object' && fileData?.type === 'dir')
+          return { isDirectory: () => true, isFile: () => false, size: 0 } as any;
         const content = typeof fileData === 'string' ? fileData : fileData?.content || '';
-        return { isDirectory: () => false, isFile: () => true, size: (typeof fileData === 'object' && fileData?.size !== undefined) ? fileData.size : content.length } as any;
+        return {
+          isDirectory: () => false,
+          isFile: () => true,
+          size:
+            typeof fileData === 'object' && fileData?.size !== undefined
+              ? fileData.size
+              : content.length,
+        } as any;
       });
       MOCK_FS_IMPLEMENTATION.readdirSync.mockImplementation((dirPath: string) => {
-        const normalizedDirPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(dirPath.toString()).replace(/\/?$/, '/');
+        const normalizedDirPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(
+          dirPath.toString(),
+        ).replace(/\/?$/, '/');
         const entries: string[] = []; // Change from any[] to string[] to match fs.readdirSync behavior
         const seen = new Set<string>();
         for (const filePath in files) {
@@ -189,7 +214,11 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
       });
       MOCK_FS_IMPLEMENTATION.readFileSync.mockImplementation((filePath: string) => {
         const fileData = files[MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath.toString())];
-        if (fileData && (typeof fileData === 'string' || (typeof fileData === 'object' && fileData.type === 'file'))) {
+        if (
+          fileData &&
+          (typeof fileData === 'string' ||
+            (typeof fileData === 'object' && fileData.type === 'file'))
+        ) {
           return Buffer.from(typeof fileData === 'string' ? fileData : fileData.content || '');
         }
         throw new Error('ENOENT read');
@@ -200,8 +229,12 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
         const fileData = files[normalizedPath];
         if (normalizedPath === '/mock/cwd' && !fileData) return normalizedPath;
         if (fileData) return normalizedPath;
-        if (Object.keys(files).some(k => k.startsWith(normalizedPath + '/'))) return normalizedPath;
-        throw Object.assign(new Error(`ENOENT: no such file or directory, realpath '${normalizedPath}'`), { code: 'ENOENT' });
+        if (Object.keys(files).some((k) => k.startsWith(`${normalizedPath}/`)))
+          return normalizedPath;
+        throw Object.assign(
+          new Error(`ENOENT: no such file or directory, realpath '${normalizedPath}'`),
+          { code: 'ENOENT' },
+        );
       });
     };
 
@@ -219,85 +252,98 @@ describe('Node.js Specific Tests (using exports from src/index and utils)', () =
         '/mock/cwd/mydir': { type: 'dir' },
         '/mock/cwd/mydir/fileA.txt': 'content-A',
         '/mock/cwd/mydir/subdir': { type: 'dir' },
-        '/mock/cwd/mydir/subdir/fileB.txt': 'content-B'
+        '/mock/cwd/mydir/subdir/fileB.txt': 'content-B',
       });
       const result = await processFilesForNode(['mydir'], {}, TEST_PLATFORM_LIMITS);
       // With preserveDirs=false by default (common prefix stripped)
-      expect(result.map(f => f.path).sort()).toEqual(['fileA.txt', 'subdir/fileB.txt'].sort());
+      expect(result.map((f) => f.path).sort()).toEqual(['fileA.txt', 'subdir/fileB.txt'].sort());
     });
 
     it('should throw ShipError if called in non-Node.js env', async () => {
       __setTestEnvironment('browser');
-      await expect(processFilesForNode(['/path'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(ShipError.business('processFilesForNode can only be called in Node.js environment.'));
+      await expect(processFilesForNode(['/path'], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        ShipError.business('processFilesForNode can only be called in Node.js environment.'),
+      );
     });
-    
+
     // Instead of testing the internal function directly, test the behavior via the public API
-    
+
     it('should strip parent folder when pathDetect option is enabled', async () => {
       // Since process.cwd() is mocked to '/mock/cwd', we'll use paths relative to that
       // to ensure path resolution works correctly
-      const mockFilesWithCwd: Record<string, string | { type: "dir" | "file"; content?: string; size?: number } | null> = {
+      const mockFilesWithCwd: Record<
+        string,
+        string | { type: 'dir' | 'file'; content?: string; size?: number } | null
+      > = {
         '/mock/cwd/project/src': { type: 'dir' },
         '/mock/cwd/project/src/file1.txt': 'content1',
         '/mock/cwd/project/src/components': { type: 'dir' },
-        '/mock/cwd/project/src/components/file2.txt': 'content2'
+        '/mock/cwd/project/src/components/file2.txt': 'content2',
       };
-      
+
       setupMockFs(mockFilesWithCwd);
-      
+
       // Restore the original mocks to ensure correct path handling
       MOCK_PATH_MODULE_IMPLEMENTATION.resolve.mockImplementation((...args: string[]) => {
         // If the first argument is an absolute path, use it directly, otherwise prepend /mock/cwd
-        let current = args[0] && args[0].startsWith('/') ? args[0] : '/mock/cwd';
-        
+        let current = args[0]?.startsWith('/') ? args[0] : '/mock/cwd';
+
         args.forEach((p, i) => {
           if (i === 0 && p.startsWith('/')) return; // Skip the first arg if it's absolute
-          if (p.startsWith('/')) current = p; // If any arg is absolute, use it directly
+          if (p.startsWith('/'))
+            current = p; // If any arg is absolute, use it directly
           else current = `${current}/${p}`.replace(/\/+/g, '/'); // Join paths, normalize slashes
         });
-        
+
         return current.replace(/\\/g, '/').replace(/\/+/g, '/'); // Clean up any repeated slashes
       });
-      
+
       // Setup a mock for statSync that will correctly report our mock files
       MOCK_FS_IMPLEMENTATION.statSync.mockImplementation((filePath: string) => {
         const normalizedPath = MOCK_PATH_MODULE_IMPLEMENTATION.resolve(filePath);
         const fileInfo = mockFilesWithCwd[normalizedPath];
-        
+
         if (!fileInfo) {
           const err = new Error(`ENOENT: no such file or directory, stat '${filePath}'`);
           (err as any).code = 'ENOENT';
           throw err;
         }
-        
+
         return {
           isDirectory: () => typeof fileInfo === 'object' && fileInfo.type === 'dir',
-          isFile: () => typeof fileInfo === 'string' || (typeof fileInfo === 'object' && fileInfo.type === 'file'),
-          size: typeof fileInfo === 'string' ? fileInfo.length : 
-                (typeof fileInfo === 'object' && fileInfo.size ? fileInfo.size : 0)
+          isFile: () =>
+            typeof fileInfo === 'string' ||
+            (typeof fileInfo === 'object' && fileInfo.type === 'file'),
+          size:
+            typeof fileInfo === 'string'
+              ? fileInfo.length
+              : typeof fileInfo === 'object' && fileInfo.size
+                ? fileInfo.size
+                : 0,
         } as any; // Cast to any because it's a partial mock of fs.Stats
       });
-      
+
       // Test with relative paths as would be used in a typical CLI scenario
-      const result = await processFilesForNode([
-        'project/src/file1.txt',
-        'project/src/components/file2.txt'
-      ], { pathDetect: true }, TEST_PLATFORM_LIMITS);
-      
+      const result = await processFilesForNode(
+        ['project/src/file1.txt', 'project/src/components/file2.txt'],
+        { pathDetect: true },
+        TEST_PLATFORM_LIMITS,
+      );
+
       expect(result).toHaveLength(2);
-      
+
       // Paths should now be relative to the common parent folder (project/src)
       // We sort only for test comparison, not in the actual implementation
-      const actualPaths = result.map(file => file.path).sort();
-      
+      const actualPaths = result.map((file) => file.path).sort();
+
       // Check that paths were stripped - both should not contain the full original path
-      expect(actualPaths.every(path => !path.includes('project/src/'))).toBe(true);
+      expect(actualPaths.every((path) => !path.includes('project/src/'))).toBe(true);
       expect(actualPaths).toContain('file1.txt');
-      
+
       // Note: The current implementation appears to strip more aggressively than expected
       // This may be due to changes in the path processing logic
       console.log('Actual paths after stripping:', actualPaths);
-      
+
       // Check that content was loaded correctly
       expect(result[0].content).toBeDefined();
       expect(result[1].content).toBeDefined();

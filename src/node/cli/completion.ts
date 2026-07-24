@@ -2,10 +2,10 @@
  * Shell completion install/uninstall logic.
  * Handles bash, zsh, and fish shells.
  */
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { success, error, info, warn } from './utils.js';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { error, info, success, warn } from './utils.js';
 
 export interface CompletionOptions {
   json?: boolean;
@@ -32,19 +32,19 @@ function getShellPaths(shell: 'bash' | 'zsh' | 'fish', homeDir: string) {
       return {
         completionFile: path.join(homeDir, '.ship_completion.bash'),
         profileFile: path.join(homeDir, '.bash_profile'),
-        scriptName: 'ship.bash'
+        scriptName: 'ship.bash',
       };
     case 'zsh':
       return {
         completionFile: path.join(homeDir, '.ship_completion.zsh'),
         profileFile: path.join(homeDir, '.zshrc'),
-        scriptName: 'ship.zsh'
+        scriptName: 'ship.zsh',
       };
     case 'fish':
       return {
         completionFile: path.join(homeDir, '.config/fish/completions/ship.fish'),
         profileFile: null, // fish doesn't need profile sourcing
-        scriptName: 'ship.fish'
+        scriptName: 'ship.fish',
       };
   }
 }
@@ -164,9 +164,8 @@ export function uninstallCompletion(options: CompletionOptions = {}): void {
 
     if (removed) {
       const endsWithNewline = content.endsWith('\n');
-      const newContent = filtered.length === 0
-        ? ''
-        : filtered.join('\n') + (endsWithNewline ? '\n' : '');
+      const newContent =
+        filtered.length === 0 ? '' : filtered.join('\n') + (endsWithNewline ? '\n' : '');
       fs.writeFileSync(paths.profileFile, newContent);
       success(`completion script uninstalled for ${shell}`, json, noColor);
       warn(`run "source ${paths.profileFile}" or restart your shell`, json, noColor);

@@ -1,4 +1,5 @@
 import { filterJunk } from '../../../src/shared/lib/junk';
+
 // We don't need to import 'junk' here directly for tests unless we are comparing its behavior for some reason.
 // The filterJunk function itself uses it internally.
 
@@ -32,7 +33,7 @@ describe('filterJunk', () => {
       'another/.fseventsd/logs', // Junk directory
       'stuff/.Spotlight-V100/db', // Junk directory
       'prefix/__macosx/file.txt', // Case-insensitive junk directory
-      'valid/file.md'
+      'valid/file.md',
       // Note: .DS_Store is always a file on macOS, never a directory
     ];
     const expected = ['project/src/index.ts', 'valid/file.md'];
@@ -62,22 +63,12 @@ describe('filterJunk', () => {
   });
 
   it('should return all paths if no junk files or directories are present', () => {
-    const files = [
-      'src/component',
-      'README.md',
-      'assets/logo.svg',
-      'config.json',
-    ];
+    const files = ['src/component', 'README.md', 'assets/logo.svg', 'config.json'];
     expect(filterJunk(files)).toEqual(files);
   });
 
   it('should return an empty array if all input paths are junk', () => {
-    const files = [
-      '.DS_Store',
-      '__MACOSX/a.txt',
-      'foo/.Trashes/b.txt',
-      'bar/Thumbs.db',
-    ];
+    const files = ['.DS_Store', '__MACOSX/a.txt', 'foo/.Trashes/b.txt', 'bar/Thumbs.db'];
     expect(filterJunk(files)).toEqual([]);
   });
 
@@ -87,7 +78,7 @@ describe('filterJunk', () => {
       'another\\valid\\path',
       '/junk_dir_test/__MACOSX/inner/file.doc',
       'nonjunk\\endingwithslash\\',
-      'C:\\Users\\name\\.Trashes\\tempfile.tmp'
+      'C:\\Users\\name\\.Trashes\\tempfile.tmp',
     ];
     const expected = [
       '/valid/path/to/file.txt',
@@ -98,20 +89,12 @@ describe('filterJunk', () => {
   });
 
   it('should not filter files if directory names *contain* junk dir names but are not exact matches', () => {
-    const files = [
-      'project__MACOSX_backup/file.txt',
-      'My.DS_Store_archive/data.zip',
-    ];
+    const files = ['project__MACOSX_backup/file.txt', 'My.DS_Store_archive/data.zip'];
     expect(filterJunk(files)).toEqual(files);
   });
 
   it('should correctly filter paths that are themselves junk directory names or junk file names', () => {
-    const files = [
-      'file.txt',
-      '.DS_Store',
-      '__MACOSX',
-      '.Trashes',
-    ];
+    const files = ['file.txt', '.DS_Store', '__MACOSX', '.Trashes'];
     const expected = ['file.txt']; // Reverted to original expectation
     expect(filterJunk(files)).toEqual(expected);
   });
@@ -169,30 +152,26 @@ describe('filterJunk', () => {
   });
 
   it('should still block dot files under .well-known', () => {
-    const files = [
-      '.well-known/security.txt',
-      '.well-known/.secret',
-      '.well-known/.env',
-    ];
+    const files = ['.well-known/security.txt', '.well-known/.secret', '.well-known/.env'];
     expect(filterJunk(files)).toEqual(['.well-known/security.txt']);
   });
 
   it('should filter path segments exceeding 255 characters', () => {
     // Path segments (directory or filename) are checked individually
     // Each segment must be <= 255 characters
-    const okSegment = 'a'.repeat(255);     // 255 chars - OK
+    const okSegment = 'a'.repeat(255); // 255 chars - OK
     const tooLongSegment = 'b'.repeat(256); // 256 chars - filtered
 
     const files = [
       'index.html',
-      `${okSegment}.txt`,              // Filename "aaa...aaa.txt" = 259 chars - filtered (> 255)
-      `dir/${okSegment}/file.txt`,     // Directory "aaa...aaa" = 255 chars - OK
+      `${okSegment}.txt`, // Filename "aaa...aaa.txt" = 259 chars - filtered (> 255)
+      `dir/${okSegment}/file.txt`, // Directory "aaa...aaa" = 255 chars - OK
       `dir/${tooLongSegment}/file.txt`, // Directory "bbb...bbb" = 256 chars - filtered
     ];
 
     const expected = [
       'index.html',
-      `dir/${okSegment}/file.txt`,  // Only this passes (all segments <= 255)
+      `dir/${okSegment}/file.txt`, // Only this passes (all segments <= 255)
     ];
     expect(filterJunk(files)).toEqual(expected);
   });
@@ -200,87 +179,75 @@ describe('filterJunk', () => {
 
 describe('filterJunk — unbuilt project detection', () => {
   it('should throw on paths containing node_modules/', () => {
-    expect(() => filterJunk([
-      'index.html',
-      'node_modules/react/index.js',
-      'app.js',
-    ])).toThrow('Unbuilt project detected');
+    expect(() => filterJunk(['index.html', 'node_modules/react/index.js', 'app.js'])).toThrow(
+      'Unbuilt project detected',
+    );
   });
 
   it('should throw on paths containing package.json', () => {
-    expect(() => filterJunk([
-      'index.html',
-      'package.json',
-    ])).toThrow('Unbuilt project detected');
+    expect(() => filterJunk(['index.html', 'package.json'])).toThrow('Unbuilt project detected');
 
-    expect(() => filterJunk([
-      'myproject/index.html',
-      'myproject/package.json',
-    ])).toThrow('Unbuilt project detected');
+    expect(() => filterJunk(['myproject/index.html', 'myproject/package.json'])).toThrow(
+      'Unbuilt project detected',
+    );
   });
 
   it('should detect markers BEFORE dot-file filter removes evidence (pnpm regression)', () => {
     // pnpm stores files under node_modules/.pnpm/ — the dot-file filter
     // would strip .pnpm/ paths, hiding the node_modules marker.
     // filterJunk must check markers first.
-    expect(() => filterJunk([
-      'demo/index.html',
-      'demo/node_modules/.pnpm/lodash@4/node_modules/lodash/index.js',
-    ])).toThrow('Unbuilt project detected');
+    expect(() =>
+      filterJunk([
+        'demo/index.html',
+        'demo/node_modules/.pnpm/lodash@4/node_modules/lodash/index.js',
+      ]),
+    ).toThrow('Unbuilt project detected');
   });
 
   it('should not throw when no markers present', () => {
-    expect(() => filterJunk([
-      'index.html',
-      '.DS_Store',
-      'assets/app.js',
-    ])).not.toThrow();
+    expect(() => filterJunk(['index.html', '.DS_Store', 'assets/app.js'])).not.toThrow();
   });
 
   it('should not throw on partial matches (node_modules as substring)', () => {
     // hasUnbuiltMarker checks path segments, not substrings
-    expect(() => filterJunk([
-      'my_node_modules_docs.txt',
-      'node_modules_backup.zip',
-      'not-node_modules/file.js',
-    ])).not.toThrow();
+    expect(() =>
+      filterJunk([
+        'my_node_modules_docs.txt',
+        'node_modules_backup.zip',
+        'not-node_modules/file.js',
+      ]),
+    ).not.toThrow();
   });
 
   it('should skip marker check when allowUnbuilt is true', () => {
     // allowUnbuilt mode: don't throw on node_modules or package.json
-    expect(() => filterJunk([
-      'index.html',
-      'node_modules/react/index.js',
-      'package.json',
-    ], { allowUnbuilt: true })).not.toThrow();
+    expect(() =>
+      filterJunk(['index.html', 'node_modules/react/index.js', 'package.json'], {
+        allowUnbuilt: true,
+      }),
+    ).not.toThrow();
   });
 
   it('should still filter junk files when allowUnbuilt is true', () => {
     // allowUnbuilt skips the marker check but keeps all other filtering
-    const result = filterJunk([
-      'index.html',
-      'package.json',
-      '.DS_Store',
-      '__MACOSX/resource.txt',
-      '.env',
-    ], { allowUnbuilt: true });
+    const result = filterJunk(
+      ['index.html', 'package.json', '.DS_Store', '__MACOSX/resource.txt', '.env'],
+      { allowUnbuilt: true },
+    );
     expect(result).toEqual(['index.html', 'package.json']);
   });
 
   it('should still throw by default (allowUnbuilt false/undefined)', () => {
-    expect(() => filterJunk([
-      'index.html',
-      'node_modules/react/index.js',
-    ])).toThrow('Unbuilt project detected');
+    expect(() => filterJunk(['index.html', 'node_modules/react/index.js'])).toThrow(
+      'Unbuilt project detected',
+    );
 
-    expect(() => filterJunk([
-      'index.html',
-      'node_modules/react/index.js',
-    ], { allowUnbuilt: false })).toThrow('Unbuilt project detected');
+    expect(() =>
+      filterJunk(['index.html', 'node_modules/react/index.js'], { allowUnbuilt: false }),
+    ).toThrow('Unbuilt project detected');
 
-    expect(() => filterJunk([
-      'index.html',
-      'node_modules/react/index.js',
-    ], {})).toThrow('Unbuilt project detected');
+    expect(() => filterJunk(['index.html', 'node_modules/react/index.js'], {})).toThrow(
+      'Unbuilt project detected',
+    );
   });
 });

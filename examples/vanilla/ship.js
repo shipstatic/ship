@@ -1,2 +1,1684 @@
-var Me=Object.create;var _=Object.defineProperty;var ke=Object.getOwnPropertyDescriptor;var ze=Object.getOwnPropertyNames;var Ke=Object.getPrototypeOf,Ve=Object.prototype.hasOwnProperty;var He=(i,e,t)=>e in i?_(i,e,{enumerable:!0,configurable:!0,writable:!0,value:t}):i[e]=t;var R=(i,e)=>()=>(i&&(e=i(i=0)),e);var fe=(i,e)=>()=>(e||i((e={exports:{}}).exports,e),e.exports),qe=(i,e)=>{for(var t in e)_(i,t,{get:e[t],enumerable:!0})},Ge=(i,e,t,a)=>{if(e&&typeof e=="object"||typeof e=="function")for(let u of ze(e))!Ve.call(i,u)&&u!==t&&_(i,u,{get:()=>e[u],enumerable:!(a=ke(e,u))||a.enumerable});return i};var G=(i,e,t)=>(t=i!=null?Me(Ke(i)):{},Ge(e||!i||!i.__esModule?_(t,"default",{value:i,enumerable:!0}):t,i));var $=(i,e,t)=>He(i,typeof e!="symbol"?e+"":e,t);function J(i){return i!==null&&typeof i=="object"&&"name"in i&&i.name==="ShipError"&&"status"in i}function N(i){let e=i.lastIndexOf(".");if(e===-1||e===i.length-1)return!1;let t=i.slice(e+1).toLowerCase();return je.has(t)}function ut(i){if(!i.startsWith(T))throw d.validation(`API key must start with "${T}"`);if(i.length!==he)throw d.validation(`API key must be ${he} characters total (${T} + ${Y} hex chars)`);let e=i.slice(T.length);if(!/^[a-f0-9]{64}$/i.test(e))throw d.validation(`API key must contain ${Y} hexadecimal characters after "${T}" prefix`)}function ct(i){if(!i.startsWith(I))throw d.validation(`Deploy token must start with "${I}"`);if(i.length!==de)throw d.validation(`Deploy token must be ${de} characters total (${I} + ${W} hex chars)`);let e=i.slice(I.length);if(!/^[a-f0-9]{64}$/i.test(e))throw d.validation(`Deploy token must contain ${W} hexadecimal characters after "${I}" prefix`)}function ft(i){try{let e=new URL(i);if(!["http:","https:"].includes(e.protocol))throw d.validation("API URL must use http:// or https:// protocol");if(e.pathname!=="/"&&e.pathname!=="")throw d.validation("API URL must not contain a path");if(e.search||e.hash)throw d.validation("API URL must not contain query parameters or fragments")}catch(e){throw J(e)?e:d.validation("API URL must be a valid URL")}}function ht(i){return/^[a-z]+-[a-z]+-[a-z0-9]{7}$/i.test(i)}function me(i,e){return i.endsWith(`.${e}`)}function dt(i,e){return!me(i,e)}function mt(i,e){return me(i,e)?i.slice(0,-(e.length+1)):null}function yt(i,e){return`https://${i}.${e||"shipstatic.com"}`}function gt(i){return`https://${i}`}function St(i){return!i||i.length===0?null:JSON.stringify(i)}function vt(i){if(!i)return[];try{let e=JSON.parse(i);return Array.isArray(e)?e:[]}catch{return[]}}var ot,st,at,A,j,d,je,T,Y,he,pt,I,W,de,lt,X,L,v,Dt,At,x=R(()=>{"use strict";ot={PENDING:"pending",SUCCESS:"success",FAILED:"failed",DELETING:"deleting"},st={PENDING:"pending",PARTIAL:"partial",SUCCESS:"success",PAUSED:"paused"},at={FREE:"free",STANDARD:"standard",SPONSORED:"sponsored",ENTERPRISE:"enterprise",SUSPENDED:"suspended",TERMINATING:"terminating",TERMINATED:"terminated"};(function(i){i.Validation="validation_failed",i.NotFound="not_found",i.RateLimit="rate_limit_exceeded",i.Authentication="authentication_failed",i.Business="business_logic_error",i.Api="internal_server_error",i.Network="network_error",i.Cancelled="operation_cancelled",i.File="file_error",i.Config="config_error"})(A||(A={}));j={client:new Set([A.Business,A.Config,A.File,A.Validation]),network:new Set([A.Network]),auth:new Set([A.Authentication])},d=class i extends Error{constructor(t,a,u,c){super(a);$(this,"type");$(this,"status");$(this,"details");this.type=t,this.status=u,this.details=c,this.name="ShipError"}toResponse(){let t=this.type===A.Authentication&&this.details?.internal?void 0:this.details;return{error:this.type,message:this.message,status:this.status,details:t}}static fromResponse(t){return new i(t.error,t.message,t.status,t.details)}static validation(t,a){return new i(A.Validation,t,400,a)}static notFound(t,a){let u=a?`${t} ${a} not found`:`${t} not found`;return new i(A.NotFound,u,404)}static rateLimit(t="Too many requests"){return new i(A.RateLimit,t,429)}static authentication(t="Authentication required",a){return new i(A.Authentication,t,401,a)}static business(t,a=400){return new i(A.Business,t,a)}static network(t,a){return new i(A.Network,t,void 0,{cause:a})}static cancelled(t){return new i(A.Cancelled,t)}static file(t,a){return new i(A.File,t,void 0,{filePath:a})}static config(t,a){return new i(A.Config,t,void 0,a)}static api(t,a=500){return new i(A.Api,t,a)}static database(t,a=500){return new i(A.Api,t,a)}static storage(t,a=500){return new i(A.Api,t,a)}get filePath(){return this.details?.filePath}isClientError(){return j.client.has(this.type)}isNetworkError(){return j.network.has(this.type)}isAuthError(){return j.auth.has(this.type)}isValidationError(){return this.type===A.Validation}isFileError(){return this.type===A.File}isConfigError(){return this.type===A.Config}isType(t){return this.type===t}};je=new Set(["exe","msi","dll","scr","bat","cmd","com","pif","app","deb","rpm","pkg","mpkg","dmg","iso","img","cab","cpl","chm","ps1","vbs","vbe","ws","wsf","wsc","wsh","reg","jar","jnlp","apk","crx","lnk","inf","hta"]);T="ship-",Y=64,he=T.length+Y,pt=4,I="token-",W=64,de=I.length+W,lt={JWT:"jwt",API_KEY:"apiKey",TOKEN:"token",WEBHOOK:"webhook",SYSTEM:"system"},X="ship.json";L="https://api.shipstatic.com",v={PENDING:"pending",PROCESSING_ERROR:"processing_error",EXCLUDED:"excluded",VALIDATION_FAILED:"validation_failed",READY:"ready"};Dt={MIN_LENGTH:3,MAX_LENGTH:25,MAX_COUNT:10,SEPARATORS:"._-"},At=/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/});function Z(i){Q=i}function F(){if(Q===null)throw d.config("Platform configuration not initialized. The SDK must fetch configuration from the API before performing operations.");return Q}var Q,P=R(()=>{"use strict";x();Q=null});function Ot(i){ee=i}function We(){return typeof process<"u"&&process.versions&&process.versions.node?"node":typeof window<"u"||typeof self<"u"?"browser":"unknown"}function M(){return ee||We()}var ee,k=R(()=>{"use strict";ee=null});var Se=fe((De,Ae)=>{"use strict";(function(i){if(typeof De=="object")Ae.exports=i();else if(typeof define=="function"&&define.amd)define(i);else{var e;try{e=window}catch{e=self}e.SparkMD5=i()}})(function(i){"use strict";var e=function(l,p){return l+p&4294967295},t=["0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f"];function a(l,p,r,n,s,o){return p=e(e(p,l),e(n,o)),e(p<<s|p>>>32-s,r)}function u(l,p){var r=l[0],n=l[1],s=l[2],o=l[3];r+=(n&s|~n&o)+p[0]-680876936|0,r=(r<<7|r>>>25)+n|0,o+=(r&n|~r&s)+p[1]-389564586|0,o=(o<<12|o>>>20)+r|0,s+=(o&r|~o&n)+p[2]+606105819|0,s=(s<<17|s>>>15)+o|0,n+=(s&o|~s&r)+p[3]-1044525330|0,n=(n<<22|n>>>10)+s|0,r+=(n&s|~n&o)+p[4]-176418897|0,r=(r<<7|r>>>25)+n|0,o+=(r&n|~r&s)+p[5]+1200080426|0,o=(o<<12|o>>>20)+r|0,s+=(o&r|~o&n)+p[6]-1473231341|0,s=(s<<17|s>>>15)+o|0,n+=(s&o|~s&r)+p[7]-45705983|0,n=(n<<22|n>>>10)+s|0,r+=(n&s|~n&o)+p[8]+1770035416|0,r=(r<<7|r>>>25)+n|0,o+=(r&n|~r&s)+p[9]-1958414417|0,o=(o<<12|o>>>20)+r|0,s+=(o&r|~o&n)+p[10]-42063|0,s=(s<<17|s>>>15)+o|0,n+=(s&o|~s&r)+p[11]-1990404162|0,n=(n<<22|n>>>10)+s|0,r+=(n&s|~n&o)+p[12]+1804603682|0,r=(r<<7|r>>>25)+n|0,o+=(r&n|~r&s)+p[13]-40341101|0,o=(o<<12|o>>>20)+r|0,s+=(o&r|~o&n)+p[14]-1502002290|0,s=(s<<17|s>>>15)+o|0,n+=(s&o|~s&r)+p[15]+1236535329|0,n=(n<<22|n>>>10)+s|0,r+=(n&o|s&~o)+p[1]-165796510|0,r=(r<<5|r>>>27)+n|0,o+=(r&s|n&~s)+p[6]-1069501632|0,o=(o<<9|o>>>23)+r|0,s+=(o&n|r&~n)+p[11]+643717713|0,s=(s<<14|s>>>18)+o|0,n+=(s&r|o&~r)+p[0]-373897302|0,n=(n<<20|n>>>12)+s|0,r+=(n&o|s&~o)+p[5]-701558691|0,r=(r<<5|r>>>27)+n|0,o+=(r&s|n&~s)+p[10]+38016083|0,o=(o<<9|o>>>23)+r|0,s+=(o&n|r&~n)+p[15]-660478335|0,s=(s<<14|s>>>18)+o|0,n+=(s&r|o&~r)+p[4]-405537848|0,n=(n<<20|n>>>12)+s|0,r+=(n&o|s&~o)+p[9]+568446438|0,r=(r<<5|r>>>27)+n|0,o+=(r&s|n&~s)+p[14]-1019803690|0,o=(o<<9|o>>>23)+r|0,s+=(o&n|r&~n)+p[3]-187363961|0,s=(s<<14|s>>>18)+o|0,n+=(s&r|o&~r)+p[8]+1163531501|0,n=(n<<20|n>>>12)+s|0,r+=(n&o|s&~o)+p[13]-1444681467|0,r=(r<<5|r>>>27)+n|0,o+=(r&s|n&~s)+p[2]-51403784|0,o=(o<<9|o>>>23)+r|0,s+=(o&n|r&~n)+p[7]+1735328473|0,s=(s<<14|s>>>18)+o|0,n+=(s&r|o&~r)+p[12]-1926607734|0,n=(n<<20|n>>>12)+s|0,r+=(n^s^o)+p[5]-378558|0,r=(r<<4|r>>>28)+n|0,o+=(r^n^s)+p[8]-2022574463|0,o=(o<<11|o>>>21)+r|0,s+=(o^r^n)+p[11]+1839030562|0,s=(s<<16|s>>>16)+o|0,n+=(s^o^r)+p[14]-35309556|0,n=(n<<23|n>>>9)+s|0,r+=(n^s^o)+p[1]-1530992060|0,r=(r<<4|r>>>28)+n|0,o+=(r^n^s)+p[4]+1272893353|0,o=(o<<11|o>>>21)+r|0,s+=(o^r^n)+p[7]-155497632|0,s=(s<<16|s>>>16)+o|0,n+=(s^o^r)+p[10]-1094730640|0,n=(n<<23|n>>>9)+s|0,r+=(n^s^o)+p[13]+681279174|0,r=(r<<4|r>>>28)+n|0,o+=(r^n^s)+p[0]-358537222|0,o=(o<<11|o>>>21)+r|0,s+=(o^r^n)+p[3]-722521979|0,s=(s<<16|s>>>16)+o|0,n+=(s^o^r)+p[6]+76029189|0,n=(n<<23|n>>>9)+s|0,r+=(n^s^o)+p[9]-640364487|0,r=(r<<4|r>>>28)+n|0,o+=(r^n^s)+p[12]-421815835|0,o=(o<<11|o>>>21)+r|0,s+=(o^r^n)+p[15]+530742520|0,s=(s<<16|s>>>16)+o|0,n+=(s^o^r)+p[2]-995338651|0,n=(n<<23|n>>>9)+s|0,r+=(s^(n|~o))+p[0]-198630844|0,r=(r<<6|r>>>26)+n|0,o+=(n^(r|~s))+p[7]+1126891415|0,o=(o<<10|o>>>22)+r|0,s+=(r^(o|~n))+p[14]-1416354905|0,s=(s<<15|s>>>17)+o|0,n+=(o^(s|~r))+p[5]-57434055|0,n=(n<<21|n>>>11)+s|0,r+=(s^(n|~o))+p[12]+1700485571|0,r=(r<<6|r>>>26)+n|0,o+=(n^(r|~s))+p[3]-1894986606|0,o=(o<<10|o>>>22)+r|0,s+=(r^(o|~n))+p[10]-1051523|0,s=(s<<15|s>>>17)+o|0,n+=(o^(s|~r))+p[1]-2054922799|0,n=(n<<21|n>>>11)+s|0,r+=(s^(n|~o))+p[8]+1873313359|0,r=(r<<6|r>>>26)+n|0,o+=(n^(r|~s))+p[15]-30611744|0,o=(o<<10|o>>>22)+r|0,s+=(r^(o|~n))+p[6]-1560198380|0,s=(s<<15|s>>>17)+o|0,n+=(o^(s|~r))+p[13]+1309151649|0,n=(n<<21|n>>>11)+s|0,r+=(s^(n|~o))+p[4]-145523070|0,r=(r<<6|r>>>26)+n|0,o+=(n^(r|~s))+p[11]-1120210379|0,o=(o<<10|o>>>22)+r|0,s+=(r^(o|~n))+p[2]+718787259|0,s=(s<<15|s>>>17)+o|0,n+=(o^(s|~r))+p[9]-343485551|0,n=(n<<21|n>>>11)+s|0,l[0]=r+l[0]|0,l[1]=n+l[1]|0,l[2]=s+l[2]|0,l[3]=o+l[3]|0}function c(l){var p=[],r;for(r=0;r<64;r+=4)p[r>>2]=l.charCodeAt(r)+(l.charCodeAt(r+1)<<8)+(l.charCodeAt(r+2)<<16)+(l.charCodeAt(r+3)<<24);return p}function h(l){var p=[],r;for(r=0;r<64;r+=4)p[r>>2]=l[r]+(l[r+1]<<8)+(l[r+2]<<16)+(l[r+3]<<24);return p}function g(l){var p=l.length,r=[1732584193,-271733879,-1732584194,271733878],n,s,o,E,C,b;for(n=64;n<=p;n+=64)u(r,c(l.substring(n-64,n)));for(l=l.substring(n-64),s=l.length,o=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],n=0;n<s;n+=1)o[n>>2]|=l.charCodeAt(n)<<(n%4<<3);if(o[n>>2]|=128<<(n%4<<3),n>55)for(u(r,o),n=0;n<16;n+=1)o[n]=0;return E=p*8,E=E.toString(16).match(/(.*?)(.{0,8})$/),C=parseInt(E[2],16),b=parseInt(E[1],16)||0,o[14]=C,o[15]=b,u(r,o),r}function f(l){var p=l.length,r=[1732584193,-271733879,-1732584194,271733878],n,s,o,E,C,b;for(n=64;n<=p;n+=64)u(r,h(l.subarray(n-64,n)));for(l=n-64<p?l.subarray(n-64):new Uint8Array(0),s=l.length,o=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],n=0;n<s;n+=1)o[n>>2]|=l[n]<<(n%4<<3);if(o[n>>2]|=128<<(n%4<<3),n>55)for(u(r,o),n=0;n<16;n+=1)o[n]=0;return E=p*8,E=E.toString(16).match(/(.*?)(.{0,8})$/),C=parseInt(E[2],16),b=parseInt(E[1],16)||0,o[14]=C,o[15]=b,u(r,o),r}function y(l){var p="",r;for(r=0;r<4;r+=1)p+=t[l>>r*8+4&15]+t[l>>r*8&15];return p}function m(l){var p;for(p=0;p<l.length;p+=1)l[p]=y(l[p]);return l.join("")}m(g("hello"))!=="5d41402abc4b2a76b9719d911017c592"&&(e=function(l,p){var r=(l&65535)+(p&65535),n=(l>>16)+(p>>16)+(r>>16);return n<<16|r&65535}),typeof ArrayBuffer<"u"&&!ArrayBuffer.prototype.slice&&(function(){function l(p,r){return p=p|0||0,p<0?Math.max(p+r,0):Math.min(p,r)}ArrayBuffer.prototype.slice=function(p,r){var n=this.byteLength,s=l(p,n),o=n,E,C,b,ce;return r!==i&&(o=l(r,n)),s>o?new ArrayBuffer(0):(E=o-s,C=new ArrayBuffer(E),b=new Uint8Array(C),ce=new Uint8Array(this,s,E),b.set(ce),C)}})();function w(l){return/[\u0080-\uFFFF]/.test(l)&&(l=unescape(encodeURIComponent(l))),l}function q(l,p){var r=l.length,n=new ArrayBuffer(r),s=new Uint8Array(n),o;for(o=0;o<r;o+=1)s[o]=l.charCodeAt(o);return p?s:n}function Be(l){return String.fromCharCode.apply(null,new Uint8Array(l))}function Ue(l,p,r){var n=new Uint8Array(l.byteLength+p.byteLength);return n.set(new Uint8Array(l)),n.set(new Uint8Array(p),l.byteLength),r?n:n.buffer}function O(l){var p=[],r=l.length,n;for(n=0;n<r-1;n+=2)p.push(parseInt(l.substr(n,2),16));return String.fromCharCode.apply(String,p)}function D(){this.reset()}return D.prototype.append=function(l){return this.appendBinary(w(l)),this},D.prototype.appendBinary=function(l){this._buff+=l,this._length+=l.length;var p=this._buff.length,r;for(r=64;r<=p;r+=64)u(this._hash,c(this._buff.substring(r-64,r)));return this._buff=this._buff.substring(r-64),this},D.prototype.end=function(l){var p=this._buff,r=p.length,n,s=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],o;for(n=0;n<r;n+=1)s[n>>2]|=p.charCodeAt(n)<<(n%4<<3);return this._finish(s,r),o=m(this._hash),l&&(o=O(o)),this.reset(),o},D.prototype.reset=function(){return this._buff="",this._length=0,this._hash=[1732584193,-271733879,-1732584194,271733878],this},D.prototype.getState=function(){return{buff:this._buff,length:this._length,hash:this._hash.slice()}},D.prototype.setState=function(l){return this._buff=l.buff,this._length=l.length,this._hash=l.hash,this},D.prototype.destroy=function(){delete this._hash,delete this._buff,delete this._length},D.prototype._finish=function(l,p){var r=p,n,s,o;if(l[r>>2]|=128<<(r%4<<3),r>55)for(u(this._hash,l),r=0;r<16;r+=1)l[r]=0;n=this._length*8,n=n.toString(16).match(/(.*?)(.{0,8})$/),s=parseInt(n[2],16),o=parseInt(n[1],16)||0,l[14]=s,l[15]=o,u(this._hash,l)},D.hash=function(l,p){return D.hashBinary(w(l),p)},D.hashBinary=function(l,p){var r=g(l),n=m(r);return p?O(n):n},D.ArrayBuffer=function(){this.reset()},D.ArrayBuffer.prototype.append=function(l){var p=Ue(this._buff.buffer,l,!0),r=p.length,n;for(this._length+=l.byteLength,n=64;n<=r;n+=64)u(this._hash,h(p.subarray(n-64,n)));return this._buff=n-64<r?new Uint8Array(p.buffer.slice(n-64)):new Uint8Array(0),this},D.ArrayBuffer.prototype.end=function(l){var p=this._buff,r=p.length,n=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],s,o;for(s=0;s<r;s+=1)n[s>>2]|=p[s]<<(s%4<<3);return this._finish(n,r),o=m(this._hash),l&&(o=O(o)),this.reset(),o},D.ArrayBuffer.prototype.reset=function(){return this._buff=new Uint8Array(0),this._length=0,this._hash=[1732584193,-271733879,-1732584194,271733878],this},D.ArrayBuffer.prototype.getState=function(){var l=D.prototype.getState.call(this);return l.buff=Be(l.buff),l},D.ArrayBuffer.prototype.setState=function(l){return l.buff=q(l.buff,!0),D.prototype.setState.call(this,l)},D.ArrayBuffer.prototype.destroy=D.prototype.destroy,D.ArrayBuffer.prototype._finish=D.prototype._finish,D.ArrayBuffer.hash=function(l,p){var r=f(new Uint8Array(l)),n=m(r);return p?O(n):n},D})});var te=fe(($t,ve)=>{"use strict";ve.exports={}});async function Je(i){let e=(await Promise.resolve().then(()=>G(Se(),1))).default;return new Promise((t,a)=>{let c=Math.ceil(i.size/2097152),h=0,g=new e.ArrayBuffer,f=new FileReader,y=()=>{let m=h*2097152,w=Math.min(m+2097152,i.size);f.readAsArrayBuffer(i.slice(m,w))};f.onload=m=>{let w=m.target?.result;if(!w){a(d.business("Failed to read file chunk"));return}g.append(w),h++,h<c?y():t({md5:g.end()})},f.onerror=()=>{a(d.business("Failed to calculate MD5: FileReader error"))},y()})}async function Xe(i){let e=await Promise.resolve().then(()=>G(te(),1));if(Buffer.isBuffer(i)){let a=e.createHash("md5");return a.update(i),{md5:a.digest("hex")}}let t=await Promise.resolve().then(()=>G(te(),1));return new Promise((a,u)=>{let c=e.createHash("md5"),h=t.createReadStream(i);h.on("error",g=>u(d.business(`Failed to read file for MD5: ${g.message}`))),h.on("data",g=>c.update(g)),h.on("end",()=>a({md5:c.digest("hex")}))})}async function z(i){let e=M();if(e==="browser"){if(!(i instanceof Blob))throw d.business("Invalid input for browser MD5 calculation: Expected Blob or File.");return Je(i)}if(e==="node"){if(!(Buffer.isBuffer(i)||typeof i=="string"))throw d.business("Invalid input for Node.js MD5 calculation: Expected Buffer or file path string.");return Xe(i)}throw d.business("Unknown or unsupported execution environment for MD5 calculation.")}var K=R(()=>{"use strict";k();x()});function Te(i){return et.test(i)}var Ze,et,Ie=R(()=>{"use strict";Ze=["^npm-debug\\.log$","^\\..*\\.swp$","^\\.DS_Store$","^\\.AppleDouble$","^\\.LSOverride$","^Icon\\r$","^\\._.*","^\\.Spotlight-V100(?:$|\\/)","\\.Trashes","^__MACOSX$","~$","^Thumbs\\.db$","^ehthumbs\\.db$","^[Dd]esktop\\.ini$","@eaDir$"],et=new RegExp(Ze.join("|"))});function Fe(i){return!i||i.length===0?[]:i.filter(e=>{if(!e)return!1;let t=e.replace(/\\/g,"/").split("/").filter(Boolean);if(t.length===0)return!0;let a=t[t.length-1];if(Te(a))return!1;for(let c of t)if(c!==".well-known"&&(c.startsWith(".")||c.length>255))return!1;let u=t.slice(0,-1);for(let c of u)if(tt.some(h=>c.toLowerCase()===h.toLowerCase()))return!1;return!0})}var tt,ne=R(()=>{"use strict";Ie();tt=["__MACOSX",".Trashes",".fseventsd",".Spotlight-V100"]});function H(i){return i.replace(/\\/g,"/").replace(/\/+/g,"/").replace(/^\/+/,"")}var Pe=R(()=>{"use strict"});function Oe(i,e={}){if(e.flatten===!1)return i.map(a=>({path:H(a),name:re(a)}));let t=nt(i);return i.map(a=>{let u=H(a);if(t){let c=t.endsWith("/")?t:`${t}/`;u.startsWith(c)&&(u=u.substring(c.length))}return u||(u=re(a)),{path:u,name:re(a)}})}function nt(i){if(!i.length)return"";let t=i.map(c=>H(c)).map(c=>c.split("/")),a=[],u=Math.min(...t.map(c=>c.length));for(let c=0;c<u-1;c++){let h=t[0][c];if(t.every(g=>g[c]===h))a.push(h);else break}return a.join("/")}function re(i){return i.split(/[/\\]/).pop()||i}var ie=R(()=>{"use strict";Pe()});function oe(i,e=1){if(i===0)return"0 Bytes";let t=1024,a=["Bytes","KB","MB","GB"],u=Math.floor(Math.log(i)/Math.log(t));return parseFloat((i/Math.pow(t,u)).toFixed(e))+" "+a[u]}function se(i){if(/[?&#%<>\[\]{}|\\^~`;$()'"*\r\n\t]/.test(i))return{valid:!1,reason:"File name contains unsafe characters"};if(i.startsWith(" ")||i.endsWith(" "))return{valid:!1,reason:"File name cannot start/end with spaces"};if(i.endsWith("."))return{valid:!1,reason:"File name cannot end with dots"};let t=/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i,a=i.split("/").pop()||i;return t.test(a)?{valid:!1,reason:"File name uses a reserved system name"}:i.includes("..")?{valid:!1,reason:"File name contains path traversal pattern"}:{valid:!0}}function pn(i,e){let t=[],a=[],u=[];if(i.length===0){let f={file:"(no files)",message:"At least one file must be provided"};return t.push(f),{files:[],validFiles:[],errors:t,warnings:[],canDeploy:!1}}if(i.length>e.maxFilesCount){let f={file:`(${i.length} files)`,message:`File count (${i.length}) exceeds limit of ${e.maxFilesCount}`};return t.push(f),{files:i.map(y=>({...y,status:v.VALIDATION_FAILED,statusMessage:f.message})),validFiles:[],errors:t,warnings:[],canDeploy:!1}}let c=0;for(let f of i){let y=v.READY,m="Ready for upload",w=f.name?se(f.name):{valid:!1,reason:"File name cannot be empty"};if(f.status===v.PROCESSING_ERROR)y=v.VALIDATION_FAILED,m=f.statusMessage||"File failed during processing",t.push({file:f.name,message:m});else if(f.size===0){y=v.EXCLUDED,m="File is empty (0 bytes) and cannot be deployed due to storage limitations",a.push({file:f.name,message:m}),u.push({...f,status:y,statusMessage:m});continue}else f.size<0?(y=v.VALIDATION_FAILED,m="File size must be positive",t.push({file:f.name,message:m})):!f.name||f.name.trim().length===0?(y=v.VALIDATION_FAILED,m="File name cannot be empty",t.push({file:f.name||"(empty)",message:m})):f.name.includes("\0")?(y=v.VALIDATION_FAILED,m="File name contains invalid characters (null byte)",t.push({file:f.name,message:m})):w.valid?N(f.name)?(y=v.VALIDATION_FAILED,m=`File extension not allowed: "${f.name}"`,t.push({file:f.name,message:m})):f.size>e.maxFileSize?(y=v.VALIDATION_FAILED,m=`File size (${oe(f.size)}) exceeds limit of ${oe(e.maxFileSize)}`,t.push({file:f.name,message:m})):(c+=f.size,c>e.maxTotalSize&&(y=v.VALIDATION_FAILED,m=`Total size would exceed limit of ${oe(e.maxTotalSize)}`,t.push({file:f.name,message:m}))):(y=v.VALIDATION_FAILED,m=w.reason||"Invalid file name",t.push({file:f.name,message:m}));u.push({...f,status:y,statusMessage:m})}t.length>0&&(u=u.map(f=>f.status===v.EXCLUDED?f:{...f,status:v.VALIDATION_FAILED,statusMessage:f.status===v.VALIDATION_FAILED?f.statusMessage:"Deployment failed due to validation errors in bundle"}));let h=t.length===0?u.filter(f=>f.status===v.READY):[],g=t.length===0;return{files:u,validFiles:h,errors:t,warnings:a,canDeploy:g}}function rt(i){return i.filter(e=>e.status===v.READY)}function ln(i){return rt(i).length>0}var ae=R(()=>{"use strict";x()});function _e(i,e){if(i.includes("\0")||i.includes("/../")||i.startsWith("../")||i.endsWith("/.."))throw d.business(`Security error: Unsafe file path "${i}" for file: ${e}`)}function $e(i,e){let t=se(i);if(!t.valid)throw d.business(t.reason||"Invalid file name");if(N(i))throw d.business(`File extension not allowed: "${e}"`)}var pe=R(()=>{"use strict";x();ae()});var Le={};qe(Le,{processFilesForBrowser:()=>Ne});async function Ne(i,e={}){if(M()!=="browser")throw d.business("processFilesForBrowser can only be called in a browser environment.");let t=i.map(y=>y.webkitRelativePath||y.name),a=new Set(Fe(t)),u=[];for(let y=0;y<i.length;y++)a.has(t[y])&&u.push({file:i[y],rawPath:t[y]});if(u.length===0)return[];let c=Oe(u.map(y=>y.rawPath),{flatten:e.pathDetect!==!1}),h=F(),g=[],f=0;for(let y=0;y<u.length;y++){let{file:m}=u[y],w=c[y].path;if(_e(w,m.name),m.size===0)continue;if($e(w,m.name),m.size>h.maxFileSize)throw d.business(`File ${m.name} is too large. Maximum allowed size is ${h.maxFileSize/(1024*1024)}MB.`);if(f+=m.size,f>h.maxTotalSize)throw d.business(`Total deploy size is too large. Maximum allowed is ${h.maxTotalSize/(1024*1024)}MB.`);let{md5:q}=await z(m);g.push({path:w,content:m,size:m.size,md5:q})}if(g.length>h.maxFilesCount)throw d.business(`Too many files to deploy. Maximum allowed is ${h.maxFilesCount} files.`);return g}var le=R(()=>{"use strict";K();x();k();ne();ie();pe();P()});x();var B=class{constructor(){this.handlers=new Map}on(e,t){this.handlers.has(e)||this.handlers.set(e,new Set),this.handlers.get(e).add(t)}off(e,t){let a=this.handlers.get(e);a&&(a.delete(t),a.size===0&&this.handlers.delete(e))}emit(e,...t){let a=this.handlers.get(e);if(!a)return;let u=Array.from(a);for(let c of u)try{c(...t)}catch(h){a.delete(c),e!=="error"&&setTimeout(()=>{h instanceof Error?this.emit("error",h,String(e)):this.emit("error",new Error(String(h)),String(e))},0)}}transfer(e){this.handlers.forEach((t,a)=>{t.forEach(u=>{e.on(a,u)})})}clear(){this.handlers.clear()}};var S={DEPLOYMENTS:"/deployments",DOMAINS:"/domains",TOKENS:"/tokens",ACCOUNT:"/account",CONFIG:"/config",PING:"/ping",SPA_CHECK:"/spa-check"},Ye=3e4,U=class extends B{constructor(e){super(),this.apiUrl=e.apiUrl||L,this.getAuthHeadersCallback=e.getAuthHeaders,this.timeout=e.timeout??Ye,this.createDeployBody=e.createDeployBody}transferEventsTo(e){this.transfer(e)}async executeRequest(e,t,a){let u=this.mergeHeaders(t.headers),{signal:c,cleanup:h}=this.createTimeoutSignal(t.signal),g={...t,headers:u,credentials:u.Authorization?void 0:"include",signal:c};this.emit("request",e,g);try{let f=await fetch(e,g);return h(),f.ok||await this.handleResponseError(f,a),this.emit("response",this.safeClone(f),e),{data:await this.parseResponse(this.safeClone(f)),status:f.status}}catch(f){h();let y=f instanceof Error?f:new Error(String(f));this.emit("error",y,e),this.handleFetchError(f,a)}}async request(e,t,a){let{data:u}=await this.executeRequest(e,t,a);return u}async requestWithStatus(e,t,a){return this.executeRequest(e,t,a)}mergeHeaders(e={}){return{...e,...this.getAuthHeadersCallback()}}createTimeoutSignal(e){let t=new AbortController,a=setTimeout(()=>t.abort(),this.timeout);if(e){let u=()=>t.abort();e.addEventListener("abort",u),e.aborted&&t.abort()}return{signal:t.signal,cleanup:()=>clearTimeout(a)}}safeClone(e){try{return e.clone()}catch{return e}}async parseResponse(e){if(!(e.headers.get("Content-Length")==="0"||e.status===204))return e.json()}async handleResponseError(e,t){let a={};try{if(e.headers.get("content-type")?.includes("application/json")){let h=await e.json();if(h&&typeof h=="object"){let g=h;typeof g.message=="string"&&(a.message=g.message),typeof g.error=="string"&&(a.error=g.error)}}else a={message:await e.text()}}catch{a={message:"Failed to parse error response"}}let u=a.message||a.error||`${t} failed`;throw e.status===401?d.authentication(u):d.api(u,e.status)}handleFetchError(e,t){throw J(e)?e:e instanceof Error&&e.name==="AbortError"?d.cancelled(`${t} was cancelled`):e instanceof TypeError&&e.message.includes("fetch")?d.network(`${t} failed: ${e.message}`,e):e instanceof Error?d.business(`${t} failed: ${e.message}`):d.business(`${t} failed: Unknown error`)}async deploy(e,t={}){if(!e.length)throw d.business("No files to deploy");for(let h of e)if(!h.md5)throw d.file(`MD5 checksum missing for file: ${h.path}`,h.path);let{body:a,headers:u}=await this.createDeployBody(e,t.labels,t.via),c={};return t.deployToken?c.Authorization=`Bearer ${t.deployToken}`:t.apiKey&&(c.Authorization=`Bearer ${t.apiKey}`),t.caller&&(c["X-Caller"]=t.caller),this.request(`${t.apiUrl||this.apiUrl}${S.DEPLOYMENTS}`,{method:"POST",body:a,headers:{...u,...c},signal:t.signal||null},"Deploy")}async listDeployments(){return this.request(`${this.apiUrl}${S.DEPLOYMENTS}`,{method:"GET"},"List deployments")}async getDeployment(e){return this.request(`${this.apiUrl}${S.DEPLOYMENTS}/${encodeURIComponent(e)}`,{method:"GET"},"Get deployment")}async updateDeploymentLabels(e,t){return this.request(`${this.apiUrl}${S.DEPLOYMENTS}/${encodeURIComponent(e)}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({labels:t})},"Update deployment labels")}async removeDeployment(e){await this.request(`${this.apiUrl}${S.DEPLOYMENTS}/${encodeURIComponent(e)}`,{method:"DELETE"},"Remove deployment")}async setDomain(e,t,a){let u={};t&&(u.deployment=t),a!==void 0&&(u.labels=a);let{data:c,status:h}=await this.requestWithStatus(`${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(u)},"Set domain");return{...c,isCreate:h===201}}async listDomains(){return this.request(`${this.apiUrl}${S.DOMAINS}`,{method:"GET"},"List domains")}async getDomain(e){return this.request(`${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}`,{method:"GET"},"Get domain")}async removeDomain(e){await this.request(`${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}`,{method:"DELETE"},"Remove domain")}async verifyDomain(e){return this.request(`${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}/verify`,{method:"POST"},"Verify domain")}async getDomainDns(e){return this.request(`${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}/dns`,{method:"GET"},"Get domain DNS")}async getDomainRecords(e){return this.request(`${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}/records`,{method:"GET"},"Get domain records")}async getDomainShare(e){return this.request(`${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}/share`,{method:"GET"},"Get domain share")}async validateDomain(e){return this.request(`${this.apiUrl}${S.DOMAINS}/validate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({domain:e})},"Validate domain")}async createToken(e,t){let a={};return e!==void 0&&(a.ttl=e),t!==void 0&&(a.labels=t),this.request(`${this.apiUrl}${S.TOKENS}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(a)},"Create token")}async listTokens(){return this.request(`${this.apiUrl}${S.TOKENS}`,{method:"GET"},"List tokens")}async removeToken(e){await this.request(`${this.apiUrl}${S.TOKENS}/${encodeURIComponent(e)}`,{method:"DELETE"},"Remove token")}async getAccount(){return this.request(`${this.apiUrl}${S.ACCOUNT}`,{method:"GET"},"Get account")}async getConfig(){return this.request(`${this.apiUrl}${S.CONFIG}`,{method:"GET"},"Get config")}async ping(){return(await this.request(`${this.apiUrl}${S.PING}`,{method:"GET"},"Ping"))?.success||!1}async checkSPA(e){let t=e.find(h=>h.path==="index.html"||h.path==="/index.html");if(!t||t.size>100*1024)return!1;let a;if(typeof Buffer<"u"&&Buffer.isBuffer(t.content))a=t.content.toString("utf-8");else if(typeof Blob<"u"&&t.content instanceof Blob)a=await t.content.text();else if(typeof File<"u"&&t.content instanceof File)a=await t.content.text();else return!1;let u={files:e.map(h=>h.path),index:a};return(await this.request(`${this.apiUrl}${S.SPA_CHECK}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(u)},"SPA check")).isSPA}};x();P();x();x();function ye(i={},e={}){let t={apiUrl:i.apiUrl||e.apiUrl||L,apiKey:i.apiKey!==void 0?i.apiKey:e.apiKey,deployToken:i.deployToken!==void 0?i.deployToken:e.deployToken},a={apiUrl:t.apiUrl};return t.apiKey!==void 0&&(a.apiKey=t.apiKey),t.deployToken!==void 0&&(a.deployToken=t.deployToken),a}function ge(i,e){let t={...i};return t.apiUrl===void 0&&e.apiUrl!==void 0&&(t.apiUrl=e.apiUrl),t.apiKey===void 0&&e.apiKey!==void 0&&(t.apiKey=e.apiKey),t.deployToken===void 0&&e.deployToken!==void 0&&(t.deployToken=e.deployToken),t.timeout===void 0&&e.timeout!==void 0&&(t.timeout=e.timeout),t.maxConcurrency===void 0&&e.maxConcurrency!==void 0&&(t.maxConcurrency=e.maxConcurrency),t.onProgress===void 0&&e.onProgress!==void 0&&(t.onProgress=e.onProgress),t.caller===void 0&&e.caller!==void 0&&(t.caller=e.caller),t}x();K();async function Qe(){let e=JSON.stringify({rewrites:[{source:"/(.*)",destination:"/index.html"}]},null,2),t;typeof Buffer<"u"?t=Buffer.from(e,"utf-8"):t=new Blob([e],{type:"application/json"});let{md5:a}=await z(t);return{path:X,content:t,size:e.length,md5:a}}async function Ee(i,e,t){if(t.spaDetect===!1||i.some(a=>a.path===X))return i;try{if(await e.checkSPA(i)){let u=await Qe();return[...i,u]}}catch{}return i}function we(i){let{getApi:e,ensureInit:t,processInput:a,clientDefaults:u,hasAuth:c}=i;return{upload:async(h,g={})=>{await t();let f=u?ge(g,u):g;if(c&&!c()&&!f.deployToken&&!f.apiKey)throw d.authentication("Authentication credentials are required for deployment. Please call setDeployToken() or setApiKey() first, or pass credentials in the deployment options.");if(!a)throw d.config("processInput function is not provided.");let y=e(),m=await a(h,f);return m=await Ee(m,y,f),y.deploy(m,f)},list:async()=>(await t(),e().listDeployments()),get:async h=>(await t(),e().getDeployment(h)),set:async(h,g)=>(await t(),e().updateDeploymentLabels(h,g.labels)),remove:async h=>{await t(),await e().removeDeployment(h)}}}function xe(i){let{getApi:e,ensureInit:t}=i;return{set:async(a,u={})=>(await t(),e().setDomain(a,u.deployment,u.labels)),list:async()=>(await t(),e().listDomains()),get:async a=>(await t(),e().getDomain(a)),remove:async a=>{await t(),await e().removeDomain(a)},verify:async a=>(await t(),e().verifyDomain(a)),validate:async a=>(await t(),e().validateDomain(a)),dns:async a=>(await t(),e().getDomainDns(a)),records:async a=>(await t(),e().getDomainRecords(a)),share:async a=>(await t(),e().getDomainShare(a))}}function Re(i){let{getApi:e,ensureInit:t}=i;return{get:async()=>(await t(),e().getAccount())}}function Ce(i){let{getApi:e,ensureInit:t}=i;return{create:async(a={})=>(await t(),e().createToken(a.ttl,a.labels)),list:async()=>(await t(),e().listTokens()),remove:async a=>{await t(),await e().removeToken(a)}}}var V=class{constructor(e={}){this.initPromise=null;this._config=null;this.auth=null;this.clientOptions=e,e.deployToken?this.auth={type:"token",value:e.deployToken}:e.apiKey&&(this.auth={type:"apiKey",value:e.apiKey}),this.authHeadersCallback=()=>this.getAuthHeaders();let t=this.resolveInitialConfig(e);this.http=new U({...e,...t,getAuthHeaders:this.authHeadersCallback,createDeployBody:this.getDeployBodyCreator()});let a={getApi:()=>this.http,ensureInit:()=>this.ensureInitialized()};this._deployments=we({...a,processInput:(u,c)=>this.processInput(u,c),clientDefaults:this.clientOptions,hasAuth:()=>this.hasAuth()}),this._domains=xe(a),this._account=Re(a),this._tokens=Ce(a)}async ensureInitialized(){return this.initPromise||(this.initPromise=this.loadFullConfig()),this.initPromise}async ping(){return await this.ensureInitialized(),this.http.ping()}async deploy(e,t){return this.deployments.upload(e,t)}async whoami(){return this.account.get()}get deployments(){return this._deployments}get domains(){return this._domains}get account(){return this._account}get tokens(){return this._tokens}async getConfig(){return this._config?this._config:(await this.ensureInitialized(),this._config=F(),this._config)}on(e,t){this.http.on(e,t)}off(e,t){this.http.off(e,t)}replaceHttpClient(e){if(this.http?.transferEventsTo)try{this.http.transferEventsTo(e)}catch(t){console.warn("Event transfer failed during client replacement:",t)}this.http=e}setDeployToken(e){if(!e||typeof e!="string")throw d.business("Invalid deploy token provided. Deploy token must be a non-empty string.");this.auth={type:"token",value:e}}setApiKey(e){if(!e||typeof e!="string")throw d.business("Invalid API key provided. API key must be a non-empty string.");this.auth={type:"apiKey",value:e}}getAuthHeaders(){return this.auth?{Authorization:`Bearer ${this.auth.value}`}:{}}hasAuth(){return this.clientOptions.useCredentials?!0:this.auth!==null}};P();x();x();async function be(i,e,t){let a=new FormData,u=[];for(let c of i){if(!(c.content instanceof File||c.content instanceof Blob))throw d.file(`Unsupported file.content type for browser: ${c.path}`,c.path);if(!c.md5)throw d.file(`File missing md5 checksum: ${c.path}`,c.path);let h=new File([c.content],c.path,{type:"application/octet-stream"});a.append("files[]",h),u.push(c.md5)}return a.append("checksums",JSON.stringify(u)),e&&e.length>0&&a.append("labels",JSON.stringify(e)),t&&a.append("via",t),{body:a,headers:{}}}K();function Qt(i,e,t,a=!0){let u=i===1?e:t;return a?`${i} ${u}`:u}ne();ie();k();ae();pe();x();P();le();var ue=class extends V{constructor(e={}){super(e)}resolveInitialConfig(e){return ye(e,{})}async loadFullConfig(){try{let e=await this.http.getConfig();Z(e)}catch(e){throw this.initPromise=null,e}}async processInput(e,t){if(!this.isFileArray(e))throw d.business("Invalid input type for browser environment. Expected File[].");if(e.length===0)throw d.business("No files to deploy.");let{processFilesForBrowser:a}=await Promise.resolve().then(()=>(le(),Le));return a(e,t)}isFileArray(e){return Array.isArray(e)&&e.every(t=>t instanceof File)}getDeployBodyCreator(){return be}},kn=ue;export{Y as API_KEY_HEX_LENGTH,pt as API_KEY_HINT_LENGTH,T as API_KEY_PREFIX,he as API_KEY_TOTAL_LENGTH,at as AccountPlan,U as ApiHttp,lt as AuthMethod,je as BLOCKED_EXTENSIONS,L as DEFAULT_API,X as DEPLOYMENT_CONFIG_FILENAME,W as DEPLOY_TOKEN_HEX_LENGTH,I as DEPLOY_TOKEN_PREFIX,de as DEPLOY_TOKEN_TOTAL_LENGTH,ot as DeploymentStatus,st as DomainStatus,A as ErrorType,v as FILE_VALIDATION_STATUS,v as FileValidationStatus,tt as JUNK_DIRECTORIES,Dt as LABEL_CONSTRAINTS,At as LABEL_PATTERN,ue as Ship,d as ShipError,Ot as __setTestEnvironment,ln as allValidFilesReady,z as calculateMD5,Re as createAccountResource,we as createDeploymentResource,xe as createDomainResource,Ce as createTokenResource,kn as default,vt as deserializeLabels,mt as extractSubdomain,Fe as filterJunk,oe as formatFileSize,yt as generateDeploymentUrl,gt as generateDomainUrl,F as getCurrentConfig,M as getENV,rt as getValidFiles,N as isBlockedExtension,dt as isCustomDomain,ht as isDeployment,me as isPlatformDomain,J as isShipError,ge as mergeDeployOptions,Oe as optimizeDeployPaths,Qt as pluralize,Ne as processFilesForBrowser,ye as resolveConfig,St as serializeLabels,Z as setPlatformConfig,ut as validateApiKey,ft as validateApiUrl,$e as validateDeployFile,_e as validateDeployPath,ct as validateDeployToken,se as validateFileName,pn as validateFiles};
+var Me = Object.create;
+var _ = Object.defineProperty;
+var ke = Object.getOwnPropertyDescriptor;
+var ze = Object.getOwnPropertyNames;
+var Ke = Object.getPrototypeOf,
+  Ve = Object.prototype.hasOwnProperty;
+var He = (i, e, t) =>
+  e in i ? _(i, e, { enumerable: !0, configurable: !0, writable: !0, value: t }) : (i[e] = t);
+var R = (i, e) => () => (i && (e = i((i = 0))), e);
+var fe = (i, e) => () => (e || i((e = { exports: {} }).exports, e), e.exports),
+  qe = (i, e) => {
+    for (var t in e) _(i, t, { get: e[t], enumerable: !0 });
+  },
+  Ge = (i, e, t, a) => {
+    if ((e && typeof e === 'object') || typeof e === 'function')
+      for (const u of ze(e))
+        !Ve.call(i, u) &&
+          u !== t &&
+          _(i, u, { get: () => e[u], enumerable: !(a = ke(e, u)) || a.enumerable });
+    return i;
+  };
+var G = (i, e, t) => (
+  (t = i != null ? Me(Ke(i)) : {}),
+  Ge(e || !i || !i.__esModule ? _(t, 'default', { value: i, enumerable: !0 }) : t, i)
+);
+var $ = (i, e, t) => He(i, typeof e !== 'symbol' ? `${e}` : e, t);
+function J(i) {
+  return (
+    i !== null && typeof i === 'object' && 'name' in i && i.name === 'ShipError' && 'status' in i
+  );
+}
+function N(i) {
+  const e = i.lastIndexOf('.');
+  if (e === -1 || e === i.length - 1) return !1;
+  const t = i.slice(e + 1).toLowerCase();
+  return je.has(t);
+}
+function ut(i) {
+  if (!i.startsWith(T)) throw d.validation(`API key must start with "${T}"`);
+  if (i.length !== he)
+    throw d.validation(`API key must be ${he} characters total (${T} + ${Y} hex chars)`);
+  const e = i.slice(T.length);
+  if (!/^[a-f0-9]{64}$/i.test(e))
+    throw d.validation(`API key must contain ${Y} hexadecimal characters after "${T}" prefix`);
+}
+function ct(i) {
+  if (!i.startsWith(I)) throw d.validation(`Deploy token must start with "${I}"`);
+  if (i.length !== de)
+    throw d.validation(`Deploy token must be ${de} characters total (${I} + ${W} hex chars)`);
+  const e = i.slice(I.length);
+  if (!/^[a-f0-9]{64}$/i.test(e))
+    throw d.validation(`Deploy token must contain ${W} hexadecimal characters after "${I}" prefix`);
+}
+function ft(i) {
+  try {
+    const e = new URL(i);
+    if (!['http:', 'https:'].includes(e.protocol))
+      throw d.validation('API URL must use http:// or https:// protocol');
+    if (e.pathname !== '/' && e.pathname !== '')
+      throw d.validation('API URL must not contain a path');
+    if (e.search || e.hash)
+      throw d.validation('API URL must not contain query parameters or fragments');
+  } catch (e) {
+    throw J(e) ? e : d.validation('API URL must be a valid URL');
+  }
+}
+function ht(i) {
+  return /^[a-z]+-[a-z]+-[a-z0-9]{7}$/i.test(i);
+}
+function me(i, e) {
+  return i.endsWith(`.${e}`);
+}
+function dt(i, e) {
+  return !me(i, e);
+}
+function mt(i, e) {
+  return me(i, e) ? i.slice(0, -(e.length + 1)) : null;
+}
+function yt(i, e) {
+  return `https://${i}.${e || 'shipstatic.com'}`;
+}
+function gt(i) {
+  return `https://${i}`;
+}
+function St(i) {
+  return !i || i.length === 0 ? null : JSON.stringify(i);
+}
+function vt(i) {
+  if (!i) return [];
+  try {
+    const e = JSON.parse(i);
+    return Array.isArray(e) ? e : [];
+  } catch {
+    return [];
+  }
+}
+var ot,
+  st,
+  at,
+  A,
+  j,
+  d,
+  je,
+  T,
+  Y,
+  he,
+  pt,
+  I,
+  W,
+  de,
+  lt,
+  X,
+  L,
+  v,
+  Dt,
+  At,
+  x = R(() => {
+    (ot = { PENDING: 'pending', SUCCESS: 'success', FAILED: 'failed', DELETING: 'deleting' }),
+      (st = { PENDING: 'pending', PARTIAL: 'partial', SUCCESS: 'success', PAUSED: 'paused' }),
+      (at = {
+        FREE: 'free',
+        STANDARD: 'standard',
+        SPONSORED: 'sponsored',
+        ENTERPRISE: 'enterprise',
+        SUSPENDED: 'suspended',
+        TERMINATING: 'terminating',
+        TERMINATED: 'terminated',
+      });
+    ((i) => {
+      (i.Validation = 'validation_failed'),
+        (i.NotFound = 'not_found'),
+        (i.RateLimit = 'rate_limit_exceeded'),
+        (i.Authentication = 'authentication_failed'),
+        (i.Business = 'business_logic_error'),
+        (i.Api = 'internal_server_error'),
+        (i.Network = 'network_error'),
+        (i.Cancelled = 'operation_cancelled'),
+        (i.File = 'file_error'),
+        (i.Config = 'config_error');
+    })(A || (A = {}));
+    (j = {
+      client: new Set([A.Business, A.Config, A.File, A.Validation]),
+      network: new Set([A.Network]),
+      auth: new Set([A.Authentication]),
+    }),
+      (d = class i extends Error {
+        constructor(t, a, u, c) {
+          super(a);
+          $(this, 'type');
+          $(this, 'status');
+          $(this, 'details');
+          (this.type = t), (this.status = u), (this.details = c), (this.name = 'ShipError');
+        }
+        toResponse() {
+          const t =
+            this.type === A.Authentication && this.details?.internal ? void 0 : this.details;
+          return { error: this.type, message: this.message, status: this.status, details: t };
+        }
+        static fromResponse(t) {
+          return new i(t.error, t.message, t.status, t.details);
+        }
+        static validation(t, a) {
+          return new i(A.Validation, t, 400, a);
+        }
+        static notFound(t, a) {
+          const u = a ? `${t} ${a} not found` : `${t} not found`;
+          return new i(A.NotFound, u, 404);
+        }
+        static rateLimit(t = 'Too many requests') {
+          return new i(A.RateLimit, t, 429);
+        }
+        static authentication(t = 'Authentication required', a) {
+          return new i(A.Authentication, t, 401, a);
+        }
+        static business(t, a = 400) {
+          return new i(A.Business, t, a);
+        }
+        static network(t, a) {
+          return new i(A.Network, t, void 0, { cause: a });
+        }
+        static cancelled(t) {
+          return new i(A.Cancelled, t);
+        }
+        static file(t, a) {
+          return new i(A.File, t, void 0, { filePath: a });
+        }
+        static config(t, a) {
+          return new i(A.Config, t, void 0, a);
+        }
+        static api(t, a = 500) {
+          return new i(A.Api, t, a);
+        }
+        static database(t, a = 500) {
+          return new i(A.Api, t, a);
+        }
+        static storage(t, a = 500) {
+          return new i(A.Api, t, a);
+        }
+        get filePath() {
+          return this.details?.filePath;
+        }
+        isClientError() {
+          return j.client.has(this.type);
+        }
+        isNetworkError() {
+          return j.network.has(this.type);
+        }
+        isAuthError() {
+          return j.auth.has(this.type);
+        }
+        isValidationError() {
+          return this.type === A.Validation;
+        }
+        isFileError() {
+          return this.type === A.File;
+        }
+        isConfigError() {
+          return this.type === A.Config;
+        }
+        isType(t) {
+          return this.type === t;
+        }
+      });
+    je = new Set([
+      'exe',
+      'msi',
+      'dll',
+      'scr',
+      'bat',
+      'cmd',
+      'com',
+      'pif',
+      'app',
+      'deb',
+      'rpm',
+      'pkg',
+      'mpkg',
+      'dmg',
+      'iso',
+      'img',
+      'cab',
+      'cpl',
+      'chm',
+      'ps1',
+      'vbs',
+      'vbe',
+      'ws',
+      'wsf',
+      'wsc',
+      'wsh',
+      'reg',
+      'jar',
+      'jnlp',
+      'apk',
+      'crx',
+      'lnk',
+      'inf',
+      'hta',
+    ]);
+    (T = 'ship-'),
+      (Y = 64),
+      (he = T.length + Y),
+      (pt = 4),
+      (I = 'token-'),
+      (W = 64),
+      (de = I.length + W),
+      (lt = {
+        JWT: 'jwt',
+        API_KEY: 'apiKey',
+        TOKEN: 'token',
+        WEBHOOK: 'webhook',
+        SYSTEM: 'system',
+      }),
+      (X = 'ship.json');
+    (L = 'https://api.shipstatic.com'),
+      (v = {
+        PENDING: 'pending',
+        PROCESSING_ERROR: 'processing_error',
+        EXCLUDED: 'excluded',
+        VALIDATION_FAILED: 'validation_failed',
+        READY: 'ready',
+      });
+    (Dt = { MIN_LENGTH: 3, MAX_LENGTH: 25, MAX_COUNT: 10, SEPARATORS: '._-' }),
+      (At = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/);
+  });
+function Z(i) {
+  Q = i;
+}
+function F() {
+  if (Q === null)
+    throw d.config(
+      'Platform configuration not initialized. The SDK must fetch configuration from the API before performing operations.',
+    );
+  return Q;
+}
+var Q,
+  P = R(() => {
+    x();
+    Q = null;
+  });
+function Ot(i) {
+  ee = i;
+}
+function We() {
+  return typeof process < 'u' && process.versions && process.versions.node
+    ? 'node'
+    : typeof window < 'u' || typeof self < 'u'
+      ? 'browser'
+      : 'unknown';
+}
+function M() {
+  return ee || We();
+}
+var ee,
+  k = R(() => {
+    ee = null;
+  });
+var Se = fe((De, Ae) => {
+  ((i) => {
+    if (typeof De === 'object') Ae.exports = i();
+    else if (typeof define === 'function' && define.amd) define(i);
+    else {
+      var e;
+      try {
+        e = window;
+      } catch {
+        e = self;
+      }
+      e.SparkMD5 = i();
+    }
+  })((i) => {
+    var e = (l, p) => (l + p) & 4294967295,
+      t = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+    function _a(l, p, r, n, s, o) {
+      return (p = e(e(p, l), e(n, o))), e((p << s) | (p >>> (32 - s)), r);
+    }
+    function u(l, p) {
+      var r = l[0],
+        n = l[1],
+        s = l[2],
+        o = l[3];
+      (r += (((n & s) | (~n & o)) + p[0] - 680876936) | 0),
+        (r = (((r << 7) | (r >>> 25)) + n) | 0),
+        (o += (((r & n) | (~r & s)) + p[1] - 389564586) | 0),
+        (o = (((o << 12) | (o >>> 20)) + r) | 0),
+        (s += (((o & r) | (~o & n)) + p[2] + 606105819) | 0),
+        (s = (((s << 17) | (s >>> 15)) + o) | 0),
+        (n += (((s & o) | (~s & r)) + p[3] - 1044525330) | 0),
+        (n = (((n << 22) | (n >>> 10)) + s) | 0),
+        (r += (((n & s) | (~n & o)) + p[4] - 176418897) | 0),
+        (r = (((r << 7) | (r >>> 25)) + n) | 0),
+        (o += (((r & n) | (~r & s)) + p[5] + 1200080426) | 0),
+        (o = (((o << 12) | (o >>> 20)) + r) | 0),
+        (s += (((o & r) | (~o & n)) + p[6] - 1473231341) | 0),
+        (s = (((s << 17) | (s >>> 15)) + o) | 0),
+        (n += (((s & o) | (~s & r)) + p[7] - 45705983) | 0),
+        (n = (((n << 22) | (n >>> 10)) + s) | 0),
+        (r += (((n & s) | (~n & o)) + p[8] + 1770035416) | 0),
+        (r = (((r << 7) | (r >>> 25)) + n) | 0),
+        (o += (((r & n) | (~r & s)) + p[9] - 1958414417) | 0),
+        (o = (((o << 12) | (o >>> 20)) + r) | 0),
+        (s += (((o & r) | (~o & n)) + p[10] - 42063) | 0),
+        (s = (((s << 17) | (s >>> 15)) + o) | 0),
+        (n += (((s & o) | (~s & r)) + p[11] - 1990404162) | 0),
+        (n = (((n << 22) | (n >>> 10)) + s) | 0),
+        (r += (((n & s) | (~n & o)) + p[12] + 1804603682) | 0),
+        (r = (((r << 7) | (r >>> 25)) + n) | 0),
+        (o += (((r & n) | (~r & s)) + p[13] - 40341101) | 0),
+        (o = (((o << 12) | (o >>> 20)) + r) | 0),
+        (s += (((o & r) | (~o & n)) + p[14] - 1502002290) | 0),
+        (s = (((s << 17) | (s >>> 15)) + o) | 0),
+        (n += (((s & o) | (~s & r)) + p[15] + 1236535329) | 0),
+        (n = (((n << 22) | (n >>> 10)) + s) | 0),
+        (r += (((n & o) | (s & ~o)) + p[1] - 165796510) | 0),
+        (r = (((r << 5) | (r >>> 27)) + n) | 0),
+        (o += (((r & s) | (n & ~s)) + p[6] - 1069501632) | 0),
+        (o = (((o << 9) | (o >>> 23)) + r) | 0),
+        (s += (((o & n) | (r & ~n)) + p[11] + 643717713) | 0),
+        (s = (((s << 14) | (s >>> 18)) + o) | 0),
+        (n += (((s & r) | (o & ~r)) + p[0] - 373897302) | 0),
+        (n = (((n << 20) | (n >>> 12)) + s) | 0),
+        (r += (((n & o) | (s & ~o)) + p[5] - 701558691) | 0),
+        (r = (((r << 5) | (r >>> 27)) + n) | 0),
+        (o += (((r & s) | (n & ~s)) + p[10] + 38016083) | 0),
+        (o = (((o << 9) | (o >>> 23)) + r) | 0),
+        (s += (((o & n) | (r & ~n)) + p[15] - 660478335) | 0),
+        (s = (((s << 14) | (s >>> 18)) + o) | 0),
+        (n += (((s & r) | (o & ~r)) + p[4] - 405537848) | 0),
+        (n = (((n << 20) | (n >>> 12)) + s) | 0),
+        (r += (((n & o) | (s & ~o)) + p[9] + 568446438) | 0),
+        (r = (((r << 5) | (r >>> 27)) + n) | 0),
+        (o += (((r & s) | (n & ~s)) + p[14] - 1019803690) | 0),
+        (o = (((o << 9) | (o >>> 23)) + r) | 0),
+        (s += (((o & n) | (r & ~n)) + p[3] - 187363961) | 0),
+        (s = (((s << 14) | (s >>> 18)) + o) | 0),
+        (n += (((s & r) | (o & ~r)) + p[8] + 1163531501) | 0),
+        (n = (((n << 20) | (n >>> 12)) + s) | 0),
+        (r += (((n & o) | (s & ~o)) + p[13] - 1444681467) | 0),
+        (r = (((r << 5) | (r >>> 27)) + n) | 0),
+        (o += (((r & s) | (n & ~s)) + p[2] - 51403784) | 0),
+        (o = (((o << 9) | (o >>> 23)) + r) | 0),
+        (s += (((o & n) | (r & ~n)) + p[7] + 1735328473) | 0),
+        (s = (((s << 14) | (s >>> 18)) + o) | 0),
+        (n += (((s & r) | (o & ~r)) + p[12] - 1926607734) | 0),
+        (n = (((n << 20) | (n >>> 12)) + s) | 0),
+        (r += ((n ^ s ^ o) + p[5] - 378558) | 0),
+        (r = (((r << 4) | (r >>> 28)) + n) | 0),
+        (o += ((r ^ n ^ s) + p[8] - 2022574463) | 0),
+        (o = (((o << 11) | (o >>> 21)) + r) | 0),
+        (s += ((o ^ r ^ n) + p[11] + 1839030562) | 0),
+        (s = (((s << 16) | (s >>> 16)) + o) | 0),
+        (n += ((s ^ o ^ r) + p[14] - 35309556) | 0),
+        (n = (((n << 23) | (n >>> 9)) + s) | 0),
+        (r += ((n ^ s ^ o) + p[1] - 1530992060) | 0),
+        (r = (((r << 4) | (r >>> 28)) + n) | 0),
+        (o += ((r ^ n ^ s) + p[4] + 1272893353) | 0),
+        (o = (((o << 11) | (o >>> 21)) + r) | 0),
+        (s += ((o ^ r ^ n) + p[7] - 155497632) | 0),
+        (s = (((s << 16) | (s >>> 16)) + o) | 0),
+        (n += ((s ^ o ^ r) + p[10] - 1094730640) | 0),
+        (n = (((n << 23) | (n >>> 9)) + s) | 0),
+        (r += ((n ^ s ^ o) + p[13] + 681279174) | 0),
+        (r = (((r << 4) | (r >>> 28)) + n) | 0),
+        (o += ((r ^ n ^ s) + p[0] - 358537222) | 0),
+        (o = (((o << 11) | (o >>> 21)) + r) | 0),
+        (s += ((o ^ r ^ n) + p[3] - 722521979) | 0),
+        (s = (((s << 16) | (s >>> 16)) + o) | 0),
+        (n += ((s ^ o ^ r) + p[6] + 76029189) | 0),
+        (n = (((n << 23) | (n >>> 9)) + s) | 0),
+        (r += ((n ^ s ^ o) + p[9] - 640364487) | 0),
+        (r = (((r << 4) | (r >>> 28)) + n) | 0),
+        (o += ((r ^ n ^ s) + p[12] - 421815835) | 0),
+        (o = (((o << 11) | (o >>> 21)) + r) | 0),
+        (s += ((o ^ r ^ n) + p[15] + 530742520) | 0),
+        (s = (((s << 16) | (s >>> 16)) + o) | 0),
+        (n += ((s ^ o ^ r) + p[2] - 995338651) | 0),
+        (n = (((n << 23) | (n >>> 9)) + s) | 0),
+        (r += ((s ^ (n | ~o)) + p[0] - 198630844) | 0),
+        (r = (((r << 6) | (r >>> 26)) + n) | 0),
+        (o += ((n ^ (r | ~s)) + p[7] + 1126891415) | 0),
+        (o = (((o << 10) | (o >>> 22)) + r) | 0),
+        (s += ((r ^ (o | ~n)) + p[14] - 1416354905) | 0),
+        (s = (((s << 15) | (s >>> 17)) + o) | 0),
+        (n += ((o ^ (s | ~r)) + p[5] - 57434055) | 0),
+        (n = (((n << 21) | (n >>> 11)) + s) | 0),
+        (r += ((s ^ (n | ~o)) + p[12] + 1700485571) | 0),
+        (r = (((r << 6) | (r >>> 26)) + n) | 0),
+        (o += ((n ^ (r | ~s)) + p[3] - 1894986606) | 0),
+        (o = (((o << 10) | (o >>> 22)) + r) | 0),
+        (s += ((r ^ (o | ~n)) + p[10] - 1051523) | 0),
+        (s = (((s << 15) | (s >>> 17)) + o) | 0),
+        (n += ((o ^ (s | ~r)) + p[1] - 2054922799) | 0),
+        (n = (((n << 21) | (n >>> 11)) + s) | 0),
+        (r += ((s ^ (n | ~o)) + p[8] + 1873313359) | 0),
+        (r = (((r << 6) | (r >>> 26)) + n) | 0),
+        (o += ((n ^ (r | ~s)) + p[15] - 30611744) | 0),
+        (o = (((o << 10) | (o >>> 22)) + r) | 0),
+        (s += ((r ^ (o | ~n)) + p[6] - 1560198380) | 0),
+        (s = (((s << 15) | (s >>> 17)) + o) | 0),
+        (n += ((o ^ (s | ~r)) + p[13] + 1309151649) | 0),
+        (n = (((n << 21) | (n >>> 11)) + s) | 0),
+        (r += ((s ^ (n | ~o)) + p[4] - 145523070) | 0),
+        (r = (((r << 6) | (r >>> 26)) + n) | 0),
+        (o += ((n ^ (r | ~s)) + p[11] - 1120210379) | 0),
+        (o = (((o << 10) | (o >>> 22)) + r) | 0),
+        (s += ((r ^ (o | ~n)) + p[2] + 718787259) | 0),
+        (s = (((s << 15) | (s >>> 17)) + o) | 0),
+        (n += ((o ^ (s | ~r)) + p[9] - 343485551) | 0),
+        (n = (((n << 21) | (n >>> 11)) + s) | 0),
+        (l[0] = (r + l[0]) | 0),
+        (l[1] = (n + l[1]) | 0),
+        (l[2] = (s + l[2]) | 0),
+        (l[3] = (o + l[3]) | 0);
+    }
+    function c(l) {
+      var p = [],
+        r;
+      for (r = 0; r < 64; r += 4)
+        p[r >> 2] =
+          l.charCodeAt(r) +
+          (l.charCodeAt(r + 1) << 8) +
+          (l.charCodeAt(r + 2) << 16) +
+          (l.charCodeAt(r + 3) << 24);
+      return p;
+    }
+    function h(l) {
+      var p = [],
+        r;
+      for (r = 0; r < 64; r += 4)
+        p[r >> 2] = l[r] + (l[r + 1] << 8) + (l[r + 2] << 16) + (l[r + 3] << 24);
+      return p;
+    }
+    function g(l) {
+      var p = l.length,
+        r = [1732584193, -271733879, -1732584194, 271733878],
+        n,
+        s,
+        o,
+        E,
+        C,
+        b;
+      for (n = 64; n <= p; n += 64) u(r, c(l.substring(n - 64, n)));
+      for (
+        l = l.substring(n - 64),
+          s = l.length,
+          o = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          n = 0;
+        n < s;
+        n += 1
+      )
+        o[n >> 2] |= l.charCodeAt(n) << ((n % 4) << 3);
+      if (((o[n >> 2] |= 128 << ((n % 4) << 3)), n > 55))
+        for (u(r, o), n = 0; n < 16; n += 1) o[n] = 0;
+      return (
+        (E = p * 8),
+        (E = E.toString(16).match(/(.*?)(.{0,8})$/)),
+        (C = parseInt(E[2], 16)),
+        (b = parseInt(E[1], 16) || 0),
+        (o[14] = C),
+        (o[15] = b),
+        u(r, o),
+        r
+      );
+    }
+    function f(l) {
+      var p = l.length,
+        r = [1732584193, -271733879, -1732584194, 271733878],
+        n,
+        s,
+        o,
+        E,
+        C,
+        b;
+      for (n = 64; n <= p; n += 64) u(r, h(l.subarray(n - 64, n)));
+      for (
+        l = n - 64 < p ? l.subarray(n - 64) : new Uint8Array(0),
+          s = l.length,
+          o = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          n = 0;
+        n < s;
+        n += 1
+      )
+        o[n >> 2] |= l[n] << ((n % 4) << 3);
+      if (((o[n >> 2] |= 128 << ((n % 4) << 3)), n > 55))
+        for (u(r, o), n = 0; n < 16; n += 1) o[n] = 0;
+      return (
+        (E = p * 8),
+        (E = E.toString(16).match(/(.*?)(.{0,8})$/)),
+        (C = parseInt(E[2], 16)),
+        (b = parseInt(E[1], 16) || 0),
+        (o[14] = C),
+        (o[15] = b),
+        u(r, o),
+        r
+      );
+    }
+    function y(l) {
+      var p = '',
+        r;
+      for (r = 0; r < 4; r += 1) p += t[(l >> (r * 8 + 4)) & 15] + t[(l >> (r * 8)) & 15];
+      return p;
+    }
+    function m(l) {
+      var p;
+      for (p = 0; p < l.length; p += 1) l[p] = y(l[p]);
+      return l.join('');
+    }
+    m(g('hello')) !== '5d41402abc4b2a76b9719d911017c592' &&
+      (e = (l, p) => {
+        var r = (l & 65535) + (p & 65535),
+          n = (l >> 16) + (p >> 16) + (r >> 16);
+        return (n << 16) | (r & 65535);
+      }),
+      typeof ArrayBuffer < 'u' &&
+        !ArrayBuffer.prototype.slice &&
+        (() => {
+          function l(p, r) {
+            return (p = p | 0 || 0), p < 0 ? Math.max(p + r, 0) : Math.min(p, r);
+          }
+          ArrayBuffer.prototype.slice = function (p, r) {
+            var n = this.byteLength,
+              s = l(p, n),
+              o = n,
+              E,
+              C,
+              b,
+              ce;
+            return (
+              r !== i && (o = l(r, n)),
+              s > o
+                ? new ArrayBuffer(0)
+                : ((E = o - s),
+                  (C = new ArrayBuffer(E)),
+                  (b = new Uint8Array(C)),
+                  (ce = new Uint8Array(this, s, E)),
+                  b.set(ce),
+                  C)
+            );
+          };
+        })();
+    function w(l) {
+      return /[\u0080-\uFFFF]/.test(l) && (l = unescape(encodeURIComponent(l))), l;
+    }
+    function q(l, p) {
+      var r = l.length,
+        n = new ArrayBuffer(r),
+        s = new Uint8Array(n),
+        o;
+      for (o = 0; o < r; o += 1) s[o] = l.charCodeAt(o);
+      return p ? s : n;
+    }
+    function Be(l) {
+      return String.fromCharCode.apply(null, new Uint8Array(l));
+    }
+    function Ue(l, p, r) {
+      var n = new Uint8Array(l.byteLength + p.byteLength);
+      return n.set(new Uint8Array(l)), n.set(new Uint8Array(p), l.byteLength), r ? n : n.buffer;
+    }
+    function O(l) {
+      var p = [],
+        r = l.length,
+        n;
+      for (n = 0; n < r - 1; n += 2) p.push(parseInt(l.substr(n, 2), 16));
+      return String.fromCharCode.apply(String, p);
+    }
+    function D() {
+      this.reset();
+    }
+    return (
+      (D.prototype.append = function (l) {
+        return this.appendBinary(w(l)), this;
+      }),
+      (D.prototype.appendBinary = function (l) {
+        (this._buff += l), (this._length += l.length);
+        var p = this._buff.length,
+          r;
+        for (r = 64; r <= p; r += 64) u(this._hash, c(this._buff.substring(r - 64, r)));
+        return (this._buff = this._buff.substring(r - 64)), this;
+      }),
+      (D.prototype.end = function (l) {
+        var p = this._buff,
+          r = p.length,
+          n,
+          s = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          o;
+        for (n = 0; n < r; n += 1) s[n >> 2] |= p.charCodeAt(n) << ((n % 4) << 3);
+        return this._finish(s, r), (o = m(this._hash)), l && (o = O(o)), this.reset(), o;
+      }),
+      (D.prototype.reset = function () {
+        return (
+          (this._buff = ''),
+          (this._length = 0),
+          (this._hash = [1732584193, -271733879, -1732584194, 271733878]),
+          this
+        );
+      }),
+      (D.prototype.getState = function () {
+        return { buff: this._buff, length: this._length, hash: this._hash.slice() };
+      }),
+      (D.prototype.setState = function (l) {
+        return (this._buff = l.buff), (this._length = l.length), (this._hash = l.hash), this;
+      }),
+      (D.prototype.destroy = function () {
+        delete this._hash, delete this._buff, delete this._length;
+      }),
+      (D.prototype._finish = function (l, p) {
+        var r = p,
+          n,
+          s,
+          o;
+        if (((l[r >> 2] |= 128 << ((r % 4) << 3)), r > 55))
+          for (u(this._hash, l), r = 0; r < 16; r += 1) l[r] = 0;
+        (n = this._length * 8),
+          (n = n.toString(16).match(/(.*?)(.{0,8})$/)),
+          (s = parseInt(n[2], 16)),
+          (o = parseInt(n[1], 16) || 0),
+          (l[14] = s),
+          (l[15] = o),
+          u(this._hash, l);
+      }),
+      (D.hash = (l, p) => D.hashBinary(w(l), p)),
+      (D.hashBinary = (l, p) => {
+        var r = g(l),
+          n = m(r);
+        return p ? O(n) : n;
+      }),
+      (D.ArrayBuffer = function () {
+        this.reset();
+      }),
+      (D.ArrayBuffer.prototype.append = function (l) {
+        var p = Ue(this._buff.buffer, l, !0),
+          r = p.length,
+          n;
+        for (this._length += l.byteLength, n = 64; n <= r; n += 64)
+          u(this._hash, h(p.subarray(n - 64, n)));
+        return (
+          (this._buff = n - 64 < r ? new Uint8Array(p.buffer.slice(n - 64)) : new Uint8Array(0)),
+          this
+        );
+      }),
+      (D.ArrayBuffer.prototype.end = function (l) {
+        var p = this._buff,
+          r = p.length,
+          n = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          s,
+          o;
+        for (s = 0; s < r; s += 1) n[s >> 2] |= p[s] << ((s % 4) << 3);
+        return this._finish(n, r), (o = m(this._hash)), l && (o = O(o)), this.reset(), o;
+      }),
+      (D.ArrayBuffer.prototype.reset = function () {
+        return (
+          (this._buff = new Uint8Array(0)),
+          (this._length = 0),
+          (this._hash = [1732584193, -271733879, -1732584194, 271733878]),
+          this
+        );
+      }),
+      (D.ArrayBuffer.prototype.getState = function () {
+        var l = D.prototype.getState.call(this);
+        return (l.buff = Be(l.buff)), l;
+      }),
+      (D.ArrayBuffer.prototype.setState = function (l) {
+        return (l.buff = q(l.buff, !0)), D.prototype.setState.call(this, l);
+      }),
+      (D.ArrayBuffer.prototype.destroy = D.prototype.destroy),
+      (D.ArrayBuffer.prototype._finish = D.prototype._finish),
+      (D.ArrayBuffer.hash = (l, p) => {
+        var r = f(new Uint8Array(l)),
+          n = m(r);
+        return p ? O(n) : n;
+      }),
+      D
+    );
+  });
+});
+var te = fe((_$t, ve) => {
+  ve.exports = {};
+});
+async function Je(i) {
+  const e = (await Promise.resolve().then(() => G(Se(), 1))).default;
+  return new Promise((t, a) => {
+    let c = Math.ceil(i.size / 2097152),
+      h = 0,
+      g = new e.ArrayBuffer(),
+      f = new FileReader(),
+      y = () => {
+        const m = h * 2097152,
+          w = Math.min(m + 2097152, i.size);
+        f.readAsArrayBuffer(i.slice(m, w));
+      };
+    (f.onload = (m) => {
+      const w = m.target?.result;
+      if (!w) {
+        a(d.business('Failed to read file chunk'));
+        return;
+      }
+      g.append(w), h++, h < c ? y() : t({ md5: g.end() });
+    }),
+      (f.onerror = () => {
+        a(d.business('Failed to calculate MD5: FileReader error'));
+      }),
+      y();
+  });
+}
+async function Xe(i) {
+  const e = await Promise.resolve().then(() => G(te(), 1));
+  if (Buffer.isBuffer(i)) {
+    const a = e.createHash('md5');
+    return a.update(i), { md5: a.digest('hex') };
+  }
+  const t = await Promise.resolve().then(() => G(te(), 1));
+  return new Promise((a, u) => {
+    const c = e.createHash('md5'),
+      h = t.createReadStream(i);
+    h.on('error', (g) => u(d.business(`Failed to read file for MD5: ${g.message}`))),
+      h.on('data', (g) => c.update(g)),
+      h.on('end', () => a({ md5: c.digest('hex') }));
+  });
+}
+async function z(i) {
+  const e = M();
+  if (e === 'browser') {
+    if (!(i instanceof Blob))
+      throw d.business('Invalid input for browser MD5 calculation: Expected Blob or File.');
+    return Je(i);
+  }
+  if (e === 'node') {
+    if (!(Buffer.isBuffer(i) || typeof i === 'string'))
+      throw d.business(
+        'Invalid input for Node.js MD5 calculation: Expected Buffer or file path string.',
+      );
+    return Xe(i);
+  }
+  throw d.business('Unknown or unsupported execution environment for MD5 calculation.');
+}
+var K = R(() => {
+  k();
+  x();
+});
+function Te(i) {
+  return et.test(i);
+}
+var Ze,
+  et,
+  Ie = R(() => {
+    (Ze = [
+      '^npm-debug\\.log$',
+      '^\\..*\\.swp$',
+      '^\\.DS_Store$',
+      '^\\.AppleDouble$',
+      '^\\.LSOverride$',
+      '^Icon\\r$',
+      '^\\._.*',
+      '^\\.Spotlight-V100(?:$|\\/)',
+      '\\.Trashes',
+      '^__MACOSX$',
+      '~$',
+      '^Thumbs\\.db$',
+      '^ehthumbs\\.db$',
+      '^[Dd]esktop\\.ini$',
+      '@eaDir$',
+    ]),
+      (et = new RegExp(Ze.join('|')));
+  });
+function Fe(i) {
+  return !i || i.length === 0
+    ? []
+    : i.filter((e) => {
+        if (!e) return !1;
+        const t = e.replace(/\\/g, '/').split('/').filter(Boolean);
+        if (t.length === 0) return !0;
+        const a = t[t.length - 1];
+        if (Te(a)) return !1;
+        for (const c of t)
+          if (c !== '.well-known' && (c.startsWith('.') || c.length > 255)) return !1;
+        const u = t.slice(0, -1);
+        for (const c of u) if (tt.some((h) => c.toLowerCase() === h.toLowerCase())) return !1;
+        return !0;
+      });
+}
+var tt,
+  ne = R(() => {
+    Ie();
+    tt = ['__MACOSX', '.Trashes', '.fseventsd', '.Spotlight-V100'];
+  });
+function H(i) {
+  return i.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/+/, '');
+}
+var Pe = R(() => {});
+function Oe(i, e = {}) {
+  if (e.flatten === !1) return i.map((a) => ({ path: H(a), name: re(a) }));
+  const t = nt(i);
+  return i.map((a) => {
+    let u = H(a);
+    if (t) {
+      const c = t.endsWith('/') ? t : `${t}/`;
+      u.startsWith(c) && (u = u.substring(c.length));
+    }
+    return u || (u = re(a)), { path: u, name: re(a) };
+  });
+}
+function nt(i) {
+  if (!i.length) return '';
+  const t = i.map((c) => H(c)).map((c) => c.split('/')),
+    a = [],
+    u = Math.min(...t.map((c) => c.length));
+  for (let c = 0; c < u - 1; c++) {
+    const h = t[0][c];
+    if (t.every((g) => g[c] === h)) a.push(h);
+    else break;
+  }
+  return a.join('/');
+}
+function re(i) {
+  return i.split(/[/\\]/).pop() || i;
+}
+var ie = R(() => {
+  Pe();
+});
+function oe(i, e = 1) {
+  if (i === 0) return '0 Bytes';
+  const t = 1024,
+    a = ['Bytes', 'KB', 'MB', 'GB'],
+    u = Math.floor(Math.log(i) / Math.log(t));
+  return `${parseFloat((i / t ** u).toFixed(e))} ${a[u]}`;
+}
+function se(i) {
+  if (/[?&#%<>[\]{}|\\^~`;$()'"*\r\n\t]/.test(i))
+    return { valid: !1, reason: 'File name contains unsafe characters' };
+  if (i.startsWith(' ') || i.endsWith(' '))
+    return { valid: !1, reason: 'File name cannot start/end with spaces' };
+  if (i.endsWith('.')) return { valid: !1, reason: 'File name cannot end with dots' };
+  const t = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i,
+    a = i.split('/').pop() || i;
+  return t.test(a)
+    ? { valid: !1, reason: 'File name uses a reserved system name' }
+    : i.includes('..')
+      ? { valid: !1, reason: 'File name contains path traversal pattern' }
+      : { valid: !0 };
+}
+function pn(i, e) {
+  let t = [],
+    a = [],
+    u = [];
+  if (i.length === 0) {
+    const f = { file: '(no files)', message: 'At least one file must be provided' };
+    return t.push(f), { files: [], validFiles: [], errors: t, warnings: [], canDeploy: !1 };
+  }
+  if (i.length > e.maxFilesCount) {
+    const f = {
+      file: `(${i.length} files)`,
+      message: `File count (${i.length}) exceeds limit of ${e.maxFilesCount}`,
+    };
+    return (
+      t.push(f),
+      {
+        files: i.map((y) => ({ ...y, status: v.VALIDATION_FAILED, statusMessage: f.message })),
+        validFiles: [],
+        errors: t,
+        warnings: [],
+        canDeploy: !1,
+      }
+    );
+  }
+  let c = 0;
+  for (const f of i) {
+    let y = v.READY,
+      m = 'Ready for upload',
+      w = f.name ? se(f.name) : { valid: !1, reason: 'File name cannot be empty' };
+    if (f.status === v.PROCESSING_ERROR)
+      (y = v.VALIDATION_FAILED),
+        (m = f.statusMessage || 'File failed during processing'),
+        t.push({ file: f.name, message: m });
+    else if (f.size === 0) {
+      (y = v.EXCLUDED),
+        (m = 'File is empty (0 bytes) and cannot be deployed due to storage limitations'),
+        a.push({ file: f.name, message: m }),
+        u.push({ ...f, status: y, statusMessage: m });
+      continue;
+    } else
+      f.size < 0
+        ? ((y = v.VALIDATION_FAILED),
+          (m = 'File size must be positive'),
+          t.push({ file: f.name, message: m }))
+        : !f.name || f.name.trim().length === 0
+          ? ((y = v.VALIDATION_FAILED),
+            (m = 'File name cannot be empty'),
+            t.push({ file: f.name || '(empty)', message: m }))
+          : f.name.includes('\0')
+            ? ((y = v.VALIDATION_FAILED),
+              (m = 'File name contains invalid characters (null byte)'),
+              t.push({ file: f.name, message: m }))
+            : w.valid
+              ? N(f.name)
+                ? ((y = v.VALIDATION_FAILED),
+                  (m = `File extension not allowed: "${f.name}"`),
+                  t.push({ file: f.name, message: m }))
+                : f.size > e.maxFileSize
+                  ? ((y = v.VALIDATION_FAILED),
+                    (m = `File size (${oe(f.size)}) exceeds limit of ${oe(e.maxFileSize)}`),
+                    t.push({ file: f.name, message: m }))
+                  : ((c += f.size),
+                    c > e.maxTotalSize &&
+                      ((y = v.VALIDATION_FAILED),
+                      (m = `Total size would exceed limit of ${oe(e.maxTotalSize)}`),
+                      t.push({ file: f.name, message: m })))
+              : ((y = v.VALIDATION_FAILED),
+                (m = w.reason || 'Invalid file name'),
+                t.push({ file: f.name, message: m }));
+    u.push({ ...f, status: y, statusMessage: m });
+  }
+  t.length > 0 &&
+    (u = u.map((f) =>
+      f.status === v.EXCLUDED
+        ? f
+        : {
+            ...f,
+            status: v.VALIDATION_FAILED,
+            statusMessage:
+              f.status === v.VALIDATION_FAILED
+                ? f.statusMessage
+                : 'Deployment failed due to validation errors in bundle',
+          },
+    ));
+  const h = t.length === 0 ? u.filter((f) => f.status === v.READY) : [],
+    g = t.length === 0;
+  return { files: u, validFiles: h, errors: t, warnings: a, canDeploy: g };
+}
+function rt(i) {
+  return i.filter((e) => e.status === v.READY);
+}
+function ln(i) {
+  return rt(i).length > 0;
+}
+var ae = R(() => {
+  x();
+});
+function _e(i, e) {
+  if (i.includes('\0') || i.includes('/../') || i.startsWith('../') || i.endsWith('/..'))
+    throw d.business(`Security error: Unsafe file path "${i}" for file: ${e}`);
+}
+function $e(i, e) {
+  const t = se(i);
+  if (!t.valid) throw d.business(t.reason || 'Invalid file name');
+  if (N(i)) throw d.business(`File extension not allowed: "${e}"`);
+}
+var pe = R(() => {
+  x();
+  ae();
+});
+var Le = {};
+qe(Le, { processFilesForBrowser: () => Ne });
+async function Ne(i, e = {}) {
+  if (M() !== 'browser')
+    throw d.business('processFilesForBrowser can only be called in a browser environment.');
+  const t = i.map((y) => y.webkitRelativePath || y.name),
+    a = new Set(Fe(t)),
+    u = [];
+  for (let y = 0; y < i.length; y++) a.has(t[y]) && u.push({ file: i[y], rawPath: t[y] });
+  if (u.length === 0) return [];
+  let c = Oe(
+      u.map((y) => y.rawPath),
+      { flatten: e.pathDetect !== !1 },
+    ),
+    h = F(),
+    g = [],
+    f = 0;
+  for (let y = 0; y < u.length; y++) {
+    const { file: m } = u[y],
+      w = c[y].path;
+    if ((_e(w, m.name), m.size === 0)) continue;
+    if (($e(w, m.name), m.size > h.maxFileSize))
+      throw d.business(
+        `File ${m.name} is too large. Maximum allowed size is ${h.maxFileSize / (1024 * 1024)}MB.`,
+      );
+    if (((f += m.size), f > h.maxTotalSize))
+      throw d.business(
+        `Total deploy size is too large. Maximum allowed is ${h.maxTotalSize / (1024 * 1024)}MB.`,
+      );
+    const { md5: q } = await z(m);
+    g.push({ path: w, content: m, size: m.size, md5: q });
+  }
+  if (g.length > h.maxFilesCount)
+    throw d.business(`Too many files to deploy. Maximum allowed is ${h.maxFilesCount} files.`);
+  return g;
+}
+var le = R(() => {
+  K();
+  x();
+  k();
+  ne();
+  ie();
+  pe();
+  P();
+});
+x();
+var B = class {
+  constructor() {
+    this.handlers = new Map();
+  }
+  on(e, t) {
+    this.handlers.has(e) || this.handlers.set(e, new Set()), this.handlers.get(e).add(t);
+  }
+  off(e, t) {
+    const a = this.handlers.get(e);
+    a && (a.delete(t), a.size === 0 && this.handlers.delete(e));
+  }
+  emit(e, ...t) {
+    const a = this.handlers.get(e);
+    if (!a) return;
+    const u = Array.from(a);
+    for (const c of u)
+      try {
+        c(...t);
+      } catch (h) {
+        a.delete(c),
+          e !== 'error' &&
+            setTimeout(() => {
+              h instanceof Error
+                ? this.emit('error', h, String(e))
+                : this.emit('error', new Error(String(h)), String(e));
+            }, 0);
+      }
+  }
+  transfer(e) {
+    this.handlers.forEach((t, a) => {
+      t.forEach((u) => {
+        e.on(a, u);
+      });
+    });
+  }
+  clear() {
+    this.handlers.clear();
+  }
+};
+var S = {
+    DEPLOYMENTS: '/deployments',
+    DOMAINS: '/domains',
+    TOKENS: '/tokens',
+    ACCOUNT: '/account',
+    CONFIG: '/config',
+    PING: '/ping',
+    SPA_CHECK: '/spa-check',
+  },
+  Ye = 3e4,
+  U = class extends B {
+    constructor(e) {
+      super(),
+        (this.apiUrl = e.apiUrl || L),
+        (this.getAuthHeadersCallback = e.getAuthHeaders),
+        (this.timeout = e.timeout ?? Ye),
+        (this.createDeployBody = e.createDeployBody);
+    }
+    transferEventsTo(e) {
+      this.transfer(e);
+    }
+    async executeRequest(e, t, a) {
+      const u = this.mergeHeaders(t.headers),
+        { signal: c, cleanup: h } = this.createTimeoutSignal(t.signal),
+        g = { ...t, headers: u, credentials: u.Authorization ? void 0 : 'include', signal: c };
+      this.emit('request', e, g);
+      try {
+        const f = await fetch(e, g);
+        return (
+          h(),
+          f.ok || (await this.handleResponseError(f, a)),
+          this.emit('response', this.safeClone(f), e),
+          { data: await this.parseResponse(this.safeClone(f)), status: f.status }
+        );
+      } catch (f) {
+        h();
+        const y = f instanceof Error ? f : new Error(String(f));
+        this.emit('error', y, e), this.handleFetchError(f, a);
+      }
+    }
+    async request(e, t, a) {
+      const { data: u } = await this.executeRequest(e, t, a);
+      return u;
+    }
+    async requestWithStatus(e, t, a) {
+      return this.executeRequest(e, t, a);
+    }
+    mergeHeaders(e = {}) {
+      return { ...e, ...this.getAuthHeadersCallback() };
+    }
+    createTimeoutSignal(e) {
+      const t = new AbortController(),
+        a = setTimeout(() => t.abort(), this.timeout);
+      if (e) {
+        const u = () => t.abort();
+        e.addEventListener('abort', u), e.aborted && t.abort();
+      }
+      return { signal: t.signal, cleanup: () => clearTimeout(a) };
+    }
+    safeClone(e) {
+      try {
+        return e.clone();
+      } catch {
+        return e;
+      }
+    }
+    async parseResponse(e) {
+      if (!(e.headers.get('Content-Length') === '0' || e.status === 204)) return e.json();
+    }
+    async handleResponseError(e, t) {
+      let a = {};
+      try {
+        if (e.headers.get('content-type')?.includes('application/json')) {
+          const h = await e.json();
+          if (h && typeof h === 'object') {
+            const g = h;
+            typeof g.message === 'string' && (a.message = g.message),
+              typeof g.error === 'string' && (a.error = g.error);
+          }
+        } else a = { message: await e.text() };
+      } catch {
+        a = { message: 'Failed to parse error response' };
+      }
+      const u = a.message || a.error || `${t} failed`;
+      throw e.status === 401 ? d.authentication(u) : d.api(u, e.status);
+    }
+    handleFetchError(e, t) {
+      throw J(e)
+        ? e
+        : e instanceof Error && e.name === 'AbortError'
+          ? d.cancelled(`${t} was cancelled`)
+          : e instanceof TypeError && e.message.includes('fetch')
+            ? d.network(`${t} failed: ${e.message}`, e)
+            : e instanceof Error
+              ? d.business(`${t} failed: ${e.message}`)
+              : d.business(`${t} failed: Unknown error`);
+    }
+    async deploy(e, t = {}) {
+      if (!e.length) throw d.business('No files to deploy');
+      for (const h of e)
+        if (!h.md5) throw d.file(`MD5 checksum missing for file: ${h.path}`, h.path);
+      const { body: a, headers: u } = await this.createDeployBody(e, t.labels, t.via),
+        c = {};
+      return (
+        t.deployToken
+          ? (c.Authorization = `Bearer ${t.deployToken}`)
+          : t.apiKey && (c.Authorization = `Bearer ${t.apiKey}`),
+        t.caller && (c['X-Caller'] = t.caller),
+        this.request(
+          `${t.apiUrl || this.apiUrl}${S.DEPLOYMENTS}`,
+          { method: 'POST', body: a, headers: { ...u, ...c }, signal: t.signal || null },
+          'Deploy',
+        )
+      );
+    }
+    async listDeployments() {
+      return this.request(`${this.apiUrl}${S.DEPLOYMENTS}`, { method: 'GET' }, 'List deployments');
+    }
+    async getDeployment(e) {
+      return this.request(
+        `${this.apiUrl}${S.DEPLOYMENTS}/${encodeURIComponent(e)}`,
+        { method: 'GET' },
+        'Get deployment',
+      );
+    }
+    async updateDeploymentLabels(e, t) {
+      return this.request(
+        `${this.apiUrl}${S.DEPLOYMENTS}/${encodeURIComponent(e)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ labels: t }),
+        },
+        'Update deployment labels',
+      );
+    }
+    async removeDeployment(e) {
+      await this.request(
+        `${this.apiUrl}${S.DEPLOYMENTS}/${encodeURIComponent(e)}`,
+        { method: 'DELETE' },
+        'Remove deployment',
+      );
+    }
+    async setDomain(e, t, a) {
+      const u = {};
+      t && (u.deployment = t), a !== void 0 && (u.labels = a);
+      const { data: c, status: h } = await this.requestWithStatus(
+        `${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}`,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(u) },
+        'Set domain',
+      );
+      return { ...c, isCreate: h === 201 };
+    }
+    async listDomains() {
+      return this.request(`${this.apiUrl}${S.DOMAINS}`, { method: 'GET' }, 'List domains');
+    }
+    async getDomain(e) {
+      return this.request(
+        `${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}`,
+        { method: 'GET' },
+        'Get domain',
+      );
+    }
+    async removeDomain(e) {
+      await this.request(
+        `${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}`,
+        { method: 'DELETE' },
+        'Remove domain',
+      );
+    }
+    async verifyDomain(e) {
+      return this.request(
+        `${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}/verify`,
+        { method: 'POST' },
+        'Verify domain',
+      );
+    }
+    async getDomainDns(e) {
+      return this.request(
+        `${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}/dns`,
+        { method: 'GET' },
+        'Get domain DNS',
+      );
+    }
+    async getDomainRecords(e) {
+      return this.request(
+        `${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}/records`,
+        { method: 'GET' },
+        'Get domain records',
+      );
+    }
+    async getDomainShare(e) {
+      return this.request(
+        `${this.apiUrl}${S.DOMAINS}/${encodeURIComponent(e)}/share`,
+        { method: 'GET' },
+        'Get domain share',
+      );
+    }
+    async validateDomain(e) {
+      return this.request(
+        `${this.apiUrl}${S.DOMAINS}/validate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain: e }),
+        },
+        'Validate domain',
+      );
+    }
+    async createToken(e, t) {
+      const a = {};
+      return (
+        e !== void 0 && (a.ttl = e),
+        t !== void 0 && (a.labels = t),
+        this.request(
+          `${this.apiUrl}${S.TOKENS}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(a),
+          },
+          'Create token',
+        )
+      );
+    }
+    async listTokens() {
+      return this.request(`${this.apiUrl}${S.TOKENS}`, { method: 'GET' }, 'List tokens');
+    }
+    async removeToken(e) {
+      await this.request(
+        `${this.apiUrl}${S.TOKENS}/${encodeURIComponent(e)}`,
+        { method: 'DELETE' },
+        'Remove token',
+      );
+    }
+    async getAccount() {
+      return this.request(`${this.apiUrl}${S.ACCOUNT}`, { method: 'GET' }, 'Get account');
+    }
+    async getConfig() {
+      return this.request(`${this.apiUrl}${S.CONFIG}`, { method: 'GET' }, 'Get config');
+    }
+    async ping() {
+      return (
+        (await this.request(`${this.apiUrl}${S.PING}`, { method: 'GET' }, 'Ping'))?.success || !1
+      );
+    }
+    async checkSPA(e) {
+      const t = e.find((h) => h.path === 'index.html' || h.path === '/index.html');
+      if (!t || t.size > 100 * 1024) return !1;
+      let a;
+      if (typeof Buffer < 'u' && Buffer.isBuffer(t.content)) a = t.content.toString('utf-8');
+      else if (typeof Blob < 'u' && t.content instanceof Blob) a = await t.content.text();
+      else if (typeof File < 'u' && t.content instanceof File) a = await t.content.text();
+      else return !1;
+      const u = { files: e.map((h) => h.path), index: a };
+      return (
+        await this.request(
+          `${this.apiUrl}${S.SPA_CHECK}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(u),
+          },
+          'SPA check',
+        )
+      ).isSPA;
+    }
+  };
+x();
+P();
+x();
+x();
+function ye(i = {}, e = {}) {
+  const t = {
+      apiUrl: i.apiUrl || e.apiUrl || L,
+      apiKey: i.apiKey !== void 0 ? i.apiKey : e.apiKey,
+      deployToken: i.deployToken !== void 0 ? i.deployToken : e.deployToken,
+    },
+    a = { apiUrl: t.apiUrl };
+  return (
+    t.apiKey !== void 0 && (a.apiKey = t.apiKey),
+    t.deployToken !== void 0 && (a.deployToken = t.deployToken),
+    a
+  );
+}
+function ge(i, e) {
+  const t = { ...i };
+  return (
+    t.apiUrl === void 0 && e.apiUrl !== void 0 && (t.apiUrl = e.apiUrl),
+    t.apiKey === void 0 && e.apiKey !== void 0 && (t.apiKey = e.apiKey),
+    t.deployToken === void 0 && e.deployToken !== void 0 && (t.deployToken = e.deployToken),
+    t.timeout === void 0 && e.timeout !== void 0 && (t.timeout = e.timeout),
+    t.maxConcurrency === void 0 &&
+      e.maxConcurrency !== void 0 &&
+      (t.maxConcurrency = e.maxConcurrency),
+    t.onProgress === void 0 && e.onProgress !== void 0 && (t.onProgress = e.onProgress),
+    t.caller === void 0 && e.caller !== void 0 && (t.caller = e.caller),
+    t
+  );
+}
+x();
+K();
+async function Qe() {
+  let e = JSON.stringify({ rewrites: [{ source: '/(.*)', destination: '/index.html' }] }, null, 2),
+    t;
+  typeof Buffer < 'u'
+    ? (t = Buffer.from(e, 'utf-8'))
+    : (t = new Blob([e], { type: 'application/json' }));
+  const { md5: a } = await z(t);
+  return { path: X, content: t, size: e.length, md5: a };
+}
+async function Ee(i, e, t) {
+  if (t.spaDetect === !1 || i.some((a) => a.path === X)) return i;
+  try {
+    if (await e.checkSPA(i)) {
+      const u = await Qe();
+      return [...i, u];
+    }
+  } catch {}
+  return i;
+}
+function we(i) {
+  const { getApi: e, ensureInit: t, processInput: a, clientDefaults: u, hasAuth: c } = i;
+  return {
+    upload: async (h, g = {}) => {
+      await t();
+      const f = u ? ge(g, u) : g;
+      if (c && !c() && !f.deployToken && !f.apiKey)
+        throw d.authentication(
+          'Authentication credentials are required for deployment. Please call setDeployToken() or setApiKey() first, or pass credentials in the deployment options.',
+        );
+      if (!a) throw d.config('processInput function is not provided.');
+      let y = e(),
+        m = await a(h, f);
+      return (m = await Ee(m, y, f)), y.deploy(m, f);
+    },
+    list: async () => (await t(), e().listDeployments()),
+    get: async (h) => (await t(), e().getDeployment(h)),
+    set: async (h, g) => (await t(), e().updateDeploymentLabels(h, g.labels)),
+    remove: async (h) => {
+      await t(), await e().removeDeployment(h);
+    },
+  };
+}
+function xe(i) {
+  const { getApi: e, ensureInit: t } = i;
+  return {
+    set: async (a, u = {}) => (await t(), e().setDomain(a, u.deployment, u.labels)),
+    list: async () => (await t(), e().listDomains()),
+    get: async (a) => (await t(), e().getDomain(a)),
+    remove: async (a) => {
+      await t(), await e().removeDomain(a);
+    },
+    verify: async (a) => (await t(), e().verifyDomain(a)),
+    validate: async (a) => (await t(), e().validateDomain(a)),
+    dns: async (a) => (await t(), e().getDomainDns(a)),
+    records: async (a) => (await t(), e().getDomainRecords(a)),
+    share: async (a) => (await t(), e().getDomainShare(a)),
+  };
+}
+function Re(i) {
+  const { getApi: e, ensureInit: t } = i;
+  return { get: async () => (await t(), e().getAccount()) };
+}
+function Ce(i) {
+  const { getApi: e, ensureInit: t } = i;
+  return {
+    create: async (a = {}) => (await t(), e().createToken(a.ttl, a.labels)),
+    list: async () => (await t(), e().listTokens()),
+    remove: async (a) => {
+      await t(), await e().removeToken(a);
+    },
+  };
+}
+var V = class {
+  constructor(e = {}) {
+    this.initPromise = null;
+    this._config = null;
+    this.auth = null;
+    (this.clientOptions = e),
+      e.deployToken
+        ? (this.auth = { type: 'token', value: e.deployToken })
+        : e.apiKey && (this.auth = { type: 'apiKey', value: e.apiKey }),
+      (this.authHeadersCallback = () => this.getAuthHeaders());
+    const t = this.resolveInitialConfig(e);
+    this.http = new U({
+      ...e,
+      ...t,
+      getAuthHeaders: this.authHeadersCallback,
+      createDeployBody: this.getDeployBodyCreator(),
+    });
+    const a = { getApi: () => this.http, ensureInit: () => this.ensureInitialized() };
+    (this._deployments = we({
+      ...a,
+      processInput: (u, c) => this.processInput(u, c),
+      clientDefaults: this.clientOptions,
+      hasAuth: () => this.hasAuth(),
+    })),
+      (this._domains = xe(a)),
+      (this._account = Re(a)),
+      (this._tokens = Ce(a));
+  }
+  async ensureInitialized() {
+    return this.initPromise || (this.initPromise = this.loadFullConfig()), this.initPromise;
+  }
+  async ping() {
+    return await this.ensureInitialized(), this.http.ping();
+  }
+  async deploy(e, t) {
+    return this.deployments.upload(e, t);
+  }
+  async whoami() {
+    return this.account.get();
+  }
+  get deployments() {
+    return this._deployments;
+  }
+  get domains() {
+    return this._domains;
+  }
+  get account() {
+    return this._account;
+  }
+  get tokens() {
+    return this._tokens;
+  }
+  async getConfig() {
+    return this._config
+      ? this._config
+      : (await this.ensureInitialized(), (this._config = F()), this._config);
+  }
+  on(e, t) {
+    this.http.on(e, t);
+  }
+  off(e, t) {
+    this.http.off(e, t);
+  }
+  replaceHttpClient(e) {
+    if (this.http?.transferEventsTo)
+      try {
+        this.http.transferEventsTo(e);
+      } catch (t) {
+        console.warn('Event transfer failed during client replacement:', t);
+      }
+    this.http = e;
+  }
+  setDeployToken(e) {
+    if (!e || typeof e !== 'string')
+      throw d.business('Invalid deploy token provided. Deploy token must be a non-empty string.');
+    this.auth = { type: 'token', value: e };
+  }
+  setApiKey(e) {
+    if (!e || typeof e !== 'string')
+      throw d.business('Invalid API key provided. API key must be a non-empty string.');
+    this.auth = { type: 'apiKey', value: e };
+  }
+  getAuthHeaders() {
+    return this.auth ? { Authorization: `Bearer ${this.auth.value}` } : {};
+  }
+  hasAuth() {
+    return this.clientOptions.useCredentials ? !0 : this.auth !== null;
+  }
+};
+P();
+x();
+x();
+async function be(i, e, t) {
+  const a = new FormData(),
+    u = [];
+  for (const c of i) {
+    if (!(c.content instanceof File || c.content instanceof Blob))
+      throw d.file(`Unsupported file.content type for browser: ${c.path}`, c.path);
+    if (!c.md5) throw d.file(`File missing md5 checksum: ${c.path}`, c.path);
+    const h = new File([c.content], c.path, { type: 'application/octet-stream' });
+    a.append('files[]', h), u.push(c.md5);
+  }
+  return (
+    a.append('checksums', JSON.stringify(u)),
+    e && e.length > 0 && a.append('labels', JSON.stringify(e)),
+    t && a.append('via', t),
+    { body: a, headers: {} }
+  );
+}
+K();
+function Qt(i, e, t, a = !0) {
+  const u = i === 1 ? e : t;
+  return a ? `${i} ${u}` : u;
+}
+ne();
+ie();
+k();
+ae();
+pe();
+x();
+P();
+le();
+var ue = class extends V {
+    constructor(e = {}) {
+      super(e);
+    }
+    resolveInitialConfig(e) {
+      return ye(e, {});
+    }
+    async loadFullConfig() {
+      try {
+        const e = await this.http.getConfig();
+        Z(e);
+      } catch (e) {
+        throw ((this.initPromise = null), e);
+      }
+    }
+    async processInput(e, t) {
+      if (!this.isFileArray(e))
+        throw d.business('Invalid input type for browser environment. Expected File[].');
+      if (e.length === 0) throw d.business('No files to deploy.');
+      const { processFilesForBrowser: a } = await Promise.resolve().then(() => (le(), Le));
+      return a(e, t);
+    }
+    isFileArray(e) {
+      return Array.isArray(e) && e.every((t) => t instanceof File);
+    }
+    getDeployBodyCreator() {
+      return be;
+    }
+  },
+  kn = ue;
+
+export {
+  _e as validateDeployPath,
+  $e as validateDeployFile,
+  A as ErrorType,
+  At as LABEL_PATTERN,
+  at as AccountPlan,
+  Ce as createTokenResource,
+  ct as validateDeployToken,
+  Dt as LABEL_CONSTRAINTS,
+  d as ShipError,
+  de as DEPLOY_TOKEN_TOTAL_LENGTH,
+  dt as isCustomDomain,
+  F as getCurrentConfig,
+  Fe as filterJunk,
+  ft as validateApiUrl,
+  ge as mergeDeployOptions,
+  gt as generateDomainUrl,
+  he as API_KEY_TOTAL_LENGTH,
+  ht as isDeployment,
+  I as DEPLOY_TOKEN_PREFIX,
+  J as isShipError,
+  je as BLOCKED_EXTENSIONS,
+  kn as default,
+  L as DEFAULT_API,
+  ln as allValidFilesReady,
+  lt as AuthMethod,
+  M as getENV,
+  me as isPlatformDomain,
+  mt as extractSubdomain,
+  N as isBlockedExtension,
+  Ne as processFilesForBrowser,
+  Oe as optimizeDeployPaths,
+  Ot as __setTestEnvironment,
+  oe as formatFileSize,
+  ot as DeploymentStatus,
+  pn as validateFiles,
+  pt as API_KEY_HINT_LENGTH,
+  Qt as pluralize,
+  Re as createAccountResource,
+  rt as getValidFiles,
+  St as serializeLabels,
+  se as validateFileName,
+  st as DomainStatus,
+  T as API_KEY_PREFIX,
+  tt as JUNK_DIRECTORIES,
+  U as ApiHttp,
+  ue as Ship,
+  ut as validateApiKey,
+  v as FILE_VALIDATION_STATUS,
+  v as FileValidationStatus,
+  vt as deserializeLabels,
+  W as DEPLOY_TOKEN_HEX_LENGTH,
+  we as createDeploymentResource,
+  X as DEPLOYMENT_CONFIG_FILENAME,
+  xe as createDomainResource,
+  Y as API_KEY_HEX_LENGTH,
+  ye as resolveConfig,
+  yt as generateDeploymentUrl,
+  Z as setPlatformConfig,
+  z as calculateMD5,
+};
 //# sourceMappingURL=browser.js.map

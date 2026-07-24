@@ -1,6 +1,6 @@
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 /**
  * Creates a unique temporary directory for a test suite or a single test.
@@ -24,7 +24,7 @@ export async function createTempDir(prefix: string = 'ship-test-'): Promise<stri
 export async function writeConfigFile(
   dirPath: string,
   fileName: string,
-  content: string | object
+  content: string | object,
 ): Promise<string> {
   const filePath = path.join(dirPath, fileName);
   let fileContentString: string;
@@ -37,7 +37,9 @@ export async function writeConfigFile(
       // A common pattern for .js is `module.exports = ${JSON.stringify(content)};`
       // Or for ESM: `export default ${JSON.stringify(content)};`
       // For this util, we'll require content to be a string for .js files.
-      throw new Error('For .js/.cjs config files, content must be provided as a string of JavaScript code.');
+      throw new Error(
+        'For .js/.cjs config files, content must be provided as a string of JavaScript code.',
+      );
     }
     fileContentString = JSON.stringify(content, null, 2);
   } else {
@@ -47,7 +49,6 @@ export async function writeConfigFile(
   await fs.writeFile(filePath, fileContentString);
   return filePath;
 }
-
 
 /**
  * Cleans up (deletes) the specified temporary directory.
@@ -80,7 +81,7 @@ export async function cleanupTempDir(dirPath: string): Promise<void> {
  */
 export async function setupTestEnvironment(
   fileFixtures: Array<{ fileName: string; content: string | object }>,
-  prefix?: string
+  prefix?: string,
 ): Promise<{ testDirPath: string; originalCwd: string; cleanup: () => Promise<void> }> {
   const testDirPath = await createTempDir(prefix);
   const originalCwd = process.cwd();

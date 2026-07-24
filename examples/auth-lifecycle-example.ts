@@ -13,7 +13,7 @@ async function example1_setAuthAfterInit() {
 
   // Create Ship instance without auth
   const ship = new Ship({
-    apiUrl: 'https://api.shipstatic.com'
+    apiUrl: 'https://api.shipstatic.com',
   });
 
   // Later, when you have a deploy token (e.g., from user input or OAuth)
@@ -33,7 +33,7 @@ async function example2_switchingCredentials() {
   console.log('\n=== Example 2: Switching Between Credentials ===\n');
 
   const ship = new Ship({
-    apiUrl: 'https://api.shipstatic.com'
+    apiUrl: 'https://api.shipstatic.com',
   });
 
   // Deploy with user A's token
@@ -53,7 +53,7 @@ async function example3_oauthFlow() {
 
   // 1. Create Ship instance without credentials
   const ship = new Ship({
-    apiUrl: 'https://api.shipstatic.com'
+    apiUrl: 'https://api.shipstatic.com',
   });
 
   // 2. User goes through OAuth flow
@@ -77,7 +77,7 @@ async function example4_perDeploymentOverride() {
   // Instance has default credentials
   const ship = new Ship({
     apiUrl: 'https://api.shipstatic.com',
-    apiKey: 'ship-default-key'
+    apiKey: 'ship-default-key',
   });
 
   // Regular deployment uses default credentials
@@ -86,7 +86,7 @@ async function example4_perDeploymentOverride() {
 
   // Override with specific token for this deployment only
   const deployment2 = await ship.deploy('./special-project', {
-    deployToken: 'token-special-deployment'
+    deployToken: 'token-special-deployment',
   });
   console.log(`Deployed with specific token: ${deployment2.url}`);
 
@@ -100,7 +100,7 @@ async function example5_errorHandling() {
   console.log('\n=== Example 5: Error Handling - No Auth ===\n');
 
   const ship = new Ship({
-    apiUrl: 'https://api.shipstatic.com'
+    apiUrl: 'https://api.shipstatic.com',
   });
 
   try {
@@ -123,7 +123,7 @@ async function example6_validation() {
   console.log('\n=== Example 6: Validation ===\n');
 
   const ship = new Ship({
-    apiUrl: 'https://api.shipstatic.com'
+    apiUrl: 'https://api.shipstatic.com',
   });
 
   try {
@@ -166,7 +166,7 @@ if (require.main === module) {
     console.log('  - Clear error messages when auth is missing');
     console.log('  - Seamless credential updates');
 
-    console.log('\n' + '='.repeat(50));
+    console.log(`\n${'='.repeat(50)}`);
   })();
 }
 
@@ -176,5 +176,5 @@ export {
   example3_oauthFlow,
   example4_perDeploymentOverride,
   example5_errorHandling,
-  example6_validation
+  example6_validation,
 };

@@ -5,10 +5,10 @@
  * folder structures when users upload directories via file input.
  */
 
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { processFilesForBrowser } from '../../src/browser/core/browser-files';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
+import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 
 // Helper function to create mock File objects with webkitRelativePath
 function createMockFileWithPath(name: string, webkitRelativePath: string, content: string): File {
@@ -16,11 +16,10 @@ function createMockFileWithPath(name: string, webkitRelativePath: string, conten
   // Simulate browser behavior where webkitRelativePath is set when uploading directories
   Object.defineProperty(file, 'webkitRelativePath', {
     value: webkitRelativePath,
-    writable: false
+    writable: false,
   });
   return file;
 }
-
 
 describe('Browser SDK Directory Structure Preservation', () => {
   beforeEach(() => {
@@ -36,7 +35,10 @@ describe('Browser SDK Directory Structure Preservation', () => {
   test('should preserve directory structure from webkitRelativePath when uploading folders', async () => {
     // Simulate a user selecting a directory in browser file input with webkitdirectory
     const files = [
-      createMockFileWithPath('index.html', 'my-app/index.html', `
+      createMockFileWithPath(
+        'index.html',
+        'my-app/index.html',
+        `
 <!DOCTYPE html>
 <html>
 <head>
@@ -45,17 +47,22 @@ describe('Browser SDK Directory Structure Preservation', () => {
 </head>
 <body><div id="root"></div></body>
 </html>
-      `),
+      `,
+      ),
       createMockFileWithPath('app', 'my-app/assets/js/app.js', 'console.log("App loaded");'),
       createMockFileWithPath('main.css', 'my-app/assets/css/main.css', 'body { margin: 0; }'),
       createMockFileWithPath('logo.png', 'my-app/assets/images/logo.png', 'fake-png-data'),
-      createMockFileWithPath('Button.jsx', 'my-app/components/ui/Button.jsx', 'export const Button = () => {};')
+      createMockFileWithPath(
+        'Button.jsx',
+        'my-app/components/ui/Button.jsx',
+        'export const Button = () => {};',
+      ),
     ];
 
     const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
-    
-    // Extract the paths from processed files  
-    const filePaths = processedFiles.map(f => f.path);
+
+    // Extract the paths from processed files
+    const filePaths = processedFiles.map((f) => f.path);
 
     // Verify nested paths are preserved based on webkitRelativePath
     expect(filePaths).toContain('assets/js/app.js');
@@ -74,7 +81,10 @@ describe('Browser SDK Directory Structure Preservation', () => {
   test('should handle Vite build directory upload - the critical bug case', async () => {
     // This is the exact scenario that was broken - Vite puts everything in /assets/
     const files = [
-      createMockFileWithPath('index.html', 'dist/index.html', `
+      createMockFileWithPath(
+        'index.html',
+        'dist/index.html',
+        `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -87,17 +97,22 @@ describe('Browser SDK Directory Structure Preservation', () => {
   <div id="app"></div>
 </body>
 </html>
-      `),
+      `,
+      ),
       // THE CRITICAL FILES - these were being flattened before the fix
-      createMockFileWithPath('index-8ac629b0.css', 'dist/assets/index-8ac629b0.css', '/* Vite CSS */'),
+      createMockFileWithPath(
+        'index-8ac629b0.css',
+        'dist/assets/index-8ac629b0.css',
+        '/* Vite CSS */',
+      ),
       createMockFileWithPath('index-f1e2d3c4', 'dist/assets/index-f1e2d3c4.js', '// Vite bundle'),
       createMockFileWithPath('vue-logo.png', 'dist/assets/vue-logo-a1b2c3d4.png', 'png-data'),
-      createMockFileWithPath('favicon.ico', 'dist/favicon.ico', 'ico-data')
+      createMockFileWithPath('favicon.ico', 'dist/favicon.ico', 'ico-data'),
     ];
 
     const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
-    
-    const filePaths = processedFiles.map(f => f.path);
+
+    const filePaths = processedFiles.map((f) => f.path);
 
     // THE CRITICAL ASSERTIONS: These paths MUST be preserved
     expect(filePaths).toContain('assets/index-8ac629b0.css');
@@ -117,12 +132,12 @@ describe('Browser SDK Directory Structure Preservation', () => {
     const files = [
       new File(['<html>Content</html>'], 'index.html', { type: 'text/html' }),
       new File(['/* styles */'], 'styles.css', { type: 'text/css' }),
-      new File(['console.log("app");'], 'app', { type: 'application/javascript' })
+      new File(['console.log("app");'], 'app', { type: 'application/javascript' }),
     ];
 
     const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
-    
-    const filePaths = processedFiles.map(f => f.path);
+
+    const filePaths = processedFiles.map((f) => f.path);
 
     // Individual files should use their filename
     expect(filePaths).toContain('index.html');
@@ -132,16 +147,28 @@ describe('Browser SDK Directory Structure Preservation', () => {
 
   test('should handle deeply nested directory structures', async () => {
     const files = [
-      createMockFileWithPath('Component.tsx', 'project/src/components/ui/forms/inputs/text/Component.tsx', 'export const Component = {};'),
-      createMockFileWithPath('utils.ts', 'project/src/utils/api/endpoints/v1/utils.ts', 'export const utils = {};'),
-      createMockFileWithPath('config.json', 'project/config/environments/production/config.json', '{"env": "prod"}'),
+      createMockFileWithPath(
+        'Component.tsx',
+        'project/src/components/ui/forms/inputs/text/Component.tsx',
+        'export const Component = {};',
+      ),
+      createMockFileWithPath(
+        'utils.ts',
+        'project/src/utils/api/endpoints/v1/utils.ts',
+        'export const utils = {};',
+      ),
+      createMockFileWithPath(
+        'config.json',
+        'project/config/environments/production/config.json',
+        '{"env": "prod"}',
+      ),
       createMockFileWithPath('README.md', 'project/docs/api/v1/README.md', '# API Documentation'),
-      createMockFileWithPath('index.html', 'project/public/index.html', '<html>App</html>')
+      createMockFileWithPath('index.html', 'project/public/index.html', '<html>App</html>'),
     ];
 
     const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
-    
-    const filePaths = processedFiles.map(f => f.path);
+
+    const filePaths = processedFiles.map((f) => f.path);
 
     // Verify deep nesting is preserved
     expect(filePaths).toContain('src/components/ui/forms/inputs/text/Component.tsx');
@@ -160,12 +187,12 @@ describe('Browser SDK Directory Structure Preservation', () => {
       createMockFileWithPath('main', 'webapp/assets/js/main.js', 'console.log("main");'),
       createMockFileWithPath('styles.css', 'webapp/assets/css/styles.css', 'body { font: Arial; }'),
       createMockFileWithPath('logo.svg', 'webapp/assets/images/logo.svg', '<svg>Logo</svg>'),
-      createMockFileWithPath('README.md', 'webapp/docs/README.md', '# Documentation')
+      createMockFileWithPath('README.md', 'webapp/docs/README.md', '# Documentation'),
     ];
 
     const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
-    
-    const filePaths = processedFiles.map(f => f.path);
+
+    const filePaths = processedFiles.map((f) => f.path);
 
     // Verify all file types preserve their paths
     expect(filePaths).toContain('public/favicon.ico');
@@ -182,13 +209,13 @@ describe('Browser SDK Directory Structure Preservation', () => {
     const files = [
       createMockFileWithPath('index.html', 'app/index.html', '<html>App</html>'),
       createMockFileWithPath('script', 'app/js/script.js', 'console.log("script");'),
-      createMockFileWithPath('style.css', 'app/css/style.css', 'body { margin: 0; }')
+      createMockFileWithPath('style.css', 'app/css/style.css', 'body { margin: 0; }'),
     ];
 
     // Test with File array (not FileList)
     const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
-    
-    const filePaths = processedFiles.map(f => f.path);
+
+    const filePaths = processedFiles.map((f) => f.path);
 
     expect(filePaths).toContain('index.html');
     expect(filePaths).toContain('js/script.js');
@@ -199,12 +226,12 @@ describe('Browser SDK Directory Structure Preservation', () => {
     // Some browsers might set webkitRelativePath to empty string instead of the path
     const files = [
       createMockFileWithPath('index.html', '', '<html>App</html>'),
-      createMockFileWithPath('app', '', 'console.log("app");')
+      createMockFileWithPath('app', '', 'console.log("app");'),
     ];
 
     const processedFiles = await processFilesForBrowser(files, {}, TEST_PLATFORM_LIMITS);
-    
-    const filePaths = processedFiles.map(f => f.path);
+
+    const filePaths = processedFiles.map((f) => f.path);
 
     // When webkitRelativePath is empty, should fall back to file.name
     expect(filePaths).toContain('index.html');

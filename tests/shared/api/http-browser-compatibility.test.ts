@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
 import type { StaticFile } from '../../../src/shared/types';
@@ -63,24 +63,24 @@ function createMockResponse(data: any, status = 200) {
           return 'application/json';
         }
         return null;
-      })
+      }),
     },
     json: async () => data,
-    text: async () => JSON.stringify(data)
+    text: async () => JSON.stringify(data),
   };
 }
 
 const mockCreateDeployBody = async () => ({
   body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' }
+  headers: { 'Content-Type': 'multipart/form-data' },
 });
 
 describe('ApiHttp Browser Compatibility', () => {
   let apiHttp: ApiHttp;
   const mockOptions = {
     apiUrl: 'https://api.test.com',
-    getAuthHeaders: () => ({ 'Authorization': 'Bearer test-api-key' }),
-    createDeployBody: mockCreateDeployBody
+    getAuthHeaders: () => ({ Authorization: 'Bearer test-api-key' }),
+    createDeployBody: mockCreateDeployBody,
   };
 
   beforeEach(() => {
@@ -103,16 +103,20 @@ describe('ApiHttp Browser Compatibility', () => {
       mockFiles = [
         {
           path: 'index.html',
-          content: new File(['<html><script src="app.js"></script></html>'], 'index.html', { type: 'text/html' }),
+          content: new File(['<html><script src="app.js"></script></html>'], 'index.html', {
+            type: 'text/html',
+          }),
           size: 43,
-          md5: 'html-hash'
+          md5: 'html-hash',
         },
         {
           path: 'app.js',
-          content: new File(['console.log("SPA app");'], 'app.js', { type: 'application/javascript' }),
+          content: new File(['console.log("SPA app");'], 'app.js', {
+            type: 'application/javascript',
+          }),
           size: 22,
-          md5: 'js-hash'
-        }
+          md5: 'js-hash',
+        },
       ];
     });
 
@@ -130,13 +134,13 @@ describe('ApiHttp Browser Compatibility', () => {
           method: 'POST',
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer test-api-key'
+            Authorization: 'Bearer test-api-key',
           }),
           body: JSON.stringify({
             files: ['index.html', 'app.js'],
-            index: '<html><script src="app.js"></script></html>'
-          })
-        })
+            index: '<html><script src="app.js"></script></html>',
+          }),
+        }),
       );
     });
 
@@ -146,8 +150,8 @@ describe('ApiHttp Browser Compatibility', () => {
           path: 'index.html',
           content: new Blob(['<html><script src="app.js"></script></html>'], { type: 'text/html' }),
           size: 43,
-          md5: 'html-hash'
-        }
+          md5: 'html-hash',
+        },
       ];
 
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: false }));
@@ -161,9 +165,9 @@ describe('ApiHttp Browser Compatibility', () => {
           method: 'POST',
           body: JSON.stringify({
             files: ['index.html'],
-            index: '<html><script src="app.js"></script></html>'
-          })
-        })
+            index: '<html><script src="app.js"></script></html>',
+          }),
+        }),
       );
     });
 
@@ -173,8 +177,8 @@ describe('ApiHttp Browser Compatibility', () => {
           path: 'app.js',
           content: new File(['console.log("app");'], 'app.js'),
           size: 18,
-          md5: 'js-hash'
-        }
+          md5: 'js-hash',
+        },
       ];
 
       // Should return false without making API call
@@ -191,8 +195,8 @@ describe('ApiHttp Browser Compatibility', () => {
           path: 'index.html',
           content: new File([oversizedContent], 'index.html'),
           size: oversizedContent.length,
-          md5: 'html-hash'
-        }
+          md5: 'html-hash',
+        },
       ];
 
       const result = await apiHttp.checkSPA(oversizedFiles);
@@ -202,7 +206,9 @@ describe('ApiHttp Browser Compatibility', () => {
     });
 
     it('should handle API errors gracefully in browser environment', async () => {
-      (global.fetch as any).mockResolvedValue(createMockResponse({ error: 'SPA check failed' }, 500));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ error: 'SPA check failed' }, 500),
+      );
 
       await expect(apiHttp.checkSPA(mockFiles)).rejects.toThrow('SPA check failed');
     });
@@ -220,14 +226,14 @@ describe('ApiHttp Browser Compatibility', () => {
           path: 'index.html',
           content: Buffer.from('<html><script src="app.js"></script></html>'),
           size: 43,
-          md5: 'html-hash'
+          md5: 'html-hash',
         },
         {
           path: 'app.js',
           content: Buffer.from('console.log("SPA app");'),
           size: 22,
-          md5: 'js-hash'
-        }
+          md5: 'js-hash',
+        },
       ];
     });
 
@@ -243,9 +249,9 @@ describe('ApiHttp Browser Compatibility', () => {
           method: 'POST',
           body: JSON.stringify({
             files: ['index.html', 'app.js'],
-            index: '<html><script src="app.js"></script></html>'
-          })
-        })
+            index: '<html><script src="app.js"></script></html>',
+          }),
+        }),
       );
     });
 
@@ -255,8 +261,8 @@ describe('ApiHttp Browser Compatibility', () => {
           path: 'index.html',
           content: 'invalid-content-type' as any, // Neither Buffer, Blob, nor File
           size: 20,
-          md5: 'html-hash'
-        }
+          md5: 'html-hash',
+        },
       ];
 
       const result = await apiHttp.checkSPA(invalidFiles);
@@ -267,7 +273,7 @@ describe('ApiHttp Browser Compatibility', () => {
   describe('Cross-Environment Consistency', () => {
     it('should produce identical results across environments for same content', async () => {
       const htmlContent = '<html><div id="root"></div><script src="app.js"></script></html>';
-      
+
       // Test in browser environment with File
       __setTestEnvironment('browser');
       const browserFiles: StaticFile[] = [
@@ -275,8 +281,8 @@ describe('ApiHttp Browser Compatibility', () => {
           path: 'index.html',
           content: new File([htmlContent], 'index.html'),
           size: htmlContent.length,
-          md5: 'test-hash'
-        }
+          md5: 'test-hash',
+        },
       ];
 
       // Test in Node.js environment with Buffer
@@ -286,8 +292,8 @@ describe('ApiHttp Browser Compatibility', () => {
           path: 'index.html',
           content: Buffer.from(htmlContent),
           size: htmlContent.length,
-          md5: 'test-hash'
-        }
+          md5: 'test-hash',
+        },
       ];
 
       // Mock API response
@@ -311,7 +317,7 @@ describe('ApiHttp Browser Compatibility', () => {
   describe('Critical Browser Compatibility Regression Tests', () => {
     it('should not reference Buffer without typeof check in browser environment', async () => {
       __setTestEnvironment('browser');
-      
+
       // Temporarily remove Buffer from global scope to simulate real browser
       const originalBuffer = global.Buffer;
       delete (global as any).Buffer;
@@ -322,8 +328,8 @@ describe('ApiHttp Browser Compatibility', () => {
             path: 'index.html',
             content: new File(['<html>test</html>'], 'index.html'),
             size: 17,
-            md5: 'test-hash'
-          }
+            md5: 'test-hash',
+          },
         ];
 
         (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: false }));
@@ -331,7 +337,6 @@ describe('ApiHttp Browser Compatibility', () => {
         // This should NOT throw "Buffer is not defined" error
         const result = await apiHttp.checkSPA(mockFiles);
         expect(result).toBe(false);
-
       } finally {
         // Restore Buffer for other tests
         global.Buffer = originalBuffer;
@@ -340,20 +345,20 @@ describe('ApiHttp Browser Compatibility', () => {
 
     it('should gracefully handle mixed content types without environment-specific errors', async () => {
       __setTestEnvironment('browser');
-      
+
       const mixedFiles: StaticFile[] = [
         {
           path: 'index.html',
           content: new File(['<html>test</html>'], 'index.html'),
           size: 17,
-          md5: 'html-hash'
+          md5: 'html-hash',
         },
         {
           path: 'app.js',
           content: new Blob(['console.log("app");'], { type: 'application/javascript' }),
           size: 18,
-          md5: 'js-hash'
-        }
+          md5: 'js-hash',
+        },
       ];
 
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));

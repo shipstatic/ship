@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { getENV, __setTestEnvironment } from '../../../src/shared/lib/env';
+import { afterEach, describe, expect, it } from 'vitest';
+import { __setTestEnvironment, getENV } from '../../../src/shared/lib/env';
 
 describe('Environment Utilities (Shared)', () => {
   afterEach(() => {

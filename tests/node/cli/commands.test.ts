@@ -4,13 +4,12 @@
  * Replaces: comprehensive.test.ts, account-commands.test.ts, completion-commands.test.ts, e2e-scenarios.test.ts
  */
 
-import { describe, it, expect } from 'vitest';
+import * as path from 'node:path';
+import { describe, expect, it } from 'vitest';
 import { runCli } from './helpers';
-import * as fs from 'fs';
-import * as path from 'path';
 
 describe('CLI Commands', () => {
-  const DEMO_SITE_PATH = path.resolve(__dirname, '../fixtures/demo-site');
+  const _DEMO_SITE_PATH = path.resolve(__dirname, '../fixtures/demo-site');
 
   describe('Basic Commands', () => {
     it('should show help', async () => {
@@ -25,9 +24,7 @@ describe('CLI Commands', () => {
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
     });
-
   });
-
 
   describe('Tokens Commands', () => {
     it('should handle tokens list command', async () => {
@@ -85,7 +82,9 @@ describe('CLI Commands', () => {
     });
 
     it('should handle domains get for non-existent domain', async () => {
-      const result = await runCli(['domains', 'get', 'non-existent-domain'], { expectFailure: true });
+      const result = await runCli(['domains', 'get', 'non-existent-domain'], {
+        expectFailure: true,
+      });
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('not found');
     });
@@ -98,7 +97,15 @@ describe('CLI Commands', () => {
     });
 
     it('should handle domains set with multiple labels', async () => {
-      const result = await runCli(['domains', 'set', 'staging', '--label', 'label1', '--label', 'label2']);
+      const result = await runCli([
+        'domains',
+        'set',
+        'staging',
+        '--label',
+        'label1',
+        '--label',
+        'label2',
+      ]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('staging');
     });
@@ -190,7 +197,9 @@ describe('CLI Commands', () => {
     });
 
     it('should exit 1 with no output in quiet mode for invalid domain', async () => {
-      const result = await runCli(['domains', 'validate', 'not a domain', '-q'], { expectFailure: true });
+      const result = await runCli(['domains', 'validate', 'not a domain', '-q'], {
+        expectFailure: true,
+      });
       expect(result.exitCode).toBe(1);
       expect(result.stdout).toBe('');
     });
@@ -202,7 +211,9 @@ describe('CLI Commands', () => {
     });
 
     it('should exit 1 with valid JSON for invalid domain in json mode', async () => {
-      const result = await runCli(['domains', 'validate', 'not a domain', '--json'], { expectFailure: true });
+      const result = await runCli(['domains', 'validate', 'not a domain', '--json'], {
+        expectFailure: true,
+      });
       expect(result.exitCode).toBe(1);
       const json = JSON.parse(result.stdout.trim());
       expect(json.valid).toBe(false);

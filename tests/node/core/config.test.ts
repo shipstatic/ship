@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies
 vi.mock('../../../src/shared/lib/env', () => ({
@@ -78,7 +78,7 @@ describe('Node.js SDK env-var resolution', () => {
     it('merges per-deploy options with client defaults', () => {
       const result = sharedConfig.mergeDeployOptions(
         { timeout: 5000 },
-        { timeout: 10000, maxConcurrency: 3 }
+        { timeout: 10000, maxConcurrency: 3 },
       );
       expect(result).toEqual({
         timeout: 5000,
@@ -89,7 +89,7 @@ describe('Node.js SDK env-var resolution', () => {
     it('does not override user options with defaults', () => {
       const result = sharedConfig.mergeDeployOptions(
         { timeout: 5000, maxConcurrency: 8 },
-        { timeout: 10000, maxConcurrency: 3 }
+        { timeout: 10000, maxConcurrency: 3 },
       );
       expect(result).toEqual({
         timeout: 5000,
@@ -104,7 +104,12 @@ describe('Node.js SDK env-var resolution', () => {
       // deploy.
       const result = sharedConfig.mergeDeployOptions(
         {},
-        { apiUrl: 'https://api.example.com', token: 'default-token', timeout: 10000, caller: 'tenant-1' }
+        {
+          apiUrl: 'https://api.example.com',
+          token: 'default-token',
+          timeout: 10000,
+          caller: 'tenant-1',
+        },
       );
       expect(result).toEqual({
         timeout: 10000,

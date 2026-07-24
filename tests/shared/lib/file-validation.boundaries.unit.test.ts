@@ -2,13 +2,14 @@
  * Boundary and edge case tests for file validation
  * These tests verify behavior at exact limits and boundary conditions
  */
-import { describe, it, expect } from 'vitest';
+
+import type { PlatformLimits } from '@shipstatic/types';
+import { describe, expect, it } from 'vitest';
 import {
-  validateFiles,
   FILE_VALIDATION_STATUS,
   type ValidatableFile,
+  validateFiles,
 } from '../../../src/shared/lib/file-validation.js';
-import type { PlatformLimits } from '@shipstatic/types';
 
 // Mock file helper
 function createMockFile(name: string, size: number): ValidatableFile {
@@ -100,13 +101,13 @@ describe('File Validation - Boundary Tests', () => {
       expect(result.canDeploy).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
       // Find total size error
-      const totalSizeError = result.errors.find(e => e.message.includes('Total size'));
+      const totalSizeError = result.errors.find((e) => e.message.includes('Total size'));
       expect(totalSizeError).toBeDefined();
-      expect(totalSizeError!.file).toBe('file3.txt');
+      expect(totalSizeError?.file).toBe('file3.txt');
       expect(result.validFiles).toHaveLength(0);
 
       // ATOMIC: All files marked as failed
-      result.files.forEach(f => {
+      result.files.forEach((f) => {
         expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
     });
@@ -121,18 +122,18 @@ describe('File Validation - Boundary Tests', () => {
       const files = [
         createMockFile('file1.txt', 12 * 1024 * 1024), // Total: 12MB ✓
         createMockFile('file2.txt', 10 * 1024 * 1024), // Total: 22MB ✓
-        createMockFile('file3.txt', 6 * 1024 * 1024),  // Total: 28MB ✗ (exceeds)
+        createMockFile('file3.txt', 6 * 1024 * 1024), // Total: 28MB ✗ (exceeds)
       ];
       const result = validateFiles(files, largeConfig);
 
       expect(result.canDeploy).toBe(false);
-      const totalSizeError = result.errors.find(e => e.message.includes('Total size'));
+      const totalSizeError = result.errors.find((e) => e.message.includes('Total size'));
       expect(totalSizeError).toBeDefined();
-      expect(totalSizeError!.file).toBe('file3.txt');
+      expect(totalSizeError?.file).toBe('file3.txt');
 
       // ATOMIC: All files marked as failed (even files 1 & 2 that individually passed)
       expect(result.validFiles).toHaveLength(0);
-      result.files.forEach(f => {
+      result.files.forEach((f) => {
         expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
     });
@@ -141,7 +142,7 @@ describe('File Validation - Boundary Tests', () => {
   describe('File Count Boundaries', () => {
     it('should accept exactly at file count limit', () => {
       const files = Array.from({ length: config.maxFilesCount }, (_, i) =>
-        createMockFile(`file${i}.txt`, 100)
+        createMockFile(`file${i}.txt`, 100),
       );
       const result = validateFiles(files, config);
 
@@ -152,7 +153,7 @@ describe('File Validation - Boundary Tests', () => {
 
     it('should reject 1 file over count limit (atomic)', () => {
       const files = Array.from({ length: config.maxFilesCount + 1 }, (_, i) =>
-        createMockFile(`file${i}.txt`, 100)
+        createMockFile(`file${i}.txt`, 100),
       );
       const result = validateFiles(files, config);
 
@@ -163,7 +164,7 @@ describe('File Validation - Boundary Tests', () => {
       expect(result.validFiles).toHaveLength(0);
 
       // ALL files marked as failed
-      result.files.forEach(f => {
+      result.files.forEach((f) => {
         expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
     });
@@ -171,10 +172,7 @@ describe('File Validation - Boundary Tests', () => {
 
   describe('Extension Blocklist Edge Cases', () => {
     it('should reject blocked extensions regardless of case', () => {
-      const files = [
-        createMockFile('virus.EXE', 100),
-        createMockFile('valid.txt', 100),
-      ];
+      const files = [createMockFile('virus.EXE', 100), createMockFile('valid.txt', 100)];
       const result = validateFiles(files, config);
 
       expect(result.canDeploy).toBe(false);
@@ -182,10 +180,7 @@ describe('File Validation - Boundary Tests', () => {
     });
 
     it('should accept unknown extensions (not blocked)', () => {
-      const files = [
-        createMockFile('data.parquet', 100),
-        createMockFile('model.onnx', 100),
-      ];
+      const files = [createMockFile('data.parquet', 100), createMockFile('model.onnx', 100)];
       const result = validateFiles(files, config);
 
       expect(result.canDeploy).toBe(true);
@@ -225,8 +220,8 @@ describe('File Validation - Boundary Tests', () => {
 
     it('should keep empty files EXCLUDED during atomic failure', () => {
       const files = [
-        createMockFile('empty.txt', 0),                    // EXCLUDED
-        createMockFile('valid.txt', 100),                   // Will become FAILED
+        createMockFile('empty.txt', 0), // EXCLUDED
+        createMockFile('valid.txt', 100), // Will become FAILED
         createMockFile('toobig.txt', config.maxFileSize + 1), // FAILED
       ];
       const result = validateFiles(files, config);
@@ -265,7 +260,7 @@ describe('File Validation - Boundary Tests', () => {
   describe('Filename Length Boundaries', () => {
     it('should accept very long but valid filename', () => {
       // 255 characters is typical filesystem limit
-      const longName = 'a'.repeat(200) + '.txt';
+      const longName = `${'a'.repeat(200)}.txt`;
       const files = [createMockFile(longName, 100)];
       const result = validateFiles(files, config);
 
@@ -316,8 +311,8 @@ describe('File Validation - Boundary Tests', () => {
   describe('Multiple Validation Errors', () => {
     it('should collect all errors before atomic enforcement', () => {
       const files = [
-        createMockFile('toobig1.txt', config.maxFileSize + 1),  // Error 1
-        createMockFile('toobig2.txt', config.maxFileSize + 1),  // Error 2
+        createMockFile('toobig1.txt', config.maxFileSize + 1), // Error 1
+        createMockFile('toobig2.txt', config.maxFileSize + 1), // Error 2
         createMockFile('valid.txt', 100),
       ];
       const result = validateFiles(files, config);
@@ -329,15 +324,15 @@ describe('File Validation - Boundary Tests', () => {
 
       // ATOMIC: All files marked as failed
       expect(result.validFiles).toHaveLength(0);
-      result.files.forEach(f => {
+      result.files.forEach((f) => {
         expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
     });
 
     it('should report different types of errors', () => {
       const files = [
-        createMockFile('toobig.txt', config.maxFileSize + 1),  // Size error
-        createMockFile('malware.exe', 100),                     // Blocked extension
+        createMockFile('toobig.txt', config.maxFileSize + 1), // Size error
+        createMockFile('malware.exe', 100), // Blocked extension
         createMockFile('valid.txt', 100),
       ];
       const result = validateFiles(files, config);

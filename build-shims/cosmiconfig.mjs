@@ -4,14 +4,14 @@
 export function cosmiconfigSync() {
   return {
     search: () => null,
-    load: () => null
+    load: () => null,
   };
 }
 
 export function cosmiconfig() {
   return {
     search: async () => null,
-    load: async () => null
+    load: async () => null,
   };
 }
 

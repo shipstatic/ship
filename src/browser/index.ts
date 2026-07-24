@@ -6,14 +6,14 @@
  * (or, for first-party browser apps, the cookie session via `session: true`).
  */
 
-import { Ship as BaseShip } from '../shared/base-ship.js';
 import { ShipError } from '@shipstatic/types';
+import { Ship as BaseShip } from '../shared/base-ship.js';
 import type {
-  Deployment,
+  DeployBodyCreator,
   DeployInput,
+  Deployment,
   DeploymentOptions,
   StaticFile,
-  DeployBodyCreator,
 } from '../shared/types.js';
 import { createDeployBody } from './core/deploy-body.js';
 
@@ -53,8 +53,11 @@ export class Ship extends BaseShip {
     return super.deploy(input, options);
   }
 
-  protected async processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]> {
-    if (!Array.isArray(input) || !input.every(item => item instanceof File)) {
+  protected async processInput(
+    input: DeployInput,
+    options: DeploymentOptions,
+  ): Promise<StaticFile[]> {
+    if (!Array.isArray(input) || !input.every((item) => item instanceof File)) {
       throw ShipError.business('Invalid input type for browser environment. Expected File[].');
     }
 

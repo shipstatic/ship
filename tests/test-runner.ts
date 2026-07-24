@@ -3,7 +3,7 @@
  * Run this with: pnpm vitest tests-new/test-runner.ts --run
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 describe('New Test Structure Verification', () => {
   it('should be able to run tests from new structure', () => {

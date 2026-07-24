@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { Ship as ShipClass } from '../../src/index'; // Import type for client
+
 import type { ShipError as ShipErrorClassType } from '@shipstatic/types'; // Import type for ShipError
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Ship as ShipClass } from '../../src/index'; // Import type for client
 
 // 1. Use vi.hoisted() for variables used in vi.mock factories
 const mockApiHttpInstance = {
@@ -19,17 +20,17 @@ const { MOCK_API_HTTP_MODULE } = vi.hoisted(() => {
   return {
     MOCK_API_HTTP_MODULE: {
       ApiHttp: vi.fn(() => mockApiHttpInstance),
-      DEFAULT_API: 'https://mockapi.shipstatic.com'
-    }
+      DEFAULT_API: 'https://mockapi.shipstatic.com',
+    },
   };
 });
 
 // Specific mocks for file utilities
 const { NODE_FILE_UTILS_MOCK } = vi.hoisted(() => ({
-  NODE_FILE_UTILS_MOCK: { 
+  NODE_FILE_UTILS_MOCK: {
     processFilesForNode: vi.fn(),
-    findNodeCommonParentDirectory: vi.fn().mockReturnValue('/common/path')
-  }
+    findNodeCommonParentDirectory: vi.fn().mockReturnValue('/common/path'),
+  },
 }));
 
 // Mock modules using the predefined implementations
@@ -41,7 +42,7 @@ const apiClientMock = mockApiHttpInstance;
 const nodeFileUtilsMock = NODE_FILE_UTILS_MOCK;
 
 describe('BaseShipClient', () => {
-  let client: ShipClass; // Typed client
+  let _client: ShipClass; // Typed client
   const MOCK_API_HOST = 'https://custom.example.com';
 
   afterEach(async () => {
@@ -62,8 +63,8 @@ describe('BaseShipClient', () => {
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
           apiUrl: 'https://opt.host',
-          token: 'opt_token'
-        })
+          token: 'opt_token',
+        }),
       );
     });
 
@@ -72,7 +73,8 @@ describe('BaseShipClient', () => {
       await __setTestEnvironment('node');
 
       // SDK's only ambient credential source — the "process boundary".
-      process.env.SHIP_TOKEN = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+      process.env.SHIP_TOKEN =
+        'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
       process.env.SHIP_API_URL = 'https://test.api.shipstatic.com';
 
       MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
@@ -84,7 +86,7 @@ describe('BaseShipClient', () => {
         expect.objectContaining({
           apiUrl: 'https://test.api.shipstatic.com',
           token: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-        })
+        }),
       );
 
       delete process.env.SHIP_TOKEN;
@@ -95,7 +97,8 @@ describe('BaseShipClient', () => {
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
       await __setTestEnvironment('node');
 
-      process.env.SHIP_TOKEN = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+      process.env.SHIP_TOKEN =
+        'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
       delete process.env.SHIP_API_URL;
 
       MOCK_API_HTTP_MODULE.ApiHttp.mockClear();
@@ -106,7 +109,7 @@ describe('BaseShipClient', () => {
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
           token: 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-        })
+        }),
       );
 
       delete process.env.SHIP_TOKEN;
@@ -118,7 +121,7 @@ describe('BaseShipClient', () => {
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
       await __setTestEnvironment('node');
       const { Ship } = await import('../../src/index');
-      client = new Ship({ apiUrl: MOCK_API_HOST, token: 'mock_token' });
+      _client = new Ship({ apiUrl: MOCK_API_HOST, token: 'mock_token' });
     });
 
     it('should use client default progress callbacks if not provided in options', async () => {
@@ -128,29 +131,29 @@ describe('BaseShipClient', () => {
         apiUrl: MOCK_API_HOST,
         token: 'mock_token',
         onProgress: defaultProgressCallback,
-        timeout: 8000
+        timeout: 8000,
       });
-      
+
       // Mock successful deployment with string array (Node.js expects file paths)
       const mockFiles = ['test.txt', 'test2.txt'];
       const processedFiles = [
         { path: 'test.txt', content: 'test content', md5: 'abc123', size: 12 },
-        { path: 'test2.txt', content: 'test content 2', md5: 'def456', size: 14 }
+        { path: 'test2.txt', content: 'test content 2', md5: 'def456', size: 14 },
       ];
-      
+
       // Mock the file processing to return processed files
       nodeFileUtilsMock.processFilesForNode.mockResolvedValueOnce(processedFiles);
-      
+
       // Call deploy without progress callback - should use default from Ship instance
       await clientWithDefaults.deployments.upload(mockFiles, {});
-      
+
       // Verify the default progress callback was passed through
       expect(apiClientMock.deploy).toHaveBeenCalledWith(
         expect.any(Array), // The processed files
         expect.objectContaining({
           onProgress: defaultProgressCallback,
-          timeout: 8000
-        })
+          timeout: 8000,
+        }),
       );
     });
   });
@@ -160,10 +163,10 @@ describe('BaseShipClient', () => {
       // Set environment to unknown before test
       const { __setTestEnvironment } = await import('../../src/shared/lib/env');
       await __setTestEnvironment('unknown');
-      
+
       const { Ship } = await import('../../src/index');
       const { ShipError } = await import('@shipstatic/types'); // ShipError class for instanceof
-      
+
       // The error should be thrown when creating the client, not when calling deploy
       expect(() => {
         new Ship({ apiUrl: MOCK_API_HOST, token: 'mock_token' });
@@ -176,7 +179,9 @@ describe('BaseShipClient', () => {
       } catch (e) {
         expect(e).toBeInstanceOf(ShipError);
         // Cast to ShipErrorClassType (which is typeof ShipError from errors.ts) or Error to access message
-        expect((e as ShipErrorClassType | Error).message).toBe('Node.js Ship class can only be used in Node.js environment.');
+        expect((e as ShipErrorClassType | Error).message).toBe(
+          'Node.js Ship class can only be used in Node.js environment.',
+        );
       }
     });
   });
@@ -198,7 +203,7 @@ describe('BaseShipClient', () => {
         expect.objectContaining({
           token: 'env-test-key',
           apiUrl: 'https://env-test-api.com',
-        })
+        }),
       );
 
       delete process.env.SHIP_TOKEN;
@@ -220,7 +225,7 @@ describe('BaseShipClient', () => {
       const { Ship } = await import('../../src/index');
       const ship = new Ship({
         token: 'constructor-priority-key',
-        apiUrl: 'https://constructor-priority.com'
+        apiUrl: 'https://constructor-priority.com',
       });
 
       // Trigger config initialization
@@ -231,8 +236,8 @@ describe('BaseShipClient', () => {
       expect(MOCK_API_HTTP_MODULE.ApiHttp).toHaveBeenCalledWith(
         expect.objectContaining({
           token: 'constructor-priority-key',
-          apiUrl: 'https://constructor-priority.com'
-        })
+          apiUrl: 'https://constructor-priority.com',
+        }),
       );
 
       // Clean up

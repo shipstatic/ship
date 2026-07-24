@@ -2,7 +2,7 @@
  * @file Comprehensive tests to ensure unknown commands always show error + help
  * These tests protect against regressions in error handling behavior
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { runCli } from './helpers';
 
 describe('Unknown Commands - Comprehensive Protection', () => {
@@ -124,7 +124,10 @@ describe('Unknown Commands - Comprehensive Protection', () => {
     it('should show scoped usage for all subcommand-level unknowns', async () => {
       const subcommands: [string, string[]][] = [
         ['deployments', ['list', 'upload', 'get', 'set', 'remove']],
-        ['domains', ['list', 'get', 'set', 'validate', 'records', 'dns', 'share', 'verify', 'remove']],
+        [
+          'domains',
+          ['list', 'get', 'set', 'validate', 'records', 'dns', 'share', 'verify', 'remove'],
+        ],
         ['account', ['get']],
         ['completion', ['install', 'uninstall']],
       ];

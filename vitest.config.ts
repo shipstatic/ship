@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config';
+import path from 'node:path';
 import tsconfigPaths from 'vite-tsconfig-paths';
-import path from 'path';
+import { defineConfig } from 'vitest/config';
 
 /**
  * Vitest Configuration with Test Projects

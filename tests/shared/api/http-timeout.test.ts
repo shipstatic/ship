@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ApiHttp } from '../../../src/shared/api/http';
 import { ShipError } from '@shipstatic/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiHttp } from '../../../src/shared/api/http';
 
 // Mock deploy body creator
 const mockCreateDeployBody = async () => ({
   body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' }
+  headers: { 'Content-Type': 'multipart/form-data' },
 });
 
 // Helper to create mock response
@@ -14,8 +14,10 @@ function createMockResponse(data: any, status = 200) {
     ok: status < 400,
     status,
     headers: { get: () => '20' },
-    clone: function() { return this; },
-    json: async () => data
+    clone: function () {
+      return this;
+    },
+    json: async () => data,
   };
 }
 
@@ -29,7 +31,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       apiUrl: 'https://api.test.com',
       getAuthHeaders: () => ({ Authorization: 'Bearer test-key' }),
       createDeployBody: mockCreateDeployBody,
-      timeout: 5000
+      timeout: 5000,
     });
   });
 
@@ -53,7 +55,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
         createDeployBody: mockCreateDeployBody,
-        timeout: 1000
+        timeout: 1000,
       });
 
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
@@ -69,7 +71,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       const defaultTimeoutApi = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody
+        createDeployBody: mockCreateDeployBody,
         // No timeout - should use default
       });
 
@@ -154,11 +156,13 @@ describe('ApiHttp Timeout & Cancellation', () => {
     it('should pass user signal to deploy operation', async () => {
       const userController = new AbortController();
 
-      (global.fetch as any).mockResolvedValue(createMockResponse({
-        deployment: 'test',
-        files: 1,
-        size: 4
-      }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({
+          deployment: 'test',
+          files: 1,
+          size: 4,
+        }),
+      );
 
       const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
 
@@ -179,8 +183,9 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
       const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
 
-      await expect(apiHttp.deploy(files, { signal: userController.signal }))
-        .rejects.toThrow('cancelled');
+      await expect(apiHttp.deploy(files, { signal: userController.signal })).rejects.toThrow(
+        'cancelled',
+      );
     });
   });
 
@@ -214,7 +219,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         ok: false,
         status: 500,
         headers: { get: () => 'application/json' },
-        json: async () => ({ error: 'Server error' })
+        json: async () => ({ error: 'Server error' }),
       });
 
       await expect(apiHttp.ping()).rejects.toThrow();
@@ -228,11 +233,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
     it('should handle multiple concurrent requests', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
 
-      const promises = [
-        apiHttp.ping(),
-        apiHttp.getLimits(),
-        apiHttp.listDeployments()
-      ];
+      const promises = [apiHttp.ping(), apiHttp.getLimits(), apiHttp.listDeployments()];
 
       await Promise.all(promises);
 
@@ -247,10 +248,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         return Promise.resolve(createMockResponse({ success: true }));
       });
 
-      await Promise.all([
-        apiHttp.ping(),
-        apiHttp.getLimits()
-      ]);
+      await Promise.all([apiHttp.ping(), apiHttp.getLimits()]);
 
       expect(signals).toHaveLength(2);
       // Each request should have its own signal
@@ -285,7 +283,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       // Request event should have been emitted before the abort
       expect(requestHandler).toHaveBeenCalledWith(
         'https://api.test.com/ping',
-        expect.objectContaining({ method: 'GET' })
+        expect.objectContaining({ method: 'GET' }),
       );
     });
   });

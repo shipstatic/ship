@@ -4,17 +4,17 @@
  */
 
 import type {
-  PlatformLimits,
   FileValidationResult,
+  FileValidationStatusType,
+  PlatformLimits,
   ValidatableFile,
   ValidationIssue,
-  FileValidationStatusType
 } from '@shipstatic/types';
 import {
   FileValidationStatus as FILE_VALIDATION_STATUS,
-  isBlockedExtension,
   hasUnbuiltMarker,
   hasUnsafeChars,
+  isBlockedExtension,
 } from '@shipstatic/types';
 
 export { FILE_VALIDATION_STATUS };
@@ -27,7 +27,7 @@ export function formatFileSize(bytes: number, decimals: number = 1): string {
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
+  return `${parseFloat((bytes / k ** i).toFixed(decimals))} ${sizes[i]}`;
 }
 
 /**
@@ -100,17 +100,17 @@ export function validateFileName(filename: string): { valid: boolean; reason?: s
  */
 export function validateFiles<T extends ValidatableFile>(
   files: T[],
-  config: PlatformLimits
+  config: PlatformLimits,
 ): FileValidationResult<T> {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
-  let fileStatuses: T[] = [];  // Use 'let' for atomic enforcement later
+  let fileStatuses: T[] = []; // Use 'let' for atomic enforcement later
 
   // Check at least 1 file required
   if (files.length === 0) {
     const issue: ValidationIssue = {
       file: '(no files)',
-      message: 'At least one file must be provided'
+      message: 'At least one file must be provided',
     };
     errors.push(issue);
 
@@ -128,18 +128,18 @@ export function validateFiles<T extends ValidatableFile>(
     if (hasUnbuiltMarker(file.name)) {
       errors.push({
         file: file.name,
-        message: `Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder`
+        message: `Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder`,
       });
       return {
-        files: files.map(f => ({
+        files: files.map((f) => ({
           ...f,
           status: FILE_VALIDATION_STATUS.VALIDATION_FAILED,
-          statusMessage: 'Unbuilt project detected'
+          statusMessage: 'Unbuilt project detected',
         })),
         validFiles: [],
         errors,
         warnings: [],
-        canDeploy: false
+        canDeploy: false,
       };
     }
   }
@@ -148,12 +148,12 @@ export function validateFiles<T extends ValidatableFile>(
   if (files.length > config.maxFilesCount) {
     const issue: ValidationIssue = {
       file: `(${files.length} files)`,
-      message: `File count (${files.length}) exceeds limit of ${config.maxFilesCount}`
+      message: `File count (${files.length}) exceeds limit of ${config.maxFilesCount}`,
     };
     errors.push(issue);
 
     return {
-      files: files.map(f => ({
+      files: files.map((f) => ({
         ...f,
         status: FILE_VALIDATION_STATUS.VALIDATION_FAILED,
         statusMessage: issue.message,
@@ -173,7 +173,9 @@ export function validateFiles<T extends ValidatableFile>(
     let statusMessage = 'Ready for upload';
 
     // Pre-compute filename validation
-    const nameValidation = file.name ? validateFileName(file.name) : { valid: false, reason: 'File name cannot be empty' };
+    const nameValidation = file.name
+      ? validateFileName(file.name)
+      : { valid: false, reason: 'File name cannot be empty' };
 
     // Check for processing errors
     if (file.status === FILE_VALIDATION_STATUS.PROCESSING_ERROR) {
@@ -181,7 +183,7 @@ export function validateFiles<T extends ValidatableFile>(
       statusMessage = file.statusMessage || 'File failed during processing';
       errors.push({
         file: file.name,
-        message: statusMessage
+        message: statusMessage,
       });
     }
 
@@ -191,7 +193,7 @@ export function validateFiles<T extends ValidatableFile>(
       statusMessage = 'File is empty (0 bytes) and cannot be deployed due to storage limitations';
       warnings.push({
         file: file.name,
-        message: statusMessage
+        message: statusMessage,
       });
       // Skip other validations for excluded files
       fileStatuses.push({
@@ -208,7 +210,7 @@ export function validateFiles<T extends ValidatableFile>(
       statusMessage = 'File size must be positive';
       errors.push({
         file: file.name,
-        message: statusMessage
+        message: statusMessage,
       });
     }
 
@@ -218,23 +220,21 @@ export function validateFiles<T extends ValidatableFile>(
       statusMessage = 'File name cannot be empty';
       errors.push({
         file: file.name || '(empty)',
-        message: statusMessage
+        message: statusMessage,
       });
-    }
-    else if (file.name.includes('\0')) {
+    } else if (file.name.includes('\0')) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = 'File name contains invalid characters (null byte)';
       errors.push({
         file: file.name,
-        message: statusMessage
+        message: statusMessage,
       });
-    }
-    else if (!nameValidation.valid) {
+    } else if (!nameValidation.valid) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = nameValidation.reason || 'Invalid file name';
       errors.push({
         file: file.name,
-        message: statusMessage
+        message: statusMessage,
       });
     }
 
@@ -244,7 +244,7 @@ export function validateFiles<T extends ValidatableFile>(
       statusMessage = `File extension not allowed: "${file.name}"`;
       errors.push({
         file: file.name,
-        message: statusMessage
+        message: statusMessage,
       });
     }
 
@@ -254,7 +254,7 @@ export function validateFiles<T extends ValidatableFile>(
       statusMessage = `File size (${formatFileSize(file.size)}) exceeds limit of ${formatFileSize(config.maxFileSize)}`;
       errors.push({
         file: file.name,
-        message: statusMessage
+        message: statusMessage,
       });
     }
 
@@ -266,7 +266,7 @@ export function validateFiles<T extends ValidatableFile>(
         statusMessage = `Total size would exceed limit of ${formatFileSize(config.maxTotalSize)}`;
         errors.push({
           file: file.name,
-          message: statusMessage
+          message: statusMessage,
         });
       }
     }
@@ -286,7 +286,7 @@ export function validateFiles<T extends ValidatableFile>(
   // at once and can fix everything in one pass), then enforce atomicity to maintain
   // deployment transaction semantics (all-or-nothing).
   if (errors.length > 0) {
-    fileStatuses = fileStatuses.map(file => {
+    fileStatuses = fileStatuses.map((file) => {
       // Keep EXCLUDED files as-is (they're warnings, not errors)
       if (file.status === FILE_VALIDATION_STATUS.EXCLUDED) {
         return file;
@@ -296,18 +296,20 @@ export function validateFiles<T extends ValidatableFile>(
       return {
         ...file,
         status: FILE_VALIDATION_STATUS.VALIDATION_FAILED,
-        statusMessage: file.status === FILE_VALIDATION_STATUS.VALIDATION_FAILED
-          ? file.statusMessage  // Keep original error message for the file that actually failed
-          : 'Deployment failed due to validation errors in bundle'
+        statusMessage:
+          file.status === FILE_VALIDATION_STATUS.VALIDATION_FAILED
+            ? file.statusMessage // Keep original error message for the file that actually failed
+            : 'Deployment failed due to validation errors in bundle',
       };
     });
   }
 
   // Build atomic result
   // validFiles is empty if ANY errors exist (all-or-nothing)
-  const validFiles = errors.length === 0
-    ? fileStatuses.filter(f => f.status === FILE_VALIDATION_STATUS.READY)
-    : [];
+  const validFiles =
+    errors.length === 0
+      ? fileStatuses.filter((f) => f.status === FILE_VALIDATION_STATUS.READY)
+      : [];
   const canDeploy = errors.length === 0;
 
   return {
@@ -323,7 +325,7 @@ export function validateFiles<T extends ValidatableFile>(
  * Get only the valid files from validation results
  */
 export function getValidFiles<T extends ValidatableFile>(files: T[]): T[] {
-  return files.filter(f => f.status === FILE_VALIDATION_STATUS.READY);
+  return files.filter((f) => f.status === FILE_VALIDATION_STATUS.READY);
 }
 
 /**

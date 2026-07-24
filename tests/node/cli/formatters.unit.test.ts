@@ -6,12 +6,12 @@
  * `claim` field so scripts can read it (`isCreate` stays internal in both).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatDeployment, formatOutput } from '../../../src/node/cli/formatters';
 import type { DeploymentCreateResponse } from '@shipstatic/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatDeployment, formatOutput } from '../../../src/node/cli/formatters';
 
 const NOW = 1_700_000_000;
-const CLAIM_URL = 'https://my.shipstatic.com/claim/' + 'a'.repeat(64);
+const CLAIM_URL = `https://my.shipstatic.com/claim/${'a'.repeat(64)}`;
 
 const anonymousDeployment = {
   deployment: 'proud-falcon-a1b2c3',
@@ -62,7 +62,7 @@ describe('claim CTA', () => {
     formatOutput(
       { ...anonymousDeployment, isCreate: true } as unknown as DeploymentCreateResponse,
       {},
-      { json: true }
+      { json: true },
     );
 
     const parsed = JSON.parse(logs[0]);

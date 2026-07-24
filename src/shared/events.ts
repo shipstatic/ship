@@ -13,6 +13,7 @@ import type { ShipEvents } from './types.js';
  * surfaced as `error` events on the next tick.
  */
 export class SimpleEvents {
+  // biome-ignore lint/complexity/noBannedTypes: the registry is heterogeneous by design — per-event signatures are enforced at the on()/emit() boundary
   private handlers = new Map<string, Set<Function>>();
 
   /**
@@ -22,11 +23,11 @@ export class SimpleEvents {
     if (!this.handlers.has(event as string)) {
       this.handlers.set(event as string, new Set());
     }
-    this.handlers.get(event as string)!.add(handler);
+    this.handlers.get(event as string)?.add(handler);
   }
 
   /**
-   * Remove event handler  
+   * Remove event handler
    */
   off<K extends keyof ShipEvents>(event: K, handler: (...args: ShipEvents[K]) => void): void {
     const eventHandlers = this.handlers.get(event as string);

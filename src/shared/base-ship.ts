@@ -15,30 +15,30 @@
  * lives here.
  */
 
-import { ShipError, validateToken, validateCaller } from '@shipstatic/types';
 import type {
+  AccountResource,
   Deployment,
-  PlatformLimits,
   DeploymentResource,
   DomainResource,
-  AccountResource,
-  TokenResource,
+  PlatformLimits,
   StaticFile,
+  TokenResource,
 } from '@shipstatic/types';
+import { ShipError, validateCaller, validateToken } from '@shipstatic/types';
 
 import { ApiHttp } from './api/http.js';
 import {
+  createAccountResource,
   createDeploymentResource,
   createDomainResource,
-  createAccountResource,
   createTokenResource,
   type DeployInput,
 } from './resources.js';
 import type {
+  DeployBodyCreator,
+  DeploymentOptions,
   ShipClientOptions,
   ShipEvents,
-  DeploymentOptions,
-  DeployBodyCreator,
   TokenProvider,
 } from './types.js';
 
@@ -136,7 +136,10 @@ export abstract class Ship {
   }
 
   // Environment-specific behavior.
-  protected abstract processInput(input: DeployInput, options: DeploymentOptions): Promise<StaticFile[]>;
+  protected abstract processInput(
+    input: DeployInput,
+    options: DeploymentOptions,
+  ): Promise<StaticFile[]>;
   protected abstract getDeployBodyCreator(): DeployBodyCreator;
 
   /**
@@ -190,6 +193,7 @@ export abstract class Ship {
   async getLimits(): Promise<PlatformLimits> {
     if (this.platformLimits) return this.platformLimits;
     await this.ensureInitialized();
+    // biome-ignore lint/style/noNonNullAssertion: ensureInitialized() hydrates platformLimits or throws
     return this.platformLimits!;
   }
 
@@ -237,7 +241,9 @@ export abstract class Ship {
       return;
     }
     if (typeof token !== 'function') {
-      throw ShipError.business('Invalid token provided. Token must be a non-empty string or a provider function.');
+      throw ShipError.business(
+        'Invalid token provided. Token must be a non-empty string or a provider function.',
+      );
     }
     this.credential = token;
   }
@@ -254,9 +260,7 @@ export abstract class Ship {
    */
   private async getAuthHeaders(): Promise<Record<string, string>> {
     if (this.credential === null) return {};
-    const value = typeof this.credential === 'function'
-      ? await this.credential()
-      : this.credential;
+    const value = typeof this.credential === 'function' ? await this.credential() : this.credential;
     if (!value) {
       throw ShipError.authentication('Token provider returned no token.');
     }

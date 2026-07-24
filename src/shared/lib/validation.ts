@@ -6,11 +6,7 @@
  * API agree on the rules.
  */
 
-import {
-  LABEL_CONSTRAINTS,
-  LABEL_PATTERN,
-  ShipError,
-} from '@shipstatic/types';
+import { LABEL_CONSTRAINTS, LABEL_PATTERN, ShipError } from '@shipstatic/types';
 
 // Re-export the canonical password validator from `@shipstatic/types` so
 // existing SDK callers (`http.ts`) keep their `from '../lib/validation.js'`
@@ -33,9 +29,7 @@ export function validateLabels(labels: string[] | undefined | null): string[] | 
   if (labels.length === 0) return labels;
 
   if (labels.length > LABEL_CONSTRAINTS.MAX_COUNT) {
-    throw ShipError.validation(
-      `Maximum ${LABEL_CONSTRAINTS.MAX_COUNT} labels allowed`,
-    );
+    throw ShipError.validation(`Maximum ${LABEL_CONSTRAINTS.MAX_COUNT} labels allowed`);
   }
 
   const normalized = labels.map((label, i) => {

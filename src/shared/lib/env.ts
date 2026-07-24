@@ -59,7 +59,7 @@ export function getENV(): ExecutionEnvironment {
   if (_testEnvironment) {
     return _testEnvironment;
   }
-  
+
   // Detect actual environment
   return detectEnvironment();
 }

@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ErrorType, ShipError } from '@shipstatic/types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http';
 import type { Fetch } from '../../../src/shared/types';
-import { ShipError, ErrorType } from '@shipstatic/types';
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -17,24 +17,24 @@ function createMockResponse(data: any, status = 200) {
           return status === 204 || data === undefined ? '0' : '15';
         }
         return '15';
-      })
+      }),
     },
-    json: async () => data
+    json: async () => data,
   };
 }
 
 // Mock deploy body creator for tests
-const mockCreateDeployBody = async (files: any[], context?: any) => ({
+const mockCreateDeployBody = async (_files: any[], _context?: any) => ({
   body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' }
+  headers: { 'Content-Type': 'multipart/form-data' },
 });
 
 describe('ApiHttp', () => {
   let apiHttp: ApiHttp;
   const mockOptions = {
     apiUrl: 'https://api.test.com',
-    getAuthHeaders: () => ({ 'Authorization': 'Bearer test-api-key' }),
-    createDeployBody: mockCreateDeployBody
+    getAuthHeaders: () => ({ Authorization: 'Bearer test-api-key' }),
+    createDeployBody: mockCreateDeployBody,
   };
 
   beforeEach(() => {
@@ -52,7 +52,7 @@ describe('ApiHttp', () => {
       const api = new ApiHttp({
         apiUrl: 'https://test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody
+        createDeployBody: mockCreateDeployBody,
       });
       expect(api).toBeDefined();
     });
@@ -86,8 +86,10 @@ describe('ApiHttp', () => {
     it('normalizes a throwing token provider into a typed ShipError and emits the error event', async () => {
       const api = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        getAuthHeaders: async () => { throw new Error('refresh failed'); },
-        createDeployBody: mockCreateDeployBody
+        getAuthHeaders: async () => {
+          throw new Error('refresh failed');
+        },
+        createDeployBody: mockCreateDeployBody,
       });
       const errors: ShipError[] = [];
       api.on('error', (err: ShipError) => errors.push(err));
@@ -110,8 +112,10 @@ describe('ApiHttp', () => {
       const providerError = ShipError.authentication('Token provider returned no token.');
       const api = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        getAuthHeaders: async () => { throw providerError; },
-        createDeployBody: mockCreateDeployBody
+        getAuthHeaders: async () => {
+          throw providerError;
+        },
+        createDeployBody: mockCreateDeployBody,
       });
       const errors: ShipError[] = [];
       api.on('error', (err: ShipError) => errors.push(err));
@@ -123,18 +127,20 @@ describe('ApiHttp', () => {
 
   describe('ping', () => {
     it('should make GET request to /ping endpoint', async () => {
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ success: true, message: 'pong' }),
+      );
 
       const result = await apiHttp.ping();
-      
+
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/ping',
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toBe(true);
     });
@@ -146,7 +152,9 @@ describe('ApiHttp', () => {
     });
 
     it('should handle API errors', async () => {
-      (global.fetch as any).mockResolvedValue(createMockResponse({ error: 'Internal server error' }, 500));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ error: 'Internal server error' }, 500),
+      );
 
       await expect(apiHttp.ping()).rejects.toThrow();
     });
@@ -158,9 +166,15 @@ describe('ApiHttp', () => {
       (global.fetch as any).mockResolvedValue({
         ok: false,
         status: 429,
-        headers: { get: (h: string) => h === 'content-type' ? 'application/json' : null },
-        json: async () => ({ error: ErrorType.RateLimit, message: 'Too many requests', status: 429 }),
-        clone() { return this; },
+        headers: { get: (h: string) => (h === 'content-type' ? 'application/json' : null) },
+        json: async () => ({
+          error: ErrorType.RateLimit,
+          message: 'Too many requests',
+          status: 429,
+        }),
+        clone() {
+          return this;
+        },
       });
 
       await expect(apiHttp.ping()).rejects.toMatchObject({
@@ -174,9 +188,15 @@ describe('ApiHttp', () => {
       (global.fetch as any).mockResolvedValue({
         ok: false,
         status: 401,
-        headers: { get: (h: string) => h === 'content-type' ? 'application/json' : null },
-        json: async () => ({ error: ErrorType.Authentication, message: 'Authentication required', status: 401 }),
-        clone() { return this; },
+        headers: { get: (h: string) => (h === 'content-type' ? 'application/json' : null) },
+        json: async () => ({
+          error: ErrorType.Authentication,
+          message: 'Authentication required',
+          status: 401,
+        }),
+        clone() {
+          return this;
+        },
       });
 
       await expect(apiHttp.ping()).rejects.toMatchObject({
@@ -191,7 +211,7 @@ describe('ApiHttp', () => {
       const mockLimits = {
         maxFileSize: 10 * 1024 * 1024,
         maxFilesCount: 1000,
-        maxTotalSize: 100 * 1024 * 1024
+        maxTotalSize: 100 * 1024 * 1024,
       };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockLimits));
 
@@ -202,9 +222,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toEqual(mockLimits);
     });
@@ -213,13 +233,15 @@ describe('ApiHttp', () => {
   describe('deploy', () => {
     it('should deploy files array', async () => {
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
-      (global.fetch as any).mockResolvedValue(createMockResponse({
-        deployment: 'test-deployment',
-        files: 1,
-        size: 13
-      }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({
+          deployment: 'test-deployment',
+          files: 1,
+          size: 13,
+        }),
+      );
 
       const result = await apiHttp.deploy(mockFiles);
 
@@ -228,28 +250,30 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toEqual({
         deployment: 'test-deployment',
         files: 1,
-        size: 13
+        size: 13,
       });
     });
 
     it('should deploy files array with labels', async () => {
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
       const labels = ['production', 'v1.0.0'];
-      (global.fetch as any).mockResolvedValue(createMockResponse({
-        deployment: 'test-deployment',
-        files: 1,
-        size: 13,
-        labels: labels
-      }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({
+          deployment: 'test-deployment',
+          files: 1,
+          size: 13,
+          labels: labels,
+        }),
+      );
 
       const result = await apiHttp.deploy(mockFiles, { labels });
 
@@ -258,15 +282,15 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toEqual({
         deployment: 'test-deployment',
         files: 1,
         size: 13,
-        labels: labels
+        labels: labels,
       });
     });
 
@@ -276,13 +300,15 @@ describe('ApiHttp', () => {
 
     it('should deploy without via when not explicitly provided', async () => {
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
-      (global.fetch as any).mockResolvedValue(createMockResponse({
-        deployment: 'test-deployment',
-        files: 1,
-        size: 13
-      }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({
+          deployment: 'test-deployment',
+          files: 1,
+          size: 13,
+        }),
+      );
 
       await apiHttp.deploy(mockFiles);
 
@@ -294,20 +320,22 @@ describe('ApiHttp', () => {
 
     it('should include custom via field when provided', async () => {
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
-      (global.fetch as any).mockResolvedValue(createMockResponse({
-        deployment: 'test-deployment',
-        files: 1,
-        size: 13,
-        via: 'cli'
-      }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({
+          deployment: 'test-deployment',
+          files: 1,
+          size: 13,
+          via: 'cli',
+        }),
+      );
 
       const result = await apiHttp.deploy(mockFiles, { via: 'cli' });
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/deployments',
-        expect.objectContaining({ method: 'POST' })
+        expect.objectContaining({ method: 'POST' }),
       );
       expect(result.via).toBe('cli');
     });
@@ -320,22 +348,24 @@ describe('ApiHttp', () => {
       const api = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: spyCreateDeployBody
+        createDeployBody: spyCreateDeployBody,
       });
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
-      (global.fetch as any).mockResolvedValue(createMockResponse({
-        deployment: 'test-deployment',
-        files: 1,
-        size: 13
-      }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({
+          deployment: 'test-deployment',
+          files: 1,
+          size: 13,
+        }),
+      );
 
       await api.deploy(mockFiles, { captcha: 'captcha-proof', via: 'web' });
 
       expect(spyCreateDeployBody).toHaveBeenCalledWith(
         expect.any(Array),
-        expect.objectContaining({ captcha: 'captcha-proof', via: 'web' })
+        expect.objectContaining({ captcha: 'captcha-proof', via: 'web' }),
       );
     });
 
@@ -347,36 +377,38 @@ describe('ApiHttp', () => {
         apiUrl: 'https://api.test.com',
         caller: 'end-user-42',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody
+        createDeployBody: mockCreateDeployBody,
       });
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
-      (global.fetch as any).mockResolvedValue(createMockResponse({
-        deployment: 'test-deployment',
-        files: 1,
-        size: 13
-      }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({
+          deployment: 'test-deployment',
+          files: 1,
+          size: 13,
+        }),
+      );
 
       await api.deploy(mockFiles);
       await api.ping();
 
       for (const call of (global.fetch as any).mock.calls) {
-        expect(call[1].headers).toEqual(
-          expect.objectContaining({ 'X-Caller': 'end-user-42' })
-        );
+        expect(call[1].headers).toEqual(expect.objectContaining({ 'X-Caller': 'end-user-42' }));
       }
     });
 
     it('should not include X-Caller header when caller option is not provided', async () => {
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
-      (global.fetch as any).mockResolvedValue(createMockResponse({
-        deployment: 'test-deployment',
-        files: 1,
-        size: 13
-      }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({
+          deployment: 'test-deployment',
+          files: 1,
+          size: 13,
+        }),
+      );
 
       await apiHttp.deploy(mockFiles);
 
@@ -391,13 +423,15 @@ describe('ApiHttp', () => {
         deployEndpoint: '/upload',
       });
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
-      (global.fetch as any).mockResolvedValue(createMockResponse({
-        deployment: 'test-deployment',
-        files: 1,
-        size: 13
-      }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({
+          deployment: 'test-deployment',
+          files: 1,
+          size: 13,
+        }),
+      );
 
       await customApiHttp.deploy(mockFiles);
 
@@ -407,13 +441,15 @@ describe('ApiHttp', () => {
 
     it('should default to /deployments endpoint when deployEndpoint not provided', async () => {
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
-      (global.fetch as any).mockResolvedValue(createMockResponse({
-        deployment: 'test-deployment',
-        files: 1,
-        size: 13
-      }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({
+          deployment: 'test-deployment',
+          files: 1,
+          size: 13,
+        }),
+      );
 
       await apiHttp.deploy(mockFiles);
 
@@ -427,8 +463,8 @@ describe('ApiHttp', () => {
       const mockDeployments = {
         deployments: [
           { deployment: 'test-1', status: 'success' },
-          { deployment: 'test-2', status: 'pending' }
-        ]
+          { deployment: 'test-2', status: 'pending' },
+        ],
       };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDeployments));
 
@@ -439,9 +475,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toEqual(mockDeployments);
     });
@@ -459,9 +495,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toEqual(mockDeployment);
     });
@@ -478,9 +514,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'DELETE',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toBeUndefined();
     });
@@ -498,9 +534,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toEqual(mockAccount);
     });
@@ -510,11 +546,11 @@ describe('ApiHttp', () => {
     it('should return false when no index.html file present', async () => {
       const mockFiles = [
         { path: 'main', content: Buffer.from('console.log("hello")'), md5: 'abc123', size: 20 },
-        { path: 'style.css', content: Buffer.from('body {}'), md5: 'def456', size: 7 }
+        { path: 'style.css', content: Buffer.from('body {}'), md5: 'def456', size: 7 },
       ];
 
       const result = await apiHttp.checkSPA(mockFiles);
-      
+
       expect(result).toBe(false);
       expect(fetch).not.toHaveBeenCalled();
     });
@@ -522,22 +558,22 @@ describe('ApiHttp', () => {
     it('should return false when index.html is too large', async () => {
       const largeContent = Buffer.alloc(150 * 1024, 'x'); // 150KB
       const mockFiles = [
-        { path: 'index.html', content: largeContent, md5: 'abc123', size: largeContent.length }
+        { path: 'index.html', content: largeContent, md5: 'abc123', size: largeContent.length },
       ];
 
       const result = await apiHttp.checkSPA(mockFiles);
-      
+
       expect(result).toBe(false);
       expect(fetch).not.toHaveBeenCalled();
     });
 
     it('should return false when index.html content type is unsupported', async () => {
       const mockFiles = [
-        { path: 'index.html', content: 123 as any, md5: 'abc123', size: 50 } // Invalid content type
+        { path: 'index.html', content: 123 as any, md5: 'abc123', size: 50 }, // Invalid content type
       ];
 
       const result = await apiHttp.checkSPA(mockFiles);
-      
+
       expect(result).toBe(false);
       expect(fetch).not.toHaveBeenCalled();
     });
@@ -545,8 +581,13 @@ describe('ApiHttp', () => {
     it('should make API request with Buffer content', async () => {
       const indexContent = '<html><head><script src="app.js"></script></head></html>';
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from(indexContent), md5: 'abc123', size: indexContent.length },
-        { path: 'app', content: Buffer.from('app code'), md5: 'def456', size: 8 }
+        {
+          path: 'index.html',
+          content: Buffer.from(indexContent),
+          md5: 'abc123',
+          size: indexContent.length,
+        },
+        { path: 'app', content: Buffer.from('app code'), md5: 'def456', size: 8 },
       ];
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
 
@@ -557,14 +598,14 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key',
-            'Content-Type': 'application/json'
+            Authorization: 'Bearer test-api-key',
+            'Content-Type': 'application/json',
           }),
           body: JSON.stringify({
             files: ['index.html', 'app'],
-            index: indexContent
-          })
-        })
+            index: indexContent,
+          }),
+        }),
       );
       expect(result).toBe(true);
     });
@@ -572,11 +613,11 @@ describe('ApiHttp', () => {
     it('should return false for unsupported content types (simulating Blob failure)', async () => {
       // Test that when content type is not Buffer and browser objects fail, we return false
       const mockFiles = [
-        { path: 'index.html', content: { someObject: true } as any, md5: 'abc123', size: 50 }
+        { path: 'index.html', content: { someObject: true } as any, md5: 'abc123', size: 50 },
       ];
 
       const result = await apiHttp.checkSPA(mockFiles);
-      
+
       expect(result).toBe(false);
       expect(fetch).not.toHaveBeenCalled();
     });
@@ -584,7 +625,12 @@ describe('ApiHttp', () => {
     it('should handle different index.html path formats', async () => {
       const indexContent = '<html></html>';
       const mockFiles = [
-        { path: '/index.html', content: Buffer.from(indexContent), md5: 'abc123', size: indexContent.length } // Leading slash
+        {
+          path: '/index.html',
+          content: Buffer.from(indexContent),
+          md5: 'abc123',
+          size: indexContent.length,
+        }, // Leading slash
       ];
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
 
@@ -595,9 +641,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           body: JSON.stringify({
             files: ['/index.html'],
-            index: indexContent
-          })
-        })
+            index: indexContent,
+          }),
+        }),
       );
       expect(result).toBe(true);
     });
@@ -605,9 +651,16 @@ describe('ApiHttp', () => {
     it('should handle API errors gracefully', async () => {
       const indexContent = '<html></html>';
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from(indexContent), md5: 'abc123', size: indexContent.length }
+        {
+          path: 'index.html',
+          content: Buffer.from(indexContent),
+          md5: 'abc123',
+          size: indexContent.length,
+        },
       ];
-      (global.fetch as any).mockResolvedValue(createMockResponse({ error: 'Service unavailable' }, 503));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ error: 'Service unavailable' }, 503),
+      );
 
       await expect(apiHttp.checkSPA(mockFiles)).rejects.toThrow();
     });
@@ -616,8 +669,13 @@ describe('ApiHttp', () => {
       const indexContent = '<html></html>';
       const mockFiles = [
         { path: 'components/App', content: Buffer.from('app'), md5: 'abc', size: 3 },
-        { path: 'index.html', content: Buffer.from(indexContent), md5: 'def', size: indexContent.length },
-        { path: 'assets/style.css', content: Buffer.from('css'), md5: 'ghi', size: 3 }
+        {
+          path: 'index.html',
+          content: Buffer.from(indexContent),
+          md5: 'def',
+          size: indexContent.length,
+        },
+        { path: 'assets/style.css', content: Buffer.from('css'), md5: 'ghi', size: 3 },
       ];
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
 
@@ -628,9 +686,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           body: JSON.stringify({
             files: ['components/App', 'index.html', 'assets/style.css'],
-            index: indexContent
-          })
-        })
+            index: indexContent,
+          }),
+        }),
       );
     });
   });
@@ -647,11 +705,11 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'PUT',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key',
-            'Content-Type': 'application/json'
+            Authorization: 'Bearer test-api-key',
+            'Content-Type': 'application/json',
           }),
-          body: JSON.stringify({ deployment: 'test-deployment' })
-        })
+          body: JSON.stringify({ deployment: 'test-deployment' }),
+        }),
       );
       expect(result).toEqual({ ...mockDomain, isCreate: false });
     });
@@ -667,11 +725,11 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'PUT',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key',
-            'Content-Type': 'application/json'
+            Authorization: 'Bearer test-api-key',
+            'Content-Type': 'application/json',
           }),
-          body: JSON.stringify({ deployment: 'test-deployment' })
-        })
+          body: JSON.stringify({ deployment: 'test-deployment' }),
+        }),
       );
       expect(result).toEqual({ ...mockDomain, isCreate: true });
     });
@@ -688,11 +746,11 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'PUT',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key',
-            'Content-Type': 'application/json'
+            Authorization: 'Bearer test-api-key',
+            'Content-Type': 'application/json',
           }),
-          body: JSON.stringify({ deployment: 'test-deployment', labels })
-        })
+          body: JSON.stringify({ deployment: 'test-deployment', labels }),
+        }),
       );
       expect(result).toEqual({ ...mockDomain, isCreate: true });
     });
@@ -708,9 +766,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toEqual(mockDomain);
     });
@@ -719,8 +777,8 @@ describe('ApiHttp', () => {
       const mockDomains = {
         domains: [
           { domain: 'staging', deployment: 'test-1' },
-          { domain: 'production', deployment: 'test-2' }
-        ]
+          { domain: 'production', deployment: 'test-2' },
+        ],
       };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDomains));
 
@@ -731,9 +789,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toEqual(mockDomains);
     });
@@ -748,9 +806,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'DELETE',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key'
-          })
-        })
+            Authorization: 'Bearer test-api-key',
+          }),
+        }),
       );
       expect(result).toBeUndefined();
     });
@@ -766,12 +824,14 @@ describe('ApiHttp', () => {
         apiUrl: 'https://api.test.com',
         session: true,
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody
+        createDeployBody: mockCreateDeployBody,
       });
     });
 
     it('should include credentials when session is true', async () => {
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ success: true, message: 'pong' }),
+      );
 
       await apiHttpCookieAuth.ping();
 
@@ -781,9 +841,9 @@ describe('ApiHttp', () => {
           method: 'GET',
           credentials: 'include',
           headers: expect.not.objectContaining({
-            'Authorization': expect.any(String)
-          })
-        })
+            Authorization: expect.any(String),
+          }),
+        }),
       );
     });
 
@@ -791,9 +851,11 @@ describe('ApiHttp', () => {
       const apiHttpDefault = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody
+        createDeployBody: mockCreateDeployBody,
       });
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ success: true, message: 'pong' }),
+      );
 
       await apiHttpDefault.ping();
 
@@ -805,10 +867,12 @@ describe('ApiHttp', () => {
       const apiHttpWithKey = new ApiHttp({
         apiUrl: 'https://api.test.com',
         session: true,
-        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-key' }),
-        createDeployBody: mockCreateDeployBody
+        getAuthHeaders: () => ({ Authorization: 'Bearer test-key' }),
+        createDeployBody: mockCreateDeployBody,
       });
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ success: true, message: 'pong' }),
+      );
 
       await apiHttpWithKey.ping();
 
@@ -817,9 +881,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-key'
-          })
-        })
+            Authorization: 'Bearer test-key',
+          }),
+        }),
       );
 
       const fetchCall = (fetch as any).mock.calls[0][1];
@@ -829,10 +893,12 @@ describe('ApiHttp', () => {
     it('should support deploy tokens via callback', async () => {
       const apiHttpWithToken = new ApiHttp({
         apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({ 'Authorization': 'Bearer test-token' }),
-        createDeployBody: mockCreateDeployBody
+        getAuthHeaders: () => ({ Authorization: 'Bearer test-token' }),
+        createDeployBody: mockCreateDeployBody,
       });
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ success: true, message: 'pong' }),
+      );
 
       await apiHttpWithToken.ping();
 
@@ -841,9 +907,9 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-token'
-          })
-        })
+            Authorization: 'Bearer test-token',
+          }),
+        }),
       );
 
       const fetchCall = (fetch as any).mock.calls[0][1];
@@ -862,9 +928,9 @@ describe('ApiHttp', () => {
           method: 'GET',
           credentials: 'include',
           headers: expect.not.objectContaining({
-            'Authorization': expect.any(String)
-          })
-        })
+            Authorization: expect.any(String),
+          }),
+        }),
       );
       expect(result).toEqual(mockAccount);
     });
@@ -874,7 +940,7 @@ describe('ApiHttp', () => {
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDeployment));
 
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 }
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
 
       const result = await apiHttpCookieAuth.deploy(mockFiles, {});
@@ -885,18 +951,22 @@ describe('ApiHttp', () => {
           method: 'POST',
           credentials: 'include',
           headers: expect.not.objectContaining({
-            'Authorization': expect.any(String)
-          })
-        })
+            Authorization: expect.any(String),
+          }),
+        }),
       );
       expect(result).toEqual(mockDeployment);
     });
-
   });
 
   describe('token operations', () => {
     it('should create token with ttl', async () => {
-      const mockResponse = { token: 'a1b2c3d', secret: 'deploy-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', expires: 1234567890, labels: [] };
+      const mockResponse = {
+        token: 'a1b2c3d',
+        secret: 'deploy-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        expires: 1234567890,
+        labels: [],
+      };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken(3600);
@@ -906,16 +976,21 @@ describe('ApiHttp', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           }),
-          body: JSON.stringify({ ttl: 3600 })
-        })
+          body: JSON.stringify({ ttl: 3600 }),
+        }),
       );
       expect(result).toEqual(mockResponse);
     });
 
     it('should create token with labels', async () => {
-      const mockResponse = { token: 'd3f4567', secret: 'deploy-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef', expires: 1234567890, labels: ['cicd', 'deploy'] };
+      const mockResponse = {
+        token: 'd3f4567',
+        secret: 'deploy-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        expires: 1234567890,
+        labels: ['cicd', 'deploy'],
+      };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken(undefined, ['cicd', 'deploy']);
@@ -924,14 +999,19 @@ describe('ApiHttp', () => {
         'https://api.test.com/tokens',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ labels: ['cicd', 'deploy'] })
-        })
+          body: JSON.stringify({ labels: ['cicd', 'deploy'] }),
+        }),
       );
       expect(result).toEqual(mockResponse);
     });
 
     it('should create token with both ttl and labels', async () => {
-      const mockResponse = { token: 'g7h8i9j', secret: 'deploy-g7h8i9j0123456789abcdef0123456789abcdef0123456789abcdef01234567', expires: 1234567890, labels: ['production'] };
+      const mockResponse = {
+        token: 'g7h8i9j',
+        secret: 'deploy-g7h8i9j0123456789abcdef0123456789abcdef0123456789abcdef01234567',
+        expires: 1234567890,
+        labels: ['production'],
+      };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken(7200, ['production']);
@@ -940,14 +1020,19 @@ describe('ApiHttp', () => {
         'https://api.test.com/tokens',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({ ttl: 7200, labels: ['production'] })
-        })
+          body: JSON.stringify({ ttl: 7200, labels: ['production'] }),
+        }),
       );
       expect(result).toEqual(mockResponse);
     });
 
     it('should create token without parameters', async () => {
-      const mockResponse = { token: 't0kn001', secret: 'deploy-t0kn0010123456789abcdef0123456789abcdef0123456789abcdef01234567', expires: 1234567890, labels: [] };
+      const mockResponse = {
+        token: 't0kn001',
+        secret: 'deploy-t0kn0010123456789abcdef0123456789abcdef0123456789abcdef01234567',
+        expires: 1234567890,
+        labels: [],
+      };
       (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
 
       const result = await apiHttp.createToken();
@@ -956,8 +1041,8 @@ describe('ApiHttp', () => {
         'https://api.test.com/tokens',
         expect.objectContaining({
           method: 'POST',
-          body: JSON.stringify({})
-        })
+          body: JSON.stringify({}),
+        }),
       );
       expect(result).toEqual(mockResponse);
     });
@@ -970,7 +1055,7 @@ describe('ApiHttp', () => {
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/tokens',
-        expect.objectContaining({ method: 'GET' })
+        expect.objectContaining({ method: 'GET' }),
       );
       expect(result).toEqual(mockResponse);
     });
@@ -982,7 +1067,7 @@ describe('ApiHttp', () => {
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/tokens/deploy-to-delete',
-        expect.objectContaining({ method: 'DELETE' })
+        expect.objectContaining({ method: 'DELETE' }),
       );
     });
   });
@@ -996,7 +1081,7 @@ describe('ApiHttp', () => {
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/domains/example.com/dns',
-        expect.objectContaining({ method: 'GET' })
+        expect.objectContaining({ method: 'GET' }),
       );
       expect(result).toEqual(mockResponse);
     });
@@ -1009,7 +1094,7 @@ describe('ApiHttp', () => {
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/domains/example.com/records',
-        expect.objectContaining({ method: 'GET' })
+        expect.objectContaining({ method: 'GET' }),
       );
       expect(result).toEqual(mockResponse);
     });
@@ -1022,7 +1107,7 @@ describe('ApiHttp', () => {
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/domains/example.com/share',
-        expect.objectContaining({ method: 'GET' })
+        expect.objectContaining({ method: 'GET' }),
       );
       expect(result).toEqual(mockResponse);
     });
@@ -1035,7 +1120,7 @@ describe('ApiHttp', () => {
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/domains/example.com/verify',
-        expect.objectContaining({ method: 'POST' })
+        expect.objectContaining({ method: 'POST' }),
       );
       expect(result).toEqual(mockResponse);
     });
@@ -1048,17 +1133,16 @@ describe('ApiHttp', () => {
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/domains/test.example.com/dns',
-        expect.anything()
+        expect.anything(),
       );
     });
   });
 
   describe('error handling', () => {
     it('should handle 401 authentication errors', async () => {
-      (global.fetch as any).mockResolvedValue(createMockResponse(
-        { error: 'authentication_failed', message: 'Invalid API key' },
-        401
-      ));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ error: 'authentication_failed', message: 'Invalid API key' }, 401),
+      );
 
       await expect(apiHttp.ping()).rejects.toThrow(ShipError);
       try {
@@ -1076,9 +1160,11 @@ describe('ApiHttp', () => {
         ok: false,
         status: 429,
         headers: {
-          get: vi.fn().mockImplementation((header: string) =>
-            header === 'content-type' ? 'application/json' : null,
-          ),
+          get: vi
+            .fn()
+            .mockImplementation((header: string) =>
+              header === 'content-type' ? 'application/json' : null,
+            ),
         },
         json: async () => ({
           error: 'rate_limit_exceeded',
@@ -1106,9 +1192,9 @@ describe('ApiHttp', () => {
           get: vi.fn().mockImplementation((header: string) => {
             if (header === 'content-type') return 'text/plain';
             return null;
-          })
+          }),
         },
-        text: async () => 'Internal Server Error'
+        text: async () => 'Internal Server Error',
       });
 
       await expect(apiHttp.ping()).rejects.toThrow('Internal Server Error');
@@ -1122,9 +1208,11 @@ describe('ApiHttp', () => {
           get: vi.fn().mockImplementation((header: string) => {
             if (header === 'content-type') return 'application/json';
             return null;
-          })
+          }),
         },
-        json: async () => { throw new Error('JSON parse error'); }
+        json: async () => {
+          throw new Error('JSON parse error');
+        },
       });
 
       await expect(apiHttp.ping()).rejects.toThrow('Ping failed');
@@ -1152,7 +1240,7 @@ describe('ApiHttp', () => {
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
         createDeployBody: mockCreateDeployBody,
-        timeout: 5000
+        timeout: 5000,
       });
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
 
@@ -1166,7 +1254,9 @@ describe('ApiHttp', () => {
 
   describe('fetch injection', () => {
     it('should use globalThis.fetch by default', async () => {
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true, message: 'pong' }));
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ success: true, message: 'pong' }),
+      );
 
       const api = new ApiHttp(mockOptions);
       const result = await api.ping();
@@ -1179,9 +1269,11 @@ describe('ApiHttp', () => {
     });
 
     it('should route every API call through the injected fetcher and bypass globalThis.fetch', async () => {
-      const injected = vi.fn<Fetch>().mockResolvedValue(
-        createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
-      );
+      const injected = vi
+        .fn<Fetch>()
+        .mockResolvedValue(
+          createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
+        );
 
       const api = new ApiHttp({ ...mockOptions, fetch: injected });
       await api.ping();
@@ -1193,9 +1285,11 @@ describe('ApiHttp', () => {
     });
 
     it('should pass the same RequestInit shape to the injected fetcher (headers, method, signal)', async () => {
-      const injected = vi.fn<Fetch>().mockResolvedValue(
-        createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
-      );
+      const injected = vi
+        .fn<Fetch>()
+        .mockResolvedValue(
+          createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
+        );
 
       const api = new ApiHttp({ ...mockOptions, fetch: injected });
       await api.ping();
@@ -1221,9 +1315,11 @@ describe('ApiHttp', () => {
         ok: false,
         status: 401,
         headers: {
-          get: vi.fn().mockImplementation((header: string) =>
-            header === 'content-type' ? 'application/json' : null,
-          ),
+          get: vi
+            .fn()
+            .mockImplementation((header: string) =>
+              header === 'content-type' ? 'application/json' : null,
+            ),
         },
         json: async () => ({ error: ErrorType.Authentication, message: 'bad key', status: 401 }),
       } as unknown as Response);
@@ -1237,9 +1333,11 @@ describe('ApiHttp', () => {
     });
 
     it('should emit request/response events for injected-fetcher calls', async () => {
-      const injected = vi.fn<Fetch>().mockResolvedValue(
-        createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
-      );
+      const injected = vi
+        .fn<Fetch>()
+        .mockResolvedValue(
+          createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
+        );
       const api = new ApiHttp({ ...mockOptions, fetch: injected });
 
       const onRequest = vi.fn();
@@ -1249,7 +1347,10 @@ describe('ApiHttp', () => {
 
       await api.ping();
 
-      expect(onRequest).toHaveBeenCalledWith('https://api.test.com/ping', expect.objectContaining({ method: 'GET' }));
+      expect(onRequest).toHaveBeenCalledWith(
+        'https://api.test.com/ping',
+        expect.objectContaining({ method: 'GET' }),
+      );
       expect(onResponse).toHaveBeenCalledWith(expect.anything(), 'https://api.test.com/ping');
     });
 
@@ -1277,8 +1378,8 @@ describe('ApiHttp', () => {
         'https://api.test.com/domains/staging',
         expect.objectContaining({
           method: 'PUT',
-          body: JSON.stringify({})
-        })
+          body: JSON.stringify({}),
+        }),
       );
       expect(result).toEqual({ ...mockDomain, isCreate: false });
     });
@@ -1293,11 +1394,10 @@ describe('ApiHttp', () => {
         'https://api.test.com/domains/staging',
         expect.objectContaining({
           method: 'PUT',
-          body: JSON.stringify({ deployment: 'dep1', labels: [] })
-        })
+          body: JSON.stringify({ deployment: 'dep1', labels: [] }),
+        }),
       );
       expect(result).toEqual({ ...mockDomain, isCreate: false });
     });
   });
-
 });

@@ -7,7 +7,7 @@
  * package would silently ship yesterday's platform to every consumer — these
  * assertions turn that into a red suite instead.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { AuthMethod, OAuthScope } from '../../src/shared/types';
 
 describe('Platform vocabulary re-export', () => {

@@ -2,7 +2,7 @@
  * @file Comprehensive tests for bulletproof event system fixes
  */
 
-import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { Ship } from '../../src/index.js';
 
 describe('Bulletproof Event System', () => {
@@ -10,9 +10,9 @@ describe('Bulletproof Event System', () => {
 
   beforeEach(() => {
     mockFetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-      return new Response(JSON.stringify({ success: true }), { 
+      return new Response(JSON.stringify({ success: true }), {
         status: 200,
-        headers: { 'content-type': 'application/json' }
+        headers: { 'content-type': 'application/json' },
       });
     });
   });
@@ -25,19 +25,19 @@ describe('Bulletproof Event System', () => {
     const ship = new Ship({ apiUrl: 'https://api.example.com' });
 
     const responseContent: string[] = [];
-    
-    ship.on('response', async (response, url) => {
+
+    ship.on('response', async (response, _url) => {
       // This should NOT fail because we use cloned response
       try {
         const data = await response.json();
         responseContent.push(JSON.stringify(data));
-      } catch (error) {
+      } catch (_error) {
         responseContent.push('FAILED');
       }
     });
 
     await ship.ping();
-    
+
     // Should have successfully read response body in event handler
     expect(responseContent.length).toBeGreaterThan(0);
     expect(responseContent[0]).not.toBe('FAILED');
@@ -48,16 +48,16 @@ describe('Bulletproof Event System', () => {
     const ship = new Ship({ apiUrl: 'https://api.example.com' });
 
     const responseUrls: string[] = [];
-    
-    ship.on('response', (response, url) => {
+
+    ship.on('response', (_response, url) => {
       responseUrls.push(url);
     });
 
     await ship.ping();
-    
+
     // Find ping responses (filter out config responses)
-    const pingResponses = responseUrls.filter(url => url.includes('/ping'));
-    
+    const pingResponses = responseUrls.filter((url) => url.includes('/ping'));
+
     // Should only have ONE ping response, not duplicates
     expect(pingResponses.length).toBe(1);
   });
@@ -65,24 +65,24 @@ describe('Bulletproof Event System', () => {
   test('should handle empty responses without duplication', async () => {
     // Mock empty response (204 No Content)
     mockFetch.mockResolvedValueOnce(
-      new Response(null, { 
-        status: 204
-      })
+      new Response(null, {
+        status: 204,
+      }),
     );
 
     const ship = new Ship({ apiUrl: 'https://api.example.com' });
 
-    const responseEvents: Array<{url: string, status: number}> = [];
-    
+    const responseEvents: Array<{ url: string; status: number }> = [];
+
     ship.on('response', (response, url) => {
       responseEvents.push({ url, status: response.status });
     });
 
     await ship.ping();
-    
-    // Find 204 responses 
-    const emptyResponses = responseEvents.filter(e => e.status === 204);
-    
+
+    // Find 204 responses
+    const emptyResponses = responseEvents.filter((e) => e.status === 204);
+
     // Should only have ONE empty response event, not duplicates
     expect(emptyResponses.length).toBe(1);
   });
@@ -113,7 +113,7 @@ describe('Bulletproof Event System', () => {
 
     // Failing handler should be called for every request (no circuit breaker in simple implementation)
     expect(failingHandlerCalls.length).toBeGreaterThanOrEqual(1);
-    
+
     // Good handler should be called for ALL requests
     expect(goodHandlerCalls.length).toBeGreaterThanOrEqual(2);
   });
@@ -126,7 +126,7 @@ describe('Bulletproof Event System', () => {
     });
 
     ship.on('request', failingHandler);
-    
+
     // Trigger failure
     await ship.ping();
     const firstCallCount = failingHandler.mock.calls.length;
@@ -134,10 +134,10 @@ describe('Bulletproof Event System', () => {
 
     // Remove handler
     ship.off('request', failingHandler);
-    
+
     // Add same handler back - it should work again
     ship.on('request', failingHandler);
-    
+
     // Should be called again (simple implementation always calls handlers)
     await ship.ping();
     expect(failingHandler.mock.calls.length).toBeGreaterThan(firstCallCount);
@@ -145,11 +145,11 @@ describe('Bulletproof Event System', () => {
 
   test('should transfer event listeners type-safely during initialization', async () => {
     const events: string[] = [];
-    
+
     // Create ship and add listeners BEFORE any API calls
     const ship = new Ship({
       apiUrl: 'https://api.example.com',
-      token: 'test-key'
+      token: 'test-key',
     });
 
     ship.on('request', (url) => {
@@ -165,22 +165,22 @@ describe('Bulletproof Event System', () => {
     await ship.ping();
 
     // Should have captured events from the NEW http instance
-    const requestEvents = events.filter(e => e.startsWith('request:'));
-    const responseEvents = events.filter(e => e.startsWith('response:'));
-    
+    const requestEvents = events.filter((e) => e.startsWith('request:'));
+    const responseEvents = events.filter((e) => e.startsWith('response:'));
+
     expect(requestEvents.length).toBeGreaterThan(0);
     expect(responseEvents.length).toBeGreaterThan(0);
-    
+
     // Verify ping request was captured
-    expect(requestEvents.some(e => e.includes('/ping'))).toBe(true);
-    expect(responseEvents.some(e => e.includes('/ping'))).toBe(true);
+    expect(requestEvents.some((e) => e.includes('/ping'))).toBe(true);
+    expect(responseEvents.some((e) => e.includes('/ping'))).toBe(true);
   });
 
   test('should handle concurrent event listeners safely', async () => {
     const ship = new Ship({ apiUrl: 'https://api.example.com' });
 
     const results: string[] = [];
-    
+
     // Add multiple handlers that could interfere with each other
     for (let i = 0; i < 5; i++) {
       ship.on('request', (url) => {
@@ -189,14 +189,14 @@ describe('Bulletproof Event System', () => {
     }
 
     await ship.ping();
-    
+
     // All handlers should have been called
-    const pingResults = results.filter(r => r.includes('/ping'));
+    const pingResults = results.filter((r) => r.includes('/ping'));
     expect(pingResults.length).toBe(5);
-    
+
     // Each handler should have unique identifier
     for (let i = 0; i < 5; i++) {
-      expect(pingResults.some(r => r.startsWith(`handler-${i}:`))).toBe(true);
+      expect(pingResults.some((r) => r.startsWith(`handler-${i}:`))).toBe(true);
     }
   });
 
@@ -204,25 +204,25 @@ describe('Bulletproof Event System', () => {
     const ship = new Ship({ apiUrl: 'https://api.example.com' });
 
     const eventOrder: string[] = [];
-    
+
     ship.on('request', (url) => {
       if (url.includes('/ping')) {
         eventOrder.push('request-ping');
       }
     });
-    
-    ship.on('response', (response, url) => {
+
+    ship.on('response', (_response, url) => {
       if (url.includes('/ping')) {
         eventOrder.push('response-ping');
       }
     });
 
     await ship.ping();
-    
+
     // Should see request before response for ping
     const pingRequestIndex = eventOrder.indexOf('request-ping');
     const pingResponseIndex = eventOrder.indexOf('response-ping');
-    
+
     expect(pingRequestIndex).toBeGreaterThanOrEqual(0);
     expect(pingResponseIndex).toBeGreaterThan(pingRequestIndex);
   });

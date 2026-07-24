@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __setTestEnvironment, getENV } from '../../src/shared/lib/env';
 import { TEST_PLATFORM_LIMITS } from '../fixtures/platform-limits';
 
 /**
  * Environment Switching Validation Tests
- * 
+ *
  * These tests validate that environment detection and switching work correctly,
  * ensuring proper isolation and behavior consistency when switching environments.
  */
@@ -42,7 +42,7 @@ describe('Environment Switching Cross-Platform Validation', () => {
 
     it('should handle rapid environment switches', () => {
       const switches = ['browser', 'node', 'browser', 'node', null] as const;
-      
+
       for (const env of switches) {
         __setTestEnvironment(env);
         if (env === null) {
@@ -56,31 +56,31 @@ describe('Environment Switching Cross-Platform Validation', () => {
     it('should maintain environment isolation during concurrent operations', async () => {
       // Test that environment switches don't interfere with each other
       const results: string[] = [];
-      
+
       const promises = [
         (async () => {
           __setTestEnvironment('browser');
-          await new Promise(resolve => setTimeout(resolve, 10));
+          await new Promise((resolve) => setTimeout(resolve, 10));
           results.push(`operation1-${getENV()}`);
         })(),
         (async () => {
           __setTestEnvironment('node');
-          await new Promise(resolve => setTimeout(resolve, 5));
+          await new Promise((resolve) => setTimeout(resolve, 5));
           results.push(`operation2-${getENV()}`);
         })(),
         (async () => {
           __setTestEnvironment('browser');
-          await new Promise(resolve => setTimeout(resolve, 15));
+          await new Promise((resolve) => setTimeout(resolve, 15));
           results.push(`operation3-${getENV()}`);
-        })()
+        })(),
       ];
 
       await Promise.all(promises);
-      
+
       // Each operation should have maintained its environment
       // Note: Due to global state, the last set wins, but operations should complete
       expect(results).toHaveLength(3);
-      expect(results.every(r => r.includes('-'))).toBe(true);
+      expect(results.every((r) => r.includes('-'))).toBe(true);
     });
   });
 
@@ -90,17 +90,30 @@ describe('Environment Switching Cross-Platform Validation', () => {
 
       // Mock DOM APIs since we're running in Node.js
       global.Blob = class MockBlob {
-        constructor(public bits: any[], public options: any = {}) {}
-        get size() { return this.bits.join('').length; }
-        get type() { return this.options.type || 'text/plain'; }
-        async arrayBuffer() { return new ArrayBuffer(this.size); }
+        constructor(
+          public bits: any[],
+          public options: any = {},
+        ) {}
+        get size() {
+          return this.bits.join('').length;
+        }
+        get type() {
+          return this.options.type || 'text/plain';
+        }
+        async arrayBuffer() {
+          return new ArrayBuffer(this.size);
+        }
         slice(start = 0, end = this.size) {
           return new MockBlob([this.bits.join('').slice(start, end)], this.options);
         }
       } as any;
 
       global.File = class MockFile extends (global.Blob as any) {
-        constructor(public bits: any[], public name: string, public options: any = {}) {
+        constructor(
+          public bits: any[],
+          public name: string,
+          public options: any = {},
+        ) {
           super(bits, options);
         }
       } as any;
@@ -110,15 +123,17 @@ describe('Environment Switching Cross-Platform Validation', () => {
 
       // Should work in browser environment with mocked APIs
       const mockFile = new File(['test'], 'test.txt');
-      await expect(processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS)).resolves.toBeDefined();
+      await expect(
+        processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS),
+      ).resolves.toBeDefined();
     });
 
     it('should enforce node-only functionality in node environment', async () => {
       __setTestEnvironment('node');
-      
+
       // Import node-specific functionality
       const { processFilesForNode } = await import('../../src/node/core/node-files');
-      
+
       // Should work in node environment (but will fail due to mocking in test)
       // The important part is that it doesn't throw environment errors
       await expect(processFilesForNode(['./test.txt'])).rejects.toThrow();
@@ -129,26 +144,28 @@ describe('Environment Switching Cross-Platform Validation', () => {
       // Test browser functions in node environment
       __setTestEnvironment('node');
       const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
-      
-      const mockFile = new File(['test'], 'test.txt');
-      await expect(processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow('processFilesForBrowser can only be called in a browser environment.');
 
-      // Test node functions in browser environment  
+      const mockFile = new File(['test'], 'test.txt');
+      await expect(processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        'processFilesForBrowser can only be called in a browser environment.',
+      );
+
+      // Test node functions in browser environment
       __setTestEnvironment('browser');
       const { processFilesForNode } = await import('../../src/node/core/node-files');
-      
-      await expect(processFilesForNode(['./test.txt']))
-        .rejects.toThrow('processFilesForNode can only be called in Node.js environment.');
+
+      await expect(processFilesForNode(['./test.txt'])).rejects.toThrow(
+        'processFilesForNode can only be called in Node.js environment.',
+      );
     });
   });
 
   describe('Ship Class Environment Validation', () => {
     it('should enforce Node.js Ship class environment requirements', async () => {
       __setTestEnvironment('browser');
-      
+
       const { Ship: NodeShip } = await import('../../src/node/index');
-      
+
       expect(() => {
         new NodeShip({ token: 'test-key' });
       }).toThrow('Node.js Ship class can only be used in Node.js environment.');
@@ -158,9 +175,9 @@ describe('Environment Switching Cross-Platform Validation', () => {
       // Browser Ship should work in both environments for flexibility
       for (const env of ['browser', 'node'] as const) {
         __setTestEnvironment(env);
-        
+
         const { Ship: BrowserShip } = await import('../../src/browser/index');
-        
+
         expect(() => {
           new BrowserShip({ token: 'test-token', apiUrl: 'https://api.test.com' });
         }).not.toThrow();
@@ -172,10 +189,10 @@ describe('Environment Switching Cross-Platform Validation', () => {
       __setTestEnvironment('node');
       const { Ship: NodeShip } = await import('../../src/node/index');
       const nodeShip = new NodeShip({ token: 'test-key' });
-      
+
       // Switch environment
       __setTestEnvironment('browser');
-      
+
       // Should still be able to use the instance (implementation-dependent)
       expect(nodeShip).toBeDefined();
       expect(nodeShip.deployments).toBeDefined();
@@ -193,19 +210,19 @@ describe('Environment Switching Cross-Platform Validation', () => {
   describe('Module Import Consistency During Environment Switches', () => {
     it('should handle module imports consistently during environment switches', async () => {
       const imports: any[] = [];
-      
+
       // Import in browser environment
       __setTestEnvironment('browser');
       imports.push(await import('../../src/browser/index'));
-      
+
       // Import in node environment
       __setTestEnvironment('node');
       imports.push(await import('../../src/node/index'));
-      
+
       // Both imports should succeed
       expect(imports[0]).toBeDefined();
       expect(imports[1]).toBeDefined();
-      
+
       // Both should have Ship class
       expect(imports[0].Ship).toBeDefined();
       expect(imports[1].Ship).toBeDefined();
@@ -213,14 +230,14 @@ describe('Environment Switching Cross-Platform Validation', () => {
 
     it('should handle shared module imports consistently', async () => {
       const sharedImports: any[] = [];
-      
+
       for (const env of ['browser', 'node'] as const) {
         __setTestEnvironment(env);
-        
+
         const sharedModule = await import('../../src/shared/lib/env');
         sharedImports.push(sharedModule);
       }
-      
+
       // Shared modules should be identical
       expect(sharedImports[0].getENV).toBe(sharedImports[1].getENV);
       expect(sharedImports[0].__setTestEnvironment).toBe(sharedImports[1].__setTestEnvironment);
@@ -230,20 +247,20 @@ describe('Environment Switching Cross-Platform Validation', () => {
   describe('Error Handling During Environment Switches', () => {
     it('should handle errors consistently when switching environments mid-operation', async () => {
       const errors: any[] = [];
-      
+
       // Start operation in one environment
       __setTestEnvironment('browser');
-      
+
       try {
         const { processFilesForNode } = await import('../../src/node/core/node-files');
         await processFilesForNode(['./test.txt']);
       } catch (error) {
         errors.push(error);
       }
-      
+
       // Switch environment and try again
       __setTestEnvironment('node');
-      
+
       try {
         const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
         const mockFile = new File(['test'], 'test.txt');
@@ -251,7 +268,7 @@ describe('Environment Switching Cross-Platform Validation', () => {
       } catch (error) {
         errors.push(error);
       }
-      
+
       // Both should have thrown environment-specific errors
       expect(errors).toHaveLength(2);
       expect(errors[0].message).toContain('Node.js environment');
@@ -260,33 +277,35 @@ describe('Environment Switching Cross-Platform Validation', () => {
 
     it('should provide helpful error messages for environment mismatches', async () => {
       __setTestEnvironment('browser');
-      
+
       const { processFilesForNode } = await import('../../src/node/core/node-files');
-      
-      await expect(processFilesForNode(['./test.txt']))
-        .rejects.toThrow(/can only be called in Node\.js environment/);
-      
+
+      await expect(processFilesForNode(['./test.txt'])).rejects.toThrow(
+        /can only be called in Node\.js environment/,
+      );
+
       __setTestEnvironment('node');
-      
+
       const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
       const mockFile = new File(['test'], 'test.txt');
-      
-      await expect(processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS))
-        .rejects.toThrow(/can only be called in a browser environment/);
+
+      await expect(processFilesForBrowser([mockFile], {}, TEST_PLATFORM_LIMITS)).rejects.toThrow(
+        /can only be called in a browser environment/,
+      );
     });
   });
 
   describe('Performance Impact of Environment Switching', () => {
     it('should not significantly impact performance when switching environments', async () => {
       const switchTimes: number[] = [];
-      
+
       for (let i = 0; i < 100; i++) {
         const start = performance.now();
         __setTestEnvironment(i % 2 === 0 ? 'browser' : 'node');
         const end = performance.now();
         switchTimes.push(end - start);
       }
-      
+
       // Environment switching should be fast (< 1ms average)
       const averageTime = switchTimes.reduce((a, b) => a + b, 0) / switchTimes.length;
       expect(averageTime).toBeLessThan(1);
@@ -294,14 +313,14 @@ describe('Environment Switching Cross-Platform Validation', () => {
 
     it('should handle frequent environment detection calls efficiently', () => {
       const start = performance.now();
-      
+
       for (let i = 0; i < 1000; i++) {
         getENV();
       }
-      
+
       const end = performance.now();
       const totalTime = end - start;
-      
+
       // 1000 calls should complete quickly (< 10ms)
       expect(totalTime).toBeLessThan(10);
     });
@@ -310,36 +329,32 @@ describe('Environment Switching Cross-Platform Validation', () => {
   describe('Environment State Consistency', () => {
     it('should maintain consistent state across environment boundaries', async () => {
       const stateLog: string[] = [];
-      
+
       // Record state changes
       __setTestEnvironment('browser');
       stateLog.push(`browser-${getENV()}`);
-      
+
       __setTestEnvironment('node');
       stateLog.push(`node-${getENV()}`);
-      
+
       __setTestEnvironment(null);
       stateLog.push(`auto-${getENV()}`);
-      
-      expect(stateLog).toEqual([
-        'browser-browser',
-        'node-node',
-        'auto-node'
-      ]);
+
+      expect(stateLog).toEqual(['browser-browser', 'node-node', 'auto-node']);
     });
 
     it('should handle concurrent environment state queries', async () => {
       __setTestEnvironment('browser');
-      
+
       const promises = Array.from({ length: 10 }, async () => {
-        await new Promise(resolve => setTimeout(resolve, Math.random() * 10));
+        await new Promise((resolve) => setTimeout(resolve, Math.random() * 10));
         return getENV();
       });
-      
+
       const results = await Promise.all(promises);
-      
+
       // All should return the same environment
-      expect(results.every(env => env === 'browser')).toBe(true);
+      expect(results.every((env) => env === 'browser')).toBe(true);
     });
   });
 });

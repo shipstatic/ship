@@ -1,27 +1,39 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import type { DeployInput, DeploymentOptions, StaticFile, DeployBodyCreator } from '../../src/shared/types';
+import type {
+  DeployBodyCreator,
+  DeployInput,
+  DeploymentOptions,
+  StaticFile,
+} from '../../src/shared/types';
 
-const TEST_API_KEY = 'ship-' + 'a'.repeat(64);
-const TEST_DEPLOY_TOKEN = 'deploy-' + 'b'.repeat(64);
+const TEST_API_KEY = `ship-${'a'.repeat(64)}`;
+const TEST_DEPLOY_TOKEN = `deploy-${'b'.repeat(64)}`;
 
 const mockDeployBodyCreator: DeployBodyCreator = async () => ({
   body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' }
+  headers: { 'Content-Type': 'multipart/form-data' },
 });
 
 // Concrete test implementation. The `ensureInitialized` no-op skips the
 // `GET /limits` fetch so these tests can focus on the credential lifecycle
 // without needing to mock platform-limits wiring.
 class TestShip extends Ship {
-  protected async ensureInitialized(): Promise<void> { /* no platform-limits fetch in tests */ }
-  protected async processInput(_input: DeployInput, _options: DeploymentOptions): Promise<StaticFile[]> {
-    return [{
-      path: 'test.html',
-      content: Buffer.from('<html>Test</html>'),
-      size: 18,
-      md5: 'test-hash',
-    }];
+  protected async ensureInitialized(): Promise<void> {
+    /* no platform-limits fetch in tests */
+  }
+  protected async processInput(
+    _input: DeployInput,
+    _options: DeploymentOptions,
+  ): Promise<StaticFile[]> {
+    return [
+      {
+        path: 'test.html',
+        content: Buffer.from('<html>Test</html>'),
+        size: 18,
+        md5: 'test-hash',
+      },
+    ];
   }
   protected getDeployBodyCreator(): DeployBodyCreator {
     return mockDeployBodyCreator;
@@ -36,7 +48,7 @@ describe('Credential Lifecycle', () => {
 
     mockApiDeploy = vi.fn().mockResolvedValue({
       id: 'dep_123',
-      url: 'https://dep_123.shipstatic.com'
+      url: 'https://dep_123.shipstatic.com',
     });
   });
 
@@ -48,7 +60,7 @@ describe('Credential Lifecycle', () => {
       (ship as any).http = {
         deploy: mockApiDeploy,
         ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({}),
       };
 
       // Anonymous first — no Authorization header.
@@ -56,13 +68,13 @@ describe('Credential Lifecycle', () => {
 
       ship.setToken(TEST_DEPLOY_TOKEN);
       expect(await (ship as any).getAuthHeaders()).toEqual({
-        'Authorization': `Bearer ${TEST_DEPLOY_TOKEN}`
+        Authorization: `Bearer ${TEST_DEPLOY_TOKEN}`,
       });
 
       const result = await ship.deploy(['./test'] as any);
       expect(result).toEqual({
         id: 'dep_123',
-        url: 'https://dep_123.shipstatic.com'
+        url: 'https://dep_123.shipstatic.com',
       });
       expect(mockApiDeploy).toHaveBeenCalled();
     });
@@ -81,38 +93,42 @@ describe('Credential Lifecycle', () => {
     it('should replace the previous credential — last write wins', async () => {
       const ship = new TestShip({
         apiUrl: 'https://test-api.com',
-        token: TEST_API_KEY
+        token: TEST_API_KEY,
       });
 
       expect(await (ship as any).getAuthHeaders()).toEqual({
-        'Authorization': `Bearer ${TEST_API_KEY}`
+        Authorization: `Bearer ${TEST_API_KEY}`,
       });
 
       ship.setToken(TEST_DEPLOY_TOKEN);
 
       expect(await (ship as any).getAuthHeaders()).toEqual({
-        'Authorization': `Bearer ${TEST_DEPLOY_TOKEN}`
+        Authorization: `Bearer ${TEST_DEPLOY_TOKEN}`,
       });
     });
 
     it('should accept a provider function', async () => {
       const ship = new TestShip({
         apiUrl: 'https://test-api.com',
-        token: TEST_API_KEY
+        token: TEST_API_KEY,
       });
 
       ship.setToken(() => 'minted-access-token');
 
       expect(await (ship as any).getAuthHeaders()).toEqual({
-        'Authorization': 'Bearer minted-access-token'
+        Authorization: 'Bearer minted-access-token',
       });
     });
 
-    it('rejects on a session client — the constructor exclusion holds for the client\'s life', async () => {
+    it("rejects on a session client — the constructor exclusion holds for the client's life", async () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com', session: true });
 
-      expect(() => ship.setToken(TEST_API_KEY)).toThrow('Provide either `token` or `session`, not both.');
-      expect(() => ship.setToken(() => TEST_API_KEY)).toThrow('Provide either `token` or `session`, not both.');
+      expect(() => ship.setToken(TEST_API_KEY)).toThrow(
+        'Provide either `token` or `session`, not both.',
+      );
+      expect(() => ship.setToken(() => TEST_API_KEY)).toThrow(
+        'Provide either `token` or `session`, not both.',
+      );
       // Still cookie-identified — no Authorization header was armed.
       expect(await (ship as any).getAuthHeaders()).toEqual({});
     });
@@ -122,14 +138,14 @@ describe('Credential Lifecycle', () => {
     it('should adopt a constructor token', async () => {
       const ship = new TestShip({
         apiUrl: 'https://test-api.com',
-        token: TEST_DEPLOY_TOKEN
+        token: TEST_DEPLOY_TOKEN,
       });
 
       // Override http with mock
       (ship as any).http = {
         deploy: mockApiDeploy,
         ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({})
+        getLimits: vi.fn().mockResolvedValue({}),
       };
 
       await ship.deploy(['./test'] as any);
@@ -160,6 +176,5 @@ describe('Credential Lifecycle', () => {
 
       expect(mockSetGlobalHeaders).toHaveBeenLastCalledWith({});
     });
-
   });
 });

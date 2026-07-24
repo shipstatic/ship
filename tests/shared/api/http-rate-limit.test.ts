@@ -12,7 +12,7 @@
  * primary test focus here.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../../src/node';
 import { resetMockServer } from '../../mocks/server';
 
@@ -37,9 +37,7 @@ describe('Rate Limiting (429 responses)', () => {
       await ship.domains.verify(domain);
 
       // Immediate second request should be rate limited
-      await expect(ship.domains.verify(domain)).rejects.toThrow(
-        /already requested recently/
-      );
+      await expect(ship.domains.verify(domain)).rejects.toThrow(/already requested recently/);
     });
 
     it('should allow verification for different domains', async () => {
