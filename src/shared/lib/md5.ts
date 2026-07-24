@@ -19,15 +19,18 @@ async function md5Blob(blob: Blob): Promise<MD5Result> {
 }
 
 async function md5Buffer(buffer: Buffer): Promise<MD5Result> {
-  const { createHash } = await import('node:crypto');
+  // biome-ignore lint/style/useNodejsImportProtocol: the browser build shims bare specifiers only — `node:` bypasses esbuild alias resolution (see tsup.config.ts)
+  const { createHash } = await import('crypto');
   const hash = createHash('md5');
   hash.update(buffer);
   return { md5: hash.digest('hex') };
 }
 
 async function md5Path(path: string): Promise<MD5Result> {
-  const { createHash } = await import('node:crypto');
-  const { createReadStream } = await import('node:fs');
+  // biome-ignore lint/style/useNodejsImportProtocol: see md5Buffer — bare specifier is load-bearing for the browser shim
+  const { createHash } = await import('crypto');
+  // biome-ignore lint/style/useNodejsImportProtocol: see md5Buffer — bare specifier is load-bearing for the browser shim
+  const { createReadStream } = await import('fs');
   return new Promise((resolve, reject) => {
     const hash = createHash('md5');
     const stream = createReadStream(path);

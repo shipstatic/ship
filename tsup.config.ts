@@ -55,7 +55,12 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     noExternal: browserBundleDeps,
     minify: !tsupOptions.watch,
     esbuildOptions(options, _context) {
-      // Use build-time aliasing for Node.js modules
+      // Build-time aliasing for Node.js modules. esbuild aliases match BARE
+      // specifiers only (`node:`-prefixed ones bypass alias resolution), so
+      // node-builtin imports in shared source must use the bare form — the
+      // two md5.ts sites carry biome-ignore comments for exactly this, and
+      // the post-build fence (scripts/post-build.cjs) fails the build if any
+      // builtin survives into dist/browser.js.
       options.alias = {
         ...options.alias,
         fs: path.resolve('./build-shims/empty.cjs'),
