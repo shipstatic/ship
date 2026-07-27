@@ -15,17 +15,22 @@ const mockEncoderInstance = {
   contentType: 'multipart/form-data; boundary=----test-boundary',
 };
 
+// `function`, not arrows: vitest 4 invokes constructor mocks with `new`, and
+// an arrow function cannot be constructed. Returning an object from a
+// constructor overrides `this`, so `new FormData()` yields the double.
 vi.mock('formdata-node', () => ({
-  FormData: vi.fn(() => mockFormDataInstance),
-  File: vi.fn((content: any[], name: string, options: any) => ({
-    content,
-    name,
-    type: options?.type,
-  })),
+  FormData: vi.fn(function FormData() {
+    return mockFormDataInstance;
+  }),
+  File: vi.fn(function File(content: any[], name: string, options: any) {
+    return { content, name, type: options?.type };
+  }),
 }));
 
 vi.mock('form-data-encoder', () => ({
-  FormDataEncoder: vi.fn(() => mockEncoderInstance),
+  FormDataEncoder: vi.fn(function FormDataEncoder() {
+    return mockEncoderInstance;
+  }),
 }));
 
 describe('Node.js Deploy Body Creation', () => {
@@ -113,6 +118,41 @@ describe('Node.js Deploy Body Creation', () => {
   });
 
   describe('labels handling', () => {
+    it('appends the internal-tier flags the server-processed path sets', async () => {
+      // `build`/`prerender`/`spa`/`captcha` are the `@internal` tier only
+      // `web/my` and `web/www` use, via the `/upload` endpoint. Nothing had
+      // ever exercised them on the NODE side — the browser mirror had them,
+      // Node did not, and the gap was invisible because vitest 3's v8 provider
+      // merged these lines into an adjacent counted statement.
+      const files: StaticFile[] = [
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
+      ];
+
+      await createDeployBody(files, {
+        flags: { build: true, prerender: true, spa: true },
+        captcha: 'recaptcha-proof',
+      });
+
+      expect(mockFormDataAppend).toHaveBeenCalledWith('build', 'true');
+      expect(mockFormDataAppend).toHaveBeenCalledWith('prerender', 'true');
+      expect(mockFormDataAppend).toHaveBeenCalledWith('spa', 'true');
+      expect(mockFormDataAppend).toHaveBeenCalledWith('captcha', 'recaptcha-proof');
+    });
+
+    it('appends no flag field when the flags are absent or false', async () => {
+      const files: StaticFile[] = [
+        { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
+      ];
+
+      await createDeployBody(files, { flags: { build: false, prerender: false, spa: false } });
+
+      const appended = mockFormDataAppend.mock.calls.map(([field]) => field);
+      expect(appended).not.toContain('build');
+      expect(appended).not.toContain('prerender');
+      expect(appended).not.toContain('spa');
+      expect(appended).not.toContain('captcha');
+    });
+
     it('should append labels as JSON when provided', async () => {
       const files: StaticFile[] = [
         { path: 'file.txt', content: Buffer.from('x'), size: 1, md5: 'md5' },
@@ -298,7 +338,7 @@ describe('Node.js Deploy Body Creation', () => {
 
       // Verify body is an ArrayBuffer with combined content
       expect(result.body).toBeInstanceOf(ArrayBuffer);
-      const bodyText = Buffer.from(result.body).toString();
+      const bodyText = Buffer.from(result.body as ArrayBuffer).toString();
       expect(bodyText).toBe('chunk1chunk2chunk3');
     });
   });
@@ -338,7 +378,8 @@ describe('Node.js Deploy Body Creation', () => {
         (call: any[]) => call[0] === 'checksums',
       );
       expect(checksumsCall).toBeDefined();
-      expect(JSON.parse(checksumsCall[1])).toEqual(['first', 'second', 'third']);
+      expect(checksumsCall).toBeDefined();
+      expect(JSON.parse(checksumsCall![1])).toEqual(['first', 'second', 'third']);
     });
   });
 

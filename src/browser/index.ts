@@ -11,7 +11,7 @@ import { Ship as BaseShip } from '../shared/base-ship.js';
 import type {
   DeployBodyCreator,
   DeployInput,
-  Deployment,
+  DeploymentCreateResponse,
   DeploymentOptions,
   StaticFile,
 } from '../shared/types.js';
@@ -49,7 +49,7 @@ export class Ship extends BaseShip {
    * intentional: the convenience shortcut narrows; the resource-layer
    * contract stays platform-neutral.
    */
-  async deploy(input: File[], options?: DeploymentOptions): Promise<Deployment> {
+  async deploy(input: File[], options?: DeploymentOptions): Promise<DeploymentCreateResponse> {
     return super.deploy(input, options);
   }
 

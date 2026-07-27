@@ -31,7 +31,20 @@ jobs:
 
       - run: pnpm run build
 
-      - run: pnpm test:ci
+      # Coverage in place of a bare test run: the suite is the same, plus the
+      # ratchet in vitest.config.ts. Build must precede it — the child-process
+      # CLI tier executes dist/cli.cjs and refuses to run against a stale one.
+      - run: pnpm coverage
+
+      # Capability tier: real-browser certification (File/FormData/spark-md5
+      # semantics jsdom can only approximate). Separate invocation, no
+      # coverage coupling — same pattern as the backend's workerd tier.
+      - run: npx playwright install chromium --with-deps
+
+      - run: pnpm test:browser
+
+      # The published artifact itself: exports map, CJS/ESM resolution, dts.
+      - run: pnpm check:package
 
   publish:
     # Publishes fire on branch pushes only; PRs stop at the test gate.

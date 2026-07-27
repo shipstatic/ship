@@ -6,21 +6,23 @@ import type { Fetch } from '../../../src/shared/types';
 // Mock fetch globally
 global.fetch = vi.fn();
 
-// Helper function to create standardized mock responses
+/**
+ * A REAL `Response`, not a hand-shaped object.
+ *
+ * The previous fake answered `'15'` to every `headers.get(...)` — including
+ * `Content-Type`, which is not a length — and had no `clone()`, so every
+ * assertion about event payloads silently exercised `safeClone`'s fallback
+ * path instead of the cloning one production takes. A real Response costs
+ * nothing and cannot lie about its own shape.
+ */
 function createMockResponse(data: any, status = 200) {
-  return {
-    ok: status < 400,
+  // 204/205/304 and a `void` result must have a null body — the Response
+  // constructor enforces it, which is itself a check on the test's intent.
+  const hasBody = data !== undefined && status !== 204;
+  return new Response(hasBody ? JSON.stringify(data) : null, {
     status,
-    headers: {
-      get: vi.fn().mockImplementation((header: string) => {
-        if (header === 'Content-Length') {
-          return status === 204 || data === undefined ? '0' : '15';
-        }
-        return '15';
-      }),
-    },
-    json: async () => data,
-  };
+    headers: hasBody ? { 'Content-Type': 'application/json' } : {},
+  });
 }
 
 // Mock deploy body creator for tests
@@ -91,8 +93,8 @@ describe('ApiHttp', () => {
         },
         createDeployBody: mockCreateDeployBody,
       });
-      const errors: ShipError[] = [];
-      api.on('error', (err: ShipError) => errors.push(err));
+      const errors: Error[] = [];
+      api.on('error', (err) => errors.push(err));
 
       let caught: unknown;
       try {
@@ -117,8 +119,8 @@ describe('ApiHttp', () => {
         },
         createDeployBody: mockCreateDeployBody,
       });
-      const errors: ShipError[] = [];
-      api.on('error', (err: ShipError) => errors.push(err));
+      const errors: Error[] = [];
+      api.on('error', (err) => errors.push(err));
 
       await expect(api.ping()).rejects.toBe(providerError);
       expect(errors).toEqual([providerError]);
@@ -480,6 +482,32 @@ describe('ApiHttp', () => {
         }),
       );
       expect(result).toEqual(mockDeployments);
+    });
+
+    it('serializes pagination options as limit/cursor query params', async () => {
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ deployments: [], cursor: null, total: 0 }),
+      );
+
+      await apiHttp.listDeployments({ limit: 2, cursor: 'abc123' });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/deployments?limit=2&cursor=abc123',
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+
+    it('sends no query string when no pagination options are given', async () => {
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ deployments: [], cursor: null, total: 0 }),
+      );
+
+      await apiHttp.listDeployments({});
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/deployments',
+        expect.objectContaining({ method: 'GET' }),
+      );
     });
   });
 
@@ -1126,13 +1154,31 @@ describe('ApiHttp', () => {
     });
 
     it('should encode special characters in domain names', async () => {
-      const mockResponse = { domain: 'test.example.com', dns: {} };
-      (global.fetch as any).mockResolvedValue(createMockResponse(mockResponse));
+      // Input that actually requires encoding. The previous version passed
+      // `test.example.com`, whose encoded form is itself — so the assertion
+      // held identically with no `encodeURIComponent` call at all.
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ domain: 'tëst.example.com', dns: {} }),
+      );
 
-      await apiHttp.getDomainDns('test.example.com');
+      await apiHttp.getDomainDns('tëst.example.com');
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/domains/test.example.com/dns',
+        'https://api.test.com/domains/t%C3%ABst.example.com/dns',
+        expect.anything(),
+      );
+    });
+
+    it('should encode a path separator so it cannot forge a sub-route', async () => {
+      // The SDK is a transparent pipe and does not validate domain names, so
+      // encoding is the only thing standing between a hostile name and a
+      // different endpoint.
+      (global.fetch as any).mockResolvedValue(createMockResponse({ domain: 'x', dns: {} }));
+
+      await apiHttp.getDomainDns('evil.com/../../account');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/domains/evil.com%2F..%2F..%2Faccount/dns',
         expect.anything(),
       );
     });

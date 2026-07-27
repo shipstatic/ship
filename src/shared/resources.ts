@@ -6,6 +6,7 @@ import {
   type DeployInput,
   type DeploymentResource,
   type DomainResource,
+  type ListOptions,
   ShipError,
   type StaticFile,
   type TokenResource,
@@ -49,7 +50,9 @@ export interface DeploymentResourceContext extends ResourceContext {
  * public-account agent identity per request (claim URL + expiry on the
  * response). The SDK stays a transparent pipe either way.
  */
-export function createDeploymentResource(ctx: DeploymentResourceContext): DeploymentResource {
+export function createDeploymentResource(
+  ctx: DeploymentResourceContext,
+): DeploymentResource<DeploymentOptions> {
   const { getApi, ensureInit, processInput, clientDefaults } = ctx;
 
   return {
@@ -69,9 +72,9 @@ export function createDeploymentResource(ctx: DeploymentResourceContext): Deploy
       return apiClient.deploy(staticFiles, mergedOptions);
     },
 
-    list: async () => {
+    list: async (options?: ListOptions) => {
       await ensureInit();
-      return getApi().listDeployments();
+      return getApi().listDeployments(options);
     },
 
     get: async (id: string) => {
@@ -112,9 +115,9 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
       return getApi().setDomain(name, options.deployment, options.labels);
     },
 
-    list: async () => {
+    list: async (options?: ListOptions) => {
       await ensureInit();
-      return getApi().listDomains();
+      return getApi().listDomains(options);
     },
 
     get: async (name: string) => {

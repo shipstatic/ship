@@ -1,5 +1,12 @@
 /**
  * @file Main entry point for the Ship CLI.
+ *
+ * `buildProgram()` constructs the full Commander tree and is the seam the
+ * in-process tests drive (`tests/node/cli/index.test.ts`). The bin execution
+ * path at the bottom of this file is what `dist/cli.cjs` runs and is proven
+ * by the child-process smoke tier. Commander instances are not reusable
+ * across parses (option state accumulates), so every caller gets a fresh
+ * tree.
  */
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -12,7 +19,7 @@ import {
   validateApiUrl,
   validateToken,
 } from '@shipstatic/types';
-import { Command } from 'commander';
+import { Command, CommanderError, Help, InvalidArgumentError } from 'commander';
 import { bold, dim } from 'yoctocolors';
 import { readEnvConfig } from '../core/config.js';
 import type { Ship } from '../index.js';
@@ -27,6 +34,7 @@ import type {
   DeployCommandOptions,
   GlobalOptions,
   LabelOptions,
+  ListCommandOptions,
   TokenCreateCommandOptions,
 } from './types.js';
 import { error } from './utils.js';
@@ -47,53 +55,20 @@ function loadPackageJson(): { version: string } {
 
 const packageJson = loadPackageJson();
 
-const program = new Command();
-
-// Override Commander.js error handling while preserving help/version behavior
-program
-  .exitOverride((err) => {
-    // Only override actual errors, not help/version exits
-    if (err.code === 'commander.help' || err.code === 'commander.version' || err.exitCode === 0) {
-      process.exit(err.exitCode || 0);
-    }
-
-    // --help alongside a parse error (e.g., ship deployments upload --help)
-    // Show help instead of the error
-    if (process.argv.includes('--help')) {
-      displayHelp(processOptions(program).noColor);
-      process.exit(0);
-    }
-
-    const globalOptions = processOptions(program);
-
-    let message = err.message || 'unknown command error';
-    message = message
-      .replace(/^error: /, '')
-      .replace(/\n.*/, '')
-      .replace(/\.$/, '')
-      .toLowerCase();
-
-    error(message, globalOptions.json, globalOptions.noColor);
-
-    if (!globalOptions.json) {
-      displayHelp(globalOptions.noColor);
-    }
-
-    process.exit(err.exitCode || 1);
-  })
-  .configureOutput({
-    writeErr: (str) => {
-      if (!str.startsWith('error:')) {
-        process.stderr.write(str);
-      }
-    },
-    writeOut: (str) => process.stdout.write(str),
-  });
-
 /**
- * Display comprehensive help information for all commands
+ * The CLI's FRONT PAGE — what `ship`, `ship --help`, and `ship help` render.
+ * This hand-written overview is the product's front door and is kept exactly
+ * as designed; do not swap it for generated output.
+ *
+ * Subcommand help is the other scope: `ship deployments --help` and
+ * `ship help deployments` render Commander's NATIVE help, which knows that
+ * command's exact usage, arguments, and options. The split lives in ONE
+ * conditional (`configureHelp.formatHelp` in `buildProgram`): root → this
+ * page, everything else → native. Riding the built-in machinery is what
+ * makes every help route credential-free and lets `--help` beside a parse
+ * error win (Commander processes it before argument errors).
  */
-function displayHelp(noColor?: boolean) {
+function helpText(noColor?: boolean): string {
   const applyBold = (text: string) => (noColor ? text : bold(text));
   const applyDim = (text: string) => (noColor ? text : dim(text));
   const icon = (emoji: string) => (noColor ? '' : `${emoji} `);
@@ -143,7 +118,7 @@ ${applyBold('FLAGS')}
   --no-color                Disable colored output
   --json                    Output results in JSON format
   -q, --quiet               Output only the resource identifier
-  --version                 Show version information
+  -V, --version             Show version information
 
 ${applyBold('EXAMPLES')}
   ship ./dist
@@ -153,7 +128,7 @@ ${applyBold('EXAMPLES')}
 ${applyDim('Please report any issues to https://github.com/shipstatic/ship/issues')}
 `;
 
-  console.log(output);
+  return output;
 }
 
 /**
@@ -162,6 +137,20 @@ ${applyDim('Please report any issues to https://github.com/shipstatic/ship/issue
  */
 function collect(value: string, previous: string[] = []): string[] {
   return previous.concat([value]);
+}
+
+/**
+ * Argument parser for integer option values (`--ttl`, `--limit`). A mangled
+ * number must fail HERE with a clear message — a bare `parseInt` once turned
+ * `--ttl abc` into `NaN` on the wire. Range rules stay server-side (the SDK
+ * is a transparent pipe); only the not-a-number corruption is a client bug.
+ */
+function parseInteger(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    throw new InvalidArgumentError('Not a number.');
+  }
+  return parsed;
 }
 
 /**
@@ -197,35 +186,6 @@ function mergePasswordOption(
 }
 
 /**
- * Handle unknown or missing subcommand for parent commands.
- * Shows scoped usage instead of full help — the user already knows the group.
- */
-function handleUnknownSubcommand(
-  parentName: string,
-  validSubcommands: string[],
-): (...args: unknown[]) => void {
-  return (...args: unknown[]) => {
-    const globalOptions = processOptions(program);
-
-    // Get the command object (last argument) - Commander passes it as the final arg
-    const commandObj = args[args.length - 1] as { args?: string[] } | undefined;
-
-    // Check if an unknown subcommand was provided
-    if (commandObj?.args?.length) {
-      const unknownArg = commandObj.args.find((arg) => !validSubcommands.includes(arg));
-      if (unknownArg) {
-        error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
-      }
-    }
-
-    if (!globalOptions.json) {
-      console.log(`usage: ship ${parentName} <${validSubcommands.join('|')}>\n`);
-    }
-    process.exit(1);
-  };
-}
-
-/**
  * Process CLI options using Commander's built-in option merging.
  * Applies CLI-specific transformations (validation is done in preAction hook).
  */
@@ -252,10 +212,6 @@ function processOptions(command: Command): GlobalOptions {
 }
 
 /**
- * Error handler - outputs errors consistently in text or JSON format.
- * Message formatting is delegated to the error-handling module.
- */
-/**
  * The credential the CLI actually resolved (flag > env > file). The error
  * path must diagnose with the same lens the client was built with — a user
  * whose `SHIP_TOKEN` or `.shiprc` token was rejected is credentialed, and
@@ -276,64 +232,6 @@ function resolveCliToken(flags: {
   // solely as constructor arguments, which the CLI never passes.
   const token = mergeCliConfig(flags, readEnvConfig(), file).token;
   return typeof token === 'string' ? token : undefined;
-}
-
-function handleError(err: unknown, context?: OutputContext) {
-  const opts = processOptions(program);
-  const shipError = toShipError(err);
-
-  // Get user-facing message using the extracted pure function
-  const message = getUserMessage(shipError, context, {
-    token: resolveCliToken(program.opts()),
-  });
-
-  // Output in appropriate format
-  if (opts.json) {
-    console.error(`${formatErrorJson(message, shipError.details)}\n`);
-  } else {
-    error(message, false, opts.noColor);
-    // Show help only for unknown command errors (user CLI mistake)
-    if (shipError.type === ErrorType.Validation && message.includes('unknown command')) {
-      displayHelp(opts.noColor);
-    }
-  }
-
-  process.exit(1);
-}
-
-/**
- * Wrapper for CLI actions that handles errors and client creation consistently.
- * Reduces boilerplate while preserving context for error handling.
- */
-function withErrorHandling<T extends unknown[], R extends CLIResult>(
-  handler: (client: Ship, options: GlobalOptions, ...args: T) => Promise<R>,
-  context?: { operation?: string; resourceType?: string; getResourceId?: (...args: T) => string },
-) {
-  return async function (this: Command, ...args: T) {
-    const globalOptions = processOptions(this);
-
-    // Build context once for both output and error paths
-    const resolvedContext: OutputContext = context
-      ? {
-          operation: context.operation,
-          resourceType: context.resourceType,
-          resourceId: context.getResourceId?.(...args),
-        }
-      : {};
-
-    try {
-      const { config, apiUrl, token } = program.opts();
-      const client = createClient({ config, apiUrl, token });
-      const result = await handler(client, globalOptions, ...args);
-      formatOutput(result, resolvedContext, {
-        json: globalOptions.json,
-        quiet: globalOptions.quiet,
-        noColor: globalOptions.noColor,
-      });
-    } catch (err) {
-      handleError(err, resolvedContext);
-    }
-  };
 }
 
 /** Spinner instance type from yocto-spinner */
@@ -419,460 +317,622 @@ async function performDeploy(
   }
 }
 
-program
-  .name('ship')
-  .description('🚀 Deploy static sites with simplicity')
-  .version(packageJson.version, '--version', 'Show version information')
-  .option('--token <token>', 'Any ship token: API key (ship-…) or deploy token (deploy-…)')
-  .option('--config <file>', 'Custom config file path')
-  .option('--api-url <url>', 'API URL (for development)')
-  .option('--json', 'Output results in JSON format')
-  .option('-q, --quiet', 'Output only the resource identifier')
-  .option('--no-color', 'Disable colored output')
-  .option('--help', 'Display help for command')
-  .helpOption(false); // Disable default help
+/**
+ * Build the complete `ship` command tree.
+ *
+ * Everything that closes over the program instance — the exit override, the
+ * error handler, the action wrapper — lives inside this factory so that each
+ * call returns a fully independent tree. The bin path below builds one and
+ * parses `process.argv`; in-process tests build one per invocation.
+ */
+export function buildProgram(): Command {
+  const program = new Command();
 
-// Handle --help flag manually to show custom help
-program.hook('preAction', (thisCommand) => {
-  const options = processOptions(thisCommand);
-  if (options.help) {
-    displayHelp(options.noColor);
-    process.exit(0);
-  }
-});
+  // Override Commander.js error handling while preserving help/version behavior.
+  //
+  // Nothing in the tree calls `process.exit` — actions and this override set
+  // `process.exitCode` or throw a `CommanderError`, and the bin path lets the
+  // process end naturally once the event loop drains. That is Commander's own
+  // recommended shape: `process.exit` can truncate stdout still buffered on a
+  // pipe, and a tree that never exits mid-flight is drivable in-process.
+  program
+    .exitOverride((err) => {
+      // Clean exits (help/version) — nothing to add, let the bin observe it.
+      if (err.code === 'commander.help' || err.code === 'commander.version' || err.exitCode === 0) {
+        throw err;
+      }
 
-// Validate options early - before any action is executed
-program.hook('preAction', (thisCommand) => {
-  const options = processOptions(thisCommand);
+      const globalOptions = processOptions(program);
 
-  try {
-    if (options.token && typeof options.token === 'string') {
-      validateToken(options.token);
-    }
+      let message = err.message || 'unknown command error';
+      message = message
+        .replace(/^error: /, '')
+        .replace(/\n.*/, '')
+        .replace(/\.$/, '')
+        .toLowerCase();
 
-    if (options.apiUrl && typeof options.apiUrl === 'string') {
-      validateApiUrl(options.apiUrl);
-    }
-  } catch (validationError) {
-    if (isShipError(validationError)) {
-      error(validationError.message, options.json, options.noColor);
-      process.exit(1);
-    }
-    throw validationError;
-  }
-});
+      error(message, globalOptions.json, globalOptions.noColor);
 
-// Ping command
-program
-  .command('ping')
-  .description('Check API connectivity')
-  .action(withErrorHandling((client: Ship, _options: GlobalOptions) => client.ping()));
+      if (!globalOptions.json) {
+        program.outputHelp();
+      }
 
-// Whoami shortcut - alias for account get
-program
-  .command('whoami')
-  .description('Get current account information')
-  .action(
-    withErrorHandling((client: Ship, _options: GlobalOptions) => client.whoami(), {
-      operation: 'get',
-      resourceType: 'Account',
-    }),
-  );
-
-// Deployments commands
-const deploymentsCmd = program
-  .command('deployments')
-  .description('Manage deployments')
-  .enablePositionalOptions()
-  .action(handleUnknownSubcommand('deployments', ['list', 'upload', 'get', 'set', 'remove']));
-
-deploymentsCmd
-  .command('list')
-  .description('List all deployments')
-  .action(withErrorHandling((client: Ship, _options: GlobalOptions) => client.deployments.list()));
-
-deploymentsCmd
-  .command('upload <path>')
-  .description('Upload deployment from file or directory')
-  .passThroughOptions()
-  .option('--label <label>', 'Label to add (can be repeated)', collect, [])
-  .option('--password <password>', 'Password-protect this deployment')
-  .option('--no-path-detect', 'Disable automatic path optimization and flattening')
-  .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
-  .action(
-    withErrorHandling(
-      (
-        client: Ship,
-        options: GlobalOptions,
-        deployPath: string,
-        cmdOptions: DeployCommandOptions,
-      ) =>
-        performDeploy(
-          client,
-          deployPath,
-          mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
-          mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
-          cmdOptions,
-          options,
-        ),
-      { operation: 'upload' },
-    ),
-  );
-
-deploymentsCmd
-  .command('get <deployment>')
-  .description('Show deployment information')
-  .action(
-    withErrorHandling(
-      (client: Ship, _options: GlobalOptions, deployment: string) =>
-        client.deployments.get(deployment),
-      { operation: 'get', resourceType: 'Deployment', getResourceId: (id: string) => id },
-    ),
-  );
-
-deploymentsCmd
-  .command('set <deployment>')
-  .description('Set deployment labels')
-  .passThroughOptions()
-  .option('--label <label>', 'Label to set (can be repeated)', collect, [])
-  .action(
-    withErrorHandling(
-      async (
-        client: Ship,
-        _options: GlobalOptions,
-        deployment: string,
-        cmdOptions: LabelOptions,
-      ) => {
-        const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions) || [];
-        return client.deployments.set(deployment, { labels });
-      },
-      {
-        operation: 'set',
-        resourceType: 'Deployment',
-        getResourceId: (deployment: string) => deployment,
-      },
-    ),
-  );
-
-deploymentsCmd
-  .command('remove <deployment>')
-  .description('Delete deployment permanently')
-  .action(
-    withErrorHandling(
-      (client: Ship, _options: GlobalOptions, deployment: string) =>
-        client.deployments.remove(deployment),
-      {
-        operation: 'remove',
-        resourceType: 'Deployment',
-        getResourceId: (deployment: string) => deployment,
-      },
-    ),
-  );
-
-// Domains commands
-const domainsCmd = program
-  .command('domains')
-  .description('Manage domains')
-  .enablePositionalOptions()
-  .action(
-    handleUnknownSubcommand('domains', [
-      'list',
-      'get',
-      'set',
-      'validate',
-      'records',
-      'dns',
-      'share',
-      'verify',
-      'remove',
-    ]),
-  );
-
-domainsCmd
-  .command('list')
-  .description('List all domains')
-  .action(withErrorHandling((client: Ship, _options: GlobalOptions) => client.domains.list()));
-
-domainsCmd
-  .command('get <name>')
-  .description('Show domain information')
-  .action(
-    withErrorHandling(
-      (client: Ship, _options: GlobalOptions, name: string) => client.domains.get(name),
-      { operation: 'get', resourceType: 'Domain', getResourceId: (name: string) => name },
-    ),
-  );
-
-domainsCmd
-  .command('validate <name>')
-  .description('Check if domain name is valid and available')
-  .action(
-    withErrorHandling(
-      async (client: Ship, _options: GlobalOptions, name: string) => {
-        const result = await client.domains.validate(name);
-        if (!result.valid) process.exitCode = 1;
-        return result;
-      },
-      { operation: 'validate', resourceType: 'Domain', getResourceId: (name: string) => name },
-    ),
-  );
-
-domainsCmd
-  .command('verify <name>')
-  .description('Trigger DNS verification for external domain')
-  .action(
-    withErrorHandling(
-      (client: Ship, _options: GlobalOptions, name: string) => client.domains.verify(name),
-      { operation: 'verify', resourceType: 'Domain', getResourceId: (name: string) => name },
-    ),
-  );
-
-domainsCmd
-  .command('records <name>')
-  .description('Show required DNS records for domain setup')
-  .action(
-    withErrorHandling(
-      (client: Ship, _options: GlobalOptions, name: string) => client.domains.records(name),
-      { operation: 'records', resourceType: 'Domain', getResourceId: (name: string) => name },
-    ),
-  );
-
-domainsCmd
-  .command('dns <name>')
-  .description('Look up DNS provider for a domain')
-  .action(
-    withErrorHandling(
-      (client: Ship, _options: GlobalOptions, name: string) => client.domains.dns(name),
-      { operation: 'dns', resourceType: 'Domain', getResourceId: (name: string) => name },
-    ),
-  );
-
-domainsCmd
-  .command('share <name>')
-  .description('Get shareable DNS setup link')
-  .action(
-    withErrorHandling(
-      (client: Ship, _options: GlobalOptions, name: string) => client.domains.share(name),
-      { operation: 'share', resourceType: 'Domain', getResourceId: (name: string) => name },
-    ),
-  );
-
-domainsCmd
-  .command('set <name> [deployment]')
-  .description('Create domain, link to deployment, or update labels')
-  .passThroughOptions()
-  .option('--label <label>', 'Label to set (can be repeated)', collect, [])
-  .action(
-    withErrorHandling(
-      async (
-        client: Ship,
-        _options: GlobalOptions,
-        name: string,
-        deployment: string | undefined,
-        cmdOptions: LabelOptions,
-      ) => {
-        // Read deployment from stdin when piped (e.g., ship ./dist -q | ship domains set mysite.com)
-        if (!deployment && !process.stdin.isTTY) {
-          deployment = await new Promise<string | undefined>((resolve) => {
-            let data = '';
-            process.stdin.on('data', (chunk) => (data += chunk));
-            process.stdin.on('end', () => resolve(data.trim() || undefined));
-          });
+      throw err;
+    })
+    .configureOutput({
+      writeErr: (str) => {
+        if (!str.startsWith('error:')) {
+          process.stderr.write(str);
         }
+      },
+      writeOut: (str) => process.stdout.write(str),
+    });
 
-        const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
+  /**
+   * Handle unknown or missing subcommand for parent commands.
+   * Shows scoped usage instead of full help — the user already knows the group.
+   */
+  function handleUnknownSubcommand(
+    parentName: string,
+    validSubcommands: string[],
+  ): (...args: unknown[]) => void {
+    return (...args: unknown[]) => {
+      const globalOptions = processOptions(program);
 
-        const setOptions: { deployment?: string; labels?: string[] } = {};
-        if (deployment) setOptions.deployment = deployment;
-        if (labels !== undefined) setOptions.labels = labels;
+      // Get the command object (last argument) - Commander passes it as the final arg
+      const commandObj = args[args.length - 1] as { args?: string[] } | undefined;
 
-        // SDK returns DomainSetResult (Domain + isCreate derived from HTTP 201/200) —
-        // the resource interface in @shipstatic/types declares this directly, no cast needed.
-        const result = await client.domains.set(name, setOptions);
+      // Check if an unknown subcommand was provided
+      if (commandObj?.args?.length) {
+        const unknownArg = commandObj.args.find((arg) => !validSubcommands.includes(arg));
+        if (unknownArg) {
+          error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
+        }
+      }
 
-        // Enrich with DNS info for new external domains (pure formatter will display it)
-        if (result.isCreate && name.includes('.')) {
-          try {
-            const [records, share] = await Promise.all([
-              client.domains.records(name),
-              client.domains.share(name),
-            ]);
-            return {
-              ...result,
-              _dnsRecords: records.records,
-              _shareHash: share.hash,
-            };
-          } catch {
-            // Graceful degradation - return without DNS info
+      if (!globalOptions.json) {
+        console.log(`usage: ship ${parentName} <${validSubcommands.join('|')}>\n`);
+      }
+      process.exitCode = 1;
+    };
+  }
+
+  /**
+   * Error handler - outputs errors consistently in text or JSON format.
+   * Message formatting is delegated to the error-handling module.
+   */
+  function handleError(err: unknown, context?: OutputContext) {
+    const opts = processOptions(program);
+    const shipError = toShipError(err);
+
+    // Get user-facing message using the extracted pure function
+    const message = getUserMessage(shipError, context, {
+      token: resolveCliToken(program.opts()),
+    });
+
+    // Output in appropriate format
+    if (opts.json) {
+      console.error(`${formatErrorJson(message, shipError.details)}\n`);
+    } else {
+      error(message, false, opts.noColor);
+      // Show help only for unknown command errors (user CLI mistake)
+      if (shipError.type === ErrorType.Validation && message.includes('unknown command')) {
+        program.outputHelp();
+      }
+    }
+
+    process.exitCode = 1;
+  }
+
+  /**
+   * Wrapper for CLI actions that handles errors and client creation consistently.
+   * Reduces boilerplate while preserving context for error handling.
+   */
+  function withErrorHandling<T extends unknown[], R extends CLIResult>(
+    handler: (client: Ship, options: GlobalOptions, ...args: T) => Promise<R>,
+    context?: { operation?: string; resourceType?: string; getResourceId?: (...args: T) => string },
+  ) {
+    return async function (this: Command, ...args: T) {
+      const globalOptions = processOptions(this);
+
+      // Build context once for both output and error paths
+      const resolvedContext: OutputContext = context
+        ? {
+            operation: context.operation,
+            resourceType: context.resourceType,
+            resourceId: context.getResourceId?.(...args),
           }
-        }
-        return result;
-      },
-      { operation: 'set', resourceType: 'Domain', getResourceId: (name: string) => name },
-    ),
-  );
+        : {};
 
-domainsCmd
-  .command('remove <name>')
-  .description('Delete domain permanently')
-  .action(
-    withErrorHandling(
-      (client: Ship, _options: GlobalOptions, name: string) => client.domains.remove(name),
-      { operation: 'remove', resourceType: 'Domain', getResourceId: (name: string) => name },
-    ),
-  );
+      try {
+        const { config, apiUrl, token } = program.opts();
+        const client = createClient({ config, apiUrl, token });
+        const result = await handler(client, globalOptions, ...args);
+        formatOutput(result, resolvedContext, {
+          json: globalOptions.json,
+          quiet: globalOptions.quiet,
+          noColor: globalOptions.noColor,
+        });
+      } catch (err) {
+        handleError(err, resolvedContext);
+      }
+    };
+  }
 
-// Tokens commands
-const tokensCmd = program
-  .command('tokens')
-  .description('Manage deploy tokens')
-  .enablePositionalOptions()
-  .action(handleUnknownSubcommand('tokens', ['list', 'create', 'remove']));
+  program
+    .name('ship')
+    .description('🚀 Deploy static sites with simplicity')
+    .version(packageJson.version, '-V, --version', 'Show version information')
+    .option('--token <token>', 'Any ship token: API key (ship-…) or deploy token (deploy-…)')
+    .option('--config <file>', 'Custom config file path')
+    .option('--api-url <url>', 'API URL (for development)')
+    .option('--json', 'Output results in JSON format')
+    .option('-q, --quiet', 'Output only the resource identifier')
+    .option('--no-color', 'Disable colored output')
+    // Two help scopes, one machinery: the ROOT renders our hand-written
+    // front page (helpText — the kept design); subcommands render
+    // Commander's native scoped help, which knows their exact usage and
+    // options. `Help.prototype` is the escape past our own override, which
+    // subcommands inherit at registration.
+    .helpOption('-h, --help', 'Display help for command')
+    .helpCommand('help [command]', 'Display help for command')
+    .configureHelp({
+      formatHelp: (cmd, helper) =>
+        cmd.parent === null
+          ? `${helpText(processOptions(cmd).noColor)}\n`
+          : Help.prototype.formatHelp.call(helper, cmd, helper),
+    })
+    // Recorded opt-out of v13+'s excess-arguments error: the deploy shortcut
+    // takes `[path]` with trailing noise tolerated, and unknown subcommands
+    // must REACH handleUnknownSubcommand (as excess args) to get scoped
+    // usage instead of Commander's generic "too many arguments".
+    .allowExcessArguments();
 
-tokensCmd
-  .command('list')
-  .description('List all tokens')
-  .action(withErrorHandling((client: Ship, _options: GlobalOptions) => client.tokens.list()));
+  // Validate options early - before any action is executed
+  program.hook('preAction', (thisCommand) => {
+    const options = processOptions(thisCommand);
 
-tokensCmd
-  .command('create')
-  .description('Create a new deploy token')
-  .option('--ttl <seconds>', 'Time to live in seconds (default: never expires)', parseInt)
-  .option('--label <label>', 'Label to set (can be repeated)', collect, [])
-  .action(
-    withErrorHandling(
-      (client: Ship, _options: GlobalOptions, cmdOptions: TokenCreateCommandOptions) => {
-        const options: { ttl?: number; labels?: string[] } = {};
-        if (cmdOptions?.ttl !== undefined) options.ttl = cmdOptions.ttl;
-        const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
-        if (labels !== undefined) options.labels = labels;
-        return client.tokens.create(options);
-      },
-      { operation: 'create', resourceType: 'Token' },
-    ),
-  );
-
-tokensCmd
-  .command('remove <token>')
-  .description('Delete token permanently')
-  .action(
-    withErrorHandling(
-      (client: Ship, _options: GlobalOptions, token: string) => client.tokens.remove(token),
-      { operation: 'remove', resourceType: 'Token', getResourceId: (token: string) => token },
-    ),
-  );
-
-// Account commands
-const accountCmd = program
-  .command('account')
-  .description('Manage account')
-  .action(handleUnknownSubcommand('account', ['get']));
-
-accountCmd
-  .command('get')
-  .description('Show account information')
-  .action(
-    withErrorHandling((client: Ship, _options: GlobalOptions) => client.whoami(), {
-      operation: 'get',
-      resourceType: 'Account',
-    }),
-  );
-
-// Completion commands
-const completionCmd = program
-  .command('completion')
-  .description('Setup shell completion')
-  .action(handleUnknownSubcommand('completion', ['install', 'uninstall']));
-
-completionCmd
-  .command('install')
-  .description('Install shell completion script')
-  .action(() => {
-    const options = processOptions(program);
-    const scriptDir = path.resolve(__dirname, 'completions');
-    installCompletion(scriptDir, { json: options.json, noColor: options.noColor });
-  });
-
-completionCmd
-  .command('uninstall')
-  .description('Uninstall shell completion script')
-  .action(() => {
-    const options = processOptions(program);
-    uninstallCompletion({ json: options.json, noColor: options.noColor });
-  });
-
-// Config command
-program
-  .command('config')
-  .description('Save your token')
-  .action(async () => {
-    const options = processOptions(program);
     try {
-      await runConfig({ noColor: options.noColor, json: options.json });
-    } catch (err) {
-      handleError(err);
+      if (options.token && typeof options.token === 'string') {
+        validateToken(options.token);
+      }
+
+      if (options.apiUrl && typeof options.apiUrl === 'string') {
+        validateApiUrl(options.apiUrl);
+      }
+    } catch (validationError) {
+      if (isShipError(validationError)) {
+        error(validationError.message, options.json, options.noColor);
+        // Already reported — the bare CommanderError just carries the code.
+        throw new CommanderError(1, 'ship.invalidOption', validationError.message);
+      }
+      throw validationError;
     }
   });
 
-// Deploy shortcut as default action
-program
-  .argument('[path]', 'Path to deploy')
-  .option('--label <label>', 'Label to add (can be repeated)', collect, [])
-  .option('--password <password>', 'Password-protect this deployment')
-  .option('--no-path-detect', 'Disable automatic path optimization and flattening')
-  .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
-  .action(
-    withErrorHandling(
-      async (
-        client: Ship,
-        options: GlobalOptions,
-        deployPath?: string,
-        cmdOptions?: DeployCommandOptions,
-      ) => {
-        if (!deployPath) {
-          displayHelp(options.noColor);
-          process.exit(0);
-        }
+  // Ping command
+  program
+    .command('ping')
+    .description('Check API connectivity')
+    .action(withErrorHandling((client: Ship, _options: GlobalOptions) => client.ping()));
 
-        // Check if the argument is a valid path by checking filesystem
-        // This correctly handles paths like "dist", "build", "public" without slashes
-        if (!existsSync(deployPath)) {
-          // Path doesn't exist - could be unknown command or typo
-          // Check if it looks like a command (no path separators, no extension)
-          const looksLikeCommand =
-            !deployPath.includes('/') &&
-            !deployPath.includes('\\') &&
-            !deployPath.includes('.') &&
-            !deployPath.startsWith('~');
-          if (looksLikeCommand) {
-            throw ShipError.validation(`unknown command '${deployPath}'`);
+  // Whoami shortcut - alias for account get
+  program
+    .command('whoami')
+    .description('Get current account information')
+    .action(
+      withErrorHandling((client: Ship, _options: GlobalOptions) => client.whoami(), {
+        operation: 'get',
+        resourceType: 'Account',
+      }),
+    );
+
+  // Deployments commands
+  const deploymentsCmd = program
+    .command('deployments')
+    .description('Manage deployments')
+    .enablePositionalOptions()
+    .action(handleUnknownSubcommand('deployments', ['list', 'upload', 'get', 'set', 'remove']));
+
+  deploymentsCmd
+    .command('list')
+    .description('List all deployments')
+    .option('--limit <count>', 'Maximum number of results per page', parseInteger)
+    .option('--cursor <cursor>', "Continue from a previous page's cursor")
+    .action(
+      withErrorHandling((client: Ship, _options: GlobalOptions, cmdOptions: ListCommandOptions) =>
+        client.deployments.list(cmdOptions),
+      ),
+    );
+
+  deploymentsCmd
+    .command('upload <path>')
+    .description('Upload deployment from file or directory')
+    .passThroughOptions()
+    .option('--label <label>', 'Label to add (can be repeated)', collect, [])
+    .option('--password <password>', 'Password-protect this deployment')
+    .option('--no-path-detect', 'Disable automatic path optimization and flattening')
+    .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
+    .action(
+      withErrorHandling(
+        (
+          client: Ship,
+          options: GlobalOptions,
+          deployPath: string,
+          cmdOptions: DeployCommandOptions,
+        ) =>
+          performDeploy(
+            client,
+            deployPath,
+            mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
+            mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
+            cmdOptions,
+            options,
+          ),
+        { operation: 'upload' },
+      ),
+    );
+
+  deploymentsCmd
+    .command('get <deployment>')
+    .description('Show deployment information')
+    .action(
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, deployment: string) =>
+          client.deployments.get(deployment),
+        { operation: 'get', resourceType: 'Deployment', getResourceId: (id: string) => id },
+      ),
+    );
+
+  deploymentsCmd
+    .command('set <deployment>')
+    .description('Set deployment labels')
+    .passThroughOptions()
+    .option('--label <label>', 'Label to set (can be repeated)', collect, [])
+    .action(
+      withErrorHandling(
+        async (
+          client: Ship,
+          _options: GlobalOptions,
+          deployment: string,
+          cmdOptions: LabelOptions,
+        ) => {
+          const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions) || [];
+          return client.deployments.set(deployment, { labels });
+        },
+        {
+          operation: 'set',
+          resourceType: 'Deployment',
+          getResourceId: (deployment: string) => deployment,
+        },
+      ),
+    );
+
+  deploymentsCmd
+    .command('remove <deployment>')
+    .description('Delete deployment permanently')
+    .action(
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, deployment: string) =>
+          client.deployments.remove(deployment),
+        {
+          operation: 'remove',
+          resourceType: 'Deployment',
+          getResourceId: (deployment: string) => deployment,
+        },
+      ),
+    );
+
+  // Domains commands
+  const domainsCmd = program
+    .command('domains')
+    .description('Manage domains')
+    .enablePositionalOptions()
+    .action(
+      handleUnknownSubcommand('domains', [
+        'list',
+        'get',
+        'set',
+        'validate',
+        'records',
+        'dns',
+        'share',
+        'verify',
+        'remove',
+      ]),
+    );
+
+  domainsCmd
+    .command('list')
+    .description('List all domains')
+    .option('--limit <count>', 'Maximum number of results per page', parseInteger)
+    .option('--cursor <cursor>', "Continue from a previous page's cursor")
+    .action(
+      withErrorHandling((client: Ship, _options: GlobalOptions, cmdOptions: ListCommandOptions) =>
+        client.domains.list(cmdOptions),
+      ),
+    );
+
+  domainsCmd
+    .command('get <name>')
+    .description('Show domain information')
+    .action(
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, name: string) => client.domains.get(name),
+        { operation: 'get', resourceType: 'Domain', getResourceId: (name: string) => name },
+      ),
+    );
+
+  domainsCmd
+    .command('validate <name>')
+    .description('Check if domain name is valid and available')
+    .action(
+      withErrorHandling(
+        async (client: Ship, _options: GlobalOptions, name: string) => {
+          const result = await client.domains.validate(name);
+          if (!result.valid) process.exitCode = 1;
+          return result;
+        },
+        { operation: 'validate', resourceType: 'Domain', getResourceId: (name: string) => name },
+      ),
+    );
+
+  domainsCmd
+    .command('verify <name>')
+    .description('Trigger DNS verification for external domain')
+    .action(
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, name: string) => client.domains.verify(name),
+        { operation: 'verify', resourceType: 'Domain', getResourceId: (name: string) => name },
+      ),
+    );
+
+  domainsCmd
+    .command('records <name>')
+    .description('Show required DNS records for domain setup')
+    .action(
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, name: string) => client.domains.records(name),
+        { operation: 'records', resourceType: 'Domain', getResourceId: (name: string) => name },
+      ),
+    );
+
+  domainsCmd
+    .command('dns <name>')
+    .description('Look up DNS provider for a domain')
+    .action(
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, name: string) => client.domains.dns(name),
+        { operation: 'dns', resourceType: 'Domain', getResourceId: (name: string) => name },
+      ),
+    );
+
+  domainsCmd
+    .command('share <name>')
+    .description('Get shareable DNS setup link')
+    .action(
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, name: string) => client.domains.share(name),
+        { operation: 'share', resourceType: 'Domain', getResourceId: (name: string) => name },
+      ),
+    );
+
+  domainsCmd
+    .command('set <name> [deployment]')
+    .description('Create domain, link to deployment, or update labels')
+    .passThroughOptions()
+    .option('--label <label>', 'Label to set (can be repeated)', collect, [])
+    .action(
+      withErrorHandling(
+        async (
+          client: Ship,
+          _options: GlobalOptions,
+          name: string,
+          deployment: string | undefined,
+          cmdOptions: LabelOptions,
+        ) => {
+          // Read deployment from stdin when piped (e.g., ship ./dist -q | ship domains set mysite.com)
+          if (!deployment && !process.stdin.isTTY) {
+            deployment = await new Promise<string | undefined>((resolve) => {
+              let data = '';
+              process.stdin.on('data', (chunk) => (data += chunk));
+              process.stdin.on('end', () => resolve(data.trim() || undefined));
+            });
           }
-          // Otherwise let performDeploy handle the "path does not exist" error
-        }
 
-        return performDeploy(
-          client,
-          deployPath,
-          mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
-          mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
-          cmdOptions,
-          options,
-        );
-      },
-      { operation: 'upload' },
-    ),
+          const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
+
+          const setOptions: { deployment?: string; labels?: string[] } = {};
+          if (deployment) setOptions.deployment = deployment;
+          if (labels !== undefined) setOptions.labels = labels;
+
+          // SDK returns DomainSetResult (Domain + isCreate derived from HTTP 201/200) —
+          // the resource interface in @shipstatic/types declares this directly, no cast needed.
+          const result = await client.domains.set(name, setOptions);
+
+          // Enrich with DNS info for new external domains (pure formatter will display it)
+          if (result.isCreate && name.includes('.')) {
+            try {
+              const [records, share] = await Promise.all([
+                client.domains.records(name),
+                client.domains.share(name),
+              ]);
+              return {
+                ...result,
+                _dnsRecords: records.records,
+                _shareHash: share.hash,
+              };
+            } catch {
+              // Graceful degradation - return without DNS info
+            }
+          }
+          return result;
+        },
+        { operation: 'set', resourceType: 'Domain', getResourceId: (name: string) => name },
+      ),
+    );
+
+  domainsCmd
+    .command('remove <name>')
+    .description('Delete domain permanently')
+    .action(
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, name: string) => client.domains.remove(name),
+        { operation: 'remove', resourceType: 'Domain', getResourceId: (name: string) => name },
+      ),
+    );
+
+  // Tokens commands
+  const tokensCmd = program
+    .command('tokens')
+    .description('Manage deploy tokens')
+    .enablePositionalOptions()
+    .action(handleUnknownSubcommand('tokens', ['list', 'create', 'remove']));
+
+  tokensCmd
+    .command('list')
+    .description('List all tokens')
+    .action(withErrorHandling((client: Ship, _options: GlobalOptions) => client.tokens.list()));
+
+  tokensCmd
+    .command('create')
+    .description('Create a new deploy token')
+    .option('--ttl <seconds>', 'Time to live in seconds (default: never expires)', parseInteger)
+    .option('--label <label>', 'Label to set (can be repeated)', collect, [])
+    .action(
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, cmdOptions: TokenCreateCommandOptions) => {
+          const options: { ttl?: number; labels?: string[] } = {};
+          if (cmdOptions?.ttl !== undefined) options.ttl = cmdOptions.ttl;
+          const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
+          if (labels !== undefined) options.labels = labels;
+          return client.tokens.create(options);
+        },
+        { operation: 'create', resourceType: 'Token' },
+      ),
+    );
+
+  tokensCmd
+    .command('remove <token>')
+    .description('Delete token permanently')
+    .action(
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, token: string) => client.tokens.remove(token),
+        { operation: 'remove', resourceType: 'Token', getResourceId: (token: string) => token },
+      ),
+    );
+
+  // Account commands
+  const accountCmd = program
+    .command('account')
+    .description('Manage account')
+    .action(handleUnknownSubcommand('account', ['get']));
+
+  accountCmd
+    .command('get')
+    .description('Show account information')
+    .action(
+      withErrorHandling((client: Ship, _options: GlobalOptions) => client.whoami(), {
+        operation: 'get',
+        resourceType: 'Account',
+      }),
+    );
+
+  // Completion commands
+  const completionCmd = program
+    .command('completion')
+    .description('Setup shell completion')
+    .action(handleUnknownSubcommand('completion', ['install', 'uninstall']));
+
+  completionCmd
+    .command('install')
+    .description('Install shell completion script')
+    .action(() => {
+      const options = processOptions(program);
+      const scriptDir = path.resolve(__dirname, 'completions');
+      installCompletion(scriptDir, { json: options.json, noColor: options.noColor });
+    });
+
+  completionCmd
+    .command('uninstall')
+    .description('Uninstall shell completion script')
+    .action(() => {
+      const options = processOptions(program);
+      uninstallCompletion({ json: options.json, noColor: options.noColor });
+    });
+
+  // Config command
+  program
+    .command('config')
+    .description('Save your token')
+    .action(async () => {
+      const options = processOptions(program);
+      try {
+        await runConfig({ noColor: options.noColor, json: options.json });
+      } catch (err) {
+        handleError(err);
+      }
+    });
+
+  // Deploy shortcut as default action. Two cases are answered BEFORE the
+  // wrapped handler, so no client is created and no config file is resolved
+  // for them: no argument (that is help, not a deploy) and an argument that
+  // is a mistyped COMMAND rather than a path — a user with a broken config
+  // file must still be told "unknown command", not handed a config error.
+  const deployShortcut = withErrorHandling(
+    (client: Ship, options: GlobalOptions, deployPath: string, cmdOptions?: DeployCommandOptions) =>
+      performDeploy(
+        client,
+        deployPath,
+        mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
+        mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
+        cmdOptions,
+        options,
+      ),
+    { operation: 'upload' },
   );
+
+  program
+    .argument('[path]', 'Path to deploy')
+    .option('--label <label>', 'Label to add (can be repeated)', collect, [])
+    .option('--password <password>', 'Password-protect this deployment')
+    .option('--no-path-detect', 'Disable automatic path optimization and flattening')
+    .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
+    .action(async function (this: Command, deployPath?: string, cmdOptions?: DeployCommandOptions) {
+      if (!deployPath) {
+        this.outputHelp();
+        return;
+      }
+
+      // A nonexistent path with no separators, extension, or `~` reads as a
+      // mistyped command ("dist", "build" and friends exist, so they still
+      // deploy). Everything else falls through to performDeploy, whose
+      // "path does not exist" error names the path.
+      if (!existsSync(deployPath)) {
+        const looksLikeCommand =
+          !deployPath.includes('/') &&
+          !deployPath.includes('\\') &&
+          !deployPath.includes('.') &&
+          !deployPath.startsWith('~');
+        if (looksLikeCommand) {
+          handleError(ShipError.validation(`unknown command '${deployPath}'`), {
+            operation: 'upload',
+          });
+          return;
+        }
+      }
+
+      return deployShortcut.call(this, deployPath, cmdOptions);
+    });
+
+  return program;
+}
 
 /**
  * Simple completion handler - no self-invocation, just static completions
  */
 function handleCompletion() {
-  const args = process.argv;
-  const isBash = args.includes('--compbash');
-  const isZsh = args.includes('--compzsh');
-  const isFish = args.includes('--compfish');
-
-  if (!isBash && !isZsh && !isFish) return;
+  const isFish = process.argv.includes('--compfish');
 
   const completions = [
     'ping',
@@ -885,33 +945,33 @@ function handleCompletion() {
     'completion',
   ];
   console.log(completions.join(isFish ? '\n' : ' '));
-  process.exit(0);
 }
 
-// Handle completion requests (before any other processing)
-if (
-  process.env.NODE_ENV !== 'test' &&
-  (process.argv.includes('--compbash') ||
-    process.argv.includes('--compzsh') ||
-    process.argv.includes('--compfish'))
-) {
-  handleCompletion();
-}
-
-// Handle main CLI parsing
+// Bin execution — this is what `dist/cli.cjs` runs. Exercised by the
+// child-process smoke tier, never in-process (tests drive `buildProgram()`).
+// No `process.exit` anywhere on this path: outcomes land in
+// `process.exitCode` and the process ends when the event loop drains, so
+// buffered stdout is never truncated on a pipe.
 if (process.env.NODE_ENV !== 'test') {
-  try {
-    program.parse(process.argv);
-  } catch (err) {
-    // Commander.js errors are already handled by exitOverride above
-    // This catch is for safety - check if it's a Commander error
-    if (err instanceof Error && 'code' in err) {
-      const code = (err as Error & { code?: string }).code;
-      const exitCode = (err as Error & { exitCode?: number }).exitCode;
-      if (code?.startsWith('commander.')) {
-        process.exit(exitCode || 1);
-      }
-    }
-    throw err;
+  const wantsCompletion =
+    process.argv.includes('--compbash') ||
+    process.argv.includes('--compzsh') ||
+    process.argv.includes('--compfish');
+
+  if (wantsCompletion) {
+    handleCompletion();
+  } else {
+    buildProgram()
+      .parseAsync(process.argv)
+      .catch((err: unknown) => {
+        // The exit override reports errors before throwing; the bare
+        // CommanderError that reaches here only carries the exit code
+        // (help/version legitimately carry 0).
+        if (err instanceof CommanderError) {
+          process.exitCode = err.exitCode;
+          return;
+        }
+        throw err;
+      });
   }
 }

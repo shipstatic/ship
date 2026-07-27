@@ -201,6 +201,18 @@ export interface ShipEvents {
   request: [url: string, init: RequestInit];
   /** Emitted after successful API response */
   response: [response: Response, url: string];
-  /** Emitted when API request fails */
+  /**
+   * Emitted when something fails. TWO populations arrive here, which is why
+   * the type is `Error` and not `ShipError`:
+   *
+   *  - a failed request — always a `ShipError` (`executeRequest` normalizes
+   *    every failure through `ShipError.fromFetchError` before emitting), so
+   *    `isShipError(error)` narrows and `.type` / `.status` are readable;
+   *  - a THROWING HANDLER of yours — `SimpleEvents.emit` evicts it and
+   *    re-emits the raw failure here, which is a plain `Error`.
+   *
+   * Narrowing this to `ShipError` was tried on 2026-07-27 and reverted: it
+   * made the second population a lie.
+   */
   error: [error: Error, url: string];
 }

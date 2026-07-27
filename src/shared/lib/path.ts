@@ -5,7 +5,8 @@
 
 /**
  * Finds the common parent directory from an array of directory paths.
- * Simple, unified implementation for flattenDirs functionality.
+ * The basis of `pathDetect`: the common parent is the prefix stripped from
+ * every deploy path so a deployment's root is the site's root.
  *
  * @param dirPaths - Array of directory paths (not file paths - directories containing the files)
  * @returns The common parent directory path, or empty string if none found

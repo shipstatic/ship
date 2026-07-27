@@ -17,6 +17,10 @@ import {
   isBlockedExtension,
 } from '@shipstatic/types';
 
+// Re-exported because it constrains three exported generics (validateFiles,
+// getValidFiles, allValidFilesReady) — a consumer cannot name the bound
+// otherwise, which is why the tests were inventing their own copy.
+export type { ValidatableFile };
 export { FILE_VALIDATION_STATUS };
 
 /**

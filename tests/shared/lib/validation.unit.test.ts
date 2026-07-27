@@ -12,7 +12,6 @@ describe('validateLabels', () => {
   });
 
   it('is a no-op for null (defensive: JS callers without TS)', () => {
-    // @ts-expect-error testing runtime null defense
     expect(validateLabels(null)).toBeUndefined();
   });
 

@@ -1,35 +1,45 @@
+/**
+ * @file Subject: `src/shared/base-ship.ts` — the abstract Ship both platform
+ * entries extend. Owns credential state, the lazy one-shot `/limits` hydration,
+ * the resource factories, and the `deploy`/`whoami` shortcuts.
+ *
+ * The ordering block absorbs `mixed-core/initialization-order.test.ts`. It runs
+ * the REAL `ApiHttp` against an injected `fetch` rather than reassigning
+ * `globalThis.fetch`: the `fetch` option is a published contract
+ * (`ShipClientOptions.fetch`), so the test dogfoods it, and nothing global is
+ * mutated for other files to trip over.
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
 import type {
   DeployBodyCreator,
   DeployInput,
   DeploymentOptions,
+  Fetch,
   StaticFile,
 } from '../../src/shared/types';
 
-// Mock deploy body creator for tests
 const mockDeployBodyCreator: DeployBodyCreator = async (_files, _context) => ({
   body: new ArrayBuffer(0),
   headers: { 'Content-Type': 'multipart/form-data' },
 });
 
-// API key in the canonical format: 'ship-' + 64 hex chars
+/** API key in the canonical format: `ship-` + 64 hex. */
 const TEST_API_KEY = `ship-${'a'.repeat(64)}`;
 
-// Create a concrete test implementation of the abstract Ship class
+const INDEX_HTML: StaticFile = {
+  path: 'index.html',
+  content: Buffer.from('<html><body><div id="root"></div></body></html>'),
+  size: 47,
+  md5: 'test-hash',
+};
+
 class TestShip extends Ship {
   protected async processInput(
     _input: DeployInput,
     _options: DeploymentOptions,
   ): Promise<StaticFile[]> {
-    return Promise.resolve([
-      {
-        path: 'test.html',
-        content: Buffer.from('<html>Test</html>'),
-        size: 18,
-        md5: 'test-hash',
-      },
-    ]);
+    return [INDEX_HTML];
   }
 
   protected getDeployBodyCreator(): DeployBodyCreator {
@@ -37,34 +47,36 @@ class TestShip extends Ship {
   }
 }
 
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
 describe('Base Ship Class (Abstract)', () => {
   let ship: TestShip;
   let mockApiDeploy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-
-    // Mock the API deploy method
     mockApiDeploy = vi.fn().mockResolvedValue({
-      id: 'dep_123',
-      url: 'https://dep_123.shipstatic.com',
+      deployment: 'brave-otter-a1b2c3d.shipstatic.com',
+      url: 'https://brave-otter-a1b2c3d.shipstatic.com',
     });
 
-    // Initialize with a token for authentication
     ship = new TestShip({ apiUrl: 'https://test-api.com', token: TEST_API_KEY });
 
-    // Override the http client with our mock
+    // Only the methods this file's subject actually reaches. An earlier
+    // revision listed `listApiKeys`/`removeApiKey`/`get` — ApiHttp methods
+    // from removed eras — which no assertion could ever have caught.
     (ship as any).http = {
       deploy: mockApiDeploy,
       ping: vi.fn().mockResolvedValue(true),
       getLimits: vi.fn().mockResolvedValue({}),
-      listDeployments: vi.fn().mockResolvedValue({ deployments: [], count: 0 }),
-      getDeployment: vi.fn().mockResolvedValue({ id: 'dep_123' }),
+      checkSPA: vi.fn().mockResolvedValue(false),
+      listDeployments: vi.fn().mockResolvedValue({ deployments: [], cursor: null, total: 0 }),
+      getDeployment: vi.fn().mockResolvedValue({ deployment: 'brave-otter-a1b2c3d' }),
       removeDeployment: vi.fn().mockResolvedValue(undefined),
-      get: vi.fn().mockResolvedValue({ username: 'testuser' }),
-      getAccount: vi.fn().mockResolvedValue({ username: 'testuser' }),
-      listApiKeys: vi.fn().mockResolvedValue({ keys: [], count: 0 }),
-      removeApiKey: vi.fn().mockResolvedValue(undefined),
+      getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
     };
   });
 
@@ -85,14 +97,11 @@ describe('Base Ship Class (Abstract)', () => {
 
   describe('deploy convenience method', () => {
     it('should call deployments.upload with input and options', async () => {
-      const input = ['./test'];
-      const options = { timeout: 5000 };
-
-      const result = await ship.deploy(input as any, options);
+      const result = await ship.deploy(['./test'] as any, { timeout: 5000 });
 
       expect(result).toEqual({
-        id: 'dep_123',
-        url: 'https://dep_123.shipstatic.com',
+        deployment: 'brave-otter-a1b2c3d.shipstatic.com',
+        url: 'https://brave-otter-a1b2c3d.shipstatic.com',
       });
       expect(mockApiDeploy).toHaveBeenCalled();
     });
@@ -102,7 +111,7 @@ describe('Base Ship Class (Abstract)', () => {
     it('should call account.get', async () => {
       const result = await ship.whoami();
 
-      expect(result).toEqual({ username: 'testuser' });
+      expect(result).toEqual({ email: 'test@example.com' });
       expect((ship as any).http.getAccount).toHaveBeenCalled();
     });
   });
@@ -121,6 +130,7 @@ describe('Base Ship Class (Abstract)', () => {
       expect(typeof ship.deployments.upload).toBe('function');
       expect(typeof ship.deployments.list).toBe('function');
       expect(typeof ship.deployments.get).toBe('function');
+      expect(typeof ship.deployments.set).toBe('function');
       expect(typeof ship.deployments.remove).toBe('function');
 
       expect(typeof ship.domains.set).toBe('function');
@@ -133,14 +143,72 @@ describe('Base Ship Class (Abstract)', () => {
     });
   });
 
-  describe('initialization flow', () => {
-    it('should handle lazy initialization', async () => {
-      // Initialization should happen when we first call a method that needs it
-      await ship.ping();
+  describe('initialization order (real transport, injected fetch)', () => {
+    /** Records every path the SDK requests, in order, and answers each. */
+    function recordingFetch(): { fetch: Fetch; paths: string[]; urls: string[] } {
+      const paths: string[] = [];
+      const urls: string[] = [];
+      const fetch = vi.fn(async (input: any) => {
+        const url = typeof input === 'string' ? input : input.url;
+        urls.push(url);
+        const { pathname } = new URL(url);
+        paths.push(pathname);
 
-      // The ensureInitialized method should have been called
-      // (This is verified through the ping call succeeding)
-      expect(true).toBe(true); // Basic assertion that we got here
+        if (pathname === '/limits') {
+          return json({ maxFileSize: 20971520, maxFilesCount: 500, maxTotalSize: 52428800 });
+        }
+        if (pathname === '/spa-check') {
+          return json({ isSPA: true, debug: { tier: 'inclusions', reason: 'root mount' } });
+        }
+        if (pathname === '/deployments') {
+          return json({
+            deployment: 'brave-otter-a1b2c3d.shipstatic.com',
+            url: 'https://brave-otter-a1b2c3d.shipstatic.com',
+            files: 2,
+            size: 100,
+            status: 'success',
+          });
+        }
+        return json({ error: 'not_found', message: 'not found', status: 404 }, 404);
+      }) as unknown as Fetch;
+
+      return { fetch, paths, urls };
+    }
+
+    it('hydrates limits before the SPA pre-flight, and both before the deploy', async () => {
+      // Why the order is load-bearing: `/spa-check` and the deploy body are
+      // both size-validated against the limits, so a deploy that raced ahead
+      // of `/limits` would validate against nothing.
+      const { fetch, paths } = recordingFetch();
+      const client = new TestShip({ apiUrl: 'http://localhost:13579', token: TEST_API_KEY, fetch });
+
+      await client.deployments.upload(['./ignored']);
+
+      expect(paths).toEqual(['/limits', '/spa-check', '/deployments']);
+    });
+
+    it('sends every call to the configured apiUrl, never the default', async () => {
+      const apiUrl = 'http://localhost:13579';
+      const { fetch, urls } = recordingFetch();
+      const client = new TestShip({ apiUrl, token: TEST_API_KEY, fetch });
+
+      await client.deployments.upload(['./ignored']);
+
+      expect(urls.length).toBeGreaterThan(0);
+      for (const url of urls) {
+        expect(url.startsWith(apiUrl)).toBe(true);
+      }
+    });
+
+    it('fetches limits exactly once across many calls', async () => {
+      const { fetch, paths } = recordingFetch();
+      const client = new TestShip({ apiUrl: 'http://localhost:13579', token: TEST_API_KEY, fetch });
+
+      await client.getLimits();
+      await client.getLimits();
+      await client.deployments.upload(['./ignored']);
+
+      expect(paths.filter((p) => p === '/limits')).toHaveLength(1);
     });
   });
 });

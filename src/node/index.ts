@@ -20,7 +20,7 @@ import { getENV } from '../shared/lib/env.js';
 import type {
   DeployBodyCreator,
   DeployInput,
-  Deployment,
+  DeploymentCreateResponse,
   DeploymentOptions,
   ShipClientOptions,
   StaticFile,
@@ -80,7 +80,10 @@ export class Ship extends BaseShip {
    * intentional: the convenience shortcut narrows; the resource-layer
    * contract stays platform-neutral.
    */
-  async deploy(input: string | string[], options?: DeploymentOptions): Promise<Deployment> {
+  async deploy(
+    input: string | string[],
+    options?: DeploymentOptions,
+  ): Promise<DeploymentCreateResponse> {
     return super.deploy(input, options);
   }
 

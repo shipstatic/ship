@@ -17,7 +17,7 @@
 
 import type {
   AccountResource,
-  Deployment,
+  DeploymentCreateResponse,
   DeploymentResource,
   DomainResource,
   PlatformLimits,
@@ -48,7 +48,10 @@ import type {
 export abstract class Ship {
   // Resource handles, created once at construction. Each is a thin facade
   // bound to `this.http` plus the lazy-init callback.
-  public readonly deployments: DeploymentResource;
+  // Parameterized with the SDK's extended options (timeout, callbacks,
+  // signal…) — the interface's documented extension point, so typed
+  // consumers can pass them without casts.
+  public readonly deployments: DeploymentResource<DeploymentOptions>;
   public readonly domains: DomainResource;
   public readonly account: AccountResource;
   public readonly tokens: TokenResource;
@@ -174,7 +177,7 @@ export abstract class Ship {
   /**
    * Deploy project (convenience shortcut to `ship.deployments.upload()`).
    */
-  async deploy(input: DeployInput, options?: DeploymentOptions): Promise<Deployment> {
+  async deploy(input: DeployInput, options?: DeploymentOptions): Promise<DeploymentCreateResponse> {
     return this.deployments.upload(input, options);
   }
 

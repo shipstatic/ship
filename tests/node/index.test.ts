@@ -11,8 +11,13 @@ const mockApiClient = {
   checkSPA: vi.fn().mockResolvedValue(false),
 };
 
+// `function`, not an arrow: vitest 4 invokes constructor mocks with `new`,
+// and an arrow function cannot be constructed. Returning an object from a
+// constructor overrides `this`, so `new ApiHttp(...)` yields the double.
 vi.mock('../../src/shared/api/http', () => ({
-  ApiHttp: vi.fn(() => mockApiClient),
+  ApiHttp: vi.fn(function ApiHttp() {
+    return mockApiClient;
+  }),
 }));
 
 // Mock Node.js file processing
@@ -107,6 +112,21 @@ describe('Ship - Node.js Implementation', () => {
       // intent, so the constructor is credential-less and env is the source.
       const ship = new Ship({ token: '' });
 
+      expect((ship as any).credential).toBe('env-token');
+    });
+
+    it('fills only the field the constructor left out', async () => {
+      // The two sources compose per-value rather than all-or-nothing: an
+      // explicit apiUrl does not suppress the ambient token.
+      const { readEnvConfig } = await import('../../src/node/core/config');
+      (readEnvConfig as any).mockReturnValue({
+        token: 'env-token',
+        apiUrl: 'https://env.example.com',
+      });
+
+      const ship = new Ship({ apiUrl: 'https://explicit.example.com' });
+
+      expect((ship as any).clientOptions.apiUrl).toBe('https://explicit.example.com');
       expect((ship as any).credential).toBe('env-token');
     });
 
@@ -318,6 +338,60 @@ describe('Ship - Node.js Implementation', () => {
         ['./src/index.html'],
         expect.objectContaining(options),
       );
+    });
+  });
+
+  describe('deploy option passthrough (migrated from node-sdk.test.ts)', () => {
+    it('passes labels through to the wire', async () => {
+      const ship = new Ship({ token: 'test-key' });
+
+      await ship.deploy(['./dist/app.js'], { labels: ['production', 'v2.1.0'] });
+
+      expect(mockApiClient.deploy).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({ labels: ['production', 'v2.1.0'] }),
+      );
+    });
+
+    it('passes timeout through to the wire', async () => {
+      const ship = new Ship({ token: 'test-key' });
+
+      await ship.deploy(['./dist/app.js'], { timeout: 12345 });
+
+      expect(mockApiClient.deploy).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({ timeout: 12345 }),
+      );
+    });
+
+    it('uses client defaults for options the call omits', async () => {
+      const onProgress = vi.fn();
+      const ship = new Ship({ token: 'test-key', onProgress, timeout: 8000 });
+
+      await ship.deploy(['./dist/app.js'], {});
+
+      expect(mockApiClient.deploy).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({ onProgress, timeout: 8000 }),
+      );
+    });
+
+    it('uploads the paths the processor returned, never a host-absolute prefix', async () => {
+      // The common parent is stripped during processing; nothing downstream may
+      // re-prefix it back on. A regression here would leak the deploying
+      // machine's directory layout into every deployed URL.
+      const ship = new Ship({ token: 'test-key' });
+      (ship as any).processInput = vi.fn().mockResolvedValue([
+        { path: 'file1.txt', content: Buffer.from('a'), md5: 'm1', size: 1 },
+        { path: 'nested/file2.txt', content: Buffer.from('b'), md5: 'm2', size: 1 },
+      ]);
+
+      await ship.deploy(['/base/folder/file1.txt', '/base/folder/nested/file2.txt'], {
+        pathDetect: true,
+      });
+
+      const [files] = mockApiClient.deploy.mock.calls.at(-1) as [Array<{ path: string }>];
+      expect(files.map((f) => f.path)).toEqual(['file1.txt', 'nested/file2.txt']);
     });
   });
 

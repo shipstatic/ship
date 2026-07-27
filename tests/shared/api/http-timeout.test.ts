@@ -8,17 +8,42 @@ const mockCreateDeployBody = async () => ({
   headers: { 'Content-Type': 'multipart/form-data' },
 });
 
-// Helper to create mock response
+/** A real Response — see the note in `http.test.ts` on why this is not a fake. */
 function createMockResponse(data: any, status = 200) {
-  return {
-    ok: status < 400,
+  const hasBody = data !== undefined && status !== 204;
+  return new Response(hasBody ? JSON.stringify(data) : null, {
     status,
-    headers: { get: () => '20' },
-    clone: function () {
-      return this;
-    },
-    json: async () => data,
+    headers: hasBody ? { 'Content-Type': 'application/json' } : {},
+  });
+}
+
+/**
+ * A fetch that never settles until its signal aborts — the only shape that can
+ * observe a timeout. Mocking fetch to reject with a hand-made `AbortError`
+ * (as this file used to) asserts nothing about whether the SDK aborts anything:
+ * the rejection was authored by the test.
+ */
+function hangingFetch(): ReturnType<typeof vi.fn> {
+  const abortError = () => {
+    const error = new Error('The operation was aborted');
+    error.name = 'AbortError';
+    return error;
   };
+
+  return vi.fn(
+    (_url: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        // Faithful to the platform on BOTH paths: a real fetch rejects at once
+        // when handed an already-aborted signal, and never emits a second
+        // `abort` event for one. Listening only for a future event made this
+        // fake hang where the platform would have rejected.
+        if (init.signal?.aborted) {
+          reject(abortError());
+          return;
+        }
+        init.signal?.addEventListener('abort', () => reject(abortError()));
+      }),
+  );
 }
 
 describe('ApiHttp Timeout & Cancellation', () => {
@@ -50,37 +75,53 @@ describe('ApiHttp Timeout & Cancellation', () => {
       expect(fetchCall.signal).toBeInstanceOf(AbortSignal);
     });
 
-    it('should use custom timeout from constructor options', async () => {
-      const shortTimeoutApi = new ApiHttp({
-        apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody,
-        timeout: 1000,
-      });
+    it('aborts at exactly the constructor timeout, not before', async () => {
+      vi.useFakeTimers();
+      try {
+        global.fetch = hangingFetch() as any;
+        const api = new ApiHttp({
+          apiUrl: 'https://api.test.com',
+          getAuthHeaders: () => ({}),
+          createDeployBody: mockCreateDeployBody,
+          timeout: 1000,
+        });
 
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
+        const pending = api.ping();
+        const settled = vi.fn();
+        pending.catch(settled);
 
-      await shortTimeoutApi.ping();
+        await vi.advanceTimersByTimeAsync(999);
+        expect(settled).not.toHaveBeenCalled();
 
-      // Verify signal is passed (indicates timeout setup)
-      const fetchCall = (fetch as any).mock.calls[0][1];
-      expect(fetchCall.signal).toBeDefined();
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
-    it('should work with default timeout when not specified', async () => {
-      const defaultTimeoutApi = new ApiHttp({
-        apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody,
-        // No timeout - should use default
-      });
+    it('uses the 30s default when the constructor names no timeout', async () => {
+      vi.useFakeTimers();
+      try {
+        global.fetch = hangingFetch() as any;
+        const api = new ApiHttp({
+          apiUrl: 'https://api.test.com',
+          getAuthHeaders: () => ({}),
+          createDeployBody: mockCreateDeployBody,
+        });
 
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
+        const pending = api.ping();
+        const settled = vi.fn();
+        pending.catch(settled);
 
-      await defaultTimeoutApi.ping();
+        await vi.advanceTimersByTimeAsync(29_999);
+        expect(settled).not.toHaveBeenCalled();
 
-      const fetchCall = (fetch as any).mock.calls[0][1];
-      expect(fetchCall.signal).toBeDefined();
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
@@ -173,19 +214,46 @@ describe('ApiHttp Timeout & Cancellation', () => {
       expect(fetchCall.signal).toBeDefined();
     });
 
-    it('should throw when user aborts during deploy', async () => {
+    it('aborts the in-flight request when the user aborts their controller', async () => {
+      // The real thing: nothing here fabricates an AbortError. The user's
+      // controller is aborted mid-flight and the SDK must propagate it.
+      // `fetch` is injected rather than assigned onto the global, because
+      // ApiHttp captures `globalThis.fetch` at CONSTRUCTION time — a later
+      // reassignment would never be seen.
+      const hanging = hangingFetch();
+      const api = new ApiHttp({
+        apiUrl: 'https://api.test.com',
+        getAuthHeaders: () => ({}),
+        createDeployBody: mockCreateDeployBody,
+        fetch: hanging as any,
+      });
       const userController = new AbortController();
-
-      // Simulate abort happening during fetch
-      const abortError = new Error('Aborted');
-      abortError.name = 'AbortError';
-      (global.fetch as any).mockRejectedValue(abortError);
-
       const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
 
-      await expect(apiHttp.deploy(files, { signal: userController.signal })).rejects.toThrow(
-        'cancelled',
-      );
+      const pending = api.deploy(files, { signal: userController.signal });
+      const settled = vi.fn();
+      pending.catch(settled);
+
+      await Promise.resolve();
+      expect(settled).not.toHaveBeenCalled();
+
+      userController.abort();
+
+      await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+    });
+
+    it('aborts immediately when the user signal is already aborted', async () => {
+      const api = new ApiHttp({
+        apiUrl: 'https://api.test.com',
+        getAuthHeaders: () => ({}),
+        createDeployBody: mockCreateDeployBody,
+        fetch: hangingFetch() as any,
+      });
+      const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
+
+      await expect(api.deploy(files, { signal: AbortSignal.abort() })).rejects.toMatchObject({
+        type: 'operation_cancelled',
+      });
     });
   });
 
@@ -215,12 +283,9 @@ describe('ApiHttp Timeout & Cancellation', () => {
     it('should clear timeout on HTTP error response', async () => {
       const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
 
-      (global.fetch as any).mockResolvedValue({
-        ok: false,
-        status: 500,
-        headers: { get: () => 'application/json' },
-        json: async () => ({ error: 'Server error' }),
-      });
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ error: 'internal_server_error', message: 'Server error' }, 500),
+      );
 
       await expect(apiHttp.ping()).rejects.toThrow();
 

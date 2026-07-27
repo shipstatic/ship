@@ -11,6 +11,7 @@ import type {
   DomainListResponse,
   DomainRecordsResponse,
   DomainValidateResponse,
+  ListOptions,
   PingResponse,
   PlatformLimits,
   SPACheckRequest,
@@ -45,6 +46,18 @@ const ENDPOINTS = {
 } as const;
 
 const DEFAULT_REQUEST_TIMEOUT = 30000;
+
+/**
+ * Serialize pagination options into a query string, or '' when there are
+ * none — the paginated list endpoints accept `limit` and `cursor`.
+ */
+function listQuery(options?: ListOptions): string {
+  const params = new URLSearchParams();
+  if (options?.limit !== undefined) params.set('limit', String(options.limit));
+  if (options?.cursor !== undefined) params.set('cursor', options.cursor);
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
 
 // =============================================================================
 // TYPES
@@ -266,9 +279,9 @@ export class ApiHttp extends SimpleEvents {
     );
   }
 
-  async listDeployments(): Promise<DeploymentListResponse> {
+  async listDeployments(options?: ListOptions): Promise<DeploymentListResponse> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}`,
+      `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}${listQuery(options)}`,
       { method: 'GET' },
       'List deployments',
     );
@@ -328,8 +341,12 @@ export class ApiHttp extends SimpleEvents {
     return { ...data, isCreate: status === 201 };
   }
 
-  async listDomains(): Promise<DomainListResponse> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.DOMAINS}`, { method: 'GET' }, 'List domains');
+  async listDomains(options?: ListOptions): Promise<DomainListResponse> {
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.DOMAINS}${listQuery(options)}`,
+      { method: 'GET' },
+      'List domains',
+    );
   }
 
   async getDomain(name: string): Promise<Domain> {

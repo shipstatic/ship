@@ -1,722 +1,124 @@
 /**
- * @file Simple HTTP mock server for CLI tests
+ * @file `node:http` adapter for `handleApiRequest` — a Request/Response bridge
+ * and a real lifecycle. The wire truth lives entirely in `handler.ts`; nothing
+ * here decides anything about the API.
  *
- * Runs actual HTTP server for child process CLI testing.
- * Uses typed fixtures from tests/fixtures/api-responses.ts for consistent data.
+ * Three properties this file is responsible for:
  *
- * Rate Limiting Testing:
- * - Set header `X-Mock-Rate-Limit: true` to trigger 429 responses
- * - Or use query param `?__mock_rate_limit=true`
+ *   **An ephemeral port.** `listen(0)`, so the OS picks. The previous server
+ *   bound a fixed 13579 and treated `EADDRINUSE` as success — a second vitest
+ *   run silently shared another process's state, and every reset became a
+ *   no-op in one of them.
  *
- * Server Lifecycle:
- * - Uses reference counting to handle parallel test files
- * - Server starts on first setupMockServer() call
- * - Server stops when last cleanupMockServer() call happens
+ *   **A real close.** `cleanupMockServer` used to be `Promise.resolve()` under
+ *   a comment reading "Never close".
+ *
+ *   **Per-file isolation.** Each test file gets its own server AND its own
+ *   state, which is what makes `fileParallelism` safe.
  */
 
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer } from 'node:http';
-import type {
-  Deployment,
-  DeploymentListResponse,
-  Domain,
-  DomainListResponse,
-  TokenListItem,
-  TokenListResponse,
-} from '@shipstatic/types';
-import {
-  accounts,
-  configs,
-  createDynamicDeployment,
-  createDynamicDomain,
-  createDynamicToken,
-  deployments as deploymentFixtures,
-  domains as domainFixtures,
-  domainRecordsResponses,
-  domainShareResponses,
-  domainValidateResponses,
-  domainVerifyResponses,
-  errors,
-  isExternalDomain,
-  spaCheckResponses,
-} from '../fixtures/api-responses';
-
-// =============================================================================
-// SERVER STATE
-// =============================================================================
+import { makeAccount } from '../fixtures/builders';
+import { handleApiRequest } from './handler';
+import { createMockState, type MockState } from './state';
 
 let server: Server | null = null;
+let baseUrl: string | null = null;
+let state: MockState = createMockState(makeAccount);
 
-// =============================================================================
-// MUTABLE STATE (reset between tests)
-// =============================================================================
+/** The current per-file state — tests may seed it directly. */
+export const mockState = () => state;
 
-let mockDeployments: Deployment[] = [];
-let mockDomains: Domain[] = [];
-let mockTokens: TokenListItem[] = [];
-
-// Track rate-limited domains for verify endpoint
-const rateLimitedDomains = new Set<string>();
-
-function resetState(): void {
-  mockDeployments = [{ ...deploymentFixtures.success }];
-  mockDomains = [{ ...domainFixtures.internal }];
-  mockTokens = [];
-  rateLimitedDomains.clear();
+/** Base URL of the running mock server. Throws if it is not up. */
+export function getMockServerUrl(): string {
+  if (!baseUrl) throw new Error('Mock server is not running — is tests/setup-server.ts loaded?');
+  return baseUrl;
 }
 
-// Initialize state
-resetState();
+/**
+ * The handler as a `fetch`, for in-process tests that would rather inject the
+ * SDK's published transport hook than talk to a socket.
+ */
+export const mockFetch: typeof globalThis.fetch = (input, init) =>
+  handleApiRequest(new Request(input as RequestInfo, init), state);
 
 // =============================================================================
-// REQUEST HANDLER
+// NODE HTTP BRIDGE
 // =============================================================================
 
-function handleRequest(req: IncomingMessage, res: ServerResponse): void {
-  const url = new URL(req.url || '/', 'http://localhost:13579');
-  const method = req.method || 'GET';
-  const path = url.pathname;
+async function toRequest(req: IncomingMessage, origin: string): Promise<Request> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  const body = chunks.length ? Buffer.concat(chunks) : undefined;
 
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Mock-Rate-Limit');
-  res.setHeader('Content-Type', 'application/json');
-
-  // OPTIONS preflight
-  if (method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
-  console.log(`Mock API: ${method} ${path} - Auth: ${req.headers.authorization ? 'Yes' : 'No'}`);
-
-  // Rate limiting simulation (for testing 429 responses)
-  const shouldRateLimit =
-    req.headers['x-mock-rate-limit'] === 'true' ||
-    url.searchParams.get('__mock_rate_limit') === 'true';
-
-  if (shouldRateLimit) {
-    res.setHeader('Retry-After', '60');
-    res.writeHead(429);
-    res.end(JSON.stringify(errors.rateLimit));
-    return;
-  }
-
-  // Authentication check. Deploy creation is public: an unauthenticated
-  // POST /deployments is granted the public-account agent identity by the
-  // API (claim URL + expiry on the response) — mirrored below.
-  const isPublicEndpoint =
-    path === '/ping' ||
-    path === '/limits' ||
-    (path === '/tokens' && method === 'POST') ||
-    (path === '/deployments' && method === 'POST');
-  const hasAuth = req.headers.authorization || req.headers['x-api-key'];
-
-  if (!isPublicEndpoint && !hasAuth) {
-    res.writeHead(401);
-    res.end(JSON.stringify(errors.authenticationFailed));
-    return;
-  }
-
-  try {
-    routeRequest(req, res, method, path, url);
-  } catch (error) {
-    console.error('Mock server error:', error);
-    res.writeHead(500);
-    res.end(JSON.stringify(errors.internal));
-  }
-}
-
-// =============================================================================
-// ROUTE HANDLERS
-// =============================================================================
-
-function routeRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-  method: string,
-  path: string,
-  url: URL,
-): void {
-  // Ping
-  if (path === '/ping' && method === 'GET') {
-    res.writeHead(200);
-    res.end(JSON.stringify({ success: true, timestamp: Date.now() }));
-    return;
-  }
-
-  // Account
-  if (path === '/account' && method === 'GET') {
-    res.writeHead(200);
-    res.end(JSON.stringify(accounts.free));
-    return;
-  }
-
-  // Limits
-  if (path === '/limits' && method === 'GET') {
-    res.writeHead(200);
-    res.end(JSON.stringify(configs.standard));
-    return;
-  }
-
-  // SPA Check
-  if (path === '/spa-check' && method === 'POST') {
-    handleSpaCheck(req, res);
-    return;
-  }
-
-  // Deployments
-  if (path === '/deployments') {
-    if (method === 'GET') {
-      handleDeploymentsList(res, url);
-    } else if (method === 'POST') {
-      handleDeploymentUpload(req, res);
-    }
-    return;
-  }
-
-  if (path.startsWith('/deployments/')) {
-    const id = path.split('/')[2];
-    if (method === 'GET') {
-      handleDeploymentGet(res, id);
-    } else if (method === 'DELETE') {
-      handleDeploymentDelete(res, id);
-    }
-    return;
-  }
-
-  // Domains
-  if (path === '/domains') {
-    if (method === 'GET') {
-      handleDomainsList(res, url);
-    }
-    return;
-  }
-
-  if (path === '/domains/validate' && method === 'POST') {
-    handleDomainValidate(req, res);
-    return;
-  }
-
-  if (path.startsWith('/domains/')) {
-    const pathParts = path.split('/');
-    const domainName = decodeURIComponent(pathParts[2]);
-    const subRoute = pathParts[3]; // dns, records, share, verify
-
-    // Advanced domain routes
-    if (subRoute === 'dns' && method === 'GET') {
-      handleDomainDns(res, domainName);
-      return;
-    }
-    if (subRoute === 'records' && method === 'GET') {
-      handleDomainRecords(res, domainName);
-      return;
-    }
-    if (subRoute === 'share' && method === 'GET') {
-      handleDomainShare(res, domainName);
-      return;
-    }
-    if (subRoute === 'verify' && method === 'POST') {
-      handleDomainVerify(res, domainName);
-      return;
-    }
-
-    // Basic domain routes
-    if (!subRoute) {
-      if (method === 'GET') {
-        handleDomainGet(res, domainName);
-      } else if (method === 'PUT') {
-        handleDomainSet(req, res, domainName);
-      } else if (method === 'DELETE') {
-        handleDomainDelete(res, domainName);
-      }
-      return;
-    }
-  }
-
-  // Tokens
-  if (path === '/tokens') {
-    if (method === 'GET') {
-      handleTokensList(res);
-    } else if (method === 'POST') {
-      handleTokenCreate(req, res);
-    }
-    return;
-  }
-
-  if (path.startsWith('/tokens/')) {
-    const tokenId = path.split('/')[2];
-    if (method === 'DELETE') {
-      handleTokenDelete(res, tokenId);
-    }
-    return;
-  }
-
-  // 404 for unknown routes
-  res.writeHead(404);
-  res.end(JSON.stringify({ error: 'Not found' }));
-}
-
-// =============================================================================
-// DEPLOYMENT HANDLERS
-// =============================================================================
-
-function handleDeploymentsList(res: ServerResponse, url: URL): void {
-  const populate = url.searchParams.get('populate');
-  const response: DeploymentListResponse = {
-    deployments: populate === 'true' ? mockDeployments : [],
-    cursor: null,
-    total: populate === 'true' ? mockDeployments.length : 0,
-  };
-  res.writeHead(200);
-  res.end(JSON.stringify(response));
-}
-
-function handleDeploymentUpload(req: IncomingMessage, res: ServerResponse): void {
-  let body = '';
-  req.on('data', (chunk) => (body += chunk));
-  req.on('end', () => {
-    // Anonymous deploys land under the public account: expiring, claimable.
-    const anonymous = !req.headers.authorization;
-    const deployment = anonymous
-      ? createDynamicDeployment({ expires: Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60 })
-      : createDynamicDeployment();
-    mockDeployments.push(deployment);
-    const response = anonymous
-      ? { ...deployment, claim: `https://my.shipstatic.com/claim/${'a'.repeat(64)}` }
-      : deployment;
-    res.writeHead(201);
-    res.end(JSON.stringify(response));
+  return new Request(new URL(req.url ?? '/', origin), {
+    method: req.method,
+    headers: req.headers as Record<string, string>,
+    // GET/HEAD may not carry a body, even an empty one.
+    body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body,
   });
 }
 
-function findDeployment(id: string): Deployment | undefined {
-  return mockDeployments.find(
-    (d) => d.deployment === id || d.deployment === `${id}.shipstatic.com`,
-  );
-}
-
-function handleDeploymentGet(res: ServerResponse, id: string): void {
-  const deployment = findDeployment(id);
-  if (!deployment) {
-    res.writeHead(404);
-    res.end(JSON.stringify(errors.notFound('Deployment', id)));
-    return;
-  }
-  res.writeHead(200);
-  res.end(JSON.stringify(deployment));
-}
-
-function handleDeploymentDelete(res: ServerResponse, id: string): void {
-  const deployment = findDeployment(id);
-  if (!deployment) {
-    res.writeHead(404);
-    res.end(JSON.stringify(errors.notFound('Deployment', id)));
-    return;
-  }
-  res.writeHead(202);
-  res.end(
-    JSON.stringify({
-      message: 'Deployment marked for removal',
-      deployment: deployment.deployment,
-      status: 'deleting',
-    }),
-  );
-}
-
-// =============================================================================
-// DOMAIN HANDLERS
-// =============================================================================
-
-function handleDomainsList(res: ServerResponse, _url: URL): void {
-  // Always return all mock domains (matches real API behavior)
-  const response: DomainListResponse = {
-    domains: mockDomains,
-    cursor: null,
-    total: mockDomains.length,
-  };
-  res.writeHead(200);
-  res.end(JSON.stringify(response));
-}
-
-function handleDomainGet(res: ServerResponse, domainName: string): void {
-  const domain = mockDomains.find((d) => d.domain === domainName);
-  if (!domain) {
-    res.writeHead(404);
-    res.end(JSON.stringify(errors.notFound('Domain', domainName)));
-    return;
-  }
-  res.writeHead(200);
-  res.end(JSON.stringify(domain));
-}
-
-function handleDomainSet(req: IncomingMessage, res: ServerResponse, domainName: string): void {
-  let body = '';
-  req.on('data', (chunk) => (body += chunk));
-  req.on('end', () => {
-    try {
-      const data = JSON.parse(body);
-
-      // Validate deployment exists if provided
-      if (data.deployment) {
-        const deploymentExists = mockDeployments.some(
-          (d) =>
-            d.deployment === data.deployment ||
-            d.deployment === `${data.deployment}.shipstatic.com`,
-        );
-        if (!deploymentExists) {
-          res.writeHead(404);
-          res.end(JSON.stringify(errors.notFound('Deployment', data.deployment)));
-          return;
-        }
-      }
-
-      // Check if domain already exists (update) or is new (create)
-      const existingIndex = mockDomains.findIndex((d) => d.domain === domainName);
-
-      if (existingIndex >= 0) {
-        // Update existing domain — merge semantics: omitted fields preserve existing values
-        const existing = mockDomains[existingIndex];
-        const mergedDeployment =
-          data.deployment !== undefined ? data.deployment : existing.deployment;
-        const mergedLabels = data.labels !== undefined ? data.labels : existing.labels;
-        const domain = createDynamicDomain(domainName, mergedDeployment, {
-          labels: mergedLabels,
-        });
-        mockDomains[existingIndex] = domain;
-        res.writeHead(200);
-        res.end(JSON.stringify(domain));
-        return;
-      }
-
-      // Create new domain
-      const domain = createDynamicDomain(domainName, data.deployment || null, {
-        labels: data.labels,
-      });
-      mockDomains.push(domain);
-      res.writeHead(201);
-
-      res.end(JSON.stringify(domain));
-    } catch {
-      res.writeHead(400);
-      res.end(JSON.stringify(errors.invalidJson));
-    }
+async function writeResponse(response: Response, res: ServerResponse): Promise<void> {
+  const headers: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    headers[key] = value;
   });
-}
-
-function handleDomainDelete(res: ServerResponse, domainName: string): void {
-  const domain = mockDomains.find((d) => d.domain === domainName);
-  if (!domain) {
-    res.writeHead(404);
-    res.end(JSON.stringify(errors.notFound('Domain', domainName)));
-    return;
-  }
-  res.writeHead(204);
-  res.end();
+  res.writeHead(response.status, headers);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  res.end(buffer.length ? buffer : undefined);
 }
 
 // =============================================================================
-// ADVANCED DOMAIN HANDLERS
+// LIFECYCLE
 // =============================================================================
 
-function handleDomainDns(res: ServerResponse, domainName: string): void {
-  // Only available for external domains
-  if (!isExternalDomain(domainName)) {
-    res.writeHead(400);
-    res.end(
-      JSON.stringify(
-        errors.validationError('DNS information is only available for external domains'),
-      ),
-    );
-    return;
-  }
-
-  const domain = mockDomains.find((d) => d.domain === domainName);
-  if (!domain) {
-    res.writeHead(404);
-    res.end(JSON.stringify(errors.notFound('Domain', domainName)));
-    return;
-  }
-
-  // Only available for unverified domains (status='pending' means not yet verified)
-  if (domain.status !== 'pending') {
-    res.writeHead(400);
-    res.end(
-      JSON.stringify(
-        errors.validationError('DNS information is only available for unverified domains'),
-      ),
-    );
-    return;
-  }
-
-  res.writeHead(200);
-  res.end(
-    JSON.stringify({
-      domain: domainName,
-      dns: { provider: { name: 'Cloudflare' } },
-    }),
-  );
-}
-
-function handleDomainRecords(res: ServerResponse, domainName: string): void {
-  // Only available for external domains
-  if (!isExternalDomain(domainName)) {
-    res.writeHead(400);
-    res.end(
-      JSON.stringify(
-        errors.validationError('DNS information is only available for external domains'),
-      ),
-    );
-    return;
-  }
-
-  const domain = mockDomains.find((d) => d.domain === domainName);
-  if (!domain) {
-    res.writeHead(404);
-    res.end(JSON.stringify(errors.notFound('Domain', domainName)));
-    return;
-  }
-
-  // Derive apex from domain name (strip leading subdomain for www.x.com → x.com, otherwise use as-is)
-  const apex = domainName.startsWith('www.') ? domainName.slice(4) : domainName;
-
-  res.writeHead(200);
-  res.end(
-    JSON.stringify({
-      domain: domainName,
-      apex,
-      records: domainRecordsResponses.standard.records,
-    }),
-  );
-}
-
-function handleDomainShare(res: ServerResponse, domainName: string): void {
-  // Only available for external domains
-  if (!isExternalDomain(domainName)) {
-    res.writeHead(400);
-    res.end(
-      JSON.stringify(
-        errors.validationError('Setup sharing is only available for external domains'),
-      ),
-    );
-    return;
-  }
-
-  const domain = mockDomains.find((d) => d.domain === domainName);
-  if (!domain) {
-    res.writeHead(404);
-    res.end(JSON.stringify(errors.notFound('Domain', domainName)));
-    return;
-  }
-
-  // Only available for unverified domains (status='pending' means not yet verified)
-  if (domain.status !== 'pending') {
-    res.writeHead(400);
-    res.end(
-      JSON.stringify(
-        errors.validationError('Setup sharing is only available for unverified domains'),
-      ),
-    );
-    return;
-  }
-
-  res.writeHead(200);
-  res.end(
-    JSON.stringify({
-      domain: domainName,
-      hash: domainShareResponses.standard.hash,
-    }),
-  );
-}
-
-function handleDomainVerify(res: ServerResponse, domainName: string): void {
-  // Only available for external domains
-  if (!isExternalDomain(domainName)) {
-    res.writeHead(400);
-    res.end(
-      JSON.stringify(
-        errors.validationError('DNS verification is only available for external domains'),
-      ),
-    );
-    return;
-  }
-
-  const domain = mockDomains.find((d) => d.domain === domainName);
-  if (!domain) {
-    res.writeHead(404);
-    res.end(JSON.stringify(errors.notFound('Domain', domainName)));
-    return;
-  }
-
-  // Only available for unverified domains (status='pending' means not yet verified)
-  if (domain.status !== 'pending') {
-    res.writeHead(400);
-    res.end(
-      JSON.stringify(
-        errors.validationError('DNS verification is only available for unverified domains'),
-      ),
-    );
-    return;
-  }
-
-  // Rate limit check (simulates real API behavior)
-  if (rateLimitedDomains.has(domainName)) {
-    res.writeHead(429);
-    res.end(
-      JSON.stringify(
-        errors.validationError(
-          'DNS verification already requested recently. Please wait before retrying.',
-        ),
-      ),
-    );
-    return;
-  }
-
-  // Add to rate-limited set (in real tests, this persists for the test duration)
-  rateLimitedDomains.add(domainName);
-
-  res.writeHead(200);
-  res.end(JSON.stringify(domainVerifyResponses.queued));
-}
-
-function handleDomainValidate(req: IncomingMessage, res: ServerResponse): void {
-  let body = '';
-  req.on('data', (chunk) => (body += chunk));
-  req.on('end', () => {
-    const { domain } = JSON.parse(body || '{}');
-    const isValid = typeof domain === 'string' && /^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain);
-    if (isValid) {
-      res.writeHead(200);
-      res.end(JSON.stringify({ ...domainValidateResponses.valid, normalized: domain }));
-    } else {
-      res.writeHead(200);
-      res.end(JSON.stringify(domainValidateResponses.invalid));
-    }
-  });
-}
-
-// =============================================================================
-// TOKEN HANDLERS
-// =============================================================================
-
-function handleTokensList(res: ServerResponse): void {
-  const response: TokenListResponse = {
-    tokens: mockTokens,
-    total: mockTokens.length,
-  };
-  res.writeHead(200);
-  res.end(JSON.stringify(response));
-}
-
-function handleTokenCreate(req: IncomingMessage, res: ServerResponse): void {
-  let body = '';
-  req.on('data', (chunk) => (body += chunk));
-  req.on('end', () => {
-    try {
-      const data = body ? JSON.parse(body) : {};
-      const token = createDynamicToken({
-        labels: data.labels,
-        expires: data.ttl ? Math.floor(Date.now() / 1000) + data.ttl : undefined,
-      });
-
-      mockTokens.push(token);
-
-      // Return token ID + secret with labels and expires
-      const response: { token: string; secret: string; labels: string[]; expires: number | null } =
-        {
-          token: token.token,
-          secret: `deploy-${Date.now()}${Math.random().toString(36).substring(2, 10)}`.padEnd(
-            71,
-            '0',
-          ),
-          labels: data.labels || [],
-          expires: data.ttl ? Math.floor(Date.now() / 1000) + data.ttl : null,
-        };
-
-      res.writeHead(201);
-      res.end(JSON.stringify(response));
-    } catch {
-      res.writeHead(400);
-      res.end(JSON.stringify(errors.invalidJson));
-    }
-  });
-}
-
-function handleTokenDelete(res: ServerResponse, tokenId: string): void {
-  const tokenIndex = mockTokens.findIndex((t) => t.token === tokenId);
-  if (tokenIndex === -1) {
-    res.writeHead(404);
-    res.end(JSON.stringify(errors.notFound('Token')));
-    return;
-  }
-
-  mockTokens.splice(tokenIndex, 1);
-  res.writeHead(200);
-  res.end(JSON.stringify({ message: 'Token deleted' }));
-}
-
-// =============================================================================
-// SPA CHECK HANDLER
-// =============================================================================
-
-function handleSpaCheck(req: IncomingMessage, res: ServerResponse): void {
-  let body = '';
-  req.on('data', (chunk) => (body += chunk));
-  req.on('end', () => {
-    try {
-      const data = JSON.parse(body);
-      const hasIndexHtml = data.files?.includes('index.html');
-      const indexContent = data.index || '';
-      const hasReactRoot = indexContent.includes('id="root"') || indexContent.includes("id='root'");
-      const isSPA = hasIndexHtml && hasReactRoot;
-
-      res.writeHead(200);
-      res.end(JSON.stringify(isSPA ? spaCheckResponses.isSpa : spaCheckResponses.notSpa));
-    } catch {
-      res.writeHead(400);
-      res.end(JSON.stringify(errors.invalidJson));
-    }
-  });
-}
-
-// =============================================================================
-// SERVER LIFECYCLE
-// =============================================================================
-
-export function setupMockServer(): Promise<void> {
+export function setupMockServer(): Promise<string> {
   return new Promise((resolve, reject) => {
-    // Already running - just resolve
-    if (server) {
-      resolve();
-      return;
-    }
+    if (baseUrl) return resolve(baseUrl);
 
-    server = createServer(handleRequest);
-
-    server.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        // Port in use = another test worker started the server, that's fine
-        resolve();
-      } else {
-        reject(err);
-      }
+    server = createServer((req, res) => {
+      void (async () => {
+        try {
+          const request = await toRequest(req, baseUrl ?? 'http://localhost');
+          await writeResponse(await handleApiRequest(request, state), res);
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              error: 'internal_server_error',
+              message: error instanceof Error ? error.message : String(error),
+              status: 500,
+            }),
+          );
+        }
+      })();
     });
 
-    server.listen(13579, () => {
-      console.log('Mock API server running on http://localhost:13579');
-      resolve();
+    server.on('error', reject);
+    // Port 0 — the OS assigns a free one, so nothing can collide.
+    server.listen(0, '127.0.0.1', () => {
+      const address = server?.address();
+      if (!address || typeof address === 'string') return reject(new Error('no address'));
+      baseUrl = `http://127.0.0.1:${address.port}`;
+      resolve(baseUrl);
     });
   });
 }
 
 export function cleanupMockServer(): Promise<void> {
-  // Never close - let Node clean up on exit
-  // This prevents race conditions with parallel test files
-  return Promise.resolve();
+  return new Promise((resolve) => {
+    if (!server) return resolve();
+    const closing = server;
+    server = null;
+    baseUrl = null;
+    closing.closeAllConnections?.();
+    closing.close(() => resolve());
+  });
 }
 
+/** Fresh state between tests — a real reset, on state this process owns. */
 export function resetMockServer(): void {
-  resetState();
+  state = createMockState(makeAccount);
 }

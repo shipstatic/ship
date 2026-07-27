@@ -50,6 +50,18 @@ export function formatDeploymentsList(
 
   const columns = ['deployment', 'labels', 'files', 'size', 'created', 'via'];
   console.log(formatTable(result.deployments, columns, noColor));
+  printCursorHint(result.cursor, noColor);
+}
+
+/**
+ * A non-null cursor means the server has more pages. Text mode surfaces the
+ * continuation the same way `-q` surfaces identifiers: as the value you feed
+ * to the next invocation. (`--json` consumers read `cursor` off the response.)
+ */
+function printCursorHint(cursor: string | null | undefined, noColor?: boolean): void {
+  if (cursor) {
+    info(`more results available — rerun with --cursor ${cursor}`, false, noColor);
+  }
 }
 
 /**
@@ -70,6 +82,7 @@ export function formatDomainsList(
 
   const columns = ['domain', 'deployment', 'labels', 'linked', 'links', 'created'];
   console.log(formatTable(result.domains, columns, noColor));
+  printCursorHint(result.cursor, noColor);
 }
 
 /**

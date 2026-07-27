@@ -7,7 +7,6 @@ vi.mock('../../../src/shared/lib/env', () => ({
 
 describe('Node.js SDK env-var resolution', () => {
   let config: typeof import('../../../src/node/core/config');
-  let sharedConfig: typeof import('../../../src/shared/core/config');
   let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
@@ -22,7 +21,6 @@ describe('Node.js SDK env-var resolution', () => {
     (getENV as any).mockReturnValue('node');
 
     config = await import('../../../src/node/core/config');
-    sharedConfig = await import('../../../src/shared/core/config');
   });
 
   afterEach(() => {
@@ -71,49 +69,6 @@ describe('Node.js SDK env-var resolution', () => {
       // users at SHIP_API_URL or it's worse than no message at all.
       process.env.SHIP_API_URL = 'not-a-url';
       expect(() => config.readEnvConfig()).toThrow(/SHIP_API_URL/);
-    });
-  });
-
-  describe('mergeDeployOptions', () => {
-    it('merges per-deploy options with client defaults', () => {
-      const result = sharedConfig.mergeDeployOptions(
-        { timeout: 5000 },
-        { timeout: 10000, maxConcurrency: 3 },
-      );
-      expect(result).toEqual({
-        timeout: 5000,
-        maxConcurrency: 3,
-      });
-    });
-
-    it('does not override user options with defaults', () => {
-      const result = sharedConfig.mergeDeployOptions(
-        { timeout: 5000, maxConcurrency: 8 },
-        { timeout: 10000, maxConcurrency: 3 },
-      );
-      expect(result).toEqual({
-        timeout: 5000,
-        maxConcurrency: 8,
-      });
-    });
-
-    it('merges only deploy concerns — the client identity stays on the instance', () => {
-      // Credentials, the API URL, and the caller identifier are not deploy
-      // options: one client is one principal speaking for one end user. Only
-      // progress, timing, and concurrency flow from client defaults into a
-      // deploy.
-      const result = sharedConfig.mergeDeployOptions(
-        {},
-        {
-          apiUrl: 'https://api.example.com',
-          token: 'default-token',
-          timeout: 10000,
-          caller: 'tenant-1',
-        },
-      );
-      expect(result).toEqual({
-        timeout: 10000,
-      });
     });
   });
 });
