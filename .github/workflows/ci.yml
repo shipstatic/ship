@@ -39,7 +39,7 @@ jobs:
       # Capability tier: real-browser certification (File/FormData/spark-md5
       # semantics jsdom can only approximate). Separate invocation, no
       # coverage coupling — same pattern as the backend's workerd tier.
-      - run: npx playwright install chromium --with-deps
+      - run: pnpm exec playwright install chromium --with-deps
 
       - run: pnpm test:browser
 
