@@ -31,14 +31,14 @@ jobs:
 
       - run: pnpm run build
 
-      # Coverage in place of a bare test run: the suite is the same, plus the
-      # ratchet in vitest.config.ts. Build must precede it — the child-process
-      # CLI tier executes dist/cli.cjs and refuses to run against a stale one.
+      # Coverage in place of a bare test run: the same suite, plus the ratchet in
+      # vitest.config.ts. Build must precede it — the child-process CLI tier
+      # executes dist/cli.cjs and refuses to run against a stale one.
       - run: pnpm coverage
 
-      # Capability tier: real-browser certification (File/FormData/spark-md5
-      # semantics jsdom can only approximate). Separate invocation, no
-      # coverage coupling — same pattern as the backend's workerd tier.
+      # Capability tier: real-browser certification of File/FormData/spark-md5
+      # semantics jsdom can only approximate. Separate invocation, no coverage
+      # coupling — same pattern as the backend's workerd tier.
       - run: pnpm exec playwright install chromium --with-deps
 
       - run: pnpm test:browser
@@ -46,12 +46,65 @@ jobs:
       # The published artifact itself: exports map, CJS/ESM resolution, dts.
       - run: pnpm check:package
 
-  publish:
-    # Publishes fire on branch pushes only; PRs stop at the test gate.
+
+  # The publish DECISION, isolated in its own job so the channel is known at job
+  # level. That is what lets `publish` below select its environment from it:
+  # `environment:` is evaluated before a job's steps run, so it cannot read a step
+  # of its own job.
+  version:
     if: github.event_name != 'pull_request'
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.decide.outputs.publish }}
+      version: ${{ steps.decide.outputs.version }}
+      tag: ${{ steps.decide.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: decide
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+
+          # The VERSION decides the channel: a prerelease (any `-` suffix) goes to
+          # `beta`, so `latest` keeps resolving the last stable release.
+          if [[ "$VERSION" == *-* ]]; then TAG=beta; else TAG=latest; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          # The BRANCH decides whether that channel may be published from here.
+          # `latest` is main-only. A stable version on an integration branch is a
+          # STAGED release, and staging one before merging is the normal flow — so
+          # this skips rather than fails, exactly like the idempotence check below.
+          if [[ "$TAG" == "latest" && "$GITHUB_REF_NAME" != "main" ]]; then
+            echo "::notice title=Release staged::$NAME@$VERSION is a stable version. latest publishes only from main, so nothing was published from $GITHUB_REF_NAME. Merge to main to release it."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Idempotence: once the version is on the registry, any push is a no-op.
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION already on the registry — nothing to publish"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: version
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The second gate, and the one that does not depend on our own shell logic:
+    # `npm-latest` accepts pushes from `main` ONLY (a deployment branch policy), and
+    # NODE_AUTH_TOKEN lives in these two environments and NOWHERE at repo level. A
+    # branch that cannot reach the environment cannot reach a credential either, so
+    # publishing `latest` off `main` is not a thing this workflow can do — not a
+    # thing it declines to do.
+    environment: npm-${{ needs.version.outputs.tag }}
     permissions:
       contents: read
       id-token: write
@@ -66,44 +119,20 @@ jobs:
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
-      # The version decides everything: skip when this version is already on
-      # the registry (any push — workflow edits, docs — is a safe no-op, so
-      # publishes are idempotent), and derive the dist-tag from the version —
-      # prerelease versions (any `-` suffix) publish under `beta` so `latest`
-      # keeps resolving the last stable; promoting a stable version needs no
-      # workflow change. The branch decides only which pushes are eligible.
-      - id: version
-        run: |
-          NAME=$(node -p "require('./package.json').name")
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
-            echo "$NAME@$VERSION already on the registry — nothing to publish"
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
-            if [[ "$VERSION" == *-* ]]; then TAG=beta; else TAG=latest; fi
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          fi
+      - run: pnpm install --frozen-lockfile
 
-      - if: steps.version.outputs.publish == 'true'
-        run: pnpm install --frozen-lockfile
+      - run: pnpm run build
 
-      - if: steps.version.outputs.publish == 'true'
-        run: pnpm run build
-
-      - if: steps.version.outputs.publish == 'true'
-        run: pnpm publish --access public --no-git-checks --provenance --tag "${{ steps.version.outputs.tag }}"
+      - run: pnpm publish --access public --no-git-checks --provenance --tag "${{ needs.version.outputs.tag }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
 
-      - if: steps.version.outputs.publish == 'true'
-        uses: slackapi/slack-github-action@v4
+      - uses: slackapi/slack-github-action@v4
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload: |
-            text: "✅ @shipstatic/ship ${{ steps.version.outputs.version }} published (${{ steps.version.outputs.tag }})"
+            text: "✅ @shipstatic/ship ${{ needs.version.outputs.version }} published (${{ needs.version.outputs.tag }})"
 
       - if: failure()
         uses: slackapi/slack-github-action@v4
