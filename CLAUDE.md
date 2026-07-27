@@ -38,13 +38,13 @@ The SDK proper has no filesystem dependency — the only ambient credential sour
 ## Quick Reference
 
 ```bash
-pnpm test --run              # All tests
-pnpm test:unit --run         # Pure functions only (~1s)
-pnpm test:integration --run  # SDK/CLI with mock server
-pnpm test:e2e --run          # Real API (requires SHIP_E2E_API_KEY)
-pnpm typecheck               # tsc --noEmit — the only full typecheck: tsup dts
-                             # covers the SDK surface but never the CLI entry,
-                             # and vitest transforms without checking types
+pnpm test --run              # unit + integration (e2e is NOT in the default run)
+pnpm test:unit --run         # Pure functions only
+pnpm test:integration --run  # SDK/CLI against the mock server
+pnpm test:e2e --run          # REAL API — refuses to load without SHIP_E2E_API_KEY
+pnpm coverage                # the suite + the ratchet — what CI runs
+pnpm typecheck               # tsc over src AND tests (tsconfig.check.json)
+pnpm check:package           # publint + attw over the built artifact
 pnpm build                   # Build all bundles
 ```
 
@@ -65,7 +65,9 @@ pnpm build                   # Build all bundles
 | `src/node/cli/error-handling.ts` | CLI error UX — `toShipError` (normalize), `getUserMessage` (translate), `formatErrorJson` (--json output) |
 | `src/node/cli/config.ts` | Interactive `ship config` wizard (writes `~/.shiprc`) |
 | `src/node/cli/completion.ts` | Shell completion install/uninstall |
-| `tests/fixtures/api-responses.ts` | Typed API response fixtures |
+| `tests/fixtures/builders.ts` | Typed fixture builders — the only fixture source |
+| `tests/mocks/handler.ts` | The mock API: one Web-standard handler, wire-cited per route |
+| `tests/architecture/` | Suite-time fences (integrity, naming) |
 
 ## Core Patterns
 
@@ -266,27 +268,194 @@ When both parent and subcommand define `--label`, subcommand options take preced
 
 ## Testing
 
-| Pattern | Description | Mock Server |
-|---------|-------------|-------------|
-| `*.unit.test.ts` | Pure functions, no I/O | No |
-| `*.test.ts` | SDK/CLI with mocked API | Yes (localhost:13579) |
-| `*.e2e.test.ts` | Real API integration | No (real API) |
+```bash
+pnpm test --run          # unit + integration (e2e and browser are NOT in the default run)
+pnpm coverage            # the same suite, plus the ratchet — what CI runs
+pnpm typecheck           # tsc over src AND tests, 0 errors
+pnpm check:package       # publint + attw over the built artifact
+pnpm test:browser        # capability tier — real Chromium via playwright (CI runs it)
+pnpm test:e2e --run      # REAL API; refuses to load without SHIP_E2E_API_KEY
+```
+
+| Pattern | Project | Mock server |
+|---------|---------|-------------|
+| `*.unit.test.ts` | `unit` | No |
+| `*.test.ts` | `integration` | Yes — per file, ephemeral port |
+| `tests-browser/*.test.ts` | `browser` | No — real Chromium, pure browser primitives |
+| `*.e2e.test.ts` | `e2e` | No (a real API) |
+
+**`tests/**` is typechecked.** `pnpm typecheck` runs `tsconfig.check.json`
+over `src` and `tests` together. This is the load-bearing one: vitest
+transpiles through esbuild WITHOUT checking types, so until 2026-07-27 nothing
+checked the test tree — which is what let an `apiKey` constructor option, a
+`flattenDirs` deploy option, a `basePath` that never existed, a
+`findCommonParent(paths, separator)` overload that never existed, and
+`processFilesForNode` called with four arguments all sit there passing. The
+fixtures' `satisfies` clauses were decorative until this gate existed.
+
+### Hermeticity
+
+`tests/setup.ts` loads for BOTH in-process projects and enforces two
+invariants that used to be convention:
+
+- **No ambient credentials** — every `SHIP_*` var is scrubbed at load, so a
+  developer's exported `SHIP_TOKEN` cannot authenticate the suite's
+  "anonymous" paths.
+- **No outbound network** — `fetch` is wrapped and THROWS, naming the URL, for
+  any host that is not loopback. `DEFAULT_API` is production, so a missing
+  mock route or a forgotten `apiUrl` would otherwise reach it.
+
+The child-process CLI tier builds its environment from an **allowlist**
+(`tests/node/cli/helpers.ts`) — `PATH`, `TMPDIR`, a throwaway `HOME`,
+`NO_COLOR`, `CI`, and nothing else. A blocklist only removes what someone
+thought of: `FORCE_COLOR=3` (iTerm's default) used to reach the child and turn
+sixteen exact-output tests red on a developer's machine while CI stayed green.
+Notably `SHELL` is absent too, so shell detection is a test input rather than a
+property of the machine. The same file refuses to run against a **stale
+`dist/`** — those tests execute `dist/cli.cjs`, which `pnpm test` does not
+build.
+
+### The three fences
+
+`tests/architecture/` holds suite-time invariants. Each catches a class the
+others cannot:
+
+| Fence | Catches |
+|---|---|
+| `test-integrity.test.ts` | A test file that reaches NO production code — the tautology class. A tautology neither raises nor lowers coverage, so no ratchet can see it. Reach is resolved TRANSITIVELY through local test-support modules (`./harness`, `../mocks/…`) but importing only fixture builders does not count — builders pull in `@shipstatic/types`, never `src/`. Its only exceptions are the two artifact tiers (`smoke.test.ts`, `package/dist-entries.test.ts`), each recorded with a reason. |
+| `test-naming.test.ts` | Layout drift: a filename that describes the test instead of its subject, a mirror file with no `src/` counterpart, an aspect split not recorded in this file. |
+| `coverage.thresholds` | Coverage decay. A ratchet — it only goes up. Global bar plus per-glob floors for the three files whose residual gaps are named in `vitest.config.ts` (bin block/spinner/SIGINT are smoke-proven; browser env arms are browser-tier-proven). |
+
+### The mock server
+
+`tests/mocks/` is a hand-maintained twin of `cloudflare/api`, in three parts:
+`handler.ts` (one Web-standard `handleApiRequest(request, state)`),
+`state.ts` (per-instance state from a factory), and `server.ts` (a thin
+`node:http` adapter plus lifecycle). **Every route cites its wire truth** —
+`// wire: routes/domains.ts:103` — so an API change is a mechanical checklist
+rather than a memory exercise. `tests/e2e/smoke.e2e.test.ts` pins the same
+contract points against the real API, which is what catches drift between
+manual alignments.
+
+### Testing canon
+
+The cohesion contract. A change that breaks one of these needs a recorded
+exception, not a workaround:
+
+1. **Pure lib tests mock nothing.** `md5`, `path`, `deploy-paths`,
+   `validation`, `junk` run the real thing against real inputs.
+2. **SDK-level tests run a real `Ship` against the wire-truth handler.**
+   Internal module mocks only with a recorded reason — today exactly one:
+   `node:readline/promises` in `config.test.ts`, because stdin is the one
+   collaborator a test cannot supply for real.
+3. **A mock may only mock exports that exist** — the typecheck enforces it.
+4. **Raw `fetch` stubbing only where transport IS the subject** — the
+   `http*.test.ts` family. Everywhere else, inject the `fetch` option (a
+   published contract) or talk to the mock server.
+5. **Builders are the only fixture source** (`tests/fixtures/builders.ts`),
+   and they take explicit timestamps — no `Date.now()` in an asserted value.
+6. **Every mock route cites its `cloudflare/api` wire truth.**
 
 The e2e harness var is deliberately named `SHIP_E2E_API_KEY` — it names a
 literal API key, the CI secret name is unchanged, and it is not part of the
 SDK's env contract (`SHIP_TOKEN`). Don't rename it during credential sweeps.
 
-Tests run sequentially (`fileParallelism: false`) — mock server is shared. Don't change this.
+**Tests run in parallel.** Each file gets its OWN mock server on an ephemeral
+port and its OWN state (`tests/mocks/server.ts`), so no file can observe
+another's writes and no two can contend for a port. This replaced a
+"never parallelize" rule whose reason — one shared server on a fixed 13579 —
+no longer exists; the law changed with its reason, not despite it.
+
+**Recorded aspect splits** — one subject, more than one mirror file. Legal
+under the layout law (`<module>-<aspect>.test.ts`), listed here because the law
+requires the aspect to be recorded — and since 2026-07-27 that recording is
+mechanical: `tests/architecture/test-naming.test.ts` fails the suite if a split
+is not named here by full basename.
+
+| Module | Files | Why |
+|---|---|---|
+| `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-browser`, `http-domains`, `http-events`, `http-rate-limit`, `http-timeout`, `http-tokens` | The HTTP client is the SDK's widest surface. `http.test.ts` is the transport anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler, one resource family or one cross-cutting concern each. |
+| `src/shared/base-ship.ts` | `base-ship`, `base-ship-credentials`, `base-ship-lifecycle`, `base-ship-limits` | Three separable doctrines on one class: the credential slot, the init/auth lifecycle, and the one-shot `/limits` cache. |
+| `src/shared/resources.ts` | `resources-account`, `resources-deployments`, `resources-domains` | One file per resource factory; a single file would be a grab bag with no reason to read any part of it. |
+| `src/shared/types.ts` | `types-reexport` | Not a test of the module's own types but of the **freshness** of what it re-exports — a bundled-dependency fence. |
+
+**Recorded feature-axis files** — no single subject module, so the mirror rule
+cannot apply. The list lives in the naming fence; adding to it is a decision.
+Today: `unknown-commands` (the CLI's error surface), `validation` (parse-time
+credential/URL checks), `smoke` (the true-binary tier), and `e2e/smoke.e2e`.
+
+### Commander
+
+`commander@^14` — deliberately NOT 15: Commander 15 (2026-05) is ESM-only
+and requires Node ≥22.12, incompatible with the CJS `dist/cli.cjs` bin and
+the `engines >=20` consumer contract. Revisit when dropping Node 20 / going
+ESM-only is decided (a consumer-contract call, like the engines pin itself).
+
+**Two help scopes, one machinery.** The ROOT renders the hand-written front
+page (`helpText()` — the kept design, byte-pinned in the smoke tier): that is
+what `ship`, `ship --help`/`-h`, and `ship help` show. Subcommands render
+Commander's NATIVE scoped help (`ship domains --help`,
+`ship help deployments`, and `--help` beside a missing argument), which knows
+each command's exact usage and options. The split is one conditional in
+`configureHelp.formatHelp` — root → `helpText()`, else →
+`Help.prototype.formatHelp` (the escape past our own override). Riding the
+built-in `-h, --help` option and explicit `help [command]` command means no
+help route ever resolves credentials or reads a config file. Short forms
+`-h`/`-V` are supported (user decision 2026-07-27).
+`allowExcessArguments()` is a recorded opt-out of v13+'s excess-arguments
+error: unknown subcommands must reach `handleUnknownSubcommand` as excess
+args to get scoped usage. Option arguments that parse (`--ttl`) throw
+`InvalidArgumentError` — the docs' canonical pattern; a bare `parseInt` once
+turned `--ttl abc` into `NaN` on the wire.
+
+### The CLI's two tiers
+
+`src/node/cli/index.ts` exports `buildProgram()` — a factory returning a
+fresh Commander tree (instances are not reusable across parses). The tree
+**never calls `process.exit`**: outcomes land in `process.exitCode` or ride a
+thrown `CommanderError`, and the bin path ends naturally when the event loop
+drains, so buffered stdout can never be truncated on a pipe. That design is
+what makes the tree drivable in-process:
+
+- **In-process tier** (`index.test.ts`, `unknown-commands`, `validation` via
+  `tests/node/cli/harness.ts`): drives `buildProgram()` directly, so V8
+  coverage sees the command tree — a subprocess is invisible to it, which is
+  how 917 lines once read 0% while being "tested". The harness pins a
+  deterministic colour environment (`NO_COLOR` on, `FORCE_COLOR` cleared) —
+  the in-process tier reads the same `process.env` the child tier once leaked.
+- **Child-process smoke tier** (`smoke.test.ts`, the ONE file that spawns
+  `dist/cli.cjs`): proves what only a real binary can — byte-exact help, exit
+  codes, stdin piping, colour responding to the launch environment, the
+  `--comp*` completion fast-path, and stdout surviving a pipe intact.
+
+### The browser capability tier
+
+`tests-browser/` (the analog of the backend's `tests-workerd`): a small suite
+run on **real Chromium** via `pnpm test:browser` (vitest browser mode,
+playwright provider). It certifies what jsdom can only approximate — native
+`getENV()` detection with no test override, `webkitRelativePath` as Chromium
+defines it, real `File`/`FormData` bytes through `createDeployBody`, and
+spark-md5 digests (same published vectors as the Node tier, deliberately: the
+API verifies checksums on R2 put, so both runtimes must agree). No coverage
+coupling; separate CI step with `playwright install chromium`.
 
 ```
 tests/
-├── shared/ browser/ node/ integration/ e2e/
-├── fixtures/api-responses.ts   # Typed response fixtures (satisfies for compile-time validation)
-├── mocks/                      # Mock HTTP server
-└── setup.ts                    # Mock server lifecycle
+├── architecture/     # Fences: integrity, naming
+├── browser/ node/ shared/   # Mirror axis — tests/<path>/<module>.test.ts
+├── node/cli/harness.ts      # In-process CLI runner (buildProgram + capture)
+├── node/cli/smoke.test.ts   # The ONE child-process file (dist/cli.cjs)
+├── package/          # The BUILT artifact (dist entries)
+├── e2e/              # Real API, opt-in — and the contract-drift detector
+├── fixtures/builders.ts     # Typed builders — the only fixture source
+├── mocks/            # handler.ts + state.ts + server.ts
+├── setup.ts          # Hermeticity (both in-process projects)
+└── setup-server.ts   # Mock-server lifecycle (integration only)
+tests-browser/        # Capability tier — real Chromium (pnpm test:browser)
 ```
 
-**When API changes:** Update types in `@shipstatic/types` → update `tests/fixtures/api-responses.ts` → TypeScript errors guide the rest.
+**When the API changes:** update `@shipstatic/types` → follow the `// wire:`
+citations in `tests/mocks/handler.ts` → `pnpm typecheck` guides the rest.
 
 ## Adding New Features
 
@@ -312,8 +481,6 @@ All errors use `ShipError` from `@shipstatic/types`. The class provides the full
 - `formatErrorJson(message, details)` — serializes `{ "error": "...", "details": ... }` for `--json` output.
 
 ## Known Gotchas
-
-**Tests must run sequentially** — mock server is shared. Never add `fileParallelism: true`.
 
 **Deploy token vs API key** — both ride the one `token` slot; the prefix says which population a value belongs to. An API key (`ship-`) is durable and grants full account access; a deploy token (`deploy-`) is scoped to deploys, supports an optional TTL, and is revocable.
 
@@ -348,14 +515,14 @@ For a CLI user who has all three: `--token` flag → env → file, per value. Fo
 | SDK Method | API Endpoint | Notes |
 |------------|--------------|-------|
 | `deployments.upload()` | `POST /deployments` | Multipart upload |
-| `deployments.list()` | `GET /deployments` | Paginated |
+| `deployments.list()` | `GET /deployments` | Paginated — `{limit, cursor}` options (`--limit`/`--cursor` on the CLI; text mode prints a rerun hint while `--json` carries `cursor`) |
 | `deployments.get()` | `GET /deployments/:id` | |
 | `deployments.set()` | `PATCH /deployments/:id` | Labels only |
-| `deployments.remove()` | `DELETE /deployments/:id` | Returns 202 (async) |
+| `deployments.remove()` | `DELETE /deployments/:id` | Returns 202 (async) — `{message, deployment, status:'deleting'}` |
 | `domains.set()` | `PUT /domains/:name` | Upsert — create, repoint, or label |
-| `domains.list()` | `GET /domains` | |
+| `domains.list()` | `GET /domains` | Paginated — same `{limit, cursor}` contract |
 | `domains.get()` | `GET /domains/:name` | |
-| `domains.validate()` | `POST /domains/:name/validate` | Pre-flight check |
+| `domains.validate()` | `POST /domains/validate` | Pre-flight check — name rides the JSON body, not the path |
 | `domains.verify()` | `POST /domains/:name/verify` | Triggers async DNS check |
 | `domains.dns()` | `GET /domains/:name/dns` | DNS provider information |
 | `domains.records()` | `GET /domains/:name/records` | Required DNS records |
@@ -363,11 +530,27 @@ For a CLI user who has all three: `--token` flag → env → file, per value. Fo
 | `domains.remove()` | `DELETE /domains/:name` | |
 | `tokens.create()` | `POST /tokens` | Returns 201 |
 | `tokens.list()` | `GET /tokens` | |
-| `tokens.remove()` | `DELETE /tokens/:token` | Returns 202 (async) |
+| `tokens.remove()` | `DELETE /tokens/:token` | Returns 200 `{message}` |
 | `account.get()` | `GET /account` | |
 | `ping()` | `GET /ping` | Returns boolean |
 | `getLimits()` | `GET /limits` | Cached after init |
-| (internal) | `POST /spa-check` | SPA detection during upload |
+| (internal) | `POST /spa-check` | SPA detection during upload — optional auth, anonymous callers allowed |
+| (internal) | `POST /upload` | Only via the `@internal` `deployEndpoint` option (`web/my`, `web/www`) |
+
+**Routes the API exposes that the SDK does not reach.** Two classes — do not
+conflate them:
+
+*Settled (first-party or operator surfaces; the SDK is not their client):*
+`/billing/*`, `/admin/*`, `/setup`, `/webhooks/*`, `/auth/*`,
+`POST /account/key`, `POST /account/claim`, `DELETE /account`,
+`GET /deployments/:id/config`, `GET /domains/:name/propagation`.
+
+*Open product questions (verified 2026-07-27, awaiting a call — see
+`HANDOVER-SHIP-OVERHAUL.md` flagged decisions):* list pagination
+(`/deployments` and `/domains` both accept `limit`/`cursor`, which the SDK
+does not expose, so `list()` silently returns only the first page),
+`GET /activities`, and `GET /labels`. A CLI user would plausibly want all
+three; none is drift, and none should be added without the call.
 
 ### Domain Write Semantics
 

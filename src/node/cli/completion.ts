@@ -78,9 +78,12 @@ export function installCompletion(scriptDir: string, options: CompletionOptions 
       return;
     }
 
-    // Bash and zsh: copy script and add sourcing to profile
+    // Bash and zsh: copy script and add sourcing to profile.
+    // The block is newline-TERMINATED so uninstall can restore the profile
+    // byte-for-byte: without it, an appended block swallowed the file's
+    // original trailing newline and the round trip was lossy.
     fs.copyFileSync(sourceScript, paths.completionFile);
-    const sourceLine = `# ship\nsource '${paths.completionFile}'\n# ship end`;
+    const sourceLine = `# ship\nsource '${paths.completionFile}'\n# ship end\n`;
 
     if (paths.profileFile) {
       if (fs.existsSync(paths.profileFile)) {
@@ -163,10 +166,10 @@ export function uninstallCompletion(options: CompletionOptions = {}): void {
     }
 
     if (removed) {
-      const endsWithNewline = content.endsWith('\n');
-      const newContent =
-        filtered.length === 0 ? '' : filtered.join('\n') + (endsWithNewline ? '\n' : '');
-      fs.writeFileSync(paths.profileFile, newContent);
+      // `split('\n')` / `join('\n')` round-trips newlines exactly — a trailing
+      // newline survives as a final empty element. Re-appending one here (as an
+      // earlier revision did) double-counts it and leaves a stray blank line.
+      fs.writeFileSync(paths.profileFile, filtered.join('\n'));
       success(`completion script uninstalled for ${shell}`, json, noColor);
       warn(`run "source ${paths.profileFile}" or restart your shell`, json, noColor);
     } else {

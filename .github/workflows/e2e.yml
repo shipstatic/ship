@@ -1,0 +1,56 @@
+# The contract-drift detector on a schedule.
+#
+# `tests/e2e/smoke.e2e.test.ts` pins the same wire points the mock encodes
+# (field names, error type strings, statuses, the 429 shape) against a REAL
+# deployed API. The mock is a hand-maintained twin of `cloudflare/api`; this
+# run is what catches drift between manual alignments — including drift
+# introduced by API deploys that never touched this repo.
+#
+# Opt-in by secrets, twice over: the job runs only when BOTH secrets are set.
+# Requiring the URL too is deliberate — without it the harness defaults to
+# PRODUCTION, and a scheduled run must never surprise-target prod (dev first,
+# always). Point `SHIP_E2E_API_URL` at the dev environment. Hostnames live in
+# secrets, never in this tracked file (the public-value law).
+
+name: E2E
+
+on:
+  schedule:
+    # Daily, off the top of the hour to dodge the cron thundering herd.
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SHIP_E2E_API_KEY: ${{ secrets.SHIP_E2E_API_KEY }}
+      SHIP_E2E_API_URL: ${{ secrets.SHIP_E2E_API_URL }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run the e2e contract smoke
+        if: env.SHIP_E2E_API_KEY != '' && env.SHIP_E2E_API_URL != ''
+        run: pnpm test:e2e --run
+
+      - name: Note the missing secrets (not a failure)
+        if: env.SHIP_E2E_API_KEY == '' || env.SHIP_E2E_API_URL == ''
+        run: echo "SHIP_E2E_API_KEY / SHIP_E2E_API_URL not configured — e2e skipped."
+
+      - if: failure()
+        uses: slackapi/slack-github-action@v4
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "🔴 ship e2e contract smoke failed — the API may have drifted from the SDK's wire expectations"

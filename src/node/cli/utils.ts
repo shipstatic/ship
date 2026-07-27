@@ -111,7 +111,10 @@ const formatValue = (
       key === 'activated' ||
       key === 'expires' ||
       key === 'linked' ||
-      key === 'grace')
+      key === 'grace' ||
+      // `used` is unix seconds on both TokenListItem and Account (the API key's
+      // last-use instant) — without this it renders as a raw integer.
+      key === 'used')
   ) {
     return formatTimestamp(value, context, noColor);
   }

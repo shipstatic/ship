@@ -49,6 +49,8 @@ const ship = new Ship({ token: 'ship-...' });
 ship ./dist                                        # Deploy (shortcut)
 ship ./dist --label production --label v1.0.0      # Deploy with labels
 ship deployments list
+ship deployments list --limit 20                   # Page size; a hint shows the next cursor
+ship deployments list --cursor <cursor>            # Continue from a previous page
 ship deployments get <deployment>
 ship deployments set <deployment> --label production
 ship deployments remove <deployment>
@@ -57,7 +59,7 @@ ship deployments remove <deployment>
 ```typescript
 ship.deploy(input, options?)               // Shortcut for deployments.upload()
 ship.deployments.upload(input, options?)
-ship.deployments.list()
+ship.deployments.list(options?)            // { limit?, cursor? } — response carries the next cursor
 ship.deployments.get(deployment)
 ship.deployments.set(deployment, { labels })
 ship.deployments.remove(deployment)
@@ -70,7 +72,7 @@ ship domains set www.example.com                   # Reserve domain (no deployme
 ship domains set www.example.com <deployment>      # Link domain to deployment
 ship domains set www.example.com --label prod      # Update labels only
 ship domains get www.example.com
-ship domains list
+ship domains list                                  # --limit / --cursor paginate here too
 ship domains validate www.example.com
 ship domains verify www.example.com
 ship domains records www.example.com
@@ -82,7 +84,7 @@ ship domains remove www.example.com
 ```typescript
 ship.domains.set(name, { deployment?, labels? })   // Upsert — create, repoint, or label
 ship.domains.get(name)
-ship.domains.list()
+ship.domains.list(options?)                 // { limit?, cursor? }
 ship.domains.validate(name)
 ship.domains.verify(name)
 ship.domains.records(name)
@@ -164,8 +166,8 @@ Available on every command:
 | `--json` | Output results in JSON format |
 | `-q, --quiet` | Output only the resource identifier |
 | `--no-color` | Disable colored output |
-| `--help` | Display help for command |
-| `--version` | Show version information |
+| `-h, --help` | Display help for command |
+| `-V, --version` | Show version information |
 
 ### Deploy Flags
 
@@ -272,6 +274,8 @@ ship.off('request', handler);
 ### Custom fetch
 
 Pass `fetch` to override the transport function used for every API call. Defaults to `globalThis.fetch`. Useful for wrapping requests with tracing, retries, or request signing, and for injecting a Cloudflare service-binding `Fetcher` from a Worker so calls reach a sibling Worker in-process instead of through the public hostname.
+
+This is also the seam for corporate proxies: Node's built-in `fetch` ignores `HTTP(S)_PROXY` environment variables, so behind a proxy inject a proxy-aware transport (e.g. [undici](https://github.com/nodejs/undici)'s `EnvHttpProxyAgent` as the dispatcher, or Node 24+'s `NODE_USE_ENV_PROXY=1`).
 
 ```typescript
 import type { Fetch } from '@shipstatic/ship';

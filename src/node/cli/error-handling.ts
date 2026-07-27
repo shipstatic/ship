@@ -64,12 +64,11 @@ export function getUserMessage(
     return 'authentication required: pass --token, set SHIP_TOKEN, or run ship config';
   }
 
-  // Network errors - include context about what failed
+  // Network errors — the transport failed before any response existed, so
+  // there is nothing of the API's to quote. (A URL-naming variant lived here
+  // until 2026-07-27, reading `details.url`; nothing has ever set that field —
+  // `ShipError.fromFetchError` carries `{ cause }` — so the branch was dead.)
   if (err.isNetworkError()) {
-    const url = (err.details as { url?: string } | undefined)?.url;
-    if (url) {
-      return `network error: could not reach ${url}`;
-    }
     return 'network error: could not reach the API. check your internet connection';
   }
 

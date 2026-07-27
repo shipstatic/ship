@@ -2,8 +2,10 @@
  * @vitest-environment jsdom
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Ship } from '../../src/browser/index';
+import BrowserDefault, { Ship } from '../../src/browser/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
+import type { Fetch } from '../../src/shared/types';
+import { FREE_PLAN_LIMITS } from '../fixtures/builders';
 
 // Mock browser file processing
 vi.mock('../../src/browser/core/browser-files', () => ({
@@ -137,6 +139,38 @@ describe('Ship - Browser Implementation', () => {
     });
   });
 
+  describe('module surface', () => {
+    it('exports Ship as the default export', () => {
+      // `import Ship from '@shipstatic/ship'` in a bundler is the browser
+      // entry's primary documented shape.
+      expect(BrowserDefault).toBe(Ship);
+    });
+
+    it('routes every request through an injected fetch, bypassing globalThis', async () => {
+      // Transport injection is a published contract, and the browser entry is
+      // where a service-worker / tracing fetcher would be handed in. Asserting
+      // the request ARRIVES proves the wiring, not just that the option was
+      // stored somewhere.
+      const seen: string[] = [];
+      const fetch = vi.fn(async (input: any) => {
+        seen.push(typeof input === 'string' ? input : input.url);
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }) as unknown as Fetch;
+
+      const ship = new Ship({
+        token: TEST_DEPLOY_TOKEN,
+        apiUrl: 'http://localhost:13579',
+        fetch,
+      });
+
+      await expect(ship.ping()).resolves.toBe(true);
+      expect(seen).toEqual(['http://localhost:13579/limits', 'http://localhost:13579/ping']);
+    });
+  });
+
   describe('exported utilities', () => {
     it('should export browser-specific utilities', async () => {
       const browserModule = await import('../../src/browser/index');
@@ -191,6 +225,27 @@ describe('Ship - Browser Implementation', () => {
   });
 
   describe('deployment edge cases (migrated from browser-sdk.test.ts)', () => {
+    it('hands the hydrated platform limits to the file processor', async () => {
+      // The limits are an argument, not a module singleton — two Ships against
+      // different APIs must not clobber each other's caps. This is the seam
+      // where that argument is threaded.
+      const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
+      const ship = new Ship({ token: TEST_DEPLOY_TOKEN, apiUrl: 'https://api.example.com' });
+      (ship as any).http = {
+        deploy: vi.fn().mockResolvedValue({ deployment: 'brave-otter-a1b2c3d' }),
+        checkSPA: vi.fn().mockResolvedValue(false),
+        getLimits: vi.fn().mockResolvedValue(FREE_PLAN_LIMITS),
+      };
+
+      await ship.deploy([new File(['x'], 'index.html')]);
+
+      expect(processFilesForBrowser).toHaveBeenCalledWith(
+        [expect.any(File)],
+        expect.any(Object),
+        FREE_PLAN_LIMITS,
+      );
+    });
+
     it('should throw error for invalid input type in browser', async () => {
       const ship = new Ship({
         token: TEST_DEPLOY_TOKEN,

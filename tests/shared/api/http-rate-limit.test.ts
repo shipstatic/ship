@@ -1,124 +1,96 @@
 /**
- * @file Rate Limiting tests
+ * @file Subject: how `src/shared/api/http.ts` surfaces a 429 to SDK callers.
  *
- * Tests for 429 (Too Many Requests) response handling.
+ * Rewritten 2026-07-27. The previous file had no consumer of the mock's global
+ * rate-limit hook at all: every test re-exercised the per-domain verify
+ * cooldown (which now lives with its subject in `http-domains.test.ts`) or
+ * asserted that unrelated operations "work normally", which is what every
+ * other file in this directory already asserts.
  *
- * Rate limiting scenarios tested:
- * 1. Domain verification rate limiting (per-domain cooldown)
- * 2. Mock server's global rate limit simulation (via header/query param)
- *
- * Note: The global rate limit simulation using query params doesn't work well
- * with the SDK's URL construction. Domain-specific rate limiting is the
- * primary test focus here.
+ * Two altitudes, because the contract has two halves:
+ *   - what a client sees on the wire (`Retry-After`), asserted with a direct
+ *     fetch, since the SDK throws before emitting a `response` event;
+ *   - what an SDK caller sees (a typed `ShipError` carrying `details.resetAt`).
  */
 
+import { ErrorType, isShipError } from '@shipstatic/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../../src/node';
-import { resetMockServer } from '../../mocks/server';
+import { apiKey } from '../../fixtures/builders';
+import { getMockServerUrl, resetMockServer } from '../../mocks/server';
 
-describe('Rate Limiting (429 responses)', () => {
+/** The mock's lever for making any route answer 429. */
+const RATE_LIMITED = { 'X-Mock-Rate-Limit': 'true' };
+
+describe('429 handling', () => {
   let ship: Ship;
 
   beforeEach(() => {
     resetMockServer();
-    ship = new Ship({
-      token: 'test-api-key',
-      apiUrl: 'http://localhost:13579',
+    ship = new Ship({ token: apiKey(), apiUrl: getMockServerUrl() });
+  });
+
+  describe('the wire contract', () => {
+    it('carries Retry-After alongside the typed body', async () => {
+      // wire: api/src/index.ts:140-146 — every 429 gets the standard header,
+      // derived from `details.resetAt`, so generic HTTP machinery (curl,
+      // proxies, retrying clients) can honour the window without parsing prose.
+      const response = await fetch(`${getMockServerUrl()}/deployments`, {
+        headers: { Authorization: `Bearer ${apiKey()}`, ...RATE_LIMITED },
+      });
+
+      expect(response.status).toBe(429);
+      const retryAfter = Number(response.headers.get('Retry-After'));
+      expect(retryAfter).toBeGreaterThan(0);
+
+      const body = await response.json();
+      expect(body.error).toBe('rate_limit_exceeded');
+      expect(body.status).toBe(429);
+      expect(typeof body.details.resetAt).toBe('string');
     });
   });
 
-  describe('Domain verification rate limiting', () => {
-    it('should rate limit repeated DNS verification requests', async () => {
-      // Use unique domain to avoid cross-test pollution
-      const domain = `rate-limit-${Date.now()}.com`;
-      await ship.domains.set(domain, { deployment: 'test-deployment-1.shipstatic.com' });
+  describe('what the SDK caller sees', () => {
+    it('raises a typed RateLimit error carrying resetAt', async () => {
+      ship.setHeaders(RATE_LIMITED);
 
-      // First verification should succeed
-      await ship.domains.verify(domain);
+      const error = await ship.deployments.list().catch((e) => e);
 
-      // Immediate second request should be rate limited
-      await expect(ship.domains.verify(domain)).rejects.toThrow(/already requested recently/);
+      expect(isShipError(error)).toBe(true);
+      expect(error.type).toBe(ErrorType.RateLimit);
+      expect(error.status).toBe(429);
+      // `Retry-After` is a header, and `ShipError.fromHttpResponse` reads only
+      // the body — so `details.resetAt` is the machine-readable window a
+      // consumer can act on. Recorded rather than worked around: the same
+      // instant is available either way.
+      expect(error.details?.resetAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
 
-    it('should allow verification for different domains', async () => {
-      // Use unique domains
-      const domain1 = `domain1-${Date.now()}.com`;
-      const domain2 = `domain2-${Date.now()}.com`;
+    it('classifies 429 on any route, not just the ones with a cooldown', async () => {
+      ship.setHeaders(RATE_LIMITED);
 
-      await ship.domains.set(domain1, { deployment: 'test-deployment-1.shipstatic.com' });
-      await ship.domains.set(domain2, { deployment: 'test-deployment-1.shipstatic.com' });
-
-      // Both should succeed (different domains, different rate limits)
-      await ship.domains.verify(domain1);
-      await ship.domains.verify(domain2);
-    });
-
-    it('should not rate limit first verification request', async () => {
-      // Use unique domain
-      const domain = `first-verify-${Date.now()}.com`;
-      await ship.domains.set(domain, { deployment: 'test-deployment-1.shipstatic.com' });
-
-      // First request should always succeed
-      const result = await ship.domains.verify(domain);
-      expect(result.message).toContain('verification');
-    });
-  });
-
-  describe('Normal operation (no rate limiting)', () => {
-    it('should allow normal ping operations', async () => {
-      const result = await ship.ping();
-      expect(result).toBe(true);
-    });
-
-    it('should allow normal deployment list operations', async () => {
-      const result = await ship.deployments.list();
-      expect(result).toBeDefined();
-      expect(result.deployments).toBeDefined();
-    });
-
-    it('should allow normal account operations', async () => {
-      const account = await ship.account.get();
-      expect(account).toBeDefined();
-      expect(account.email).toBeDefined();
-    });
-
-    it('should allow normal token operations', async () => {
-      // Create token
-      const created = await ship.tokens.create();
-      expect(created.token).toBeDefined();
-
-      // List tokens
-      const list = await ship.tokens.list();
-      expect(list.tokens).toBeDefined();
-    });
-
-    it('should allow multiple domain operations', async () => {
-      // Create multiple domains
-      await ship.domains.set('test1', { deployment: 'test-deployment-1.shipstatic.com' });
-      await ship.domains.set('test2', { deployment: 'test-deployment-1.shipstatic.com' });
-      await ship.domains.set('test3', { deployment: 'test-deployment-1.shipstatic.com' });
-
-      // All should succeed
-      const list = await ship.domains.list();
-      expect(list.domains.length).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  describe('Rate limit error format', () => {
-    it('should return 429 status for rate-limited domain verification', async () => {
-      // Use unique domain
-      const domain = `error-format-${Date.now()}.com`;
-      await ship.domains.set(domain, { deployment: 'test-deployment-1.shipstatic.com' });
-      await ship.domains.verify(domain);
-
-      // Verify error format
-      try {
-        await ship.domains.verify(domain);
-        expect.fail('Should have thrown');
-      } catch (error: any) {
-        // Error should indicate the rate limit scenario
-        expect(error.message).toContain('already requested recently');
+      for (const call of [
+        () => ship.account.get(),
+        () => ship.domains.list(),
+        () => ship.tokens.list(),
+      ]) {
+        await expect(call()).rejects.toMatchObject({ type: ErrorType.RateLimit, status: 429 });
       }
+    });
+
+    it('emits an error event for the rate-limited request', async () => {
+      // Warm the lazy `/limits` hydration FIRST. Setting the header before it
+      // runs would rate-limit initialization instead, and the error event would
+      // name `/limits` — which is a true statement about a different request.
+      await ship.getLimits();
+
+      const errors: string[] = [];
+      ship.on('error', (_error, url) => errors.push(url));
+      ship.setHeaders(RATE_LIMITED);
+
+      await expect(ship.deployments.list()).rejects.toThrow();
+
+      expect(errors).toEqual([`${getMockServerUrl()}/deployments`]);
     });
   });
 });

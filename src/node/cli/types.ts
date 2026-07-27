@@ -34,12 +34,17 @@ export interface GlobalOptions {
   quiet?: boolean;
   noColor?: boolean;
   color?: boolean; // Commander's --no-color sets color: false
-  help?: boolean;
 }
 
 /**
  * Options for commands that support labeling.
  */
+/** Options for the paginated list commands (`deployments list`, `domains list`). */
+export interface ListCommandOptions {
+  limit?: number;
+  cursor?: string;
+}
+
 export interface LabelOptions {
   label?: string[];
 }

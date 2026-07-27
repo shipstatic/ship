@@ -1,114 +1,75 @@
 /**
- * @file E2E Test Setup
+ * @file E2E setup — tests that talk to a REAL API and create real resources.
  *
- * Configuration for tests that run against the real API.
- * Requires SHIP_E2E_API_KEY environment variable.
+ * This tier is **opt-in twice over**: the `e2e` project is excluded from the
+ * default `pnpm test` run (only `test:e2e` selects it), and this file refuses
+ * to load without an explicit credential. Both gates are deliberate — an
+ * earlier revision relied on a per-file `describe.skipIf`, which meant a
+ * developer with `SHIP_E2E_API_KEY` exported created and deleted real
+ * deployments on every plain test run.
  *
  * Usage:
  *   SHIP_E2E_API_KEY=ship-xxx pnpm test:e2e --run
  *
- * Environment Variables:
- *   SHIP_E2E_API_KEY  - Required. API key for E2E test account.
- *   SHIP_E2E_API_URL  - Optional. API URL (defaults to production).
+ * Environment:
+ *   SHIP_E2E_API_KEY  Required. API key for the E2E account. Deliberately NOT
+ *                     named `SHIP_TOKEN`: it is a harness variable, not part of
+ *                     the SDK's env contract, and the CI secret name matches.
+ *   SHIP_E2E_API_URL  Optional. Defaults to production — the only public value
+ *                     this repo may carry. Non-production runs pass the target
+ *                     explicitly (`SHIP_E2E_API_URL=… pnpm test:e2e --run`).
  *
- * Guidelines:
- *   - E2E tests should be idempotent and clean up after themselves
- *   - Use unique identifiers (timestamps) to avoid collisions
- *   - Skip tests gracefully if API key is not provided
- *   - Focus on smoke tests, not exhaustive coverage
+ * Guidelines: idempotent tests, unique identifiers, clean up after yourself,
+ * smoke coverage rather than exhaustive coverage.
  */
 
-import { afterAll, beforeAll } from 'vitest';
+// =============================================================================
+// GATE
+// =============================================================================
+
+if (!process.env.SHIP_E2E_API_KEY) {
+  throw new Error(
+    'E2E tests require SHIP_E2E_API_KEY. These tests create and delete REAL ' +
+      'resources against a REAL API.\n' +
+      '  SHIP_E2E_API_KEY=ship-xxx pnpm test:e2e --run\n' +
+      'Add SHIP_E2E_API_URL to target an environment other than production.',
+  );
+}
 
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
 
-/**
- * E2E API URL - defaults to production API
- * Can be overridden for staging/local testing
- */
+/** Target API. Production is the default and the only value tracked here. */
 export const E2E_API_URL = process.env.SHIP_E2E_API_URL || 'https://api.shipstatic.com';
 
-/**
- * E2E API Key - must be set to run E2E tests
- */
-export const E2E_API_KEY = process.env.SHIP_E2E_API_KEY;
+/** Credential for the E2E account. Present by construction — the gate ran. */
+export const E2E_API_KEY = process.env.SHIP_E2E_API_KEY as string;
 
 /**
- * Whether E2E tests should run
+ * Retained so per-file `describe.skipIf(!E2E_ENABLED)` guards keep compiling.
+ * Always true here: the gate above throws otherwise.
  */
-export const E2E_ENABLED = Boolean(E2E_API_KEY);
+export const E2E_ENABLED = true;
 
-/**
- * Test run identifier - used to label test resources for easy identification
- */
+/** Labels test resources so a stray one is identifiable in the real account. */
 export const E2E_TEST_RUN_ID = `e2e-${Date.now()}`;
-
-// =============================================================================
-// SETUP & TEARDOWN
-// =============================================================================
-
-beforeAll(() => {
-  if (!E2E_API_KEY) {
-    console.warn(
-      '\n' +
-        '╔══════════════════════════════════════════════════════════════════╗\n' +
-        '║  ⚠️  E2E Tests Skipped - No API Key Provided                      ║\n' +
-        '║                                                                  ║\n' +
-        '║  To run E2E tests, set the SHIP_E2E_API_KEY environment variable:║\n' +
-        '║                                                                  ║\n' +
-        '║  SHIP_E2E_API_KEY=ship-xxx pnpm test:e2e --run                   ║\n' +
-        '╚══════════════════════════════════════════════════════════════════╝\n',
-    );
-    return;
-  }
-
-  console.log(
-    '\n' +
-      '╔══════════════════════════════════════════════════════════════════╗\n' +
-      '║  🚀 E2E Tests Starting                                           ║\n' +
-      `║  API: ${E2E_API_URL.padEnd(56)}║\n` +
-      `║  Run ID: ${E2E_TEST_RUN_ID.padEnd(53)}║\n` +
-      '╚══════════════════════════════════════════════════════════════════╝\n',
-  );
-});
-
-afterAll(() => {
-  if (E2E_API_KEY) {
-    console.log(
-      '\n' +
-        '╔══════════════════════════════════════════════════════════════════╗\n' +
-        '║  ✅ E2E Tests Complete                                           ║\n' +
-        '╚══════════════════════════════════════════════════════════════════╝\n',
-    );
-  }
-});
 
 // =============================================================================
 // TEST UTILITIES
 // =============================================================================
 
-/**
- * Generate a unique test identifier
- * Used for deployment labels, domain names, etc.
- */
-export function generateTestId(prefix: string = 'test'): string {
+/** Unique identifier for deployment labels, domain names, etc. */
+export function generateTestId(prefix = 'test'): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 }
 
-/**
- * Wait for a specified duration
- * Useful for waiting between API calls that have eventual consistency
- */
+/** Wait, for APIs with eventual consistency. */
 export function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Retry an async function with exponential backoff
- * Useful for operations that may take time to propagate
- */
+/** Retry with exponential backoff, for operations that take time to propagate. */
 export async function retry<T>(
   fn: () => Promise<T>,
   options: {

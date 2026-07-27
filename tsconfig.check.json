@@ -1,0 +1,20 @@
+{
+  // Typecheck config: `src` AND `tests`.
+  //
+  // `tsconfig.json` stays build-shaped (rootDir: src, declaration output) and
+  // is what tsup reads. This one exists because vitest transpiles via esbuild
+  // WITHOUT typechecking, so before 2026-07-27 nothing checked `tests/**` —
+  // which is the single enabling condition for every fictional shape the audit
+  // found: an `apiKey` constructor option, a `flattenDirs` deploy option, a
+  // `basePath` that never existed, `processFilesForNode` called with four
+  // arguments. The fixtures' `satisfies` clauses were decorative until this
+  // file existed.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src/**/*", "tests/**/*", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist", "examples", "build-shims"]
+}

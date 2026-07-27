@@ -68,3 +68,51 @@ try {
   console.error('❌ Browser bundle fence failed:', err.message);
   process.exit(1);
 }
+
+/**
+ * The CJS runtime above makes `module.exports` the Ship class itself
+ * (axios-style). The generated `.d.cts` said `export default Ship`, which is
+ * a lie for that shape — a CJS + TypeScript consumer got a type error on
+ * working code (attw: false-export-default, found by the package fence on
+ * its first run). Rewrite the declaration to the truthful form:
+ * `export = Ship`, with every named export merged onto the class via
+ * class/namespace declaration merging. `attw --pack` is the verifier.
+ */
+const dctsFilePath = path.resolve(__dirname, '../dist/index.d.cts');
+try {
+  const dcts = fs.readFileSync(dctsFilePath, 'utf-8');
+
+  const exportListPattern = /export \{ ([^}]*) \};\s*$/;
+  const match = dcts.match(exportListPattern);
+  if (!match) throw new Error('final export list not found in index.d.cts');
+
+  // Resolve the LOCAL identifier behind the public `Ship` (rollup-dts may
+  // rename); everything else joins the namespace merge. `X as default` is
+  // dropped outright — `export =` is its truthful replacement.
+  let shipLocal = null;
+  const kept = [];
+  for (const raw of match[1].split(', ')) {
+    const entry = raw.replace(/^type /, '');
+    const aliased = entry.match(/^(\S+) as (\S+)$/);
+    const localName = aliased ? aliased[1] : entry;
+    const publicName = aliased ? aliased[2] : entry;
+    if (publicName === 'default') continue;
+    if (publicName === 'Ship') {
+      shipLocal = localName;
+      continue;
+    }
+    kept.push(entry);
+  }
+  if (!shipLocal) throw new Error('no `Ship` entry in the export list');
+
+  const replacement =
+    `declare namespace ${shipLocal} {\n` +
+    `  export { ${kept.join(', ')} };\n` +
+    `}\n` +
+    `export = ${shipLocal};\n`;
+  fs.writeFileSync(dctsFilePath, dcts.replace(exportListPattern, replacement), 'utf-8');
+  console.log('✅ CJS declaration rewritten to `export =` (matches the runtime shape)');
+} catch (err) {
+  console.error('❌ d.cts transformation failed:', err.message);
+  process.exit(1);
+}
