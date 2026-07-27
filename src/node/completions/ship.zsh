@@ -38,7 +38,7 @@ if [[ -n ${ZSH_VERSION-} ]]; then
             ;;
           *)
             if [[ $CURRENT -eq 3 ]]; then
-              completions=("list:List all deployments" "upload:Upload deployment from directory" "get:Show deployment information" "set:Set deployment labels" "remove:Delete deployment permanently")
+              completions=("list:List all deployments" "upload:Upload deployment from file or directory" "get:Show deployment information" "set:Set deployment labels" "remove:Delete deployment permanently")
               _describe 'deployments commands' completions
               return
             fi

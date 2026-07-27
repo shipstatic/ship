@@ -326,8 +326,6 @@ describe('Ship - Node.js Implementation', () => {
       };
 
       const options = {
-        timeout: 30000,
-        maxConcurrency: 10,
         pathDetect: false,
         spaDetect: false,
       };
@@ -353,26 +351,14 @@ describe('Ship - Node.js Implementation', () => {
       );
     });
 
-    it('passes timeout through to the wire', async () => {
+    it('passes password through to the wire', async () => {
       const ship = new Ship({ token: 'test-key' });
 
-      await ship.deploy(['./dist/app.js'], { timeout: 12345 });
+      await ship.deploy(['./dist/app.js'], { password: 'secret123' });
 
       expect(mockApiClient.deploy).toHaveBeenCalledWith(
         expect.any(Array),
-        expect.objectContaining({ timeout: 12345 }),
-      );
-    });
-
-    it('uses client defaults for options the call omits', async () => {
-      const onProgress = vi.fn();
-      const ship = new Ship({ token: 'test-key', onProgress, timeout: 8000 });
-
-      await ship.deploy(['./dist/app.js'], {});
-
-      expect(mockApiClient.deploy).toHaveBeenCalledWith(
-        expect.any(Array),
-        expect.objectContaining({ onProgress, timeout: 8000 }),
+        expect.objectContaining({ password: 'secret123' }),
       );
     });
 

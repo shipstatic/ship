@@ -58,7 +58,7 @@ function findAllFilePaths(dirPath: string, visited: Set<string> = new Set()): st
  * @param paths - File or directory paths to scan and process.
  * @param options - Processing options (pathDetect, etc.).
  * @param platformLimits - Per-instance platform limits (file-size / count /
- *   total-size caps) from the originating Ship's `GET /config` fetch. Passed
+ *   total-size caps) from the originating Ship's `GET /limits` fetch. Passed
  *   in rather than read from a module global so concurrent Ships against
  *   different API URLs cannot clobber each other's caps.
  * @returns Promise resolving to an array of StaticFile objects.

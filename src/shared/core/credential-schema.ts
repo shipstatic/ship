@@ -7,9 +7,8 @@
  * strict prefix-classified format validation happens once, at the `Ship`
  * constructor boundary, for every source uniformly.
  *
- * Lives in its own file (not alongside `mergeDeployOptions`) because it's a
- * pure data constant: tests that mock runtime config behavior shouldn't have
- * to forward this through their mocks.
+ * Lives in its own file because it's a pure data constant: tests that mock
+ * runtime config behavior shouldn't have to forward this through their mocks.
  */
 
 import { z } from 'zod';

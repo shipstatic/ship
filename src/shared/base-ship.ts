@@ -62,7 +62,7 @@ export abstract class Ship {
   private readonly http: ApiHttp;
   private readonly clientOptions: ShipClientOptions;
 
-  // Lazy-init plumbing for the one-shot `GET /config` fetch.
+  // Lazy-init plumbing for the one-shot `GET /limits` fetch.
   // `platformLimits` is INSTANCE state (not a module-level singleton): two
   // Ships against different `apiUrl`s — staging + prod, multi-tenant
   // orchestrators, n8n with multiple credentials — must not clobber each
@@ -131,7 +131,6 @@ export abstract class Ship {
     this.deployments = createDeploymentResource({
       ...ctx,
       processInput: (input, opts) => this.processInput(input, opts),
-      clientDefaults: this.clientOptions,
     });
     this.domains = createDomainResource(ctx);
     this.account = createAccountResource(ctx);

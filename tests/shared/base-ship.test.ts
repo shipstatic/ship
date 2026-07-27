@@ -97,7 +97,7 @@ describe('Base Ship Class (Abstract)', () => {
 
   describe('deploy convenience method', () => {
     it('should call deployments.upload with input and options', async () => {
-      const result = await ship.deploy(['./test'] as any, { timeout: 5000 });
+      const result = await ship.deploy(['./test'] as any, { labels: ['audit'] });
 
       expect(result).toEqual({
         deployment: 'brave-otter-a1b2c3d.shipstatic.com',

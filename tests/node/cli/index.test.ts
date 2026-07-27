@@ -13,6 +13,8 @@
  * outcomes surface across text / `--json` / `-q` modes.
  */
 
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { A_RECORD_IP, CNAME_TARGET, deploymentId } from '../../fixtures/builders';
@@ -100,6 +102,30 @@ describe('CLI command tree (in-process)', () => {
       const result = await runProgram(['-q', 'ping']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout.trim()).toBe('');
+    });
+
+    it('ping exits 1 when the API answers unsuccessfully', async () => {
+      // The wire-truth mock can never answer `success: false` (the real API
+      // doesn't), so the defensive branch gets a bespoke non-conforming
+      // upstream. The exit code IS the result — `ship ping && …` must not
+      // proceed when the API is not reachable.
+      const server = createServer((req, res) => {
+        res.setHeader('content-type', 'application/json');
+        if (req.url?.startsWith('/limits')) {
+          res.end(JSON.stringify({ maxFileSize: 1, maxFilesCount: 1, maxTotalSize: 1 }));
+          return;
+        }
+        res.end(JSON.stringify({ success: false }));
+      });
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const { port } = server.address() as AddressInfo;
+      try {
+        const result = await runProgram(['--api-url', `http://127.0.0.1:${port}`, 'ping']);
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain('api unreachable');
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
     });
 
     it('whoami prints the account email', async () => {

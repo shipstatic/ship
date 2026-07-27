@@ -15,7 +15,7 @@ src/
 │   ├── base-ship.ts     # Base Ship class (auth state, lazy /limits fetch, resources)
 │   ├── resources.ts     # Resource factories (deployments, domains, etc.)
 │   ├── types.ts         # Internal SDK types
-│   ├── core/config.ts   # mergeDeployOptions (cross-platform)
+│   ├── core/            # constants + the shared credential zod schema
 │   └── lib/             # Utilities (validation, junk filtering, MD5, SPA detection)
 ├── browser/             # Browser Ship class + file handling
 └── node/
@@ -85,13 +85,25 @@ ship.whoami()                  // → account.get()
 ship.ping()                    // returns boolean
 ship.getLimits()               // returns PlatformLimits (cached after init)
 ship.setToken(token)           // any platform token, or a TokenProvider
+ship.setHeaders(headers)       // global headers on every request (lowest priority)
+ship.clearHeaders()
 ship.on(event, handler)
 ship.off(event, handler)
 ```
 
+Deploy options are `signal` (the one cancellation mechanism), `pathDetect`,
+`spaDetect`, plus the wire options from `DeploymentUploadOptions` (`labels`,
+`via`, `password`, and the `@internal` flags). There are deliberately no
+per-deploy `timeout`/`onProgress`/`onCancel`/`maxConcurrency` options —
+request timeout is a client concern (`ShipClientOptions.timeout`), fetch has
+no upload-progress events to honestly report, `signal` already covers
+cancellation, and a deploy is one multipart POST with nothing to parallelize.
+The vestigial four were removed for 2.0 (2026-07-27) after an audit found
+them declared but never consumed.
+
 ### Resource Factory Pattern
 
-Resources are factory functions that receive a `ResourceContext` (`getApi`, `ensureInit`) instead of the full Ship instance. This enables functional composition: factories only depend on the callbacks they actually need. Deployment resource additionally receives `processInput` and `clientDefaults`.
+Resources are factory functions that receive a `ResourceContext` (`getApi`, `ensureInit`) instead of the full Ship instance. This enables functional composition: factories only depend on the callbacks they actually need. Deployment resource additionally receives `processInput`.
 
 ### HTTP Client Architecture
 
@@ -412,10 +424,14 @@ turned `--ttl abc` into `NaN` on the wire.
 
 `src/node/cli/index.ts` exports `buildProgram()` — a factory returning a
 fresh Commander tree (instances are not reusable across parses). The tree
-**never calls `process.exit`**: outcomes land in `process.exitCode` or ride a
-thrown `CommanderError`, and the bin path ends naturally when the event loop
-drains, so buffered stdout can never be truncated on a pipe. That design is
-what makes the tree drivable in-process:
+**never calls `process.exit` on the command path**: outcomes land in
+`process.exitCode` or ride a thrown `CommanderError`, and the bin path ends
+naturally when the event loop drains, so buffered stdout can never be
+truncated on a pipe. The one recorded exception is `performDeploy`'s SIGINT
+handler (`process.exit(130)`) — Ctrl+C must terminate *now* with the shell's
+128+SIGINT convention, and an interrupt is precisely the case where waiting
+for the loop to drain is wrong. That design is what makes the tree drivable
+in-process:
 
 - **In-process tier** (`index.test.ts`, `unknown-commands`, `validation` via
   `tests/node/cli/harness.ts`): drives `buildProgram()` directly, so V8
@@ -518,7 +534,7 @@ For a CLI user who has all three: `--token` flag → env → file, per value. Fo
 | `deployments.list()` | `GET /deployments` | Paginated — `{limit, cursor}` options (`--limit`/`--cursor` on the CLI; text mode prints a rerun hint while `--json` carries `cursor`) |
 | `deployments.get()` | `GET /deployments/:id` | |
 | `deployments.set()` | `PATCH /deployments/:id` | Labels only |
-| `deployments.remove()` | `DELETE /deployments/:id` | Returns 202 (async) — `{message, deployment, status:'deleting'}` |
+| `deployments.remove()` | `DELETE /deployments/:id` | Wire: 202 (async) `{message, deployment, status:'deleting'}` — SDK resolves `void` |
 | `domains.set()` | `PUT /domains/:name` | Upsert — create, repoint, or label |
 | `domains.list()` | `GET /domains` | Paginated — same `{limit, cursor}` contract |
 | `domains.get()` | `GET /domains/:name` | |
@@ -530,7 +546,7 @@ For a CLI user who has all three: `--token` flag → env → file, per value. Fo
 | `domains.remove()` | `DELETE /domains/:name` | |
 | `tokens.create()` | `POST /tokens` | Returns 201 |
 | `tokens.list()` | `GET /tokens` | |
-| `tokens.remove()` | `DELETE /tokens/:token` | Returns 200 `{message}` |
+| `tokens.remove()` | `DELETE /tokens/:token` | Wire: 200 `{message}` — SDK resolves `void` |
 | `account.get()` | `GET /account` | |
 | `ping()` | `GET /ping` | Returns boolean |
 | `getLimits()` | `GET /limits` | Cached after init |
@@ -545,12 +561,15 @@ conflate them:
 `POST /account/key`, `POST /account/claim`, `DELETE /account`,
 `GET /deployments/:id/config`, `GET /domains/:name/propagation`.
 
-*Open product questions (verified 2026-07-27, awaiting a call — see
-`HANDOVER-SHIP-OVERHAUL.md` flagged decisions):* list pagination
-(`/deployments` and `/domains` both accept `limit`/`cursor`, which the SDK
-does not expose, so `list()` silently returns only the first page),
-`GET /activities`, and `GET /labels`. A CLI user would plausibly want all
-three; none is drift, and none should be added without the call.
+*Open product questions (awaiting a call — see `HANDOVER-SHIP-OVERHAUL.md`
+flagged decisions):* `GET /activities` and `GET /labels` (real endpoints
+with no SDK method — a CLI user would plausibly want both), and
+`Idempotency-Key` on deploys (the API's retry-replay contract explicitly
+targets "agents that retry", yet the SDK/CLI never send the header and
+expose no option — today only reachable via `setHeaders`; flagged
+2026-07-27). None is drift, and none should be added without the call.
+(List pagination, formerly in this list, shipped 2026-07-27 as F1 — see the
+Backend Integration table.)
 
 ### Domain Write Semantics
 

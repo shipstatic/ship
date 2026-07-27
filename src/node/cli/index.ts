@@ -79,7 +79,7 @@ function helpText(noColor?: boolean): string {
 ${applyBold('COMMANDS')}
   ${icon('📦')}${applyBold('Deployments')}
   ship deployments list                 List all deployments
-  ship deployments upload <path>        Upload deployment from directory
+  ship deployments upload <path>        Upload deployment from file or directory
   ship deployments get <deployment>     Show deployment information
   ship deployments set <deployment>     Set deployment labels
   ship deployments remove <deployment>  Delete deployment permanently
@@ -514,7 +514,15 @@ export function buildProgram(): Command {
   program
     .command('ping')
     .description('Check API connectivity')
-    .action(withErrorHandling((client: Ship, _options: GlobalOptions) => client.ping()));
+    .action(
+      withErrorHandling(async (client: Ship, _options: GlobalOptions) => {
+        const reachable = await client.ping();
+        // Composability: the exit code IS the result (quiet mode prints
+        // nothing) — same idiom as `domains validate`.
+        if (!reachable) process.exitCode = 1;
+        return reachable;
+      }),
+    );
 
   // Whoami shortcut - alias for account get
   program
@@ -791,7 +799,7 @@ export function buildProgram(): Command {
 
   tokensCmd
     .command('list')
-    .description('List all tokens')
+    .description('List all deploy tokens')
     .action(withErrorHandling((client: Ship, _options: GlobalOptions) => client.tokens.list()));
 
   tokensCmd

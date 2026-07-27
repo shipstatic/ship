@@ -285,9 +285,8 @@ describe('Ship - Browser Implementation', () => {
 
       const mockFiles = [new File(['test'], 'test.txt')];
       const options = {
-        timeout: 12345,
-        maxConcurrency: 5,
         spaDetect: false,
+        labels: ['browser-audit'],
       };
 
       await ship.deploy(mockFiles, options);
