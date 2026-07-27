@@ -32,7 +32,7 @@ const HELP = `USAGE
 COMMANDS
   Deployments
   ship deployments list                 List all deployments
-  ship deployments upload <path>        Upload deployment from directory
+  ship deployments upload <path>        Upload deployment from file or directory
   ship deployments get <deployment>     Show deployment information
   ship deployments set <deployment>     Set deployment labels
   ship deployments remove <deployment>  Delete deployment permanently

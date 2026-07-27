@@ -22,9 +22,8 @@ export type {
 };
 
 import type { ApiHttp } from './api/http.js';
-import { mergeDeployOptions } from './core/config.js';
 import { detectAndConfigureSPA } from './lib/spa.js';
-import type { DeploymentOptions, ShipClientOptions } from './types.js';
+import type { DeploymentOptions } from './types.js';
 
 /**
  * Shared context for all resource factories.
@@ -39,7 +38,6 @@ export interface ResourceContext {
  */
 export interface DeploymentResourceContext extends ResourceContext {
   processInput: (input: DeployInput, options: DeploymentOptions) => Promise<StaticFile[]>;
-  clientDefaults?: ShipClientOptions;
 }
 
 /**
@@ -53,23 +51,21 @@ export interface DeploymentResourceContext extends ResourceContext {
 export function createDeploymentResource(
   ctx: DeploymentResourceContext,
 ): DeploymentResource<DeploymentOptions> {
-  const { getApi, ensureInit, processInput, clientDefaults } = ctx;
+  const { getApi, ensureInit, processInput } = ctx;
 
   return {
     upload: async (input: DeployInput, options: DeploymentOptions = {}) => {
       await ensureInit();
-
-      const mergedOptions = clientDefaults ? mergeDeployOptions(options, clientDefaults) : options;
 
       if (!processInput) {
         throw ShipError.config('processInput function is not provided.');
       }
 
       const apiClient = getApi();
-      let staticFiles = await processInput(input, mergedOptions);
-      staticFiles = await detectAndConfigureSPA(staticFiles, apiClient, mergedOptions);
+      let staticFiles = await processInput(input, options);
+      staticFiles = await detectAndConfigureSPA(staticFiles, apiClient, options);
 
-      return apiClient.deploy(staticFiles, mergedOptions);
+      return apiClient.deploy(staticFiles, options);
     },
 
     list: async (options?: ListOptions) => {

@@ -221,13 +221,9 @@ ship.setToken('ship-...');
 ship.deploy(input, {
   labels?: string[],
   password?: string,          // Password-protect the deployment (6–128 chars)
-  onProgress?: ({ percent }) => void,
-  signal?: AbortSignal,
-  onCancel?: () => void,      // Called if signal aborts
+  signal?: AbortSignal,       // Abort to cancel the deploy
   pathDetect?: boolean,       // Auto-optimize paths (default: true)
   spaDetect?: boolean,        // Auto-detect SPA (default: true)
-  maxConcurrency?: number,    // Concurrent uploads (default: 4)
-  timeout?: number,           // Request timeout in ms
   via?: string,               // Client identifier
 });
 ```

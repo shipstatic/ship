@@ -55,7 +55,7 @@ complete -c ship -l help -d 'Display help for command'
 
 # Deployments subcommands
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'list' -d 'List all deployments'
-complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'upload' -d 'Upload deployment from directory'
+complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'upload' -d 'Upload deployment from file or directory'
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'get' -d 'Show deployment information'
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'set' -d 'Set deployment labels'
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'remove' -d 'Delete deployment permanently'

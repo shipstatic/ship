@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApiHttp } from '../../src/shared/api/http';
 import { createDeploymentResource, type DeploymentResource } from '../../src/shared/resources';
 import type { DeploymentOptions } from '../../src/shared/types';
+import { makeDeployment } from '../fixtures/builders';
 
 // No `vi.mock` of `../../../src/shared/lib/spa` here, deliberately. An earlier
 // revision mocked `detectAndConfigureSPA` with a hand-written reimplementation
@@ -15,21 +16,20 @@ import type { DeploymentOptions } from '../../src/shared/types';
 describe('Deployment Resource (Unified Architecture)', () => {
   let mockApiHttp: ApiHttp;
   let mockProcessInput: Mock;
-  let deploymentResource: DeploymentResource;
+  // Parameterized exactly as `base-ship` declares it — since types
+  // 2.5.0-beta.0 the interface admits the SDK's extended options directly.
+  let deploymentResource: DeploymentResource<DeploymentOptions>;
   let mockEnsureInit: Mock;
 
   beforeEach(() => {
     // Reset all mocks
     vi.clearAllMocks();
 
-    // Mock API client
+    // Mock API client — resolved values come from the canonical builder, so
+    // this file cannot drift into fictional wire shapes (the audit found an
+    // `{id, url}` deployment here; the real field is `deployment`).
     mockApiHttp = {
-      deploy: vi.fn().mockResolvedValue({
-        id: 'dep_123',
-        url: 'https://dep_123.shipstatic.com',
-        files: [],
-        labels: [],
-      }),
+      deploy: vi.fn().mockResolvedValue(makeDeployment()),
       ping: vi.fn().mockResolvedValue(true),
       checkSPA: vi.fn().mockResolvedValue(false),
     } as any;
@@ -51,12 +51,6 @@ describe('Deployment Resource (Unified Architecture)', () => {
     });
   });
 
-  // `DeploymentOptions` (ship) extends the published `DeploymentUploadOptions`,
-  // but `DeploymentResource.upload` in @shipstatic/types is typed with the
-  // NARROWER one — so `timeout`, `spaDetect` and `pathDetect` are not
-  // passable as object literals even though they work and are documented.
-  // Widening that interface is a types-package change: see the flagged
-  // decisions in HANDOVER-SHIP-OVERHAUL.md.
   const spaDetectOn: DeploymentOptions = { spaDetect: true };
 
   describe('upload', () => {
@@ -70,12 +64,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       expect(mockEnsureInit).toHaveBeenCalled();
       expect(mockProcessInput).toHaveBeenCalledWith(mockInput, options);
       expect(mockApiHttp.deploy).toHaveBeenCalled();
-      expect(result).toEqual({
-        id: 'dep_123',
-        url: 'https://dep_123.shipstatic.com',
-        files: [],
-        labels: [],
-      });
+      expect(result).toEqual(makeDeployment());
     });
 
     it('should pass labels option to API deploy call', async () => {
@@ -83,12 +72,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       const labels = ['production', 'v1.0.0'];
       const options: DeploymentOptions = { labels };
 
-      (mockApiHttp.deploy as any).mockResolvedValue({
-        id: 'dep_456',
-        url: 'https://dep_456.shipstatic.com',
-        files: [],
-        labels,
-      });
+      (mockApiHttp.deploy as any).mockResolvedValue(makeDeployment({ labels }));
 
       const result = await deploymentResource.upload(mockInput as any, options);
 
@@ -105,12 +89,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
       const labels = ['production', 'v2.0.0', 'stable', 'release-2024'];
       const options: DeploymentOptions = { labels };
 
-      (mockApiHttp.deploy as any).mockResolvedValue({
-        id: 'dep_789',
-        url: 'https://dep_789.shipstatic.com',
-        files: [],
-        labels,
-      });
+      (mockApiHttp.deploy as any).mockResolvedValue(makeDeployment({ labels }));
 
       const result = await deploymentResource.upload(mockInput as any, options);
 
@@ -191,23 +170,12 @@ describe('Deployment Resource (Unified Architecture)', () => {
       );
     });
 
-    it('should merge client defaults with options', async () => {
-      const clientDefaults = { timeout: 5000, maxConcurrency: 3 };
-      const resourceWithDefaults = createDeploymentResource({
-        getApi: () => mockApiHttp,
-        ensureInit: mockEnsureInit,
-        processInput: mockProcessInput,
-        clientDefaults,
-      });
+    it('passes per-call options to processInput unmodified', async () => {
+      const options: DeploymentOptions = { pathDetect: false, labels: ['audit'] };
+      await deploymentResource.upload(['./dist'] as any, options);
 
-      const options: DeploymentOptions = { timeout: 10000 }; // Override timeout
-      await resourceWithDefaults.upload(['./dist'] as any, options);
-
-      // Verify mergedOptions were passed to processInput
       const processInputCall = mockProcessInput.mock.calls[0];
-      const mergedOptions = processInputCall[1];
-      expect(mergedOptions.timeout).toBe(10000); // User option takes precedence
-      expect(mergedOptions.maxConcurrency).toBe(3); // Default is used
+      expect(processInputCall[1]).toEqual(options);
     });
   });
 

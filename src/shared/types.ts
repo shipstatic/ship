@@ -4,7 +4,7 @@
  * Core types come from @shipstatic/types, while SDK-specific types are defined here.
  */
 
-import type { DeploymentUploadOptions, ProgressInfo, StaticFile } from '@shipstatic/types';
+import type { DeploymentUploadOptions, StaticFile } from '@shipstatic/types';
 
 // Re-export all types from @shipstatic/types for convenience.
 export * from '@shipstatic/types';
@@ -18,20 +18,17 @@ export * from '@shipstatic/types';
  * Extends the API contract (DeploymentUploadOptions) with SDK-specific options.
  */
 export interface DeploymentOptions extends DeploymentUploadOptions {
-  /** An AbortSignal to allow cancellation of the deploy operation. */
+  /**
+   * An AbortSignal to allow cancellation of the deploy operation. The one
+   * cancellation mechanism — abort the signal and the request rejects with
+   * a typed `Cancelled` error. Request timeouts are a client concern
+   * (`ShipClientOptions.timeout`), not a per-deploy one.
+   */
   signal?: AbortSignal;
-  /** Callback invoked if the deploy is cancelled via the AbortSignal. */
-  onCancel?: () => void;
-  /** Maximum number of concurrent operations. */
-  maxConcurrency?: number;
-  /** Timeout in milliseconds for the deploy request. */
-  timeout?: number;
   /** Whether to auto-detect and optimize file paths by flattening common directories. Defaults to true. */
   pathDetect?: boolean;
   /** Whether to auto-detect SPAs and generate ship.json configuration. Defaults to true. */
   spaDetect?: boolean;
-  /** Callback for deploy progress with detailed statistics. */
-  onProgress?: (info: ProgressInfo) => void;
 }
 
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
@@ -96,7 +93,7 @@ export type TokenProvider = () => string | Promise<string>;
 
 /**
  * Options for configuring a `Ship` instance.
- * Sets default API host, the client credential, progress callbacks, concurrency, and timeouts for the client.
+ * Sets the API host, the client credential, the request timeout, and the transport.
  */
 export interface ShipClientOptions {
   /** Default API URL for the client instance. */
@@ -117,19 +114,8 @@ export interface ShipClientOptions {
    */
   token?: string | TokenProvider | undefined;
   /**
-   * Default callback for deploy progress for deploys made with this client.
-   * @param info - Progress information including percentage and byte counts.
-   */
-  onProgress?: ((info: ProgressInfo) => void) | undefined;
-  /**
-   * Default for maximum concurrent deploys.
-   * Used if an deploy operation doesn't specify its own `maxConcurrency`.
-   * Defaults to 4 if not set here or in the specific deploy call.
-   */
-  maxConcurrency?: number | undefined;
-  /**
-   * Default timeout in milliseconds for API requests made by this client instance.
-   * Used if an deploy operation doesn't specify its own timeout.
+   * Timeout in milliseconds for every API request made by this client
+   * instance. Defaults to 30 seconds.
    */
   timeout?: number | undefined;
   /**
