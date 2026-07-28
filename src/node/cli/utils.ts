@@ -116,7 +116,7 @@ const formatValue = (
       key === 'expires' ||
       key === 'linked' ||
       key === 'grace' ||
-      // `used` is unix seconds on both TokenListItem and Account (the API key's
+      // `used` is unix seconds on both Token and Account (the API key's
       // last-use instant) — without this it renders as a raw integer.
       key === 'used')
   ) {

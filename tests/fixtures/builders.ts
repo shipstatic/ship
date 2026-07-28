@@ -20,8 +20,8 @@ import type {
   DeploymentCreateResponse,
   Domain,
   PlatformLimits,
+  Token,
   TokenCreateResponse,
-  TokenListItem,
 } from '@shipstatic/types';
 
 // =============================================================================
@@ -147,7 +147,7 @@ export function makeDomain(domain: string, overrides: Partial<Domain> = {}): Dom
   } satisfies Domain;
 }
 
-export function makeToken(overrides: Partial<TokenListItem> = {}): TokenListItem {
+export function makeToken(overrides: Partial<Token> = {}): Token {
   return {
     token: 'a1b2c3d',
     labels: [],
@@ -155,17 +155,21 @@ export function makeToken(overrides: Partial<TokenListItem> = {}): TokenListItem
     expires: null,
     used: null,
     ...overrides,
-  } satisfies TokenListItem;
+  } satisfies Token;
 }
 
+/**
+ * The 201 from `POST /tokens`: the entity plus the one field only a creation
+ * can state. Built by spreading {@link makeToken} rather than restating its
+ * fields, mirroring `TokenCreateResponse extends Token` — so a field added to
+ * the entity reaches this fixture for free.
+ */
 export function makeTokenCreateResponse(
   overrides: Partial<TokenCreateResponse> = {},
 ): TokenCreateResponse {
   return {
-    token: 'a1b2c3d',
+    ...makeToken(),
     secret: deployToken(),
-    labels: [],
-    expires: null,
     ...overrides,
   } satisfies TokenCreateResponse;
 }
