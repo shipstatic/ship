@@ -800,7 +800,13 @@ export function buildProgram(): Command {
   tokensCmd
     .command('list')
     .description('List all deploy tokens')
-    .action(withErrorHandling((client: Ship, _options: GlobalOptions) => client.tokens.list()));
+    .option('--limit <count>', 'Maximum number of results per page', parseInteger)
+    .option('--cursor <cursor>', "Continue from a previous page's cursor")
+    .action(
+      withErrorHandling((client: Ship, _options: GlobalOptions, cmdOptions: ListCommandOptions) =>
+        client.tokens.list(cmdOptions),
+      ),
+    );
 
   tokensCmd
     .command('create')

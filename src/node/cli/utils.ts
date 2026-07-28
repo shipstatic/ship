@@ -10,6 +10,10 @@ const applyColor = (colorFn: (text: string) => string, text: string, noColor?: b
   return noColor ? text : colorFn(text);
 };
 
+/** A non-null, non-array object — the shape that needs key-value rendering. */
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 // Wire messages are displayed verbatim — identifiers, paths, and acronyms
 // must survive formatting. The CLI's lowercase opening applies to the leading
 // sentence word only, and only when it's an ordinary capitalized word (never
@@ -126,6 +130,15 @@ const formatValue = (
   if (key === 'config' || key === 'password') {
     if (typeof value === 'boolean') return value ? 'yes' : 'no';
     if (typeof value === 'number') return value === 1 ? 'yes' : 'no';
+  }
+  // Table and details are flat key-value surfaces, so a nested object
+  // flattens to inline `k=v` pairs rather than nesting a second layout
+  // inside a cell. Structural, not per-key: values recurse through
+  // formatValue, so a nested timestamp or size formats like any other.
+  if (isPlainObject(value)) {
+    const pairs = Object.entries(value);
+    if (pairs.length === 0) return '-';
+    return pairs.map(([k, v]) => `${k}=${formatValue(k, v, context, noColor)}`).join(', ');
   }
   return String(value);
 };

@@ -7,6 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   error,
+  formatDetails,
   formatTable,
   formatTimestamp,
   info,
@@ -225,6 +226,37 @@ describe('CLI Pure Functions', () => {
       expect(result).toContain('count');
       expect(result).toContain('app');
       expect(result).toContain('test.com');
+    });
+  });
+
+  describe('formatDetails nested objects', () => {
+    // The details view is a flat key-value surface; nested objects flatten
+    // into their cell. `Account.usage` (rendered by `ship whoami`) is the
+    // shape this exists for.
+    it('renders a nested metrics object as inline key=value pairs', () => {
+      const result = formatDetails({ plan: 'sponsored', usage: { customDomains: 0 } }, true);
+
+      expect(result).toContain('customDomains=0');
+      expect(result).not.toContain('[object Object]');
+    });
+
+    it('renders multi-key objects comma-separated', () => {
+      const result = formatDetails({ usage: { customDomains: 2, sites: 7 } }, true);
+
+      expect(result).toContain('customDomains=2, sites=7');
+    });
+
+    it('renders an empty object as the standard empty marker', () => {
+      const result = formatDetails({ usage: {} }, true);
+
+      expect(result).toContain('-');
+      expect(result).not.toContain('[object Object]');
+    });
+
+    it('leaves arrays on their existing comma-joined rendering', () => {
+      const result = formatDetails({ labels: ['a', 'b'] }, true);
+
+      expect(result).toContain('a,b');
     });
   });
 });

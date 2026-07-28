@@ -1,6 +1,6 @@
 import { ErrorType, isShipError, LABEL_CONSTRAINTS } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
-import { validateLabels } from '../../../src/shared/lib/validation';
+import { validateDeployConfig, validateLabels } from '../../../src/shared/lib/validation';
 
 // `validatePassword` is re-exported from `@shipstatic/types`; its tests live
 // in that package (`tests/validation-constants.test.ts`) so the canonical
@@ -66,5 +66,63 @@ describe('validateLabels', () => {
       expect((err as any).type).toBe(ErrorType.Validation);
       expect((err as any).status).toBe(400);
     }
+  });
+});
+
+describe('validateDeployConfig', () => {
+  // Syntax only, by design: the ship.json schema evolves server-side, so
+  // anything this judged beyond "is it JSON, is it an object" could reject a
+  // config a newer platform accepts. The exhaustive syntax cases live with
+  // the rule itself in `@shipstatic/types`; these cover the SDK-local half —
+  // which file is chosen, and reading either platform's content shape.
+  const file = (path: string, body: string) => ({
+    path,
+    content: Buffer.from(body),
+    md5: 'abc123',
+    size: body.length,
+  });
+  const index = file('index.html', '<html></html>');
+
+  it('passes when the deploy carries no config at all', async () => {
+    await expect(validateDeployConfig([index])).resolves.toBeUndefined();
+  });
+
+  it('accepts a well-formed config, including keys it does not know', async () => {
+    await expect(
+      validateDeployConfig([index, file('ship.json', '{"inventedLater":{"a":1}}')]),
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects unparsable JSON as a Config error', async () => {
+    await expect(
+      validateDeployConfig([index, file('ship.json', '{"redirects":[],}')]),
+    ).rejects.toMatchObject({ type: ErrorType.Config });
+  });
+
+  it('rejects valid JSON that is not an object', async () => {
+    await expect(validateDeployConfig([index, file('ship.json', '[]')])).rejects.toMatchObject({
+      type: ErrorType.Config,
+    });
+  });
+
+  it('accepts the root config with a leading slash', async () => {
+    // wire: findDeploymentConfigFile — exact name, optional leading slash.
+    await expect(
+      validateDeployConfig([index, file('/ship.json', '{ not json')]),
+    ).rejects.toMatchObject({ type: ErrorType.Config });
+  });
+
+  it('ignores a ship.json that is not at the deploy root', async () => {
+    // Anywhere but the root it is an ordinary asset the platform never reads.
+    await expect(
+      validateDeployConfig([index, file('config/ship.json', '{ not json')]),
+    ).resolves.toBeUndefined();
+  });
+
+  it('reads Blob content, the shape the browser pipeline produces', async () => {
+    const blob = { path: 'ship.json', content: new Blob(['{ not json']), md5: 'x', size: 10 };
+    await expect(validateDeployConfig([index, blob as never])).rejects.toMatchObject({
+      type: ErrorType.Config,
+    });
   });
 });

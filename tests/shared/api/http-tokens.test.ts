@@ -68,7 +68,7 @@ describe('token operations', () => {
 
   describe('list', () => {
     it('starts empty and totals what it holds', async () => {
-      await expect(ship.tokens.list()).resolves.toEqual({ tokens: [], total: 0 });
+      await expect(ship.tokens.list()).resolves.toEqual({ tokens: [], cursor: null, total: 0 });
     });
 
     it('reflects every created token', async () => {
@@ -81,10 +81,33 @@ describe('token operations', () => {
       expect(list.tokens.map((t) => t.token)).toEqual([first.token, second.token]);
     });
 
-    it('does not carry a cursor — this list is not paginated', async () => {
-      // wire: routes/tokens.ts:114 returns `{ tokens, total }` only, unlike
-      // the deployment and domain lists.
-      expect(await ship.tokens.list()).not.toHaveProperty('cursor');
+    it('carries a cursor like every other collection', async () => {
+      // wire: routes/tokens.ts:114 — `{ tokens, cursor, total }`, the same
+      // triple the deployment and domain lists answer.
+      const list = await ship.tokens.list();
+      expect(list).toHaveProperty('cursor');
+      expect(list.cursor).toBeNull(); // single page: no continuation
+    });
+
+    it('pages on limit, and the cursor walks the rest of the set', async () => {
+      const created = [
+        await ship.tokens.create(),
+        await ship.tokens.create(),
+        await ship.tokens.create(),
+      ];
+
+      const first = await ship.tokens.list({ limit: 2 });
+      expect(first.tokens).toHaveLength(2);
+      expect(first.total).toBe(3);
+      expect(first.cursor).not.toBeNull();
+
+      const second = await ship.tokens.list({ limit: 2, cursor: first.cursor! });
+      expect(second.tokens).toHaveLength(1);
+      expect(second.cursor).toBeNull();
+
+      // Pages partition the set — every token seen exactly once.
+      const paged = [...first.tokens, ...second.tokens].map((t) => t.token);
+      expect(new Set(paged)).toEqual(new Set(created.map((t) => t.token)));
     });
   });
 
