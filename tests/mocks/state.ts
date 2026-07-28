@@ -17,8 +17,8 @@ import type {
   Domain,
   DomainValidateResponse,
   PlatformLimits,
+  Token,
   TokenCreateResponse,
-  TokenListItem,
 } from '@shipstatic/types';
 import {
   claimUrl,
@@ -42,7 +42,7 @@ export interface MockState {
   account: ReturnType<typeof import('../fixtures/builders').makeAccount>;
   deployments: Deployment[];
   domains: Domain[];
-  tokens: TokenListItem[];
+  tokens: Token[];
   verifyCooldown: Set<string>;
   findDeployment(idOrHostname: string): Deployment | undefined;
   createDeployment(
@@ -98,13 +98,12 @@ export function createMockState(
       tokenCounter += 1;
       const id = `tok${String(tokenCounter).padStart(4, '0')}`;
       const expires = ttl ? now + ttl : null;
-      state.tokens.push(makeToken({ token: id, labels: labels ?? [], created: now, expires }));
-      return {
-        token: id,
-        secret: deployToken(String(tokenCounter % 10)),
-        labels: labels ?? [],
-        expires,
-      };
+      // The 201 answers with the row it just stored plus the secret shown
+      // once — so what a caller creates and what it later lists are the same
+      // object here, exactly as `TokenCreateResponse extends Token` promises.
+      const token = makeToken({ token: id, labels: labels ?? [], created: now, expires });
+      state.tokens.push(token);
+      return { ...token, secret: deployToken(String(tokenCounter % 10)) };
     },
 
     /** wire: lib/domains/validate.ts — apex inputs are auto-fixed to `www.` */
