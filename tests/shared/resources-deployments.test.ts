@@ -181,7 +181,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
 
   describe('list', () => {
     it('should call API listDeployments after initialization', async () => {
-      const mockList = { deployments: [], cursor: null, total: 0 };
+      const mockList = { deployments: [], cursor: null };
       mockApiHttp.listDeployments = vi.fn().mockResolvedValue(mockList);
 
       const result = await deploymentResource.list();
@@ -192,9 +192,7 @@ describe('Deployment Resource (Unified Architecture)', () => {
     });
 
     it('forwards pagination options to the API', async () => {
-      mockApiHttp.listDeployments = vi
-        .fn()
-        .mockResolvedValue({ deployments: [], cursor: null, total: 0 });
+      mockApiHttp.listDeployments = vi.fn().mockResolvedValue({ deployments: [], cursor: null });
 
       await deploymentResource.list({ limit: 2, cursor: 'abc' });
 

@@ -357,7 +357,9 @@ describe('CLI command tree (in-process)', () => {
       const result = await runProgram(['--json', 'deployments', 'list']);
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.total).toBeGreaterThanOrEqual(1);
+      // The list contract, verbatim through the CLI: the collection and its
+      // cursor, nothing else.
+      expect(Object.keys(output).sort()).toEqual(['cursor', 'deployments']);
       expect(output.deployments.map((d: { deployment: string }) => d.deployment)).toContain(SEEDED);
     });
 
@@ -370,7 +372,6 @@ describe('CLI command tree (in-process)', () => {
       expect(first.exitCode).toBe(0);
       const page1 = JSON.parse(first.stdout.trim());
       expect(page1.deployments).toHaveLength(2);
-      expect(page1.total).toBe(3);
       expect(page1.cursor).not.toBeNull();
 
       const second = await runProgram([

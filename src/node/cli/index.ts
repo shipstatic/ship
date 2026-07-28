@@ -78,14 +78,14 @@ function helpText(noColor?: boolean): string {
 
 ${applyBold('COMMANDS')}
   ${icon('📦')}${applyBold('Deployments')}
-  ship deployments list                 List all deployments
+  ship deployments list                 List deployments
   ship deployments upload <path>        Upload deployment from file or directory
   ship deployments get <deployment>     Show deployment information
   ship deployments set <deployment>     Set deployment labels
   ship deployments remove <deployment>  Delete deployment permanently
 
   ${icon('🌎')}${applyBold('Domains')}
-  ship domains list                     List all domains
+  ship domains list                     List domains
   ship domains set <name> [deployment]  Create domain, link to deployment, or update labels
   ship domains get <name>               Show domain information
   ship domains validate <name>          Check if domain name is valid and available
@@ -96,7 +96,7 @@ ${applyBold('COMMANDS')}
   ship domains remove <name>            Delete domain permanently
 
   ${icon('🔑')}${applyBold('Tokens')}
-  ship tokens list                      List all deploy tokens
+  ship tokens list                      List deploy tokens
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 
@@ -544,7 +544,7 @@ export function buildProgram(): Command {
 
   deploymentsCmd
     .command('list')
-    .description('List all deployments')
+    .description('List deployments (one page — see --limit and --cursor)')
     .option('--limit <count>', 'Maximum number of results per page', parseInteger)
     .option('--cursor <cursor>', "Continue from a previous page's cursor")
     .action(
@@ -652,7 +652,7 @@ export function buildProgram(): Command {
 
   domainsCmd
     .command('list')
-    .description('List all domains')
+    .description('List domains (one page — see --limit and --cursor)')
     .option('--limit <count>', 'Maximum number of results per page', parseInteger)
     .option('--cursor <cursor>', "Continue from a previous page's cursor")
     .action(
@@ -799,7 +799,7 @@ export function buildProgram(): Command {
 
   tokensCmd
     .command('list')
-    .description('List all deploy tokens')
+    .description('List deploy tokens (one page — see --limit and --cursor)')
     .option('--limit <count>', 'Maximum number of results per page', parseInteger)
     .option('--cursor <cursor>', "Continue from a previous page's cursor")
     .action(

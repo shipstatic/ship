@@ -108,11 +108,13 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
       expect(deployed.claim).toBeUndefined();
     });
 
-    it('lists with the cursor envelope (total + cursor, never count)', async () => {
+    it('lists in the list contract shape — the collection and its cursor', async () => {
+      // Against the REAL API: two fields and nothing else. This is the
+      // contract detector for the server half — a list that regrows a field
+      // fails here even though every mock in the suite still agrees.
       const result = await ship.deployments.list();
+      expect(Object.keys(result).sort()).toEqual(['cursor', 'deployments']);
       expect(Array.isArray(result.deployments)).toBe(true);
-      expect(typeof result.total).toBe('number');
-      expect('cursor' in result).toBe(true);
       expect(result.deployments.some((d) => d.deployment === deployed.deployment)).toBe(true);
     });
 

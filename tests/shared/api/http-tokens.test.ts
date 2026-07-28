@@ -67,8 +67,10 @@ describe('token operations', () => {
   });
 
   describe('list', () => {
-    it('starts empty and totals what it holds', async () => {
-      await expect(ship.tokens.list()).resolves.toEqual({ tokens: [], cursor: null, total: 0 });
+    it('answers an empty page in the list contract shape', async () => {
+      // Two fields, exactly — `cursor: null` is the whole has-more signal,
+      // so an empty list is not a special case of anything.
+      await expect(ship.tokens.list()).resolves.toEqual({ tokens: [], cursor: null });
     });
 
     it('reflects every created token', async () => {
@@ -77,15 +79,15 @@ describe('token operations', () => {
 
       const list = await ship.tokens.list();
 
-      expect(list.total).toBe(2);
       expect(list.tokens.map((t) => t.token)).toEqual([first.token, second.token]);
+      expect(list.cursor).toBeNull();
     });
 
     it('carries a cursor like every other collection', async () => {
-      // wire: routes/tokens.ts:114 — `{ tokens, cursor, total }`, the same
-      // triple the deployment and domain lists answer.
+      // wire: routes/tokens.ts:114 — `{ tokens, cursor }`, the same pair the
+      // deployment, domain, and activity lists answer.
       const list = await ship.tokens.list();
-      expect(list).toHaveProperty('cursor');
+      expect(Object.keys(list).sort()).toEqual(['cursor', 'tokens']);
       expect(list.cursor).toBeNull(); // single page: no continuation
     });
 
@@ -98,7 +100,6 @@ describe('token operations', () => {
 
       const first = await ship.tokens.list({ limit: 2 });
       expect(first.tokens).toHaveLength(2);
-      expect(first.total).toBe(3);
       expect(first.cursor).not.toBeNull();
 
       const second = await ship.tokens.list({ limit: 2, cursor: first.cursor! });
@@ -119,7 +120,7 @@ describe('token operations', () => {
 
       const list = await ship.tokens.list();
       expect(list.tokens).toEqual([]);
-      expect(list.total).toBe(0);
+      expect(list.cursor).toBeNull();
     });
 
     it('reports an unknown token as not found', async () => {

@@ -74,7 +74,9 @@ pnpm build                   # Build all bundles
 ### Ship Class Public Surface (base-ship.ts)
 
 ```typescript
-// Resources
+// Resources — every collection the SDK reaches. `/activities` is
+// deliberately not among them (see "Routes the API exposes that the SDK
+// does not reach").
 ship.deployments / ship.domains / ship.account / ship.tokens
 
 // Convenience shortcuts
@@ -605,6 +607,16 @@ conflate them:
 the dashboard is its only client — a CLI user reads their audit trail in
 `my`, not through a resource. This is a deliberate absence, not a gap: do
 not add `ship.activities` without a new call.
+
+The argument that reopens it, and why it does not: *"`ActivityListResponse`
+is in `@shipstatic/types` with no `*Resource` to fetch it — a public
+contract with a missing half."* It has both halves; the SDK is simply not
+one of them. The API produces that type and `web/my` consumes it, which is
+two consumers and exactly what earns a place in the shared package. A
+`ActivityResource` interface with no implementation would be the dead
+surface — added, then reverted, on 2026-07-28 for precisely this reason.
+The `*Resource` interfaces describe **the SDK's** contract, not the API's;
+the API's contract is its routes.
 
 *Open product questions (awaiting a call — see `HANDOVER-SHIP-OVERHAUL.md`
 flagged decisions):* `GET /labels` (a real endpoint with no SDK method —
