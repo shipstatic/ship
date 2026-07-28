@@ -573,6 +573,8 @@ SDK" — the reading Vercel's `source` and every self-identifying SDK client
 |------------|--------------|-------|
 | `deployments.upload()` | `POST /deployments` | Multipart upload |
 | ↳ `idempotencyKey` | header `Idempotency-Key` | Replays the original 201 within 24h instead of deploying twice. Key the ATTEMPT (run id, commit sha), never the try. |
+
+**Deploys get their own timeout ceiling.** The client default is 30s, which is right for a metadata read and wrong for an upload: the platform permits `DEPLOYMENT.MAX_TOTAL_SIZE` (50MB), and 50MB in 30s needs ~13 Mbit/s of sustained UPLOAD — above most residential links. A deployment the API explicitly allows was being aborted client-side by default, which is precisely the failure `Idempotency-Key` exists to repair, so the cause had to go and not just the remedy. `DEFAULT_DEPLOY_TIMEOUT` is 5 minutes (50MB at ~1.4 Mbit/s), still bounded so a hung socket ends. **Only the DEFAULT splits by operation** — an explicit `timeout` option governs deploys too, because a caller who names a ceiling asked for a ceiling, not for one with an exception.
 | `deployments.list()` | `GET /deployments` | Paginated — `{limit, cursor}` options (`--limit`/`--cursor` on the CLI; text mode prints a rerun hint while `--json` carries `cursor`) |
 | `deployments.get()` | `GET /deployments/:deployment` | |
 | `deployments.set()` | `PATCH /deployments/:deployment` | Labels only |
