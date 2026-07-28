@@ -44,24 +44,39 @@ import type {
 const DEFAULT_REQUEST_TIMEOUT = 30000;
 
 /**
- * Deploys get their own ceiling, because one knob cannot do both jobs.
+ * Deploys get their own ceilings, because one budget cannot fit every
+ * operation this client performs.
  *
  * 30s is right for a metadata read — `/ping`, `/account`, a page of a list —
  * where anything slower is a fault rather than a big payload. A deploy is
  * bounded by the PLATFORM's limits instead: `DEPLOYMENT.MAX_TOTAL_SIZE` is
- * 50MB, and 50MB in 30s needs ~13 Mbit/s of sustained UPLOAD, which is above
- * what most residential connections give. A deployment the API explicitly
- * permits was therefore aborted here by default.
+ * 50MB, and 50MB in 30s needs ~13 Mbit/s of sustained UPLOAD, above what most
+ * residential links give. A deployment the API explicitly permits was being
+ * aborted here by default — which is the exact failure `Idempotency-Key`
+ * exists to repair, so the cause had to go and not merely the remedy.
  *
- * That failure mode is the exact one `Idempotency-Key` exists to repair — a
- * client-side timeout on a deploy that may well have landed — so leaving it
- * in place would have meant shipping the remedy and keeping the cause.
- *
- * Five minutes covers 50MB at ~1.4 Mbit/s. It stays bounded rather than
- * absent: a hung socket must still end, and the caller's own `signal`
- * governs whenever they pass one.
+ * 5 minutes covers 50MB at ~1.4 Mbit/s.
  */
 const DEFAULT_DEPLOY_TIMEOUT = 300_000;
+
+/**
+ * A build or prerender deploy waits for work the SERVER does after the upload
+ * lands, so its ceiling is derived rather than chosen: the API gives the build
+ * service `PERFORMANCE.BUILD_SERVICE_TIMEOUT` (currently 300s, in
+ * `cloudflare/api/src/lib/config.ts`), and the client must outlast the upload
+ * AND that budget AND the commit that follows it.
+ *
+ * Hence upload allowance + build budget. A flat deploy ceiling silently
+ * aborted these: `web/my` sends `build: true` through this same client
+ * (`DeploymentUploadForm` → `use-deployments`), so the path is real rather
+ * than theoretical.
+ *
+ * **Raising `BUILD_SERVICE_TIMEOUT` server-side must raise this.** The two
+ * cannot be fenced together — they live in different repos, and publishing a
+ * server timeout into `@shipstatic/types` would be heavier than the coupling
+ * deserves — so the constraint is stated at both ends instead.
+ */
+const DEFAULT_BUILD_DEPLOY_TIMEOUT = 600_000;
 
 /**
  * This client's identity in a deployment's `via` field.
@@ -118,6 +133,7 @@ export class ApiHttp extends SimpleEvents {
   private readonly caller: string | undefined;
   private readonly timeout: number;
   private readonly deployTimeout: number;
+  private readonly buildDeployTimeout: number;
   private readonly fetch: Fetch;
   private readonly createDeployBody: DeployBodyCreator;
   private readonly deployEndpoint: string;
@@ -134,6 +150,7 @@ export class ApiHttp extends SimpleEvents {
     // too — they asked for a ceiling, not for one with an exception. Only the
     // DEFAULT splits by operation.
     this.deployTimeout = options.timeout ?? DEFAULT_DEPLOY_TIMEOUT;
+    this.buildDeployTimeout = options.timeout ?? DEFAULT_BUILD_DEPLOY_TIMEOUT;
     // Bind to globalThis when falling back to the platform `fetch` — browsers
     // require `this === window` on `window.fetch` and throw "Illegal invocation"
     // when it's invoked as a property of any other object.
@@ -333,7 +350,11 @@ export class ApiHttp extends SimpleEvents {
         signal: options.signal || null,
       },
       'Deploy',
-      this.deployTimeout,
+      // Only `build`/`prerender` reach the build service
+      // (`api/src/lib/upload-processing.ts:35`); `spa` is local detection
+      // bounded by the AI tier's own 10s, so it does not earn the longer
+      // ceiling.
+      options.build || options.prerender ? this.buildDeployTimeout : this.deployTimeout,
     );
   }
 

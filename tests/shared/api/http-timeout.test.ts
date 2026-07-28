@@ -293,6 +293,64 @@ describe('ApiHttp Timeout & Cancellation', () => {
       }
     });
 
+    it('gives a build deploy room for the server-side build budget', async () => {
+      // A build waits for work the SERVER does after the upload lands: the
+      // API gives the build service 300s, and the client must outlast the
+      // upload AND that budget AND the commit. A flat deploy ceiling aborted
+      // these — and `web/my` sends `build: true` through this same client,
+      // so the path is real.
+      vi.useFakeTimers();
+      try {
+        global.fetch = hangingFetch() as any;
+        const api = new ApiHttp({
+          apiUrl: 'https://api.test.com',
+          getAuthHeaders: () => ({}),
+          createDeployBody: mockCreateDeployBody,
+        });
+
+        const pending = api.deploy(files, { build: true });
+        const settled = vi.fn();
+        pending.catch(settled);
+
+        // Past the plain-deploy ceiling, still in flight.
+        await vi.advanceTimersByTimeAsync(300_000);
+        expect(settled).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(300_000);
+        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('does not extend the ceiling for spa detection, which never reaches the build service', async () => {
+      // `spa` is local detection bounded by the AI tier's own 10s
+      // (`api/src/lib/upload-processing.ts` forwards only build/prerender),
+      // so it keeps the plain deploy budget. The distinction matters: a flag
+      // set is not the same question as which flags cost server time.
+      vi.useFakeTimers();
+      try {
+        global.fetch = hangingFetch() as any;
+        const api = new ApiHttp({
+          apiUrl: 'https://api.test.com',
+          getAuthHeaders: () => ({}),
+          createDeployBody: mockCreateDeployBody,
+        });
+
+        const pending = api.deploy(files, { spa: true });
+        const settled = vi.fn();
+        pending.catch(settled);
+
+        await vi.advanceTimersByTimeAsync(299_999);
+        expect(settled).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('honours an explicit timeout on deploys too', async () => {
       // Only the DEFAULT splits by operation. A caller who names a ceiling
       // asked for a ceiling, not for one with an exception.
