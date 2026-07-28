@@ -5,22 +5,28 @@ import type {
   AccountGetResponse,
   Deployment,
   DeploymentCreateResponse,
+  DeploymentDeleteResponse,
   DeploymentListResponse,
   Domain,
+  DomainDeleteResponse,
   DomainDnsResponse,
   DomainListResponse,
   DomainRecordsResponse,
+  DomainShareResponse,
   DomainValidateResponse,
+  DomainVerifyResponse,
   ListOptions,
   PingResponse,
   PlatformLimits,
   SPACheckRequest,
   SPACheckResponse,
   StaticFile,
+  Token,
   TokenCreateResponse,
+  TokenDeleteResponse,
   TokenListResponse,
 } from '@shipstatic/types';
-import { DEFAULT_API, ShipError } from '@shipstatic/types';
+import { API_PATHS, DEFAULT_API, ShipError, validateIdempotencyKey } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 import { validateDeployConfig, validateLabels, validatePassword } from '../lib/validation.js';
 import type {
@@ -34,16 +40,6 @@ import type {
 // =============================================================================
 // CONSTANTS
 // =============================================================================
-
-const ENDPOINTS = {
-  DEPLOYMENTS: '/deployments',
-  DOMAINS: '/domains',
-  TOKENS: '/tokens',
-  ACCOUNT: '/account',
-  LIMITS: '/limits',
-  PING: '/ping',
-  SPA_CHECK: '/spa-check',
-} as const;
 
 const DEFAULT_REQUEST_TIMEOUT = 30000;
 
@@ -118,7 +114,7 @@ export class ApiHttp extends SimpleEvents {
     // when it's invoked as a property of any other object.
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.createDeployBody = options.createDeployBody;
-    this.deployEndpoint = options.deployEndpoint || ENDPOINTS.DEPLOYMENTS;
+    this.deployEndpoint = options.deployEndpoint || API_PATHS.DEPLOYMENTS;
   }
 
   /**
@@ -273,6 +269,7 @@ export class ApiHttp extends SimpleEvents {
 
     // Fast-fail on definitely-invalid input before constructing a multipart body.
     validatePassword(options.password);
+    const idempotencyKey = validateIdempotencyKey(options.idempotencyKey);
     const labels = validateLabels(options.labels);
     await validateDeployConfig(files);
 
@@ -288,16 +285,26 @@ export class ApiHttp extends SimpleEvents {
       captcha: options.captcha,
     });
 
+    // The key rides a header, not the body, because it must be readable
+    // before the request is parsed — the API replays a stored 201 ahead of
+    // the write budget, so a retry costs nothing.
     return this.request<DeploymentCreateResponse>(
       `${this.apiUrl}${this.deployEndpoint}`,
-      { method: 'POST', body, headers: bodyHeaders, signal: options.signal || null },
+      {
+        method: 'POST',
+        body,
+        headers: idempotencyKey
+          ? { ...bodyHeaders, 'Idempotency-Key': idempotencyKey }
+          : bodyHeaders,
+        signal: options.signal || null,
+      },
       'Deploy',
     );
   }
 
   async listDeployments(options?: ListOptions): Promise<DeploymentListResponse> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}${listQuery(options)}`,
+      `${this.apiUrl}${API_PATHS.DEPLOYMENTS}${listQuery(options)}`,
       { method: 'GET' },
       'List deployments',
     );
@@ -305,7 +312,7 @@ export class ApiHttp extends SimpleEvents {
 
   async getDeployment(id: string): Promise<Deployment> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
+      `${this.apiUrl}${API_PATHS.DEPLOYMENT(encodeURIComponent(id))}`,
       { method: 'GET' },
       'Get deployment',
     );
@@ -314,7 +321,7 @@ export class ApiHttp extends SimpleEvents {
   async updateDeploymentLabels(id: string, labels: string[]): Promise<Deployment> {
     const normalized = validateLabels(labels);
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
+      `${this.apiUrl}${API_PATHS.DEPLOYMENT(encodeURIComponent(id))}`,
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -324,9 +331,9 @@ export class ApiHttp extends SimpleEvents {
     );
   }
 
-  async removeDeployment(id: string): Promise<void> {
-    await this.request<void>(
-      `${this.apiUrl}${ENDPOINTS.DEPLOYMENTS}/${encodeURIComponent(id)}`,
+  async removeDeployment(id: string): Promise<DeploymentDeleteResponse> {
+    return this.request<DeploymentDeleteResponse>(
+      `${this.apiUrl}${API_PATHS.DEPLOYMENT(encodeURIComponent(id))}`,
       { method: 'DELETE' },
       'Remove deployment',
     );
@@ -345,7 +352,7 @@ export class ApiHttp extends SimpleEvents {
     if (normalized !== undefined) body.labels = normalized;
 
     const { data, status } = await this.requestWithStatus<Domain>(
-      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
+      `${this.apiUrl}${API_PATHS.DOMAIN(encodeURIComponent(name))}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -359,7 +366,7 @@ export class ApiHttp extends SimpleEvents {
 
   async listDomains(options?: ListOptions): Promise<DomainListResponse> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DOMAINS}${listQuery(options)}`,
+      `${this.apiUrl}${API_PATHS.DOMAINS}${listQuery(options)}`,
       { method: 'GET' },
       'List domains',
     );
@@ -367,23 +374,23 @@ export class ApiHttp extends SimpleEvents {
 
   async getDomain(name: string): Promise<Domain> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
+      `${this.apiUrl}${API_PATHS.DOMAIN(encodeURIComponent(name))}`,
       { method: 'GET' },
       'Get domain',
     );
   }
 
-  async removeDomain(name: string): Promise<void> {
-    await this.request<void>(
-      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}`,
+  async removeDomain(name: string): Promise<DomainDeleteResponse> {
+    return this.request<DomainDeleteResponse>(
+      `${this.apiUrl}${API_PATHS.DOMAIN(encodeURIComponent(name))}`,
       { method: 'DELETE' },
       'Remove domain',
     );
   }
 
-  async verifyDomain(name: string): Promise<{ message: string }> {
+  async verifyDomain(name: string): Promise<DomainVerifyResponse> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/verify`,
+      `${this.apiUrl}${API_PATHS.DOMAIN_VERIFY(encodeURIComponent(name))}`,
       { method: 'POST' },
       'Verify domain',
     );
@@ -391,7 +398,7 @@ export class ApiHttp extends SimpleEvents {
 
   async getDomainDns(name: string): Promise<DomainDnsResponse> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/dns`,
+      `${this.apiUrl}${API_PATHS.DOMAIN_DNS(encodeURIComponent(name))}`,
       { method: 'GET' },
       'Get domain DNS',
     );
@@ -399,15 +406,15 @@ export class ApiHttp extends SimpleEvents {
 
   async getDomainRecords(name: string): Promise<DomainRecordsResponse> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/records`,
+      `${this.apiUrl}${API_PATHS.DOMAIN_RECORDS(encodeURIComponent(name))}`,
       { method: 'GET' },
       'Get domain records',
     );
   }
 
-  async getDomainShare(name: string): Promise<{ domain: string; hash: string }> {
+  async getDomainShare(name: string): Promise<DomainShareResponse> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DOMAINS}/${encodeURIComponent(name)}/share`,
+      `${this.apiUrl}${API_PATHS.DOMAIN_SHARE(encodeURIComponent(name))}`,
       { method: 'GET' },
       'Get domain share',
     );
@@ -415,7 +422,7 @@ export class ApiHttp extends SimpleEvents {
 
   async validateDomain(name: string): Promise<DomainValidateResponse> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.DOMAINS}/validate`,
+      `${this.apiUrl}${API_PATHS.DOMAINS_VALIDATE}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -436,7 +443,7 @@ export class ApiHttp extends SimpleEvents {
     if (normalized !== undefined) body.labels = normalized;
 
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.TOKENS}`,
+      `${this.apiUrl}${API_PATHS.TOKENS}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -448,17 +455,25 @@ export class ApiHttp extends SimpleEvents {
 
   async listTokens(options?: ListOptions): Promise<TokenListResponse> {
     return this.request(
-      `${this.apiUrl}${ENDPOINTS.TOKENS}${listQuery(options)}`,
+      `${this.apiUrl}${API_PATHS.TOKENS}${listQuery(options)}`,
       { method: 'GET' },
       'List tokens',
     );
   }
 
-  async removeToken(token: string): Promise<void> {
-    await this.request<void>(
-      `${this.apiUrl}${ENDPOINTS.TOKENS}/${encodeURIComponent(token)}`,
+  async removeToken(token: string): Promise<TokenDeleteResponse> {
+    return this.request<TokenDeleteResponse>(
+      `${this.apiUrl}${API_PATHS.TOKEN(encodeURIComponent(token))}`,
       { method: 'DELETE' },
       'Remove token',
+    );
+  }
+
+  async getToken(token: string): Promise<Token> {
+    return this.request<Token>(
+      `${this.apiUrl}${API_PATHS.TOKEN(encodeURIComponent(token))}`,
+      { method: 'GET' },
+      'Get token',
     );
   }
 
@@ -467,16 +482,16 @@ export class ApiHttp extends SimpleEvents {
   // ===========================================================================
 
   async getAccount(): Promise<AccountGetResponse> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.ACCOUNT}`, { method: 'GET' }, 'Get account');
+    return this.request(`${this.apiUrl}${API_PATHS.ACCOUNT}`, { method: 'GET' }, 'Get account');
   }
 
   async getLimits(): Promise<PlatformLimits> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.LIMITS}`, { method: 'GET' }, 'Get limits');
+    return this.request(`${this.apiUrl}${API_PATHS.LIMITS}`, { method: 'GET' }, 'Get limits');
   }
 
   async ping(): Promise<boolean> {
     const data = await this.request<PingResponse>(
-      `${this.apiUrl}${ENDPOINTS.PING}`,
+      `${this.apiUrl}${API_PATHS.PING}`,
       { method: 'GET' },
       'Ping',
     );
@@ -506,7 +521,7 @@ export class ApiHttp extends SimpleEvents {
 
     const body: SPACheckRequest = { files: files.map((f) => f.path), index: indexContent };
     const response = await this.request<SPACheckResponse>(
-      `${this.apiUrl}${ENDPOINTS.SPA_CHECK}`,
+      `${this.apiUrl}${API_PATHS.SPA_CHECK}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

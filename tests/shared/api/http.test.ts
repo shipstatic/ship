@@ -268,6 +268,47 @@ describe('ApiHttp', () => {
       });
     });
 
+    it('sends Idempotency-Key when given one, and omits the header when not', async () => {
+      // Agents retry on timeout; the same key on the retry replays the
+      // original 201 instead of creating a second deployment. The header is
+      // what makes that reachable — the capability existed on the API long
+      // before the SDK could send it.
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
+      ];
+      (global.fetch as any).mockResolvedValue(createMockResponse({ deployment: 'd' }));
+
+      await apiHttp.deploy(mockFiles, { idempotencyKey: '  run-42  ' });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.test.com/deployments',
+        expect.objectContaining({
+          // Trimmed, matching what the API compares against.
+          headers: expect.objectContaining({ 'Idempotency-Key': 'run-42' }),
+        }),
+      );
+
+      // Absent by omission rather than by empty string: a header the caller
+      // did not ask for must not appear at all.
+      (global.fetch as any).mockClear();
+      await apiHttp.deploy(mockFiles);
+      const sent = (global.fetch as any).mock.calls[0][1].headers;
+      expect(Object.keys(sent)).not.toContain('Idempotency-Key');
+    });
+
+    it('refuses an over-long idempotency key before any request', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
+      ];
+      (global.fetch as any).mockClear();
+
+      await expect(
+        apiHttp.deploy(mockFiles, { idempotencyKey: 'x'.repeat(257) }),
+      ).rejects.toMatchObject({ type: ErrorType.Validation });
+      // The deploy body is expensive to build; the verdict is reached first.
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
     it('should deploy files array with labels', async () => {
       const mockFiles = [
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },

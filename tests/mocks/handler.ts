@@ -208,16 +208,11 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       return json(found);
     }
     if (method === 'DELETE' && segments.length === 2) {
-      // wire: routes/deployments.ts:126 — 202, async cleanup.
+      // wire: routes/deployments.ts:132 — 202, async cleanup. The row
+      // survives its own deletion long enough to state the status it is
+      // transitioning through; nothing else rides along.
       if (!found) return fail(ShipError.notFound('Deployment', id));
-      return json(
-        {
-          message: 'Deployment marked for removal',
-          deployment: found.deployment,
-          status: 'deleting',
-        },
-        202,
-      );
+      return json({ deployment: found.deployment, status: 'deleting' }, 202);
     }
     return methodNotAllowed();
   }
@@ -260,11 +255,12 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       return upsertDomain(request, name, state);
     }
     if (method === 'DELETE') {
-      // wire: routes/domains.ts:204 — 200 with a message, AND the row is gone.
+      // wire: routes/domains.ts:203 — 200, and the row is gone, so the
+      // canonical name is the whole acknowledgement.
       const index = state.domains.findIndex((d) => d.domain === name);
       if (index === -1) return fail(ShipError.notFound('Domain', name));
       state.domains.splice(index, 1);
-      return json({ message: 'Domain deleted' });
+      return json({ domain: name });
     }
     return methodNotAllowed();
   }
@@ -290,13 +286,24 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
     return methodNotAllowed();
   }
 
+  if (segments[0] === 'tokens' && segments.length === 2 && method === 'GET') {
+    // wire: routes/tokens.ts — the same row the listing carries, built by the
+    // same `toTokenResponse`, so an item and a list row are one token
+    // described one way. Account-scoped: an unknown id is a 404, never a 403.
+    const id = decodeURIComponent(segments[1]);
+    const row = state.tokens.find((t) => t.token === id);
+    if (!row) return fail(ShipError.notFound('Token'));
+    return json(row);
+  }
+
   if (segments[0] === 'tokens' && segments.length === 2 && method === 'DELETE') {
-    // wire: routes/tokens.ts:138-177 — 200 `{message}`, not 202.
+    // wire: routes/tokens.ts:161-201 — 200 `{token}`, not 202: revocation
+    // is synchronous, and the identifier is all that is left to name.
     const id = decodeURIComponent(segments[1]);
     const index = state.tokens.findIndex((t) => t.token === id);
     if (index === -1) return fail(ShipError.notFound('Token'));
     state.tokens.splice(index, 1);
-    return json({ message: 'Token deleted' });
+    return json({ token: id });
   }
 
   // The API registers no `notFound` handler, so Hono's default answers:
@@ -368,7 +375,7 @@ function domainSubResource(sub: 'dns' | 'records' | 'share', name: string, state
   return json({ domain: name, hash: 'abc123def456abc123def456abc123de' });
 }
 
-/** wire: lib/domains/verify.ts:18-58 */
+/** wire: lib/domains/verify.ts:18-64 */
 function verifyDomain(name: string, state: MockState) {
   if (!isCustomDomain(name)) {
     return fail(ShipError.business('DNS verification is only available for custom domains', 400));
@@ -395,7 +402,8 @@ function verifyDomain(name: string, state: MockState) {
     );
   }
   state.verifyCooldown.add(name);
-  return json({ message: 'DNS verification queued successfully' });
+  // 202: queued, not performed. wire: lib/domains/verify.ts:63
+  return json({ domain: name }, 202);
 }
 
 /** wire: lib/domains/upsert.ts — merge-upsert, 201 on create / 200 on update. */

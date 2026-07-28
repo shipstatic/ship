@@ -107,7 +107,9 @@ describe('domain operations', () => {
     it('queues a verification', async () => {
       const result = await ship.domains.verify(CUSTOM);
 
-      expect(result.message).toBe('DNS verification queued successfully');
+      // The acknowledgement is the canonical domain and nothing else — the
+      // 202 says "queued", so no field repeats it and no prose rides along.
+      expect(result).toEqual({ domain: CUSTOM });
     });
 
     it('answers a repeat request with the real 429 contract', async () => {
@@ -132,9 +134,7 @@ describe('domain operations', () => {
       await ship.domains.set(other, { deployment: DEPLOYMENT });
       await ship.domains.verify(CUSTOM);
 
-      await expect(ship.domains.verify(other)).resolves.toMatchObject({
-        message: 'DNS verification queued successfully',
-      });
+      await expect(ship.domains.verify(other)).resolves.toEqual({ domain: other });
     });
   });
 
@@ -202,7 +202,7 @@ describe('domain operations', () => {
 
       await ship.domains.remove(CUSTOM);
 
-      // wire: routes/domains.ts:204 — 200 `{message}` AND the row is gone. The
+      // wire: routes/domains.ts:203 — 200 `{domain}` AND the row is gone. The
       // previous mock answered 204 and kept the row, so a delete that did
       // nothing would have passed.
       await expect(ship.domains.get(CUSTOM)).rejects.toMatchObject({

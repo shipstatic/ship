@@ -11,11 +11,13 @@ import type {
   DomainDnsResponse,
   DomainListResponse,
   DomainRecordsResponse,
+  DomainShareResponse,
   DomainValidateResponse,
+  DomainVerifyResponse,
   TokenCreateResponse,
   TokenListResponse,
 } from '@shipstatic/types';
-import type { CLIResult, DomainShareResponse, EnrichedDomain, MessageResult } from './types.js';
+import type { CLIResult, EnrichedDomain } from './types.js';
 import { error, formatDetails, formatTable, info, success } from './utils.js';
 
 const setupUrl = (hash: string, domain: string) => `https://setup.shipstatic.com/${hash}/${domain}`;
@@ -168,17 +170,19 @@ export function formatAccount(
 }
 
 /**
- * Format message result (e.g., from DNS verification)
+ * Format the DNS-verification acknowledgement.
+ *
+ * The wire carries no prose — an acknowledgement is the domain and the 202
+ * that accepted it — so the copy is composed here. That is the same
+ * carve-out the removal message below uses: a surface writes its own words
+ * exactly where no wire message exists.
  */
-export function formatMessage(
-  result: MessageResult,
+export function formatDomainVerify(
+  result: DomainVerifyResponse,
   _context: OutputContext,
   options: FormatOptions,
 ): void {
-  const { noColor } = options;
-  if (result.message) {
-    success(result.message, false, noColor);
-  }
+  success(`${result.domain} dns verification queued`, false, options.noColor);
 }
 
 /**
@@ -335,20 +339,26 @@ export function formatOutput(
       } else if ('valid' in result) {
         const v = result as DomainValidateResponse;
         if (v.valid && v.normalized) console.log(v.normalized);
-      } else if ('message' in result) {
-        console.log((result as MessageResult).message);
       }
     }
     return;
   }
 
-  // Handle void/undefined results (removal operations)
-  if (result === undefined) {
-    if (context.operation === 'remove' && context.resourceType && context.resourceId) {
+  // Handle removals — the wire answers with the resource it removed (the
+  // acknowledgement law), so the sentence is composed from that projection
+  // rather than from the absence of one. `undefined` still lands here for
+  // any handler that resolves nothing.
+  if (context.operation === 'remove') {
+    if (context.resourceType && context.resourceId) {
       success(`${context.resourceId} ${context.resourceType.toLowerCase()} removed`, json, noColor);
     } else {
       success('removed successfully', json, noColor);
     }
+    return;
+  }
+
+  if (result === undefined) {
+    success('removed successfully', json, noColor);
     return;
   }
 
@@ -389,6 +399,10 @@ export function formatOutput(
       formatDomainShare(result as DomainShareResponse, context, options);
     } else if ('dns' in result) {
       formatDomainDns(result as DomainDnsResponse, context, options);
+    } else if ('domain' in result && !('url' in result)) {
+      // The verify acknowledgement: the domain and nothing else. A Domain
+      // entity always carries its `url`, which is what tells the two apart.
+      formatDomainVerify(result as DomainVerifyResponse, context, options);
     } else if ('domain' in result) {
       formatDomain(result as Domain, context, options);
     } else if ('deployment' in result) {
@@ -399,8 +413,6 @@ export function formatOutput(
       formatAccount(result as Account, context, options);
     } else if ('valid' in result) {
       formatDomainValidate(result as DomainValidateResponse, context, options);
-    } else if ('message' in result) {
-      formatMessage(result as MessageResult, context, options);
     } else {
       // Fallback
       success('success', json, noColor);

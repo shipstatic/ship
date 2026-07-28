@@ -213,7 +213,7 @@ describe('formatOutput router', () => {
     });
   });
 
-  describe('validate and message shapes', () => {
+  describe('validate and acknowledgement shapes', () => {
     it('reports a valid domain with its normalized form and availability', () => {
       formatOutput(
         { valid: true, normalized: 'www.example.com', available: true, error: null } as never,
@@ -241,12 +241,24 @@ describe('formatOutput router', () => {
       expect(errs.join('\n')).toContain('contains invalid characters');
     });
 
-    it('routes `message` to a success line, verbatim', () => {
-      // The acronym survives: the CLI's lowercase-opening rule applies to an
-      // ordinary capitalized word, never to "DNS".
-      formatOutput({ message: 'DNS verification queued successfully' } as never, {}, text);
+    it('composes its own copy for the verify acknowledgement', () => {
+      // The wire carries no prose, so the CLI writes the sentence. A bare
+      // `{ domain }` is the acknowledgement; a Domain entity carries `url`,
+      // which is the only thing separating the two shapes here.
+      formatOutput({ domain: 'www.example.com' } as never, {}, text);
 
-      expect(out()).toContain('DNS verification queued successfully');
+      expect(out()).toContain('www.example.com dns verification queued');
+    });
+
+    it('routes a full Domain entity to the entity formatter, not the ack', () => {
+      formatOutput(
+        { domain: 'www.example.com', url: 'https://www.example.com', links: 1 } as never,
+        {},
+        text,
+      );
+
+      expect(out()).not.toContain('dns verification queued');
+      expect(out()).toContain('https://www.example.com');
     });
   });
 
@@ -265,7 +277,6 @@ describe('formatOutput router', () => {
       ['single deployment', { deployment: 'brave-otter-a1b2c3d' }, 'brave-otter-a1b2c3d'],
       ['account', { email: 'test@example.com' }, 'test@example.com'],
       ['token secret', { secret: 'deploy-abc' }, 'deploy-abc'],
-      ['message', { message: 'queued' }, 'queued'],
     ])('%s', (_name, result, expected) => {
       formatOutput(result as never, {}, quiet);
       expect(logs).toEqual([expected]);
