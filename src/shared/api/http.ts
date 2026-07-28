@@ -44,6 +44,26 @@ import type {
 const DEFAULT_REQUEST_TIMEOUT = 30000;
 
 /**
+ * Deploys get their own ceiling, because one knob cannot do both jobs.
+ *
+ * 30s is right for a metadata read — `/ping`, `/account`, a page of a list —
+ * where anything slower is a fault rather than a big payload. A deploy is
+ * bounded by the PLATFORM's limits instead: `DEPLOYMENT.MAX_TOTAL_SIZE` is
+ * 50MB, and 50MB in 30s needs ~13 Mbit/s of sustained UPLOAD, which is above
+ * what most residential connections give. A deployment the API explicitly
+ * permits was therefore aborted here by default.
+ *
+ * That failure mode is the exact one `Idempotency-Key` exists to repair — a
+ * client-side timeout on a deploy that may well have landed — so leaving it
+ * in place would have meant shipping the remedy and keeping the cause.
+ *
+ * Five minutes covers 50MB at ~1.4 Mbit/s. It stays bounded rather than
+ * absent: a hung socket must still end, and the caller's own `signal`
+ * governs whenever they pass one.
+ */
+const DEFAULT_DEPLOY_TIMEOUT = 300_000;
+
+/**
  * This client's identity in a deployment's `via` field.
  *
  * Every surface that deploys names itself: the CLI sends `cli`, the GitHub
@@ -97,6 +117,7 @@ export class ApiHttp extends SimpleEvents {
   private readonly session: boolean;
   private readonly caller: string | undefined;
   private readonly timeout: number;
+  private readonly deployTimeout: number;
   private readonly fetch: Fetch;
   private readonly createDeployBody: DeployBodyCreator;
   private readonly deployEndpoint: string;
@@ -109,6 +130,10 @@ export class ApiHttp extends SimpleEvents {
     this.session = options.session ?? false;
     this.caller = options.caller;
     this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
+    // An explicit timeout is the caller's whole answer and applies to deploys
+    // too — they asked for a ceiling, not for one with an exception. Only the
+    // DEFAULT splits by operation.
+    this.deployTimeout = options.timeout ?? DEFAULT_DEPLOY_TIMEOUT;
     // Bind to globalThis when falling back to the platform `fetch` — browsers
     // require `this === window` on `window.fetch` and throw "Illegal invocation"
     // when it's invoked as a property of any other object.
@@ -136,6 +161,7 @@ export class ApiHttp extends SimpleEvents {
     url: string,
     options: RequestInit,
     operationName: string,
+    timeoutMs: number = this.timeout,
   ): Promise<RequestResult<T>> {
     let cleanup = () => {};
 
@@ -144,7 +170,7 @@ export class ApiHttp extends SimpleEvents {
       // provider that throws or yields nothing fails the request through
       // the same typed path (and `error` event) as any transport failure.
       const headers = await this.mergeHeaders(options.headers as Record<string, string>);
-      const timeout = this.createTimeoutSignal(options.signal);
+      const timeout = this.createTimeoutSignal(options.signal, timeoutMs);
       cleanup = timeout.cleanup;
 
       const fetchOptions: RequestInit = {
@@ -180,8 +206,13 @@ export class ApiHttp extends SimpleEvents {
   /**
    * Simple request - returns data only
    */
-  private async request<T>(url: string, options: RequestInit, operationName: string): Promise<T> {
-    const { data } = await this.executeRequest<T>(url, options, operationName);
+  private async request<T>(
+    url: string,
+    options: RequestInit,
+    operationName: string,
+    timeoutMs?: number,
+  ): Promise<T> {
+    const { data } = await this.executeRequest<T>(url, options, operationName, timeoutMs);
     return data;
   }
 
@@ -214,12 +245,15 @@ export class ApiHttp extends SimpleEvents {
     };
   }
 
-  private createTimeoutSignal(existingSignal?: AbortSignal | null): {
+  private createTimeoutSignal(
+    existingSignal?: AbortSignal | null,
+    timeoutMs: number = this.timeout,
+  ): {
     signal: AbortSignal;
     cleanup: () => void;
   } {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     if (existingSignal) {
       const abort = () => controller.abort();
@@ -299,6 +333,7 @@ export class ApiHttp extends SimpleEvents {
         signal: options.signal || null,
       },
       'Deploy',
+      this.deployTimeout,
     );
   }
 

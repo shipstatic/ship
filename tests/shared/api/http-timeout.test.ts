@@ -257,6 +257,70 @@ describe('ApiHttp Timeout & Cancellation', () => {
     });
   });
 
+  describe('deploys get their own ceiling', () => {
+    const files = [
+      { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
+    ];
+
+    it('does not abort a deploy at the 30s read default', async () => {
+      // The platform permits 50MB; 50MB in 30s needs ~13 Mbit/s of upload,
+      // which is above what most residential links give. A deployment the API
+      // explicitly allows must not be aborted here by default — and this is
+      // the exact timeout `Idempotency-Key` exists to repair, so the cause
+      // has to go, not just the remedy.
+      vi.useFakeTimers();
+      try {
+        global.fetch = hangingFetch() as any;
+        const api = new ApiHttp({
+          apiUrl: 'https://api.test.com',
+          getAuthHeaders: () => ({}),
+          createDeployBody: mockCreateDeployBody,
+        });
+
+        const pending = api.deploy(files);
+        const settled = vi.fn();
+        pending.catch(settled);
+
+        // Well past the read default, and still in flight.
+        await vi.advanceTimersByTimeAsync(120_000);
+        expect(settled).not.toHaveBeenCalled();
+
+        // Still bounded, though: a hung socket must end.
+        await vi.advanceTimersByTimeAsync(180_000);
+        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('honours an explicit timeout on deploys too', async () => {
+      // Only the DEFAULT splits by operation. A caller who names a ceiling
+      // asked for a ceiling, not for one with an exception.
+      vi.useFakeTimers();
+      try {
+        global.fetch = hangingFetch() as any;
+        const api = new ApiHttp({
+          apiUrl: 'https://api.test.com',
+          getAuthHeaders: () => ({}),
+          createDeployBody: mockCreateDeployBody,
+          timeout: 1000,
+        });
+
+        const pending = api.deploy(files);
+        const settled = vi.fn();
+        pending.catch(settled);
+
+        await vi.advanceTimersByTimeAsync(999);
+        expect(settled).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('timeout cleanup', () => {
     it('should clear timeout on successful response', async () => {
       const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
