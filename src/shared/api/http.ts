@@ -41,7 +41,7 @@ import type {
 // CONSTANTS
 // =============================================================================
 
-const DEFAULT_REQUEST_TIMEOUT = 30000;
+const DEFAULT_REQUEST_TIMEOUT = 30_000;
 
 /**
  * Deploys get their own ceilings, because one budget cannot fit every
@@ -60,23 +60,26 @@ const DEFAULT_REQUEST_TIMEOUT = 30000;
 const DEFAULT_DEPLOY_TIMEOUT = 300_000;
 
 /**
- * A build or prerender deploy waits for work the SERVER does after the upload
- * lands, so its ceiling is derived rather than chosen: the API gives the build
- * service `PERFORMANCE.BUILD_SERVICE_TIMEOUT` (currently 300s, in
- * `cloudflare/api/src/lib/config.ts`), and the client must outlast the upload
- * AND that budget AND the commit that follows it.
+ * The server's own budget for a build, mirrored here because the client has
+ * to outlast it: the API gives the build service
+ * `PERFORMANCE.BUILD_SERVICE_TIMEOUT` (`cloudflare/api/src/lib/config.ts`),
+ * and that work begins only after the upload lands.
  *
- * Hence upload allowance + build budget. A flat deploy ceiling silently
- * aborted these: `web/my` sends `build: true` through this same client
- * (`DeploymentUploadForm` → `use-deployments`), so the path is real rather
- * than theoretical.
- *
- * **Raising `BUILD_SERVICE_TIMEOUT` server-side must raise this.** The two
- * cannot be fenced together — they live in different repos, and publishing a
- * server timeout into `@shipstatic/types` would be heavier than the coupling
- * deserves — so the constraint is stated at both ends instead.
+ * **Raising it there must raise it here.** The two sit in different repos, so
+ * nothing can fence the pair; the constraint is stated at both ends instead.
  */
-const DEFAULT_BUILD_DEPLOY_TIMEOUT = 600_000;
+const BUILD_SERVICE_BUDGET = 300_000;
+
+/**
+ * A deploy that also builds: the upload, then the build, then the commit.
+ *
+ * Written as a sum rather than a number, so the name and the value compose
+ * the same way — `DEPLOY` plus `BUILD` on one side, the deploy budget plus
+ * the build budget on the other. A magic `600_000` would state the result
+ * and hide the reasoning, and the reasoning is the part that has to survive
+ * someone tuning either half.
+ */
+const DEFAULT_DEPLOY_BUILD_TIMEOUT = DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET;
 
 /**
  * This client's identity in a deployment's `via` field.
@@ -133,7 +136,7 @@ export class ApiHttp extends SimpleEvents {
   private readonly caller: string | undefined;
   private readonly timeout: number;
   private readonly deployTimeout: number;
-  private readonly buildDeployTimeout: number;
+  private readonly deployBuildTimeout: number;
   private readonly fetch: Fetch;
   private readonly createDeployBody: DeployBodyCreator;
   private readonly deployEndpoint: string;
@@ -150,7 +153,7 @@ export class ApiHttp extends SimpleEvents {
     // too — they asked for a ceiling, not for one with an exception. Only the
     // DEFAULT splits by operation.
     this.deployTimeout = options.timeout ?? DEFAULT_DEPLOY_TIMEOUT;
-    this.buildDeployTimeout = options.timeout ?? DEFAULT_BUILD_DEPLOY_TIMEOUT;
+    this.deployBuildTimeout = options.timeout ?? DEFAULT_DEPLOY_BUILD_TIMEOUT;
     // Bind to globalThis when falling back to the platform `fetch` — browsers
     // require `this === window` on `window.fetch` and throw "Illegal invocation"
     // when it's invoked as a property of any other object.
@@ -354,7 +357,7 @@ export class ApiHttp extends SimpleEvents {
       // (`api/src/lib/upload-processing.ts:35`); `spa` is local detection
       // bounded by the AI tier's own 10s, so it does not earn the longer
       // ceiling.
-      options.build || options.prerender ? this.buildDeployTimeout : this.deployTimeout,
+      options.build || options.prerender ? this.deployBuildTimeout : this.deployTimeout,
     );
   }
 
