@@ -25,11 +25,16 @@ function createMockResponse(data: any, status = 200) {
   });
 }
 
-// Mock deploy body creator for tests
-const mockCreateDeployBody = async (_files: any[], _context?: any) => ({
+// Mock deploy body creator for tests. A `vi.fn` so the deploy context it
+// receives — labels, via, password, flags — is assertable: this file is the
+// transport anchor, and that context is the wire contract at this seam.
+const mockCreateDeployBody = vi.fn(async (_files: any[], _context?: any) => ({
   body: new ArrayBuffer(0),
   headers: { 'Content-Type': 'multipart/form-data' },
-});
+}));
+
+/** The deploy context handed to the body creator by the most recent deploy. */
+const lastDeployContext = () => mockCreateDeployBody.mock.calls.at(-1)?.[1];
 
 describe('ApiHttp', () => {
   let apiHttp: ApiHttp;
@@ -300,7 +305,20 @@ describe('ApiHttp', () => {
       await expect(apiHttp.deploy([])).rejects.toThrow('No files to deploy');
     });
 
-    it('should deploy without via when not explicitly provided', async () => {
+    it('runs the config pre-flight before anything reaches the wire', async () => {
+      // The pre-flight's own cases live with the validator
+      // (`tests/shared/lib/validation.unit.test.ts`). What belongs here is
+      // the transport fact: a bad config costs no upload.
+      const files = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'def456', size: 13 },
+        { path: 'ship.json', content: Buffer.from('{"redirects":[],}'), md5: 'abc123', size: 17 },
+      ];
+
+      await expect(apiHttp.deploy(files)).rejects.toMatchObject({ type: ErrorType.Config });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('should identify itself as sdk when via is not provided', async () => {
       const mockFiles = [
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
       ];
@@ -317,7 +335,22 @@ describe('ApiHttp', () => {
       const fetchCall = (global.fetch as any).mock.calls[0];
       expect(fetchCall[0]).toBe('https://api.test.com/deployments');
       expect(fetchCall[1].method).toBe('POST');
-      // via is not sent when not explicitly provided
+      // Every deploy carries an attribution: a direct SDK call is `sdk`, so an
+      // absent `via` on the wire means an unattributed caller, never the SDK.
+      expect(lastDeployContext()?.via).toBe('sdk');
+    });
+
+    it('should let an explicit via win over the sdk default', async () => {
+      const mockFiles = [
+        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
+      ];
+      (global.fetch as any).mockResolvedValue(
+        createMockResponse({ deployment: 'test-deployment', files: 1, size: 13, via: 'web' }),
+      );
+
+      await apiHttp.deploy(mockFiles, { via: 'web' });
+
+      expect(lastDeployContext()?.via).toBe('web');
     });
 
     it('should include custom via field when provided', async () => {

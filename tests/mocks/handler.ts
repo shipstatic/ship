@@ -275,8 +275,12 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
 
   // --- /tokens ----------------------------------------------------------
   if (path === '/tokens') {
-    // wire: routes/tokens.ts:114 — no cursor on this list.
-    if (method === 'GET') return json({ tokens: state.tokens, total: state.tokens.length });
+    // wire: routes/tokens.ts:114 — same limit/cursor pagination as the other
+    // collections; every user-facing list answers `{items, cursor, total}`.
+    if (method === 'GET') {
+      const page = paginate(state.tokens, url.searchParams);
+      return json({ tokens: page.items, cursor: page.cursor, total: state.tokens.length });
+    }
     // wire: routes/tokens.ts:66 — 201.
     if (method === 'POST') {
       const body = (await request.json().catch(() => ({}))) as {
@@ -309,7 +313,9 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
  * Cursor pagination for the list routes. The wire cursor is OPAQUE to
  * clients (they only ever echo it back), so the mock's encoding — the next
  * offset, stringified — is a private detail no test may decode.
- * wire: routes/deployments.ts:235, routes/domains.ts:186 (limit/cursor).
+ * wire: routes/deployments.ts:235, routes/domains.ts:186, routes/tokens.ts:114
+ * (limit/cursor) — one helper because the real API drives all three through
+ * one keyset engine (`api/src/lib/database/pagination.ts`).
  */
 function paginate<T>(rows: T[], params: URLSearchParams): { items: T[]; cursor: string | null } {
   const offset = Number(params.get('cursor') ?? 0) || 0;

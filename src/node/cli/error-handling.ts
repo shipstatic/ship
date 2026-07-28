@@ -72,15 +72,11 @@ export function getUserMessage(
     return 'network error: could not reach the API. check your internet connection';
   }
 
-  // Client errors (Business | Config | File | Forbidden | Validation) —
-  // trust the original message; the API or local code authored it.
+  // Client-attributable — a client-fault type, or any 4xx status (the guard
+  // reads both axes, so a status-derived `Api` at 404 lands here too). The
+  // message was authored for the end user at the throw site, API or local
+  // code alike, so it is shown verbatim.
   if (err.isClientError()) {
-    return err.message;
-  }
-
-  // Other 4xx (NotFound, RateLimit, anything else with a 4xx status) —
-  // the API's message is user-facing; trust it.
-  if (err.status && err.status >= 400 && err.status < 500) {
     return err.message;
   }
 

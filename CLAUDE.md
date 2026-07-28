@@ -485,6 +485,35 @@ citations in `tests/mocks/handler.ts` → `pnpm typecheck` guides the rest.
 
 On upload, the SDK POSTs `index.html` content (must be < 100KB) to `/spa-check` along with the file list. If the API detects SPA patterns (React router, Vue, etc.), the deployment gets rewrite rules for client-side routing. Disable with `spaDetect: false` (SDK) or `--no-spa-detect` (CLI).
 
+## ship.json: the client checks syntax, the server owns the schema
+
+`deploy()` calls `validateDeployConfig` (`shared/lib/validation.ts`) before it
+builds the multipart body — the third of three request-boundary validators in
+the same fast-fail block, beside `validatePassword` and `validateLabels`, all
+imported from that one module. It finds the root `ship.json`, reads it on
+either platform (`Buffer` in Node, `Blob` in the browser), and applies the
+types-tier rule `assertShipJsonSyntax`.
+
+**The split is deliberate and bounded.** ship.json's schema and its compiler
+live on the server and evolve there, so a client that judged them would
+reject configs a newer platform accepts — which is why validation was
+server-only to begin with. The client therefore checks only what is true of
+*every* past and future schema: the text parses as JSON (frozen by RFC 8259),
+and its top level is an object. Both are monotonic; neither can produce a
+false rejection. A UTF-8 BOM is stripped rather than refused, matching the
+server.
+
+What it buys is the hand-edit case — a trailing comma, a `//` comment,
+single quotes, smart quotes pasted from documentation. Measured: an 11 MB
+deploy with a one-character config typo fails in **964 ms having uploaded
+nothing**, against 5.5 s for the same deploy's real upload. Failures carry
+`ErrorType.Config`, the same type the server's own rejection uses, so the
+error contract does not depend on where the mistake was caught.
+
+Scope matches the API's `findDeploymentConfigFile`: the exact name at the
+deploy root, optional leading slash. A `config/ship.json` is an ordinary
+asset and is left alone.
+
 ## Error Handling
 
 All errors use `ShipError` from `@shipstatic/types`. The class provides the full factory + type-guard API and the two HTTP-context constructors (`fromHttpResponse`, `fromFetchError`). See `@shipstatic/types/CLAUDE.md` "Error Flow" for the end-to-end lifecycle.
@@ -518,7 +547,17 @@ For a CLI user who has all three: `--token` flag → env → file, per value. Fo
 | Var | Purpose |
 |---|---|
 | `SHIP_PASSWORD` | Default for `--password <password>` on `ship deploy` / `ship deployments upload`. Empty string is normalized to absence (so unset CI variables don't accidentally protect a deploy). |
-| `SHIP_VIA` | Overrides the deploy `via` field (default `'cli'`). Used by integrations that **wrap the CLI as a subprocess** — the GitHub Action sets `SHIP_VIA=git`. In-process SDK consumers (e.g. the MCP server) set the same field as a programmatic `via` option on the SDK call (`ship.deployments.upload(..., { via: 'mcp' })`) — same destination, different mechanism. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
+| `SHIP_VIA` | Overrides the deploy `via` field (the CLI sends `'cli'` when unset). Used by integrations that **wrap the CLI as a subprocess** — the GitHub Action sets `SHIP_VIA=git`. In-process SDK consumers (e.g. the MCP server) set the same field as a programmatic `via` option on the SDK call (`ship.deployments.upload(..., { via: 'mcp' })`) — same destination, different mechanism. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
+
+**Every deploy names its surface; `via` is never empty by accident.** Each
+client owns its own string — `cli`, `git` (Action), `mcp`, `vsc`, `web` (the
+web apps) — and a direct SDK call falls back to `sdk`, applied at the single
+wire boundary in `api/http.ts` so it cannot differ per platform. There is
+deliberately no central registry of values: integrations outside this repo
+mint their own. What the default buys is that an absent `via` on a stored
+deployment means an unattributed caller (raw HTTP), never "probably the
+SDK" — the reading Vercel's `source` and every self-identifying SDK client
+(AWS, Stripe, OpenAI) assume.
 
 > **Doc placement note:** `SHIP_VIA` and `caller` are intentionally *not* in the public README's CLI Reference / SDK Deploy Options. They're ShipStatic-specific operational levers (analytics origin, rate-limit bucketing) that serve first-party integration code paths and stay in internal-tier surfaces (this file + JSDoc + the integrations submodules). Keep mechanisms of the same shape — platform-tier behavior shaping — in the same tier.
 >
@@ -545,7 +584,7 @@ For a CLI user who has all three: `--token` flag → env → file, per value. Fo
 | `domains.share()` | `GET /domains/:name/share` | Shareable setup hash |
 | `domains.remove()` | `DELETE /domains/:name` | |
 | `tokens.create()` | `POST /tokens` | Returns 201 |
-| `tokens.list()` | `GET /tokens` | |
+| `tokens.list()` | `GET /tokens` | Paginated — same `{limit, cursor}` contract |
 | `tokens.remove()` | `DELETE /tokens/:token` | Wire: 200 `{message}` — SDK resolves `void` |
 | `account.get()` | `GET /account` | |
 | `ping()` | `GET /ping` | Returns boolean |
@@ -561,15 +600,21 @@ conflate them:
 `POST /account/key`, `POST /account/claim`, `DELETE /account`,
 `GET /deployments/:id/config`, `GET /domains/:name/propagation`.
 
+*Settled by decision:* **`GET /activities` stays out of the SDK** (decided
+2026-07-28). It paginates like every other collection on the API side, but
+the dashboard is its only client — a CLI user reads their audit trail in
+`my`, not through a resource. This is a deliberate absence, not a gap: do
+not add `ship.activities` without a new call.
+
 *Open product questions (awaiting a call — see `HANDOVER-SHIP-OVERHAUL.md`
-flagged decisions):* `GET /activities` and `GET /labels` (real endpoints
-with no SDK method — a CLI user would plausibly want both), and
-`Idempotency-Key` on deploys (the API's retry-replay contract explicitly
-targets "agents that retry", yet the SDK/CLI never send the header and
-expose no option — today only reachable via `setHeaders`; flagged
-2026-07-27). None is drift, and none should be added without the call.
-(List pagination, formerly in this list, shipped 2026-07-27 as F1 — see the
-Backend Integration table.)
+flagged decisions):* `GET /labels` (a real endpoint with no SDK method —
+a CLI user would plausibly want it), and `Idempotency-Key` on deploys (the
+API's retry-replay contract explicitly targets "agents that retry", yet the
+SDK/CLI never send the header and expose no option — today only reachable
+via `setHeaders`; flagged 2026-07-27). Neither is drift, and neither should
+be added without the call. (List pagination, formerly in this list, shipped
+2026-07-27 as F1 and reached the last collection — tokens — on 2026-07-28;
+see the Backend Integration table.)
 
 ### Domain Write Semantics
 

@@ -22,7 +22,7 @@ import type {
 } from '@shipstatic/types';
 import { DEFAULT_API, ShipError } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
-import { validateLabels, validatePassword } from '../lib/validation.js';
+import { validateDeployConfig, validateLabels, validatePassword } from '../lib/validation.js';
 import type {
   ApiDeployOptions,
   DeployBodyCreator,
@@ -46,6 +46,21 @@ const ENDPOINTS = {
 } as const;
 
 const DEFAULT_REQUEST_TIMEOUT = 30000;
+
+/**
+ * This client's identity in a deployment's `via` field.
+ *
+ * Every surface that deploys names itself: the CLI sends `cli`, the GitHub
+ * Action `git`, the MCP server `mcp`, the VS Code extension `vsc`, the web
+ * apps `web`. A direct SDK call is `sdk`. Each surface owns its own string —
+ * there is deliberately no central registry, since integrations outside this
+ * repo mint their own.
+ *
+ * Applied at this one wire boundary, so `via` is populated on every deploy
+ * from every platform: an absent value means an unattributed caller (raw
+ * HTTP), never "probably the SDK".
+ */
+const DEPLOY_VIA = 'sdk';
 
 /**
  * Serialize pagination options into a query string, or '' when there are
@@ -259,6 +274,7 @@ export class ApiHttp extends SimpleEvents {
     // Fast-fail on definitely-invalid input before constructing a multipart body.
     validatePassword(options.password);
     const labels = validateLabels(options.labels);
+    await validateDeployConfig(files);
 
     const flags =
       options.build || options.prerender || options.spa
@@ -266,7 +282,7 @@ export class ApiHttp extends SimpleEvents {
         : undefined;
     const { body, headers: bodyHeaders } = await this.createDeployBody(files, {
       labels,
-      via: options.via,
+      via: options.via ?? DEPLOY_VIA,
       password: options.password,
       flags,
       captcha: options.captcha,
@@ -430,8 +446,12 @@ export class ApiHttp extends SimpleEvents {
     );
   }
 
-  async listTokens(): Promise<TokenListResponse> {
-    return this.request(`${this.apiUrl}${ENDPOINTS.TOKENS}`, { method: 'GET' }, 'List tokens');
+  async listTokens(options?: ListOptions): Promise<TokenListResponse> {
+    return this.request(
+      `${this.apiUrl}${ENDPOINTS.TOKENS}${listQuery(options)}`,
+      { method: 'GET' },
+      'List tokens',
+    );
   }
 
   async removeToken(token: string): Promise<void> {

@@ -274,6 +274,7 @@ export function formatTokensList(
 
   const columns = ['token', 'labels', 'created', 'expires'];
   console.log(formatTable(result.tokens, columns, noColor));
+  printCursorHint(result.cursor, noColor);
 }
 
 /**

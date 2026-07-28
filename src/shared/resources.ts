@@ -179,9 +179,9 @@ export function createTokenResource(ctx: ResourceContext): TokenResource {
       return getApi().createToken(options.ttl, options.labels);
     },
 
-    list: async () => {
+    list: async (options?: ListOptions) => {
       await ensureInit();
-      return getApi().listTokens();
+      return getApi().listTokens(options);
     },
 
     remove: async (token: string) => {
