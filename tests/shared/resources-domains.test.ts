@@ -160,24 +160,26 @@ describe('DomainResource', () => {
   });
 
   describe('remove', () => {
-    it('should call api.removeDomain with correct parameter and return void', async () => {
-      const mockResponse = { message: 'Domain removed' };
-      (mockApi.removeDomain as any).mockResolvedValue(mockResponse);
+    it('should resolve the acknowledgement the wire answered with', async () => {
+      // A removal answers with the resource it removed. The SDK used to
+      // discard that body and resolve `void` — one operation with two
+      // contracts. It now passes the projection through unchanged.
+      const ack = { domain: 'staging.example.com' };
+      (mockApi.removeDomain as any).mockResolvedValue(ack);
 
       const result = await domains.remove('staging');
 
       expect(mockApi.removeDomain).toHaveBeenCalledWith('staging');
-      expect(result).toBeUndefined();
+      expect(result).toEqual(ack);
     });
 
     it('should handle different domain names', async () => {
-      const mockResponse = { message: 'Domain removed' };
-      (mockApi.removeDomain as any).mockResolvedValue(mockResponse);
+      (mockApi.removeDomain as any).mockResolvedValue({ domain: 'example.com' });
 
       const result = await domains.remove('production');
 
       expect(mockApi.removeDomain).toHaveBeenCalledWith('production');
-      expect(result).toBeUndefined();
+      expect(result).toEqual({ domain: 'example.com' });
     });
   });
 

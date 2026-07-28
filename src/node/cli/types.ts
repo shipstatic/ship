@@ -6,14 +6,20 @@
 import type {
   Account,
   Deployment,
+  DeploymentDeleteResponse,
   DeploymentListResponse,
   DnsRecord,
   Domain,
+  DomainDeleteResponse,
   DomainDnsResponse,
   DomainListResponse,
   DomainRecordsResponse,
+  DomainShareResponse,
   DomainValidateResponse,
+  DomainVerifyResponse,
+  Token,
   TokenCreateResponse,
+  TokenDeleteResponse,
   TokenListResponse,
 } from '@shipstatic/types';
 import type { DomainSetResult } from '../../shared/types.js';
@@ -80,22 +86,6 @@ export interface EnrichedDomain extends DomainSetResult {
 }
 
 /**
- * Simple message response (e.g., from domain verify).
- */
-export interface MessageResult {
-  message: string;
-}
-
-/**
- * Share response from domains.share() — { domain, hash }.
- * Used to construct the setup URL: https://setup.shipstatic.com/{hash}/{domain}
- */
-export interface DomainShareResponse {
-  domain: string;
-  hash: string;
-}
-
-/**
  * Union of all possible CLI command results.
  * Used by formatOutput to route to the correct formatter.
  */
@@ -111,8 +101,17 @@ export type CLIResult =
   | DomainDnsResponse
   | DomainShareResponse
   | Account
+  | Token
   | TokenCreateResponse
-  | MessageResult
+  | DomainVerifyResponse
+  // A removal answers with the resource it removed — the acknowledgement law
+  // (`@shipstatic/types`, DeploymentDeleteResponse). These used to resolve
+  // `void`, so the CLI printed a composed sentence and the wire's answer was
+  // discarded; now the same projection reaches the formatter as every other
+  // result does.
+  | DeploymentDeleteResponse
+  | DomainDeleteResponse
+  | TokenDeleteResponse
   | boolean
-  // biome-ignore lint/suspicious/noConfusingVoidType: removal handlers resolve with nothing; formatOutput routes undefined to the removal success message
+  // biome-ignore lint/suspicious/noConfusingVoidType: some handlers still resolve with nothing; formatOutput routes undefined to the removal success message
   | void;

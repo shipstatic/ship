@@ -254,12 +254,12 @@ Routes by result shape (discriminated union) — order matters:
 'records' in result      → formatDomainRecords   // must precede 'domain' check
 'hash' in result         → formatDomainShare     // must precede 'domain' check
 'dns' in result          → formatDomainDns       // must precede 'domain' check
+'domain' without 'url'   → formatDomainVerify     // the acknowledgement, not the entity
 'domain' in result       → formatDomain          // plain Domain or EnrichedDomain
 'deployment' in result   → formatDeployment
 'token' in result        → formatToken
 'email' in result        → formatAccount
 'valid' in result        → formatDomainValidate
-'message' in result      → formatMessage
 boolean                  → ping result
 undefined                → removal success message
 ```
@@ -572,22 +572,24 @@ SDK" — the reading Vercel's `source` and every self-identifying SDK client
 | SDK Method | API Endpoint | Notes |
 |------------|--------------|-------|
 | `deployments.upload()` | `POST /deployments` | Multipart upload |
+| ↳ `idempotencyKey` | header `Idempotency-Key` | Replays the original 201 within 24h instead of deploying twice. Key the ATTEMPT (run id, commit sha), never the try. |
 | `deployments.list()` | `GET /deployments` | Paginated — `{limit, cursor}` options (`--limit`/`--cursor` on the CLI; text mode prints a rerun hint while `--json` carries `cursor`) |
-| `deployments.get()` | `GET /deployments/:id` | |
-| `deployments.set()` | `PATCH /deployments/:id` | Labels only |
-| `deployments.remove()` | `DELETE /deployments/:id` | Wire: 202 (async) `{message, deployment, status:'deleting'}` — SDK resolves `void` |
+| `deployments.get()` | `GET /deployments/:deployment` | |
+| `deployments.set()` | `PATCH /deployments/:deployment` | Labels only |
+| `deployments.remove()` | `DELETE /deployments/:deployment` | 202 (async) `{deployment, status:'deleting'}` — resolved, so a caller learns the transitional state without a re-read |
 | `domains.set()` | `PUT /domains/:name` | Upsert — create, repoint, or label |
 | `domains.list()` | `GET /domains` | Paginated — same `{limit, cursor}` contract |
 | `domains.get()` | `GET /domains/:name` | |
 | `domains.validate()` | `POST /domains/validate` | Pre-flight check — name rides the JSON body, not the path |
-| `domains.verify()` | `POST /domains/:name/verify` | Triggers async DNS check |
+| `domains.verify()` | `POST /domains/:domain/verify` | Wire: 202 `{domain}` — the SDK returns it; the CLI composes its own copy |
 | `domains.dns()` | `GET /domains/:name/dns` | DNS provider information |
 | `domains.records()` | `GET /domains/:name/records` | Required DNS records |
 | `domains.share()` | `GET /domains/:name/share` | Shareable setup hash |
-| `domains.remove()` | `DELETE /domains/:name` | |
+| `domains.remove()` | `DELETE /domains/:domain` | 200 `{domain}` — resolved, not discarded |
 | `tokens.create()` | `POST /tokens` | Returns 201 |
 | `tokens.list()` | `GET /tokens` | Paginated — same `{limit, cursor}` contract |
-| `tokens.remove()` | `DELETE /tokens/:token` | Wire: 200 `{message}` — SDK resolves `void` |
+| `tokens.get()` | `GET /tokens/:token` | The same row the listing carries, addressable — `ship tokens get` |
+| `tokens.remove()` | `DELETE /tokens/:token` | 200 `{token}` — resolved, not discarded |
 | `account.get()` | `GET /account` | |
 | `ping()` | `GET /ping` | Returns boolean |
 | `getLimits()` | `GET /limits` | Cached after init |
@@ -599,8 +601,8 @@ conflate them:
 
 *Settled (first-party or operator surfaces; the SDK is not their client):*
 `/billing/*`, `/admin/*`, `/setup`, `/webhooks/*`, `/auth/*`,
-`POST /account/key`, `POST /account/claim`, `DELETE /account`,
-`GET /deployments/:id/config`, `GET /domains/:name/propagation`.
+`PUT /account/key`, `POST /account/claim`, `DELETE /account`,
+`GET /deployments/:deployment/config`, `GET /domains/:domain/propagation`.
 
 *Settled by decision:* **`GET /activities` stays out of the SDK** (decided
 2026-07-28). It paginates like every other collection on the API side, but

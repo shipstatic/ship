@@ -682,6 +682,29 @@ describe('CLI command tree (in-process)', () => {
       expect(result.stdout.trim()).toMatch(/^deploy-[0-9a-f]{64}$/);
     });
 
+    it('get resolves one token — the same row the listing shows', async () => {
+      // Deployments and domains have had `get` since they existed; a token
+      // is no less a resource for being small. The two surfaces are compared
+      // to each other rather than to a literal, because the item-read exists
+      // to be addressable, not to say more.
+      const created = await runProgram(['--json', 'tokens', 'create']);
+      const id = JSON.parse(created.stdout.trim()).token;
+
+      // Sequential: the in-process tier shares one stdout capture, so two
+      // concurrent programs interleave into an unparsable stream.
+      const item = await runProgram(['--json', 'tokens', 'get', id]);
+      const list = await runProgram(['--json', 'tokens', 'list']);
+
+      expect(item.exitCode).toBe(0);
+      const row = JSON.parse(item.stdout.trim());
+      const listed = JSON.parse(list.stdout.trim()).tokens.find(
+        (t: { token: string }) => t.token === id,
+      );
+      expect(row).toEqual(listed);
+      // The secret is shown once at creation and never again.
+      expect(row.secret).toBeUndefined();
+    });
+
     it('list shows created tokens', async () => {
       const created = await runProgram(['--json', 'tokens', 'create']);
       const id = JSON.parse(created.stdout.trim()).token;
@@ -691,7 +714,7 @@ describe('CLI command tree (in-process)', () => {
       expect(output.tokens.map((t: { token: string }) => t.token)).toContain(id);
     });
 
-    it('remove deletes the token — 200 with a message, and the row is gone', async () => {
+    it('remove deletes the token — 200 with the acknowledgement, and the row is gone', async () => {
       const created = await runProgram(['--json', 'tokens', 'create']);
       const id = JSON.parse(created.stdout.trim()).token;
       const removal = await runProgram(['tokens', 'remove', id]);

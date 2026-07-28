@@ -827,6 +827,15 @@ export function buildProgram(): Command {
     );
 
   tokensCmd
+    .command('get <token>')
+    .description('Show one deploy token')
+    .action(
+      withErrorHandling((client: Ship, _options: GlobalOptions, token: string) =>
+        client.tokens.get(token),
+      ),
+    );
+
+  tokensCmd
     .command('remove <token>')
     .description('Delete token permanently')
     .action(
