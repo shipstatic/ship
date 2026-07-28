@@ -151,7 +151,7 @@ describe('DomainResource', () => {
     });
 
     it('forwards pagination options to the API', async () => {
-      (mockApi.listDomains as any).mockResolvedValue({ domains: [], cursor: null, total: 0 });
+      (mockApi.listDomains as any).mockResolvedValue({ domains: [], cursor: null });
 
       await domains.list({ limit: 1, cursor: 'xyz' });
 

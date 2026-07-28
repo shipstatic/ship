@@ -31,14 +31,14 @@ const HELP = `USAGE
 
 COMMANDS
   Deployments
-  ship deployments list                 List all deployments
+  ship deployments list                 List deployments
   ship deployments upload <path>        Upload deployment from file or directory
   ship deployments get <deployment>     Show deployment information
   ship deployments set <deployment>     Set deployment labels
   ship deployments remove <deployment>  Delete deployment permanently
 
   Domains
-  ship domains list                     List all domains
+  ship domains list                     List domains
   ship domains set <name> [deployment]  Create domain, link to deployment, or update labels
   ship domains get <name>               Show domain information
   ship domains validate <name>          Check if domain name is valid and available
@@ -49,7 +49,7 @@ COMMANDS
   ship domains remove <name>            Delete domain permanently
 
   Tokens
-  ship tokens list                      List all deploy tokens
+  ship tokens list                      List deploy tokens
   ship tokens create                    Create a new deploy token
   ship tokens remove <token>            Delete token permanently
 

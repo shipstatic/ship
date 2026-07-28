@@ -161,11 +161,7 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
     // `deployments.list()` against state came back empty.
     if (method === 'GET') {
       const page = paginate(state.deployments, url.searchParams);
-      return json({
-        deployments: page.items,
-        cursor: page.cursor,
-        total: state.deployments.length,
-      });
+      return json({ deployments: page.items, cursor: page.cursor });
     }
     // wire: routes/deployments.ts:52 → lib/deployment-orchestrator.ts — the
     // multipart form's `labels` (JSON array), `via`, and `password` fields are
@@ -230,7 +226,7 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
   if (path === '/domains' && method === 'GET') {
     // wire: routes/domains.ts:186 — same limit/cursor pagination.
     const page = paginate(state.domains, url.searchParams);
-    return json({ domains: page.items, cursor: page.cursor, total: state.domains.length });
+    return json({ domains: page.items, cursor: page.cursor });
   }
 
   if (path === '/domains/validate' && method === 'POST') {
@@ -276,10 +272,12 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
   // --- /tokens ----------------------------------------------------------
   if (path === '/tokens') {
     // wire: routes/tokens.ts:114 — same limit/cursor pagination as the other
-    // collections; every user-facing list answers `{items, cursor, total}`.
+    // collections; every list answers exactly `{ <collection>, cursor }`.
+    // `cursor: null` is the whole has-more signal, which is why there is no
+    // count here: a page is not an aggregate.
     if (method === 'GET') {
       const page = paginate(state.tokens, url.searchParams);
-      return json({ tokens: page.items, cursor: page.cursor, total: state.tokens.length });
+      return json({ tokens: page.items, cursor: page.cursor });
     }
     // wire: routes/tokens.ts:66 — 201.
     if (method === 'POST') {

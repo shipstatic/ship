@@ -157,9 +157,9 @@ describe('formatOutput router', () => {
     });
 
     it('says so plainly when a list is empty', () => {
-      formatOutput({ deployments: [], cursor: null, total: 0 } as never, {}, text);
-      formatOutput({ domains: [], cursor: null, total: 0 } as never, {}, text);
-      formatOutput({ tokens: [], total: 0 } as never, {}, text);
+      formatOutput({ deployments: [], cursor: null } as never, {}, text);
+      formatOutput({ domains: [], cursor: null } as never, {}, text);
+      formatOutput({ tokens: [], cursor: null } as never, {}, text);
 
       expect(out()).toContain('no deployments found');
       expect(out()).toContain('no domains found');

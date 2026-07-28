@@ -73,7 +73,7 @@ describe('Base Ship Class (Abstract)', () => {
       ping: vi.fn().mockResolvedValue(true),
       getLimits: vi.fn().mockResolvedValue({}),
       checkSPA: vi.fn().mockResolvedValue(false),
-      listDeployments: vi.fn().mockResolvedValue({ deployments: [], cursor: null, total: 0 }),
+      listDeployments: vi.fn().mockResolvedValue({ deployments: [], cursor: null }),
       getDeployment: vi.fn().mockResolvedValue({ deployment: 'brave-otter-a1b2c3d' }),
       removeDeployment: vi.fn().mockResolvedValue(undefined),
       getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),

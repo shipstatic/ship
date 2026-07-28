@@ -519,7 +519,7 @@ describe('ApiHttp', () => {
 
     it('serializes pagination options as limit/cursor query params', async () => {
       (global.fetch as any).mockResolvedValue(
-        createMockResponse({ deployments: [], cursor: null, total: 0 }),
+        createMockResponse({ deployments: [], cursor: null }),
       );
 
       await apiHttp.listDeployments({ limit: 2, cursor: 'abc123' });
@@ -532,7 +532,7 @@ describe('ApiHttp', () => {
 
     it('sends no query string when no pagination options are given', async () => {
       (global.fetch as any).mockResolvedValue(
-        createMockResponse({ deployments: [], cursor: null, total: 0 }),
+        createMockResponse({ deployments: [], cursor: null }),
       );
 
       await apiHttp.listDeployments({});
