@@ -202,23 +202,7 @@ describe('true-binary smoke', () => {
     });
   });
 
-  describe('shell completion fast-path', () => {
-    // `--comp*` answers before Commander is even constructed (bin fast-path
-    // in `src/node/cli/index.ts`) — reachable only through the real binary.
-    it('lists command words for bash and zsh, space-separated', async () => {
-      for (const flag of ['--compbash', '--compzsh']) {
-        const result = await runCli([flag]);
-        expect(result.exitCode).toBe(0);
-        // Registration order, because the list is now READ FROM THE TREE
-        // rather than restated — `--compbash` carried its own hardcoded array
-        // until 2026-07-29, and it disagreed with the help page about whether
-        // `account` exists.
-        expect(result.stdout.trim()).toBe(
-          'ping whoami deployments domains tokens account completion config',
-        );
-      }
-    });
-
+  describe('shell completion', () => {
     // The install path writes a script the binary RENDERS from its own tree —
     // no `completions/` directory ships any more, so this tier proves the whole
     // round trip through a real HOME. The FAILURE paths (and their exit codes)
@@ -277,21 +261,6 @@ describe('true-binary smoke', () => {
       } finally {
         rmSync(home, { recursive: true, force: true });
       }
-    });
-
-    it('lists command words for fish, newline-separated', async () => {
-      const result = await runCli(['--compfish']);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim().split('\n')).toEqual([
-        'ping',
-        'whoami',
-        'deployments',
-        'domains',
-        'tokens',
-        'account',
-        'completion',
-        'config',
-      ]);
     });
   });
 });

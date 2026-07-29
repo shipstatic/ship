@@ -17,26 +17,16 @@
  * (`tests/node/cli/smoke.test.ts`), never in-process.
  */
 import { CommanderError } from 'commander';
-import { buildProgram, handleCompletion } from './index.js';
+import { buildProgram } from './index.js';
 
-const wantsCompletion =
-  process.argv.includes('--compbash') ||
-  process.argv.includes('--compzsh') ||
-  process.argv.includes('--compfish');
-
-if (wantsCompletion) {
-  handleCompletion();
-} else {
-  buildProgram()
-    .parseAsync(process.argv)
-    .catch((err: unknown) => {
-      // The exit override reports errors before throwing; the bare
-      // CommanderError that reaches here only carries the exit code
-      // (help/version legitimately carry 0).
-      if (err instanceof CommanderError) {
-        process.exitCode = err.exitCode;
-        return;
-      }
-      throw err;
-    });
-}
+buildProgram()
+  .parseAsync(process.argv)
+  .catch((err: unknown) => {
+    // The exit override reports errors before throwing; the bare CommanderError
+    // that reaches here only carries the exit code (help/version carry 0).
+    if (err instanceof CommanderError) {
+      process.exitCode = err.exitCode;
+      return;
+    }
+    throw err;
+  });

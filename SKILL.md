@@ -223,6 +223,8 @@ Every command supports three modes:
 | `--json` | JSON on stdout | Parsing programmatically |
 | `-q` | Identifier only | Piping between commands |
 
+`-q` prints the resource identifier — except `tokens create -q`, which prints the token **secret** (shown once, never again).
+
 Errors go to stderr in all modes. Exit 0 = success, 1 = error.
 
 List commands return `{"<resource>s": [...], "cursor": null}`. A non-null `cursor` means more pages remain — pass it back with `--cursor` to continue, and size pages with `--limit`. There is no total; a count is an aggregate over a collection, not a property of one page. `domains list` text mode omits status — use `--json` to see `pending` vs `success`.

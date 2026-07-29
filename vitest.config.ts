@@ -51,15 +51,15 @@ export default defineConfig({
        * class is fenced by tests/architecture/test-integrity.test.ts.
        */
       thresholds: {
-        statements: 93,
-        branches: 87,
-        functions: 94,
-        lines: 93,
+        statements: 94,
+        branches: 88,
+        functions: 96,
+        lines: 95,
         // The TTY-only spinner and the SIGINT handler are unreachable
         // in-process by design — the smoke tier proves them through the real
         // binary. (The bin execution block used to be here too; it moved to
         // `bin.ts` on 2026-07-29, which is why this floor rose.)
-        'src/node/cli/index.ts': { statements: 87, branches: 75 },
+        'src/node/cli/index.ts': { statements: 89, branches: 76 },
         // `bin.ts` is the process ENTRY POINT: it runs on import, so it cannot
         // execute in-process at all and reads 0%. Recorded rather than
         // excluded — a zero that is explained is worth more than a file

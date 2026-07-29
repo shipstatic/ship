@@ -139,6 +139,8 @@ ship.getLimits()              // → platform plan limits (cached)
 
 The `-q` flag outputs only the resource identifier — perfect for piping and scripting:
 
+`ship tokens create -q` is the one exception: it prints the token **secret**, which is shown once and never again.
+
 ```bash
 # Deploy and link domain in one pipe
 ship ./dist -q | ship domains set www.example.com

@@ -20,7 +20,6 @@
  */
 
 import { isShipError, ShipError } from '@shipstatic/types';
-import type { OutputContext } from './formatters.js';
 
 /**
  * Normalize any thrown value to a `ShipError` for the CLI error boundary.
@@ -56,11 +55,7 @@ export interface ErrorOptions {
  * This is a pure function - given the same inputs, always returns the same output.
  * All error message logic is centralized here for easy testing and maintenance.
  */
-export function getUserMessage(
-  err: ShipError,
-  _context?: OutputContext,
-  options?: ErrorOptions,
-): string {
+export function getUserMessage(err: ShipError, options?: ErrorOptions): string {
   // Auth errors - tell user what credentials to provide
   if (err.isAuthError()) {
     if (options?.token) {
