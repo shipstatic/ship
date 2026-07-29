@@ -273,8 +273,8 @@ The two diverge routinely — a deployment is addressable by bare slug and
 answers with its hostname; a domain is accepted in any case and answers
 normalized — so a sentence built from the argument names whichever form the
 caller happened to type. The resource noun is the CLI's own word, and because
-an acknowledgement is the resource noun carrying its key, that one lowercased
-`resourceType` both selects the field and writes the sentence.
+an acknowledgement is the resource noun carrying its key, that one `resource`
+both selects the field and writes the sentence.
 
 This regressed once, in `11fc633` ("the SDK reaches what the API offers"). The
 commit gave the delete methods real return types and, in the same diff, widened
@@ -485,17 +485,31 @@ deploymentsCmd
   .action(withErrorHandling(
     (client: Ship, _options: GlobalOptions, deployment: string) =>
       client.deployments.get(deployment),
-    { operation: 'get', resourceType: 'Deployment' }
+    { operation: 'get', resource: 'deployment' }
   ));
 ```
 
-The context object (`operation`, `resourceType`) names what the command IS, and
-is built once for both the output and error paths. It deliberately carries
-**no positional argument**: the arguments are the request, and every sentence
-the CLI writes about a result is composed from the response. A `getResourceId`
-plumbed the caller's argument to the formatter until 2026-07-29, where its only
-consumer echoed it back as the deletion identifier — see "Deletions answer with
-an acknowledgement".
+`OutputContext` (`operation`, `resource`) names what the command IS. Both are
+**union types**, not strings: `operation` selects behaviour (`PAST_TENSE`,
+`ACKNOWLEDGING`) and `resource` names the response field carrying the
+identifier, so a typo in either used to mean a command that silently announced
+nothing with every test still green. `resource` is lowercase because that IS
+the field name — `announce` reads `result[resource]` directly; it was
+`resourceType: 'Deployment'` with a `.toLowerCase()` at the single point of
+use, a capitalisation carried around only to undo.
+
+It reaches `formatOutput` and **nothing else**. The error path took it too
+until 2026-07-29 and ignored it — `getUserMessage`'s parameter was literally
+`_context` — and could not have used it either: the wire message already names
+the resource, which is why the CLI relays it. `withErrorHandling` additionally
+re-declared the context's shape inline and rebuilt it field by field into a
+copy; both are gone.
+
+It deliberately carries **no positional argument**: the arguments are the
+request, and every sentence the CLI writes about a result is composed from the
+response. A `getResourceId` plumbed the caller's argument to the formatter
+until 2026-07-29, where its only consumer echoed it back as the deletion
+identifier — see "Deletions answer with an acknowledgement".
 
 ### `formatOutput` Router
 
@@ -717,7 +731,10 @@ in-process:
 - **Child-process smoke tier** (`smoke.test.ts`, the ONE file that spawns
   `dist/cli.cjs`): proves what only a real binary can — byte-exact help, exit
   codes, stdin piping, colour responding to the launch environment, the
-  `--comp*` completion fast-path, and stdout surviving a pipe intact.
+  stdout surviving a pipe intact, and the completion round trip — install
+  through the real binary, then `bash -n` / `zsh -n` / `fish --no-execute` over
+  what it wrote, because a real shell is the only thing that can say the
+  rendered script parses.
 
 ### The browser capability tier
 

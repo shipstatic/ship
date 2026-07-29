@@ -421,7 +421,7 @@ export function buildProgram(): Command {
    * Error handler - outputs errors consistently in text or JSON format.
    * Message formatting is delegated to the error-handling module.
    */
-  function handleError(err: unknown, context?: OutputContext) {
+  function handleError(err: unknown) {
     const opts = processOptions(program);
     const shipError = toShipError(err);
 
@@ -434,7 +434,7 @@ export function buildProgram(): Command {
       // Only the auth branch consults the credential, and resolving it reads
       // `.shiprc` — so a local failure (`completion install`, `config`) must
       // not pay for it. Eager resolution made every error touch the disk.
-      const message = getUserMessage(shipError, context, {
+      const message = getUserMessage(shipError, {
         token: shipError.isAuthError() ? resolveCliToken(program.opts()) : undefined,
       });
       error(message, false, opts.noColor);
@@ -448,38 +448,34 @@ export function buildProgram(): Command {
   }
 
   /**
-   * Wrapper for CLI actions that handles errors and client creation consistently.
-   * Reduces boilerplate while preserving context for error handling.
+   * Wrapper for CLI actions: one client, one output path, one error path.
+   *
+   * The context says what the command IS — never what the caller typed, since
+   * the arguments are the request and every sentence about a result is composed
+   * from the response. It reaches `formatOutput` and nothing else: the error
+   * path took it too until 2026-07-29, and ignored it (`getUserMessage`'s
+   * parameter was literally `_context`). It could not have used it either — the
+   * wire message already names the resource, which is exactly why the CLI
+   * relays it.
    */
   function withErrorHandling<T extends unknown[], R extends CLIResult>(
     handler: (client: Ship, options: GlobalOptions, ...args: T) => Promise<R>,
-    context?: { operation?: string; resourceType?: string },
+    context: OutputContext = {},
   ) {
     return async function (this: Command, ...args: T) {
       const globalOptions = processOptions(this);
-
-      // Build context once for both output and error paths. It carries what
-      // the command IS, never what the caller typed: the arguments are the
-      // request, and every sentence the CLI writes about a result is composed
-      // from the response.
-      const resolvedContext: OutputContext = context
-        ? {
-            operation: context.operation,
-            resourceType: context.resourceType,
-          }
-        : {};
 
       try {
         const { config, apiUrl, token } = program.opts();
         const client = createClient({ config, apiUrl, token });
         const result = await handler(client, globalOptions, ...args);
-        formatOutput(result, resolvedContext, {
+        formatOutput(result, context, {
           json: globalOptions.json,
           quiet: globalOptions.quiet,
           noColor: globalOptions.noColor,
         });
       } catch (err) {
-        handleError(err, resolvedContext);
+        handleError(err);
       }
     };
   }
@@ -557,7 +553,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling((client: Ship, _options: GlobalOptions) => client.whoami(), {
         operation: 'get',
-        resourceType: 'Account',
+        resource: 'account',
       }),
     );
 
@@ -603,7 +599,7 @@ export function buildProgram(): Command {
             cmdOptions,
             options,
           ),
-        { operation: 'upload', resourceType: 'Deployment' },
+        { operation: 'upload', resource: 'deployment' },
       ),
     );
 
@@ -614,7 +610,7 @@ export function buildProgram(): Command {
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, deployment: string) =>
           client.deployments.get(deployment),
-        { operation: 'get', resourceType: 'Deployment' },
+        { operation: 'get', resource: 'deployment' },
       ),
     );
 
@@ -636,7 +632,7 @@ export function buildProgram(): Command {
         },
         {
           operation: 'set',
-          resourceType: 'Deployment',
+          resource: 'deployment',
         },
       ),
     );
@@ -650,7 +646,7 @@ export function buildProgram(): Command {
           client.deployments.delete(deployment),
         {
           operation: 'delete',
-          resourceType: 'Deployment',
+          resource: 'deployment',
         },
       ),
     );
@@ -691,7 +687,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.get(name),
-        { operation: 'get', resourceType: 'Domain' },
+        { operation: 'get', resource: 'domain' },
       ),
     );
 
@@ -705,7 +701,7 @@ export function buildProgram(): Command {
           if (!result.valid) process.exitCode = 1;
           return result;
         },
-        { operation: 'validate', resourceType: 'Domain' },
+        { operation: 'validate', resource: 'domain' },
       ),
     );
 
@@ -715,7 +711,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.verify(name),
-        { operation: 'verify', resourceType: 'Domain' },
+        { operation: 'verify', resource: 'domain' },
       ),
     );
 
@@ -725,7 +721,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.records(name),
-        { operation: 'records', resourceType: 'Domain' },
+        { operation: 'records', resource: 'domain' },
       ),
     );
 
@@ -735,7 +731,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.dns(name),
-        { operation: 'dns', resourceType: 'Domain' },
+        { operation: 'dns', resource: 'domain' },
       ),
     );
 
@@ -745,7 +741,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.share(name),
-        { operation: 'share', resourceType: 'Domain' },
+        { operation: 'share', resource: 'domain' },
       ),
     );
 
@@ -800,7 +796,7 @@ export function buildProgram(): Command {
           }
           return result;
         },
-        { operation: 'set', resourceType: 'Domain' },
+        { operation: 'set', resource: 'domain' },
       ),
     );
 
@@ -810,7 +806,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.delete(name),
-        { operation: 'delete', resourceType: 'Domain' },
+        { operation: 'delete', resource: 'domain' },
       ),
     );
 
@@ -846,7 +842,7 @@ export function buildProgram(): Command {
           if (labels !== undefined) options.labels = labels;
           return client.tokens.create(options);
         },
-        { operation: 'create', resourceType: 'Token' },
+        { operation: 'create', resource: 'token' },
       ),
     );
 
@@ -865,7 +861,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, token: string) => client.tokens.delete(token),
-        { operation: 'delete', resourceType: 'Token' },
+        { operation: 'delete', resource: 'token' },
       ),
     );
 
@@ -881,7 +877,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling((client: Ship, _options: GlobalOptions) => client.whoami(), {
         operation: 'get',
-        resourceType: 'Account',
+        resource: 'account',
       }),
     );
 
@@ -944,7 +940,7 @@ export function buildProgram(): Command {
         cmdOptions,
         options,
       ),
-    { operation: 'upload', resourceType: 'Deployment' },
+    { operation: 'upload', resource: 'deployment' },
   );
 
   program
@@ -970,9 +966,7 @@ export function buildProgram(): Command {
           !deployPath.includes('.') &&
           !deployPath.startsWith('~');
         if (looksLikeCommand) {
-          handleError(usageError(`unknown command '${deployPath}'`), {
-            operation: 'upload',
-          });
+          handleError(usageError(`unknown command '${deployPath}'`));
           return;
         }
       }
@@ -981,20 +975,4 @@ export function buildProgram(): Command {
     });
 
   return program;
-}
-
-/**
- * The dynamic completion entry point (`ship --compbash|--compzsh|--compfish`).
- *
- * The list is READ FROM THE TREE rather than restated. It carried a hardcoded
- * array of eight names until 2026-07-29 — a seventh statement of the command
- * tree in a repo that already had six, and one that disagreed with the help
- * page (it offered `account`, which `helpText()` has never mentioned).
- */
-export function handleCompletion(): void {
-  const isFish = process.argv.includes('--compfish');
-  const names = buildProgram()
-    .commands.map((c) => c.name())
-    .filter((name) => name !== 'help');
-  console.log(names.join(isFish ? '\n' : ' '));
 }

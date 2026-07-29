@@ -2,6 +2,7 @@
  * Pure formatting functions for CLI output.
  * All formatters are synchronous and have no side effects beyond console output.
  */
+
 import type {
   Account,
   Deployment,
@@ -17,6 +18,7 @@ import type {
   TokenCreateResponse,
   TokenListResponse,
 } from '@shipstatic/types';
+import { DeploymentStatus } from '@shipstatic/types';
 import type { CLIResult, EnrichedDomain } from './types.js';
 // No `error` import, and that is a property worth keeping: a formatter renders
 // a RESULT. Every failure — including a rejected request — reaches the user
@@ -60,8 +62,8 @@ function readField(source: object, field: string): unknown {
  * found would answer "www.example.com domain pending". Keys here are
  * TRANSITIONAL states only; a resting one must never be added.
  */
-const IN_FLIGHT: Readonly<Record<string, string>> = {
-  deleting: 'served until cleanup completes',
+const IN_FLIGHT: Readonly<Partial<Record<string, string>>> = {
+  [DeploymentStatus.DELETING]: 'served until cleanup completes',
 };
 
 /**
@@ -70,7 +72,7 @@ const IN_FLIGHT: Readonly<Record<string, string>> = {
  * `set` is absent because it is an upsert: the wire's 201-vs-200 decided which
  * it was, and `isCreate` carries that decision onto the result.
  */
-const PAST_TENSE: Readonly<Record<string, string>> = {
+const PAST_TENSE: Readonly<Partial<Record<Operation, string>>> = {
   upload: 'uploaded',
   create: 'created',
   delete: 'deleted',
@@ -82,7 +84,7 @@ const PAST_TENSE: Readonly<Record<string, string>> = {
  * its key, maybe a state, and nothing else. The sentence is the whole output;
  * there is no entity to render underneath it.
  */
-const ACKNOWLEDGING = new Set(['delete', 'verify']);
+const ACKNOWLEDGING: ReadonlySet<Operation> = new Set<Operation>(['delete', 'verify']);
 
 /**
  * THE sentence. Every announcement the CLI makes about a mutation is this one
@@ -109,11 +111,10 @@ const ACKNOWLEDGING = new Set(['delete', 'verify']);
  * Mutations announce; reports render.
  */
 function announce(result: CLIResult, context: OutputContext): string | null {
-  const { operation, resourceType } = context;
-  if (!operation || !resourceType) return null;
+  const { operation, resource } = context;
+  if (!operation || !resource) return null;
   if (result === null || typeof result !== 'object') return null;
 
-  const noun = resourceType.toLowerCase();
   const predicate =
     operation === 'set'
       ? readField(result, 'isCreate')
@@ -122,19 +123,56 @@ function announce(result: CLIResult, context: OutputContext): string | null {
       : PAST_TENSE[operation];
   if (!predicate) return null; // a read: there is nothing to announce
 
-  const key = readField(result, noun);
+  const key = readField(result, resource);
   // A handler that resolved no identifier leaves nothing to report, and the CLI
   // does not invent one from the caller's argument.
   if (typeof key !== 'string') return null;
 
   const state = readField(result, 'status');
   const consequence = typeof state === 'string' ? IN_FLIGHT[state] : undefined;
-  return `${key} ${noun} ${consequence ? `${state} — ${consequence}` : predicate}`;
+  return `${key} ${resource} ${consequence ? `${state} — ${consequence}` : predicate}`;
 }
 
+/**
+ * The CLI's verb vocabulary — every command declares one.
+ *
+ * A union rather than `string` because `operation` selects behaviour:
+ * `PAST_TENSE` and `ACKNOWLEDGING` are keyed by it, so a typo used to mean a
+ * command that silently announced nothing, with every test still green.
+ */
+export type Operation =
+  | 'upload'
+  | 'set'
+  | 'create'
+  | 'delete'
+  | 'get'
+  | 'validate'
+  | 'verify'
+  | 'records'
+  | 'dns'
+  | 'share'
+  | 'ping';
+
+/**
+ * The wire noun for a resource — which is also the name of the field carrying
+ * its identifier, platform-wide ("the wire field for an entity's identifier is
+ * the resource noun, never `id`" — `cloudflare/api/CLAUDE.md`).
+ *
+ * Lowercase because that IS the field name: `announce` reads
+ * `result[resource]` directly. It was `resourceType: 'Deployment'` with a
+ * `.toLowerCase()` at the single point of use — a capitalisation the code
+ * carried around only to undo.
+ */
+export type Resource = 'deployment' | 'domain' | 'token' | 'account';
+
+/**
+ * What the command IS: its verb and its noun. Deliberately NOT what the caller
+ * typed — the arguments are the request, and every sentence the CLI writes
+ * about a result is composed from the response.
+ */
 export interface OutputContext {
-  operation?: string;
-  resourceType?: string;
+  operation?: Operation;
+  resource?: Resource;
 }
 
 export interface FormatOptions {

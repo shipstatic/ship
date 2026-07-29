@@ -21,7 +21,12 @@ import type {
   TokenListResponse,
 } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatDeployment, formatOutput } from '../../../src/node/cli/formatters';
+import {
+  formatDeployment,
+  formatOutput,
+  type OutputContext,
+} from '../../../src/node/cli/formatters';
+import type { CLIResult } from '../../../src/node/cli/types';
 import {
   makeDeployment,
   makeDomain,
@@ -250,7 +255,7 @@ describe('formatOutput router', () => {
           deployment: 'happy-cat-abc1234.shipstatic.com',
           status: 'deleting',
         } satisfies DeploymentDeleteResponse,
-        { operation: 'delete', resourceType: 'Deployment' },
+        { operation: 'delete', resource: 'deployment' },
         text,
       );
 
@@ -266,7 +271,7 @@ describe('formatOutput router', () => {
       // presence of a `status` is what keeps "domain pending" unsayable here.
       formatOutput(
         makeDomain('www.example.com', { status: 'pending' }),
-        { operation: 'delete', resourceType: 'Domain' },
+        { operation: 'delete', resource: 'domain' },
         text,
       );
 
@@ -279,7 +284,7 @@ describe('formatOutput router', () => {
       // past tense is the whole truth. The tense follows the wire either way.
       formatOutput(
         { domain: 'www.example.com' },
-        { operation: 'delete', resourceType: 'Domain' },
+        { operation: 'delete', resource: 'domain' },
         text,
       );
 
@@ -297,7 +302,7 @@ describe('formatOutput router', () => {
       // rather than by whichever key it happens to meet first.
       formatOutput(
         { domain: 'www.example.com', deployment: 'happy-cat-abc1234.shipstatic.com' } as never,
-        { operation: 'delete', resourceType: 'Domain' },
+        { operation: 'delete', resource: 'domain' },
         text,
       );
 
@@ -351,7 +356,7 @@ describe('formatOutput router', () => {
       // which is the only thing separating the two shapes here.
       formatOutput(
         { domain: 'www.example.com' } satisfies DomainVerifyResponse,
-        { operation: 'verify', resourceType: 'Domain' },
+        { operation: 'verify', resource: 'domain' },
         text,
       );
 
@@ -382,53 +387,48 @@ describe('formatOutput router', () => {
     const DEPLOYMENT = 'brave-otter-a1b2c3d.shipstatic.com';
     const DOMAIN = 'www.example.com';
 
-    it.each([
+    const GRAMMAR: Array<[string, CLIResult, OutputContext, string]> = [
       [
         'deploy',
         makeDeployment({ deployment: DEPLOYMENT }),
-        { operation: 'upload', resourceType: 'Deployment' },
+        { operation: 'upload', resource: 'deployment' },
         DEPLOYMENT,
       ],
       [
         'domains set (create)',
         { ...makeDomain(DOMAIN), isCreate: true },
-        { operation: 'set', resourceType: 'Domain' },
+        { operation: 'set', resource: 'domain' },
         DOMAIN,
       ],
       [
         'domains set (update)',
         { ...makeDomain(DOMAIN), isCreate: false },
-        { operation: 'set', resourceType: 'Domain' },
+        { operation: 'set', resource: 'domain' },
         DOMAIN,
       ],
       [
         'tokens create',
         makeTokenCreateResponse({ token: 'tok0001' }),
-        { operation: 'create', resourceType: 'Token' },
+        { operation: 'create', resource: 'token' },
         'tok0001',
       ],
       [
         'deployments delete',
         { deployment: DEPLOYMENT, status: 'deleting' } satisfies DeploymentDeleteResponse,
-        { operation: 'delete', resourceType: 'Deployment' },
+        { operation: 'delete', resource: 'deployment' },
         DEPLOYMENT,
       ],
-      [
-        'domains delete',
-        { domain: DOMAIN },
-        { operation: 'delete', resourceType: 'Domain' },
-        DOMAIN,
-      ],
+      ['domains delete', { domain: DOMAIN }, { operation: 'delete', resource: 'domain' }, DOMAIN],
       [
         'tokens delete',
         { token: 'tok0001' },
-        { operation: 'delete', resourceType: 'Token' },
+        { operation: 'delete', resource: 'token' },
         'tok0001',
       ],
       [
         'domains verify',
         { domain: DOMAIN } satisfies DomainVerifyResponse,
-        { operation: 'verify', resourceType: 'Domain' },
+        { operation: 'verify', resource: 'domain' },
         DOMAIN,
       ],
       [
@@ -442,15 +442,17 @@ describe('formatOutput router', () => {
         {},
         DOMAIN,
       ],
-    ])('%s opens with its key', (_name, result, context, key) => {
-      formatOutput(result as never, context, text);
-      expect(out().startsWith(key as string), out()).toBe(true);
+    ];
+
+    it.each(GRAMMAR)('%s opens with its key', (_name, result, context, key) => {
+      formatOutput(result, context, text);
+      expect(out().startsWith(key), out()).toBe(true);
     });
 
     it('names the resource noun after the key, never before it', () => {
       formatOutput(
         makeTokenCreateResponse({ token: 'tok0001' }),
-        { operation: 'create', resourceType: 'Token' },
+        { operation: 'create', resource: 'token' },
         text,
       );
       expect(out()).toContain('tok0001 token created');
@@ -510,7 +512,7 @@ describe('formatOutput router', () => {
           deployment: 'happy-cat-abc1234.shipstatic.com',
           status: 'deleting',
         } satisfies DeploymentDeleteResponse,
-        { operation: 'delete', resourceType: 'Deployment' },
+        { operation: 'delete', resource: 'deployment' },
         quiet,
       );
       expect(logs).toEqual(['happy-cat-abc1234.shipstatic.com']);
@@ -550,7 +552,7 @@ describe('formatOutput router', () => {
           _dnsRecords: [{ type: 'CNAME', name: 'www', value: 'cname.shipstatic.com' }],
           _shareHash: 'abc123',
         } as never,
-        { operation: 'set', resourceType: 'Domain' },
+        { operation: 'set', resource: 'domain' },
         text,
       );
 
@@ -566,7 +568,7 @@ describe('formatOutput router', () => {
     it('says "updated" when the upsert was not a create', () => {
       formatOutput(
         { domain: 'www.example.com', url: 'https://www.example.com', isCreate: false } as never,
-        { operation: 'set', resourceType: 'Domain' },
+        { operation: 'set', resource: 'domain' },
         text,
       );
 

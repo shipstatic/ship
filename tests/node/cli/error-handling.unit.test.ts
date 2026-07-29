@@ -39,7 +39,7 @@ describe('CLI Error Handling', () => {
         const err = ShipError.authentication('Auth failed');
         const options: ErrorOptions = { token: 'ship-abc123' };
 
-        const message = getUserMessage(err, undefined, options);
+        const message = getUserMessage(err, options);
 
         expect(message).toBe('authentication failed: invalid or expired token');
       });
