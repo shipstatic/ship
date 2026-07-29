@@ -107,12 +107,14 @@ ship.domains.set('www.münchen.de');    // → Unicode supported
 ```bash
 ship tokens create --ttl 3600 --label ci
 ship tokens list
+ship tokens get <token>
 ship tokens delete <token>
 ```
 
 ```typescript
 ship.tokens.create({ ttl?, labels? })
 ship.tokens.list()
+ship.tokens.get(token)
 ship.tokens.delete(token)
 ```
 
@@ -120,6 +122,7 @@ ship.tokens.delete(token)
 
 ```bash
 ship whoami
+ship account get
 ship config
 ship ping
 ```

@@ -67,7 +67,7 @@ pnpm build                   # Build all bundles
 | `src/node/cli/completion.ts` | Shell completion install/uninstall |
 | `tests/fixtures/builders.ts` | Typed fixture builders — the only fixture source |
 | `tests/mocks/handler.ts` | The mock API: one Web-standard handler, wire-cited per route |
-| `tests/architecture/` | Suite-time fences (integrity, naming) |
+| `tests/architecture/` | Suite-time fences (integrity, naming, docs contract) |
 
 ## Core Patterns
 
@@ -452,7 +452,7 @@ property of the machine. The same file refuses to run against a **stale
 `dist/`** — those tests execute `dist/cli.cjs`, which `pnpm test` does not
 build.
 
-### The three fences
+### The four fences
 
 `tests/architecture/` holds suite-time invariants. Each catches a class the
 others cannot:
@@ -461,7 +461,22 @@ others cannot:
 |---|---|
 | `test-integrity.test.ts` | A test file that reaches NO production code — the tautology class. A tautology neither raises nor lowers coverage, so no ratchet can see it. Reach is resolved TRANSITIVELY through local test-support modules (`./harness`, `../mocks/…`) but importing only fixture builders does not count — builders pull in `@shipstatic/types`, never `src/`. Its only exceptions are the two artifact tiers (`smoke.test.ts`, `package/dist-entries.test.ts`), each recorded with a reason. |
 | `test-naming.test.ts` | Layout drift: a filename that describes the test instead of its subject, a mirror file with no `src/` counterpart, an aspect split not recorded in this file. |
+| `docs-contract.test.ts` | Drift between the PUBLISHED docs and this code — a command or flag the docs teach that does not exist, a command that exists and no doc teaches, an SDK member or response key the docs name that `@shipstatic/types` dropped. |
 | `coverage.thresholds` | Coverage decay. A ratchet — it only goes up. Global bar plus per-glob floors for the three files whose residual gaps are named in `vitest.config.ts` (bin block/spinner/SIGINT are smoke-proven; browser env arms are browser-tier-proven). |
+
+**`SKILL.md` is API surface, not prose.** `package.json` publishes it beside
+`README.md`, and for an agent it IS the API surface — the file read before a
+command is typed. The 2026-07-29 `remove` → `delete` rename swept every source
+file, every test and README, and missed it: `2.0.0-beta.8` shipped teaching
+three commands with no alias to soften the landing, plus `"total": N` on list
+responses, a field types had deliberately removed. Both drifts sat outside all
+five fences of that wave, because every one of them fenced code.
+
+The fence reads the docs named in `files`, so **shipping a new markdown file is
+what puts it under contract** — there is no list to update. Its one deliberate
+omission is `helpText()`: a hand-curated front page (see "Two help scopes")
+byte-pinned by the smoke tier, where leaving a command out is a design choice.
+Reference documentation makes no such claim.
 
 ### The mock server
 
@@ -582,7 +597,7 @@ coupling; separate CI step with `playwright install chromium`.
 
 ```
 tests/
-├── architecture/     # Fences: integrity, naming
+├── architecture/     # Fences: integrity, naming, docs contract
 ├── browser/ node/ shared/   # Mirror axis — tests/<path>/<module>.test.ts
 ├── node/cli/harness.ts      # In-process CLI runner (buildProgram + capture)
 ├── node/cli/smoke.test.ts   # The ONE child-process file (dist/cli.cjs)
