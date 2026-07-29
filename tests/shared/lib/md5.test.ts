@@ -18,7 +18,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ShipError } from '@shipstatic/types';
+import { ErrorType, ShipError } from '@shipstatic/types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { calculateMD5 } from '../../../src/shared/lib/md5';
 
@@ -108,10 +108,18 @@ describe('calculateMD5', () => {
       expect((await calculateMD5(file)).md5).toBe(ALL_BYTES);
     });
 
-    it('rejects with a ShipError naming the read failure', async () => {
-      await expect(calculateMD5(join(dir, 'does-not-exist'))).rejects.toThrow(
-        /Failed to read file for MD5/,
-      );
+    it('rejects with a File error naming the read failure and the path', async () => {
+      const missing = join(dir, 'does-not-exist');
+
+      // A local read that failed mirrors no server rule, so it carries no
+      // status — it was `business` (and a fabricated 400) until 2026-07-29.
+      // The path rides `details`, not a second copy in the prose.
+      const err: ShipError = await calculateMD5(missing).catch((e) => e);
+
+      expect(err.type).toBe(ErrorType.File);
+      expect(err.status).toBeUndefined();
+      expect(err.message).toMatch(/Failed to read file for MD5/);
+      expect(err.details).toEqual({ filePath: missing });
     });
   });
 

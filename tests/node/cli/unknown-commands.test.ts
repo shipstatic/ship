@@ -19,6 +19,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { ErrorType } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
 import { runProgram } from './harness';
 
@@ -152,11 +153,16 @@ describe('CLI error format law', () => {
     },
   );
 
-  it('--json emits the message as an error object and suppresses the help', async () => {
+  it('--json emits the wire ErrorResponse and suppresses the help', async () => {
     const result = await runProgram(['--json', 'invalidcommand']);
 
     expect(result.exitCode).not.toBe(0);
-    expect(JSON.parse(result.stderr)).toEqual({ error: "unknown command 'invalidcommand'" });
+    // No status: `ErrorResponse.status` is an HTTP fact "(API contexts)", and
+    // no API ever sees `ship invalidcommand`.
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: ErrorType.Validation,
+      message: "unknown command 'invalidcommand'",
+    });
     expect(result.stdout).not.toContain('USAGE');
   });
 
@@ -164,7 +170,9 @@ describe('CLI error format law', () => {
     const result = await runProgram(['deployments', 'bad', '--json']);
 
     expect(result.exitCode).not.toBe(0);
-    expect(JSON.parse(result.stderr).error).toBe("unknown command 'bad'");
+    const parsed = JSON.parse(result.stderr);
+    expect(parsed.error).toBe(ErrorType.Validation);
+    expect(parsed.message).toBe("unknown command 'bad'");
     expect(result.stdout).not.toContain('usage:');
   });
 });

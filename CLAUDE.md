@@ -26,7 +26,7 @@ src/
         ├── create-client.ts # Credential precedence (flag → env → file) → Ship instance
         ├── shiprc.ts        # cosmiconfig loader for .shiprc / package.json — CLI ONLY
         ├── config.ts        # Interactive `ship config` wizard
-        ├── error-handling.ts # toShipError + getUserMessage + formatErrorJson
+        ├── error-handling.ts # toShipError + getUserMessage (TEXT channel)
         ├── formatters.ts    # Resource-specific output (formatOutput router)
         ├── utils.ts         # Output primitives (success/error/info, table, details)
         ├── types.ts         # CLI option + result types
@@ -62,7 +62,7 @@ pnpm build                   # Build all bundles
 | `src/node/cli/utils.ts` | Output primitives (`success`, `error`, `warn`, `info`, `formatTable`, `formatDetails`) |
 | `src/node/cli/formatters.ts` | Resource-specific output formatters, `formatOutput` router |
 | `src/node/cli/types.ts` | CLI option and result types (`GlobalOptions`, `CLIResult`, `EnrichedDomain`) |
-| `src/node/cli/error-handling.ts` | CLI error UX — `toShipError` (normalize), `getUserMessage` (translate), `formatErrorJson` (--json output) |
+| `src/node/cli/error-handling.ts` | CLI error UX — `toShipError` (normalize), `getUserMessage` (translate). Text channel only; `--json` transmits `ShipError.toResponse()` via `utils.ts` `error()` |
 | `src/node/cli/config.ts` | Interactive `ship config` wizard (writes `~/.shiprc`) |
 | `src/node/cli/completion.ts` | Shell completion install/uninstall |
 | `tests/fixtures/builders.ts` | Typed fixture builders — the only fixture source |
@@ -198,7 +198,79 @@ These are `@internal` flags — only used by `web/my` and `web/www` via the `/up
 | Data (single) | key-value pairs | raw JSON object | key identifier only |
 | Data (list) | table | raw JSON object | one identifier per line |
 | Void/ping | success/error text | `{ "success": "..." }` | no output (exit code) |
-| Error | `[error]` prefix, red | `{ "error": "..." }` | stderr (unchanged) |
+| Error | `[error]` prefix, red | `ErrorResponse` (see below) | stderr (unchanged) |
+
+**Text translates, JSON transmits.** The three message envelopes above
+(`success` / `warning` / `info`) have no wire counterpart, so they are
+CLI-shaped `{ kind: message }`. Errors do have one, and the `--json` channel
+emits it verbatim — `ShipError.toResponse()`, so `error` names the
+`ErrorType`, `message` carries the wire's own sentence, `status` the HTTP
+status. Text mode is the only channel that gets `getUserMessage`'s actionable
+rewording ("pass --token, set SHIP_TOKEN, or run ship config").
+
+The two must not be merged. Until 2026-07-29 `--json` emitted
+`{ error: <message> }` — prose under the key the API, the SDK, and
+`@shipstatic/types` all reserve for the type, which left an agent nothing to
+branch on but the sentence, against this platform's own rule that clients
+branch on `error` type / `status` and never on message strings. Five emitters
+carried the inverted shape, not one.
+
+Two things hold it now, and neither is prose: `error()` in `utils.ts` is
+**overloaded** so that a bare string is accepted only for the text channel
+(an untyped failure has no wire shape, so writing one into `--json` is a
+compile error), and `tests/node/cli/json-errors.test.ts` asserts the envelope
+across every producer — the global boundary, Commander's parser,
+`handleUnknownSubcommand`, the `preAction` validator, and transport failure.
+### What a status means
+
+`ErrorResponse.status` is documented **"HTTP status code (API contexts)"** — it
+is a fact about an exchange, not decoration on a 4xx-ish type. So the question
+is never "did we make a request?", it is **"what would the wire say?"**:
+
+- **A check that mirrors a server rule keeps the status the server would send.**
+  Blocked extensions, label rules, password length, token format — the platform
+  validates these on both sides from the same imported rules (root `CLAUDE.md`,
+  "Validation Architecture"), and the whole point is that the error reads the
+  same wherever it was caught. `ShipError.validation(...)` with its 400 is
+  correct here.
+- **A fault with no server rule to mirror carries no status**, and therefore one
+  of the client-only types — `Network`, `Cancelled`, `File`, `Config`, which are
+  exactly the statusless factories in `@shipstatic/types`. Your shell, your
+  dotfile, this binary's command grammar: no API has an opinion on any of them,
+  so a 400 would be an HTTP fact about an exchange that never happened. That is
+  a *plausible* lie, which is worse than an obvious one — it survives review.
+
+`completion.ts` is the worked example: an fs call that threw is `file`,
+everything else there is a statement about the user's shell setup, so `config`.
+CLI grammar errors go through `usageError()` in `index.ts` — `Validation` for
+the type, no status.
+
+**The SDK was audited against this rule (2026-07-29) and mostly already
+complied** — an earlier note here claimed "~25 sites violate it", which was
+wrong and is corrected. Almost every local throw in `src/shared/`,
+`src/browser/`, and `src/node/core/` *mirrors a server rule* and rightly keeps
+its 400: blocked extensions, unsafe filenames, path traversal, label rules, and
+the size/count caps all come from the same imported constants the API enforces
+(`hasUnbuiltMarker` is checked in `api/src/lib/validation.ts` too). One site was
+genuinely wrong — a failed local file read in `md5.ts`, now `ShipError.file`
+with the path in `details`.
+
+What remains is a third category the rule deliberately does not govern:
+**assertions** like "processFilesForNode can only be called in Node.js
+environment" or "Invalid input for MD5 calculation". They guard states a correct
+caller cannot reach, so their type and status are not a contract anyone reads,
+and reclassifying them would be churn for no observable difference. Leave them.
+
+**Local commands throw; they never report.** `completion` and `config` make no
+request, so neither can use `withErrorHandling` (it builds a `Ship`, which
+resolves credentials). Both take the same shape instead — the action wraps the
+call and hands anything thrown to `handleError` — which is what gives a local
+failure the same one writer and the same exit code as every other. Reporting
+inline is not a smaller version of this; it is a different thing that looks the
+same: `completion` printed `[error] …` and then exited **0** until 2026-07-29,
+so `ship completion install && …` ran on after a failure. `handleError` in turn
+resolves the credential only for the auth branch, so a local failure never
+reads `.shiprc` to render its own message.
 
 - Text messages open lowercase (leading sentence word decapitalized; identifiers, paths, and acronyms survive verbatim); trailing periods stripped
 - Removal operations (void result) produce a success message
@@ -524,8 +596,12 @@ All errors use `ShipError` from `@shipstatic/types`. The class provides the full
 
 **CLI error UX** (`src/node/cli/error-handling.ts`) — pure functions, fully unit-testable:
 - `toShipError(err)` — normalizes any thrown value to a `ShipError` (used by the CLI's global error handler for non-fetch errors like Commander parse failures).
-- `getUserMessage(err, context, options)` — maps a `ShipError` to an actionable user-facing CLI string (auth → credential hints, network → connectivity, client/4xx → trust the API message, 5xx → generic "try again").
-- `formatErrorJson(message, details)` — serializes `{ "error": "...", "details": ... }` for `--json` output.
+- `getUserMessage(err, context, options)` — maps a `ShipError` to an actionable user-facing CLI string (auth → credential hints, network → connectivity, client/4xx → trust the API message, 5xx → generic "try again"). **Text channel only.**
+
+There is deliberately no JSON formatter in this module. `--json` serialization
+is `ShipError.toResponse()`, emitted by `error()` in `utils.ts` — a second
+serializer is exactly how the `--json` envelope drifted from the wire's in the
+first place. See "Output Conventions" above.
 
 ## Known Gotchas
 

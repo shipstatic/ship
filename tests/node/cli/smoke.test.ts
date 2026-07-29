@@ -11,7 +11,10 @@
  * environment, and the completion fast-path answers before Commander loads.
  */
 
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runCli } from './helpers';
 
@@ -164,8 +167,12 @@ describe('true-binary smoke', () => {
     it('--json errors are machine-readable on stderr', async () => {
       const result = await runCli(['--json', 'definitely-not-a-command']);
       expect(result.exitCode).toBe(1);
+      // The real binary's envelope, byte for byte: `error` is the ErrorType,
+      // `message` the sentence. Proving it HERE matters — the in-process tier
+      // shares a module graph with the assertion, this one does not.
       expect(JSON.parse(result.stderr)).toEqual({
-        error: "unknown command 'definitely-not-a-command'",
+        error: 'validation_failed',
+        message: "unknown command 'definitely-not-a-command'",
       });
     });
   });
@@ -202,6 +209,26 @@ describe('true-binary smoke', () => {
         expect(result.stdout.trim()).toBe(
           'ping whoami deployments domains tokens account config completion',
         );
+      }
+    });
+
+    // The install path needs `completions/` beside the entry — a fact of the
+    // built layout that only this tier has. The FAILURE paths (and their exit
+    // codes) are proven in the in-process tier, which sees them for coverage.
+    it('installs and uninstalls against a real HOME, exiting 0 each time', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'ship-smoke-comp-'));
+      try {
+        const env = { HOME: home, SHELL: '/bin/zsh' };
+
+        const install = await runCli(['completion', 'install'], { env });
+        expect(install.exitCode).toBe(0);
+        expect(existsSync(join(home, '.ship_completion.zsh'))).toBe(true);
+
+        const uninstall = await runCli(['completion', 'uninstall'], { env });
+        expect(uninstall.exitCode).toBe(0);
+        expect(existsSync(join(home, '.ship_completion.zsh'))).toBe(false);
+      } finally {
+        rmSync(home, { recursive: true, force: true });
       }
     });
 

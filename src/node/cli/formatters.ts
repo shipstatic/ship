@@ -2,20 +2,21 @@
  * Pure formatting functions for CLI output.
  * All formatters are synchronous and have no side effects beyond console output.
  */
-import type {
-  Account,
-  Deployment,
-  DeploymentCreateResponse,
-  DeploymentListResponse,
-  Domain,
-  DomainDnsResponse,
-  DomainListResponse,
-  DomainRecordsResponse,
-  DomainShareResponse,
-  DomainValidateResponse,
-  DomainVerifyResponse,
-  TokenCreateResponse,
-  TokenListResponse,
+import {
+  type Account,
+  type Deployment,
+  type DeploymentCreateResponse,
+  type DeploymentListResponse,
+  type Domain,
+  type DomainDnsResponse,
+  type DomainListResponse,
+  type DomainRecordsResponse,
+  type DomainShareResponse,
+  type DomainValidateResponse,
+  type DomainVerifyResponse,
+  ShipError,
+  type TokenCreateResponse,
+  type TokenListResponse,
 } from '@shipstatic/types';
 import type { CLIResult, EnrichedDomain } from './types.js';
 import { error, formatDetails, formatTable, info, success } from './utils.js';
@@ -367,7 +368,10 @@ export function formatOutput(
     if (result) {
       success('api reachable', json, noColor);
     } else {
-      error('api unreachable', json, noColor);
+      // `ping()` resolving false means the API answered non-OK — the one
+      // failure the CLI reports without an exception behind it, so it names
+      // its own type rather than reaching `handleError`.
+      error(ShipError.network('api unreachable'), json, noColor);
     }
     return;
   }

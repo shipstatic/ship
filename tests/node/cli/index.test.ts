@@ -13,9 +13,12 @@
  * outcomes surface across text / `--json` / `-q` modes.
  */
 
+import { mkdtempSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
+import { ErrorType } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
 import { A_RECORD_IP, CNAME_TARGET, deploymentId } from '../../fixtures/builders';
 import { mockState } from '../../mocks/server';
@@ -302,7 +305,7 @@ describe('CLI command tree (in-process)', () => {
     it('rejects labels shorter than 3 characters before any request (SDK boundary)', async () => {
       const result = await runProgram(['--json', DEMO_SITE, '--label', 'ab']);
       expect(result.exitCode).toBe(1);
-      expect(JSON.parse(result.stderr.trim()).error).toContain('at least 3 characters');
+      expect(JSON.parse(result.stderr.trim()).message).toContain('at least 3 characters');
     });
 
     it('rejects more than 10 labels before any request (SDK boundary)', async () => {
@@ -312,7 +315,7 @@ describe('CLI command tree (in-process)', () => {
       ]).flat();
       const result = await runProgram(['--json', DEMO_SITE, ...labels]);
       expect(result.exitCode).toBe(1);
-      expect(JSON.parse(result.stderr.trim()).error).toContain('Maximum 10 labels');
+      expect(JSON.parse(result.stderr.trim()).message).toContain('Maximum 10 labels');
     });
   });
 
@@ -320,19 +323,19 @@ describe('CLI command tree (in-process)', () => {
     it('forwards an empty --password to the validator (no silent drop)', async () => {
       const result = await runProgram(['--json', DEMO_SITE, '--password', '']);
       expect(result.exitCode).toBe(1);
-      expect(JSON.parse(result.stderr.trim()).error).toContain('between 6 and 128 characters');
+      expect(JSON.parse(result.stderr.trim()).message).toContain('between 6 and 128 characters');
     });
 
     it('rejects --password shorter than 6 characters', async () => {
       const result = await runProgram(['--json', DEMO_SITE, '--password', 'short']);
       expect(result.exitCode).toBe(1);
-      expect(JSON.parse(result.stderr.trim()).error).toContain('between 6 and 128 characters');
+      expect(JSON.parse(result.stderr.trim()).message).toContain('between 6 and 128 characters');
     });
 
     it('rejects --password longer than 128 characters', async () => {
       const result = await runProgram(['--json', DEMO_SITE, '--password', 'a'.repeat(129)]);
       expect(result.exitCode).toBe(1);
-      expect(JSON.parse(result.stderr.trim()).error).toContain('between 6 and 128 characters');
+      expect(JSON.parse(result.stderr.trim()).message).toContain('between 6 and 128 characters');
     });
 
     it('accepts --password at the minimum length and the server records it', async () => {
@@ -454,11 +457,17 @@ describe('CLI command tree (in-process)', () => {
     });
 
     it('--json errors are machine-readable', async () => {
+      // This assertion used to read `typeof parsed.error === 'string'` plus
+      // `toContain('not found')` — both of which the INVERTED shape satisfied,
+      // which is how prose under `error` survived here. Branch on the type, the
+      // way the platform's own law says clients must; the envelope itself is
+      // fenced across every producer in `json-errors.test.ts`.
       const result = await runProgram(['--json', 'deployments', 'get', 'absent-otter-zzz9999']);
       expect(result.exitCode).toBe(1);
       const parsed = JSON.parse(result.stderr.trim());
-      expect(typeof parsed.error).toBe('string');
-      expect(parsed.error).toContain('not found');
+      expect(parsed.error).toBe(ErrorType.NotFound);
+      expect(parsed.status).toBe(404);
+      expect(parsed.message).toContain('not found');
     });
   });
 
@@ -728,5 +737,52 @@ describe('CLI command tree (in-process)', () => {
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('not found');
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Completion — a local command, and the exit code that proves it
+  // ---------------------------------------------------------------------------
+
+  describe('completion', () => {
+    /** A throwaway HOME so no assertion can touch the developer's dotfiles. */
+    const sandbox = () => ({ HOME: mkdtempSync(path.join(tmpdir(), 'ship-comp-')) });
+
+    it('exits 1 when the shell is unsupported', async () => {
+      // The whole point of routing these through `handleError`. Until
+      // 2026-07-29 completion reported `[error] …` and then exited 0, so
+      // `ship completion install && …` ran the second command after a failure.
+      const result = await runProgram(['completion', 'install'], {
+        env: { ...sandbox(), SHELL: '/bin/csh' },
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('unsupported shell: /bin/csh');
+    });
+
+    it('exits 1 with the wire envelope in --json, and no fabricated status', async () => {
+      const result = await runProgram(['completion', 'install', '--json'], {
+        env: { ...sandbox(), SHELL: '/bin/csh' },
+      });
+
+      expect(result.exitCode).toBe(1);
+      const parsed = JSON.parse(result.stderr.trim());
+      expect(parsed.error).toBe(ErrorType.Config);
+      // A local failure made no request. A `status` here would be a plausible
+      // lie — which is why the type is one of the statusless client-only ones.
+      expect(parsed).not.toHaveProperty('status');
+    });
+
+    it('exits 1 when there is nothing to uninstall', async () => {
+      const result = await runProgram(['completion', 'uninstall'], {
+        env: { ...sandbox(), SHELL: '/bin/zsh' },
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('profile file not found');
+    });
+
+    // The SUCCESS path needs `completions/` beside the entry, which is a fact
+    // of the built layout — `dist/cli.cjs` has it, `src/node/cli/` does not.
+    // It is proven in the smoke tier, against the real binary.
   });
 });
