@@ -25,6 +25,18 @@
  * (`ship.on('response', …)`), and a failure's status and type arrive on the
  * `ShipError`. Neither runner reaches inside the SDK.
  *
+ * **Verified by reading `cloudflare/api` at 3531ab7 on 2026-07-30** — every
+ * point below was checked against the route that answers it, not against the
+ * mock. That distinction is the whole reason to write it down: the mock half of
+ * this table passes tautologically if the expectations were read off the mock,
+ * which is exactly how it was first drafted. Both halves of the pair need a
+ * source of truth outside themselves, and for the offline half that source is a
+ * person reading the routes. Re-stamp this line when that is done again.
+ *
+ * Where the API states a status implicitly (Hono's `c.json(body)` defaults to
+ * 200) the table still states it explicitly, because a client cannot tell a
+ * deliberate 200 from an unconsidered one.
+ *
  * **`live` states the coverage honestly.** A row marked with a string is
  * mock-only, and the string is why. That gap always existed — the e2e suite
  * has never touched domains or tokens — but it was invisible; nobody could
