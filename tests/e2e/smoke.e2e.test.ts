@@ -23,8 +23,9 @@
 
 import path from 'node:path';
 import { ErrorType, isShipError, type ShipError } from '@shipstatic/types';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../src/node';
+import { CONTRACT, type ContractContext, expected, observe } from '../contract';
 import { E2E_API_KEY, E2E_API_URL, E2E_ENABLED, E2E_TEST_RUN_ID } from '../setup-e2e';
 
 const TEST_SITE_PATH = path.resolve(__dirname, '../fixtures/demo-site');
@@ -57,8 +58,12 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
   });
 
   describe('connectivity and limits', () => {
-    it('pings the API', async () => {
-      expect(await ship.ping()).toBe(true);
+    it('pings the API, which answers the server clock', async () => {
+      // `ping()` resolved a boolean until 2026-07-29; reachability is the
+      // absence of a throw. This assertion said `toBe(true)` for a day after
+      // the wire changed, and nothing noticed — the cost of a tier that is
+      // opt-in, and the reason the contract table below exists.
+      expect(typeof (await ship.ping()).timestamp).toBe('number');
     });
 
     it('serves plan limits in the shape the SDK validates against', async () => {
@@ -137,6 +142,44 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
       const error = await captureError(ship.deployments.get(deployed.deployment));
       expect(error.type).toBe(ErrorType.NotFound);
       expect(error.status).toBe(404);
+    });
+  });
+
+  describe('the wire contract', () => {
+    /**
+     * The SAME table `tests/contract.test.ts` runs against the mock
+     * (`tests/contract.ts`). This is the half that can say the table matches
+     * `cloudflare/api` — the mock half can only say the mock matches the table.
+     *
+     * Rows the e2e tier must not run carry their reason as a string rather than
+     * `live: true`, so the coverage gap is stated in the table instead of being
+     * inferred from what this file happens to call.
+     */
+    const live = CONTRACT.filter((point) => point.live === true);
+    let ctx: ContractContext;
+
+    beforeEach(async () => {
+      // A fresh deployment per row, matching the mock half — a shared fixture
+      // would make row ORDER load-bearing (one row deletes it), which is the
+      // kind of coupling that is invisible until it bites.
+      const deployment = await ship.deployments.upload(TEST_SITE_PATH, {
+        labels: [E2E_TEST_RUN_ID],
+      });
+      deploymentsToCleanup.push(deployment.deployment);
+      ctx = {
+        deployment: deployment.deployment,
+        missingDeployment: 'no-such-deploy-0000000.shipstatic.com',
+        missingDomain: `www.no-such-${E2E_TEST_RUN_ID}.com`,
+      };
+    });
+
+    it('covers the deployment lifecycle live (the rest is stated as mock-only)', () => {
+      expect(live.length).toBeGreaterThan(5);
+      expect(live.map((p) => p.name)).toContain('deployments.delete');
+    });
+
+    it.each(live.map((point) => [point.name, point] as const))('%s', async (_name, point) => {
+      expect(await observe(ship, point, ctx)).toEqual(expected(point));
     });
   });
 

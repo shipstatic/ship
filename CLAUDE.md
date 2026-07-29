@@ -632,11 +632,44 @@ Reference documentation makes no such claim.
 `tests/mocks/` is a hand-maintained twin of `cloudflare/api`, in three parts:
 `handler.ts` (one Web-standard `handleApiRequest(request, state)`),
 `state.ts` (per-instance state from a factory), and `server.ts` (a thin
-`node:http` adapter plus lifecycle). **Every route cites its wire truth** —
-`// wire: routes/domains.ts:103` — so an API change is a mechanical checklist
-rather than a memory exercise. `tests/e2e/smoke.e2e.test.ts` pins the same
-contract points against the real API, which is what catches drift between
-manual alignments.
+`node:http` adapter plus lifecycle).
+
+Three mechanisms keep it honest, and they cover different halves:
+
+| | Holds | Runs |
+|---|---|---|
+| `satisfies` on every body | the response SHAPES | `pnpm typecheck` |
+| `tests/contract.ts` | the BEHAVIOUR — status, typed error, guard order | CI (mock half) + opt-in (live half) |
+| `// wire:` citations | where to look when one of the above fails | a reader |
+
+**The contract table is the one that closed the real gap.** Shapes were tied to
+the published types on 2026-07-29, but behaviour was tied to nothing: a route
+flipping 202 to 200 leaves every citation reading exactly as before, and ~1000
+tests green. The e2e suite was nominally the detector — its header even claimed
+it "asserts the same contract points the mock encodes" — but nothing checked
+that claim, so they were two hand-maintained lists with no tie. Now the points
+live once in `tests/contract.ts` and two runners consume them:
+`tests/contract.test.ts` (mock, in CI) and the `wire contract` block of
+`tests/e2e/smoke.e2e.test.ts` (real API, opt-in). Both observe through
+PUBLISHED surface only — a success's status off the `response` event, a
+failure's off the `ShipError` — which is what lets one table drive both.
+
+**What each half can say**, stated because the difference matters: the mock
+half proves the mock encodes the table; only the live half can prove the table
+matches `cloudflare/api`. So CI catches a mock that drifts from the table, and
+a live run catches a table that drifts from the API. **Run `pnpm test:e2e`
+before a release, and after any API change.**
+
+Rows the e2e tier must not run carry their reason as a string instead of
+`live: true` (`NO_DOMAINS`, `NO_TOKENS`), so the coverage gap is stated in the
+table rather than inferred. That gap always existed; it was simply invisible.
+
+**To have CI catch API drift too**, add `SHIP_E2E_API_KEY` and
+`SHIP_E2E_API_URL` as repository secrets and a job that runs `pnpm test:e2e`
+when they are set. It should NOT gate `publish`: the dev API is deployed by
+hand and may legitimately lag this repo, so a red contract run means "these two
+disagree", not "this release is wrong". Deliberately not wired today — inert
+config rots.
 
 ### Testing canon
 
@@ -655,7 +688,10 @@ exception, not a workaround:
    published contract) or talk to the mock server.
 5. **Builders are the only fixture source** (`tests/fixtures/builders.ts`),
    and they take explicit timestamps — no `Date.now()` in an asserted value.
-6. **Every mock route cites its `cloudflare/api` wire truth.**
+6. **Every mock route cites its `cloudflare/api` wire truth**, `satisfies` its
+   published response type, and has its status / typed error / guard order
+   stated in `tests/contract.ts` — a citation says where to look, the type
+   holds the shape, the table holds the behaviour.
 
 The e2e harness var is deliberately named `SHIP_E2E_API_KEY` — it names a
 literal API key, the CI secret name is unchanged, and it is not part of the
@@ -749,13 +785,15 @@ coupling; separate CI step with `playwright install chromium`.
 
 ```
 tests/
+├── contract.ts       # The wire facts ship depends on — stated ONCE
+├── contract.test.ts  # …run against the MOCK (CI). Its twin is in e2e/
 ├── architecture/     # Fences: integrity, naming, docs contract
 ├── browser/ node/ shared/   # Mirror axis — tests/<path>/<module>.test.ts
 ├── node/cli/completions.test.ts  # The rendered shell scripts (mirror of completions.ts)
 ├── node/cli/harness.ts      # In-process CLI runner (buildProgram + capture)
 ├── node/cli/smoke.test.ts   # The ONE child-process file (dist/cli.cjs)
 ├── package/          # The BUILT artifact (dist entries)
-├── e2e/              # Real API, opt-in — and the contract-drift detector
+├── e2e/              # Real API, opt-in — runs the SAME contract table
 ├── fixtures/builders.ts     # Typed builders — the only fixture source
 ├── mocks/            # handler.ts + state.ts + server.ts
 ├── setup.ts          # Hermeticity (both in-process projects)
