@@ -97,6 +97,13 @@ const FEATURE_AXIS: ReadonlyArray<{ file: string; reason: string }> = [
       "CLI's rather than any single module's",
   },
   {
+    file: 'tests/contract.test.ts',
+    reason:
+      'the wire contract table (tests/contract.ts) run against the mock — its ' +
+      "subject is the API's behaviour, not any module of this package, and its " +
+      'twin runs the same table against the real API from the e2e tier',
+  },
+  {
     file: 'tests/e2e/smoke.e2e.test.ts',
     reason: 'contract-drift detector against a REAL API; opt-in tier',
   },

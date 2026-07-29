@@ -24,6 +24,13 @@
  * now keeps the same discipline, so a fiction is a compile error rather than
  * a reading exercise.
  *
+ * **And its BEHAVIOUR is pinned by `tests/contract.ts`** — the statuses, the
+ * typed errors and the guard ordering ship depends on, stated once and run by
+ * two runners: `tests/contract.test.ts` against this handler in CI, and the
+ * `wire contract` block of `tests/e2e/smoke.e2e.test.ts` against the real API.
+ * A citation cannot do that half: a route flipping 202 to 200 leaves every
+ * `// wire:` comment reading exactly as before.
+ *
  * Verified against `cloudflare/api` on 2026-07-29.
  */
 
