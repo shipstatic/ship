@@ -225,7 +225,7 @@ Every command supports three modes:
 
 Errors go to stderr in all modes. Exit 0 = success, 1 = error.
 
-List commands return `{"<resource>s": [...], "cursor": null, "total": N}`. `domains list` text mode omits status — use `--json` to see `pending` vs `success`.
+List commands return `{"<resource>s": [...], "cursor": null}`. A non-null `cursor` means more pages remain — pass it back with `--cursor` to continue, and size pages with `--limit`. There is no total; a count is an aggregate over a collection, not a property of one page. `domains list` text mode omits status — use `--json` to see `pending` vs `success`.
 
 ## Commands
 
@@ -237,7 +237,7 @@ ship deployments upload <path>       # Deploy (explicit)
 ship deployments list                # List all
 ship deployments get <deployment>    # Details
 ship deployments set <deployment>    # Update labels (--label)
-ship deployments remove <deployment> # Delete (async)
+ship deployments delete <deployment> # Delete (async)
 ```
 
 ### Domains
@@ -251,7 +251,7 @@ ship domains records <name>           # Required DNS records
 ship domains dns <name>               # DNS provider lookup
 ship domains share <name>             # Shareable setup link
 ship domains verify <name>            # Trigger DNS verification
-ship domains remove <name>            # Delete
+ship domains delete <name>            # Delete
 ```
 
 ### Account & Tokens
@@ -262,7 +262,8 @@ ship ping                             # Connectivity check
 ship tokens create                    # New deploy token (shown once)
 ship tokens create --ttl 3600         # With expiry (seconds)
 ship tokens list                      # List tokens
-ship tokens remove <token>            # Revoke
+ship tokens get <token>               # Details for one token
+ship tokens delete <token>            # Delete (revokes immediately)
 ```
 
 ## Flags
