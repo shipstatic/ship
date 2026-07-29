@@ -79,7 +79,9 @@ export default defineConfig((tsupOptions: Options): Options[] => [
   // 3. CLI (CJS for Node.js, cli entry)
   {
     entry: {
-      cli: 'src/node/cli/index.ts',
+      // The BIN, not the library: importing the command tree must have no
+      // side effects (see src/node/cli/bin.ts).
+      cli: 'src/node/cli/bin.ts',
     },
     outDir: 'dist',
     format: ['cjs'],
@@ -91,27 +93,6 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     minify: !tsupOptions.watch,
     banner: {
       js: '#!/usr/bin/env node',
-    },
-    // Copy completion scripts to dist
-    onSuccess: async () => {
-      const fs = await import('node:fs');
-      const path = await import('node:path');
-
-      // Create completions directory in dist
-      const completionsDir = path.resolve('./dist/completions');
-      if (!fs.existsSync(completionsDir)) {
-        fs.mkdirSync(completionsDir, { recursive: true });
-      }
-
-      // Copy completion scripts
-      const scripts = ['ship.bash', 'ship.zsh', 'ship.fish'];
-      for (const script of scripts) {
-        const src = path.resolve(`./src/node/completions/${script}`);
-        const dest = path.resolve(`./dist/completions/${script}`);
-        if (fs.existsSync(src)) {
-          fs.copyFileSync(src, dest);
-        }
-      }
     },
   },
 ]);

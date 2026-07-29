@@ -24,6 +24,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { isShipError, ShipError } from '@shipstatic/types';
+import type { Command } from 'commander';
+import { renderCompletion } from './completions.js';
 import { info, success, warn } from './utils.js';
 
 export interface CompletionOptions {
@@ -51,19 +53,16 @@ function getShellPaths(shell: 'bash' | 'zsh' | 'fish', homeDir: string) {
       return {
         completionFile: path.join(homeDir, '.ship_completion.bash'),
         profileFile: path.join(homeDir, '.bash_profile'),
-        scriptName: 'ship.bash',
       };
     case 'zsh':
       return {
         completionFile: path.join(homeDir, '.ship_completion.zsh'),
         profileFile: path.join(homeDir, '.zshrc'),
-        scriptName: 'ship.zsh',
       };
     case 'fish':
       return {
         completionFile: path.join(homeDir, '.config/fish/completions/ship.fish'),
         profileFile: null, // fish doesn't need profile sourcing
-        scriptName: 'ship.fish',
       };
   }
 }
@@ -71,7 +70,7 @@ function getShellPaths(shell: 'bash' | 'zsh' | 'fish', homeDir: string) {
 /**
  * Install shell completion script
  */
-export function installCompletion(scriptDir: string, options: CompletionOptions = {}): void {
+export function installCompletion(program: Command, options: CompletionOptions = {}): void {
   const { json, noColor } = options;
   const shell = detectShell();
   const homeDir = os.homedir();
@@ -81,7 +80,9 @@ export function installCompletion(scriptDir: string, options: CompletionOptions 
   }
 
   const paths = getShellPaths(shell, homeDir);
-  const sourceScript = path.join(scriptDir, paths.scriptName);
+  // Rendered from the tree at THIS moment, so what lands on disk always matches
+  // the binary that wrote it — see `./completions.ts`.
+  const script = renderCompletion(program, shell);
 
   try {
     // Fish has a different installation pattern
@@ -90,7 +91,7 @@ export function installCompletion(scriptDir: string, options: CompletionOptions 
       if (!fs.existsSync(fishDir)) {
         fs.mkdirSync(fishDir, { recursive: true });
       }
-      fs.copyFileSync(sourceScript, paths.completionFile);
+      fs.writeFileSync(paths.completionFile, script);
       success('fish completion installed successfully', json, noColor);
       info('please restart your shell to apply the changes', json, noColor);
       return;
@@ -100,7 +101,7 @@ export function installCompletion(scriptDir: string, options: CompletionOptions 
     // The block is newline-TERMINATED so uninstall can restore the profile
     // byte-for-byte: without it, an appended block swallowed the file's
     // original trailing newline and the round trip was lossy.
-    fs.copyFileSync(sourceScript, paths.completionFile);
+    fs.writeFileSync(paths.completionFile, script);
     const sourceLine = `# ship\nsource '${paths.completionFile}'\n# ship end\n`;
 
     if (paths.profileFile) {

@@ -32,10 +32,12 @@ import { buildProgram } from '../../src/node/cli/index';
  *   3. does every SDK call the docs show name real members?
  *   4. does every response key the docs print exist on a published type?
  *
- * Deliberately NOT covered: `helpText()` in `src/node/cli/index.ts`. That is a
- * hand-curated front page (`npm/ship/CLAUDE.md`, "Two help scopes"), byte-pinned
- * by the smoke tier, and omission there is a design choice rather than drift.
- * Reference documentation makes no such claim, which is why it is fenced.
+ * `helpText()` — the hand-curated front page (`npm/ship/CLAUDE.md`, "Two help
+ * scopes") — is covered too, but on its own terms: curation is legitimate
+ * there, so a command may be left off PROVIDED the omission is recorded with a
+ * reason. Silent omission is not curation, it is forgetting; the page was
+ * missing `ping`, `account get` and `tokens get` when this was written, none of
+ * it decided.
  */
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -226,6 +228,65 @@ describe('the published docs describe this code', () => {
       'A published doc names a flag the CLI does not declare — on that command ' +
         'or as a global.',
     ).toEqual([]);
+  });
+
+  /**
+   * Commands the curated front page deliberately does not list. Adding an entry
+   * is a decision; a command drifting off the page is not possible, because the
+   * assertion below rejects anything not named here.
+   */
+  const HELP_OMISSIONS: ReadonlyArray<{ path: string; reason: string }> = [
+    {
+      path: 'account get',
+      reason:
+        '`ship whoami` is the same read and is what the page shows — listing both ' +
+        'would put two spellings of one command on a page whose whole job is brevity',
+    },
+    {
+      path: 'completion install',
+      reason: 'shell setup, run once and never browsed for; the page groups it as `completion`',
+    },
+    {
+      path: 'completion uninstall',
+      reason: 'the sibling of the above',
+    },
+  ];
+
+  it('every command the CLI has is on the front page, or recorded as left off', () => {
+    // The page is documentation the CLI ships in its own binary, so it answers
+    // the same completeness question as README and SKILL.md — it just gets to
+    // say no, in writing.
+    const page = program.helpInformation();
+    const excused = new Set(HELP_OMISSIONS.map((o) => o.path));
+
+    const leaves = (cmd: Command, path: string[] = []): string[][] =>
+      cmd.commands.length
+        ? cmd.commands.flatMap((sub) => leaves(sub, [...path, sub.name()]))
+        : [path];
+
+    const missing = leaves(program)
+      .map((path) => path.join(' '))
+      .filter((path) => path && !excused.has(path))
+      .filter((path) => !page.includes(`ship ${path}`));
+
+    expect(
+      missing,
+      'The front page is curated, so a command MAY be left off — but the ' +
+        'omission has to be a decision. Add it to the page, or record it in ' +
+        'HELP_OMISSIONS with the reason it does not belong there.',
+    ).toEqual([]);
+  });
+
+  it('every recorded help omission is still a real command', () => {
+    // The other direction: an excuse outliving the command it excused is how a
+    // list like this rots into noise.
+    const known = new Set(
+      program.commands.flatMap((c) =>
+        c.commands.length ? c.commands.map((s) => `${c.name()} ${s.name()}`) : [c.name()],
+      ),
+    );
+
+    expect(HELP_OMISSIONS.map((o) => o.path).filter((path) => !known.has(path))).toEqual([]);
   });
 
   it('every command the CLI has is taught by a published doc', () => {

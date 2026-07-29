@@ -11,7 +11,8 @@
  * environment, and the completion fast-path answers before Commander loads.
  */
 
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { join } from 'node:path';
@@ -54,11 +55,13 @@ COMMANDS
   Tokens
   ship tokens list                      List deploy tokens
   ship tokens create                    Create a new deploy token
+  ship tokens get <token>               Show token information
   ship tokens delete <token>            Delete token permanently
 
   Setup
   ship config                           Save your token
   ship whoami                           Get current account information
+  ship ping                             Check API connectivity
 
   Completion
   ship completion install               Install shell completion script
@@ -206,15 +209,20 @@ describe('true-binary smoke', () => {
       for (const flag of ['--compbash', '--compzsh']) {
         const result = await runCli([flag]);
         expect(result.exitCode).toBe(0);
+        // Registration order, because the list is now READ FROM THE TREE
+        // rather than restated — `--compbash` carried its own hardcoded array
+        // until 2026-07-29, and it disagreed with the help page about whether
+        // `account` exists.
         expect(result.stdout.trim()).toBe(
-          'ping whoami deployments domains tokens account config completion',
+          'ping whoami deployments domains tokens account completion config',
         );
       }
     });
 
-    // The install path needs `completions/` beside the entry — a fact of the
-    // built layout that only this tier has. The FAILURE paths (and their exit
-    // codes) are proven in the in-process tier, which sees them for coverage.
+    // The install path writes a script the binary RENDERS from its own tree —
+    // no `completions/` directory ships any more, so this tier proves the whole
+    // round trip through a real HOME. The FAILURE paths (and their exit codes)
+    // are proven in the in-process tier, which sees them for coverage.
     it('installs and uninstalls against a real HOME, exiting 0 each time', async () => {
       const home = mkdtempSync(join(tmpdir(), 'ship-smoke-comp-'));
       try {
@@ -232,6 +240,45 @@ describe('true-binary smoke', () => {
       }
     });
 
+    /**
+     * The one property a generator owes and a hand-written file never did:
+     * that what it emits PARSES. This tier is where it belongs — a real shell
+     * is the only thing that can answer it, exactly as a real binary is the
+     * only thing that can answer byte-exact help.
+     *
+     * Each shell installs through the actual `ship completion install`, so the
+     * subject is the shipped path end to end: tree → renderer → disk → parser.
+     * A shell that is not present on the machine is skipped rather than
+     * assumed; `bash` and `zsh` are present on macOS and on the CI image.
+     */
+    it.each([
+      ['zsh', '/bin/zsh', '.ship_completion.zsh', ['zsh', '-n']],
+      ['bash', '/bin/bash', '.ship_completion.bash', ['bash', '-n']],
+      ['fish', '/usr/bin/fish', '.config/fish/completions/ship.fish', ['fish', '--no-execute']],
+    ])('the %s script it renders is valid shell', async (shell, shellPath, target, [bin, flag]) => {
+      const available = spawnSync('command', ['-v', bin], { shell: true }).status === 0;
+      if (!available) return;
+
+      const home = mkdtempSync(join(tmpdir(), `ship-smoke-${shell}-`));
+      try {
+        const install = await runCli(['completion', 'install'], {
+          env: { HOME: home, SHELL: shellPath },
+        });
+        expect(install.exitCode, install.stderr).toBe(0);
+
+        const script = join(home, target);
+        expect(existsSync(script)).toBe(true);
+
+        const parsed = spawnSync(bin, [flag, script], { encoding: 'utf8' });
+        expect(parsed.status, `${bin} ${flag} said: ${parsed.stderr}`).toBe(0);
+
+        // And it is not an empty file that trivially parses.
+        expect(readFileSync(script, 'utf8')).toContain('tokens');
+      } finally {
+        rmSync(home, { recursive: true, force: true });
+      }
+    });
+
     it('lists command words for fish, newline-separated', async () => {
       const result = await runCli(['--compfish']);
       expect(result.exitCode).toBe(0);
@@ -242,8 +289,8 @@ describe('true-binary smoke', () => {
         'domains',
         'tokens',
         'account',
-        'config',
         'completion',
+        'config',
       ]);
     });
   });

@@ -55,10 +55,16 @@ export default defineConfig({
         branches: 87,
         functions: 94,
         lines: 93,
-        // The bin execution block, the TTY-only spinner, and the SIGINT
-        // handler are unreachable in-process by design — the smoke tier
-        // proves them through the real binary.
-        'src/node/cli/index.ts': { statements: 84, branches: 72 },
+        // The TTY-only spinner and the SIGINT handler are unreachable
+        // in-process by design — the smoke tier proves them through the real
+        // binary. (The bin execution block used to be here too; it moved to
+        // `bin.ts` on 2026-07-29, which is why this floor rose.)
+        'src/node/cli/index.ts': { statements: 87, branches: 75 },
+        // `bin.ts` is the process ENTRY POINT: it runs on import, so it cannot
+        // execute in-process at all and reads 0%. Recorded rather than
+        // excluded — a zero that is explained is worth more than a file
+        // quietly missing from the report. The smoke tier runs it for real.
+        'src/node/cli/bin.ts': { statements: 0, branches: 0, functions: 0, lines: 0 },
         // Browser/unknown-runtime detection arms cannot execute in a Node
         // process; the browser tier certifies that side.
         'src/shared/lib/env.ts': { statements: 70, branches: 54 },

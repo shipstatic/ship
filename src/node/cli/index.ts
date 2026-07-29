@@ -98,11 +98,13 @@ ${applyBold('COMMANDS')}
   ${icon('🔑')}${applyBold('Tokens')}
   ship tokens list                      List deploy tokens
   ship tokens create                    Create a new deploy token
+  ship tokens get <token>               Show token information
   ship tokens delete <token>            Delete token permanently
 
   ${icon('⚙️')}${applyBold('Setup')}
   ship config                           Save your token
   ship whoami                           Get current account information
+  ship ping                             Check API connectivity
 
   ${icon('🛠️')}${applyBold('Completion')}
   ship completion install               Install shell completion script
@@ -601,7 +603,7 @@ export function buildProgram(): Command {
             cmdOptions,
             options,
           ),
-        { operation: 'upload' },
+        { operation: 'upload', resourceType: 'Deployment' },
       ),
     );
 
@@ -894,9 +896,9 @@ export function buildProgram(): Command {
     .description('Install shell completion script')
     .action(() => {
       const options = processOptions(program);
-      const scriptDir = path.resolve(__dirname, 'completions');
       try {
-        installCompletion(scriptDir, { json: options.json, noColor: options.noColor });
+        // The tree renders its own completion — no file is shipped to copy.
+        installCompletion(program, { json: options.json, noColor: options.noColor });
       } catch (err) {
         handleError(err);
       }
@@ -942,7 +944,7 @@ export function buildProgram(): Command {
         cmdOptions,
         options,
       ),
-    { operation: 'upload' },
+    { operation: 'upload', resourceType: 'Deployment' },
   );
 
   program
@@ -982,49 +984,17 @@ export function buildProgram(): Command {
 }
 
 /**
- * Simple completion handler - no self-invocation, just static completions
+ * The dynamic completion entry point (`ship --compbash|--compzsh|--compfish`).
+ *
+ * The list is READ FROM THE TREE rather than restated. It carried a hardcoded
+ * array of eight names until 2026-07-29 — a seventh statement of the command
+ * tree in a repo that already had six, and one that disagreed with the help
+ * page (it offered `account`, which `helpText()` has never mentioned).
  */
-function handleCompletion() {
+export function handleCompletion(): void {
   const isFish = process.argv.includes('--compfish');
-
-  const completions = [
-    'ping',
-    'whoami',
-    'deployments',
-    'domains',
-    'tokens',
-    'account',
-    'config',
-    'completion',
-  ];
-  console.log(completions.join(isFish ? '\n' : ' '));
-}
-
-// Bin execution — this is what `dist/cli.cjs` runs. Exercised by the
-// child-process smoke tier, never in-process (tests drive `buildProgram()`).
-// No `process.exit` anywhere on this path: outcomes land in
-// `process.exitCode` and the process ends when the event loop drains, so
-// buffered stdout is never truncated on a pipe.
-if (process.env.NODE_ENV !== 'test') {
-  const wantsCompletion =
-    process.argv.includes('--compbash') ||
-    process.argv.includes('--compzsh') ||
-    process.argv.includes('--compfish');
-
-  if (wantsCompletion) {
-    handleCompletion();
-  } else {
-    buildProgram()
-      .parseAsync(process.argv)
-      .catch((err: unknown) => {
-        // The exit override reports errors before throwing; the bare
-        // CommanderError that reaches here only carries the exit code
-        // (help/version legitimately carry 0).
-        if (err instanceof CommanderError) {
-          process.exitCode = err.exitCode;
-          return;
-        }
-        throw err;
-      });
-  }
+  const names = buildProgram()
+    .commands.map((c) => c.name())
+    .filter((name) => name !== 'help');
+  console.log(names.join(isFish ? '\n' : ' '));
 }

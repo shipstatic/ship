@@ -8,21 +8,25 @@
  * was lying, and the integrity fence requires a test file to reach production
  * code — a file that only spawns a binary reaches none.
  *
- * `installCompletion` takes its script directory as an argument and resolves
- * the target from `os.homedir()`, which on POSIX is `$HOME`. So a stubbed
- * `HOME` plus a stubbed `SHELL` is the entire harness — no subprocess, and no
- * possibility of touching the developer's real dotfiles.
+ * `installCompletion` takes the command TREE and resolves the target from
+ * `os.homedir()`, which on POSIX is `$HOME`. So a stubbed `HOME` plus a stubbed
+ * `SHELL` is the entire harness — no subprocess, and no possibility of touching
+ * the developer's real dotfiles. It took a script DIRECTORY until 2026-07-29,
+ * when the three hand-written scripts were replaced by rendering from the tree
+ * (`./completions.ts`), so there is no longer a file on disk to copy.
  */
 
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { ErrorType, type ShipError } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installCompletion, uninstallCompletion } from '../../../src/node/cli/completion';
+import { renderCompletion } from '../../../src/node/cli/completions';
+import { buildProgram } from '../../../src/node/cli/index';
 
-/** The real completion scripts, as shipped in `dist/completions`. */
-const SCRIPT_DIR = resolve(__dirname, '../../../src/node/completions');
+/** The real command tree — the same one the binary installs from. */
+const PROGRAM = buildProgram();
 
 let home: string;
 let out: string[];
@@ -68,7 +72,7 @@ describe('installCompletion', () => {
   it('installs the zsh script and sources it from a fresh .zshrc', () => {
     useShell('/bin/zsh');
 
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
 
     expect(existsSync(join(home, '.ship_completion.zsh'))).toBe(true);
     expect(readFileSync(join(home, '.zshrc'), 'utf-8')).toBe(
@@ -77,13 +81,17 @@ describe('installCompletion', () => {
     expect(stdout()).toContain('completion script installed for zsh');
   });
 
-  it('copies the real script contents, not a placeholder', () => {
+  it('writes the script the tree renders, not a placeholder or a stale copy', () => {
     useShell('/bin/zsh');
 
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
 
+    // Byte-equal to what the renderer produces for this very tree — which is
+    // the property a shipped file could not have: the three hand-written
+    // scripts this replaced had drifted from the tree by a whole command
+    // (`ship tokens get` completed in no shell) and four flags.
     expect(readFileSync(join(home, '.ship_completion.zsh'), 'utf-8')).toBe(
-      readFileSync(join(SCRIPT_DIR, 'ship.zsh'), 'utf-8'),
+      renderCompletion(PROGRAM, 'zsh'),
     );
   });
 
@@ -91,7 +99,7 @@ describe('installCompletion', () => {
     useShell('/bin/zsh');
     writeFileSync(join(home, '.zshrc'), 'export EDITOR=vim\n');
 
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
 
     const profile = readFileSync(join(home, '.zshrc'), 'utf-8');
     expect(profile.startsWith('export EDITOR=vim\n')).toBe(true);
@@ -100,10 +108,10 @@ describe('installCompletion', () => {
 
   it('is idempotent — a second install does not duplicate the block', () => {
     useShell('/bin/zsh');
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
     const afterFirst = readFileSync(join(home, '.zshrc'), 'utf-8');
 
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
 
     expect(readFileSync(join(home, '.zshrc'), 'utf-8')).toBe(afterFirst);
   });
@@ -111,7 +119,7 @@ describe('installCompletion', () => {
   it('installs for bash into .bash_profile', () => {
     useShell('/bin/bash');
 
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
 
     expect(existsSync(join(home, '.ship_completion.bash'))).toBe(true);
     expect(readFileSync(join(home, '.bash_profile'), 'utf-8')).toContain('# ship end');
@@ -121,7 +129,7 @@ describe('installCompletion', () => {
   it('installs for fish into the completions directory, touching no profile', () => {
     useShell('/usr/local/bin/fish');
 
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
 
     expect(existsSync(join(home, '.config/fish/completions/ship.fish'))).toBe(true);
     expect(existsSync(join(home, '.bash_profile'))).toBe(false);
@@ -132,7 +140,7 @@ describe('installCompletion', () => {
   it('rejects an unsupported shell by name', () => {
     useShell('/bin/csh');
 
-    const err = thrownBy(() => installCompletion(SCRIPT_DIR, { noColor: true }));
+    const err = thrownBy(() => installCompletion(PROGRAM, { noColor: true }));
 
     expect(err.message).toContain('unsupported shell: /bin/csh');
     expect(err.message).toContain('bash, zsh, fish');
@@ -142,10 +150,15 @@ describe('installCompletion', () => {
     expect(err.status).toBeUndefined();
   });
 
-  it('surfaces a missing source script as a file fault, not a raw crash', () => {
+  it('surfaces an unwritable target as a file fault, not a raw crash', () => {
+    // The old shape of this test was "a missing SOURCE script", a failure mode
+    // that no longer exists — nothing is copied. The fs fault that remains is
+    // the write, and its classification is what the test is really about: an
+    // fs call that threw is `File`, and no request means no status.
     useShell('/bin/zsh');
+    vi.stubEnv('HOME', '/nonexistent/home/dir');
 
-    const err = thrownBy(() => installCompletion('/nonexistent/script/dir', { noColor: true }));
+    const err = thrownBy(() => installCompletion(PROGRAM, { noColor: true }));
 
     expect(err.message).toContain('could not install completion script');
     expect(err.type).toBe(ErrorType.File);
@@ -155,7 +168,7 @@ describe('installCompletion', () => {
   it('emits JSON when asked', () => {
     useShell('/bin/zsh');
 
-    installCompletion(SCRIPT_DIR, { json: true });
+    installCompletion(PROGRAM, { json: true });
 
     expect(JSON.parse(out[0])).toEqual({ success: 'completion script installed for zsh' });
   });
@@ -173,7 +186,7 @@ describe('uninstallCompletion', () => {
   ])('install → uninstall restores a profile with %s byte-for-byte', (_name, original) => {
     useShell('/bin/zsh');
     writeFileSync(join(home, '.zshrc'), original);
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
 
     uninstallCompletion({ noColor: true });
 
@@ -189,7 +202,7 @@ describe('uninstallCompletion', () => {
     // may ever introduce.
     useShell('/bin/zsh');
     writeFileSync(join(home, '.zshrc'), 'export EDITOR=vim');
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
 
     uninstallCompletion({ noColor: true });
 
@@ -198,7 +211,7 @@ describe('uninstallCompletion', () => {
 
   it('leaves an empty profile behind when it created the profile itself', () => {
     useShell('/bin/zsh');
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
 
     uninstallCompletion({ noColor: true });
 
@@ -228,7 +241,7 @@ describe('uninstallCompletion', () => {
 
   it('removes the fish script', () => {
     useShell('/usr/local/bin/fish');
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    installCompletion(PROGRAM, { noColor: true });
 
     uninstallCompletion({ noColor: true });
 

@@ -349,7 +349,11 @@ describe('formatOutput router', () => {
       // The wire carries no prose, so the CLI writes the sentence. A bare
       // `{ domain }` is the acknowledgement; a Domain entity carries `url`,
       // which is the only thing separating the two shapes here.
-      formatOutput({ domain: 'www.example.com' } satisfies DomainVerifyResponse, {}, text);
+      formatOutput(
+        { domain: 'www.example.com' } satisfies DomainVerifyResponse,
+        { operation: 'verify', resourceType: 'Domain' },
+        text,
+      );
 
       expect(out()).toContain('www.example.com domain verification queued');
     });
@@ -379,17 +383,22 @@ describe('formatOutput router', () => {
     const DOMAIN = 'www.example.com';
 
     it.each([
-      ['deploy', makeDeployment({ deployment: DEPLOYMENT }), { operation: 'upload' }, DEPLOYMENT],
+      [
+        'deploy',
+        makeDeployment({ deployment: DEPLOYMENT }),
+        { operation: 'upload', resourceType: 'Deployment' },
+        DEPLOYMENT,
+      ],
       [
         'domains set (create)',
         { ...makeDomain(DOMAIN), isCreate: true },
-        { operation: 'set' },
+        { operation: 'set', resourceType: 'Domain' },
         DOMAIN,
       ],
       [
         'domains set (update)',
         { ...makeDomain(DOMAIN), isCreate: false },
-        { operation: 'set' },
+        { operation: 'set', resourceType: 'Domain' },
         DOMAIN,
       ],
       [
@@ -416,7 +425,12 @@ describe('formatOutput router', () => {
         { operation: 'delete', resourceType: 'Token' },
         'tok0001',
       ],
-      ['domains verify', { domain: DOMAIN } satisfies DomainVerifyResponse, {}, DOMAIN],
+      [
+        'domains verify',
+        { domain: DOMAIN } satisfies DomainVerifyResponse,
+        { operation: 'verify', resourceType: 'Domain' },
+        DOMAIN,
+      ],
       [
         'domains validate',
         {
@@ -536,7 +550,7 @@ describe('formatOutput router', () => {
           _dnsRecords: [{ type: 'CNAME', name: 'www', value: 'cname.shipstatic.com' }],
           _shareHash: 'abc123',
         } as never,
-        { operation: 'set' },
+        { operation: 'set', resourceType: 'Domain' },
         text,
       );
 
@@ -552,7 +566,7 @@ describe('formatOutput router', () => {
     it('says "updated" when the upsert was not a create', () => {
       formatOutput(
         { domain: 'www.example.com', url: 'https://www.example.com', isCreate: false } as never,
-        { operation: 'set' },
+        { operation: 'set', resourceType: 'Domain' },
         text,
       );
 
