@@ -32,13 +32,13 @@ if [[ -n ${ZSH_VERSION-} ]]; then
             _files
             return
             ;;
-          "get"|"set"|"remove")
+          "get"|"set"|"delete")
             # Deployment ID position
             return
             ;;
           *)
             if [[ $CURRENT -eq 3 ]]; then
-              completions=("list:List all deployments" "upload:Upload deployment from file or directory" "get:Show deployment information" "set:Set deployment labels" "remove:Delete deployment permanently")
+              completions=("list:List all deployments" "upload:Upload deployment from file or directory" "get:Show deployment information" "set:Set deployment labels" "delete:Delete deployment permanently")
               _describe 'deployments commands' completions
               return
             fi
@@ -51,13 +51,13 @@ if [[ -n ${ZSH_VERSION-} ]]; then
             # Domain name or deployment ID positions
             return
             ;;
-          "get"|"validate"|"verify"|"remove")
+          "get"|"validate"|"verify"|"delete")
             # Domain name position
             return
             ;;
           *)
             if [[ $CURRENT -eq 3 ]]; then
-              completions=("list:List all domains" "get:Show domain information" "set:Create domain, link to deployment, or update labels" "validate:Check if domain name is valid and available" "verify:Trigger DNS verification for external domain" "remove:Delete domain permanently")
+              completions=("list:List all domains" "get:Show domain information" "set:Create domain, link to deployment, or update labels" "validate:Check if domain name is valid and available" "verify:Trigger DNS verification for external domain" "delete:Delete domain permanently")
               _describe 'domains commands' completions
               return
             fi
@@ -66,13 +66,13 @@ if [[ -n ${ZSH_VERSION-} ]]; then
         ;;
       "tokens")
         case "${words[3]}" in
-          "remove")
+          "delete")
             # Token ID position
             return
             ;;
           *)
             if [[ $CURRENT -eq 3 ]]; then
-              completions=("list:List all deploy tokens" "create:Create a new deploy token" "remove:Delete token permanently")
+              completions=("list:List all deploy tokens" "create:Create a new deploy token" "delete:Delete token permanently")
               _describe 'tokens commands' completions
               return
             fi

@@ -20,6 +20,7 @@ import type {
   DeploymentCreateResponse,
   DeploymentResource,
   DomainResource,
+  PingResponse,
   PlatformLimits,
   StaticFile,
   TokenResource,
@@ -166,9 +167,16 @@ export abstract class Ship {
   }
 
   /**
-   * Ping the API server to check connectivity.
+   * Ping the API server, resolving its answer: `{ success, timestamp }`, where
+   * `timestamp` is the server clock in unix SECONDS.
+   *
+   * It resolves the response rather than a bare `true` because every other
+   * method here does — narrowing to a boolean discarded the one thing ping
+   * carries beyond liveness, and made `success` mean a boolean on the wire and
+   * something else by the time it reached a caller. A non-OK response throws in
+   * transport, so a resolved value always means the API answered.
    */
-  async ping(): Promise<boolean> {
+  async ping(): Promise<PingResponse> {
     await this.ensureInitialized();
     return this.http.ping();
   }

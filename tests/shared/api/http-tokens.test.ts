@@ -112,11 +112,11 @@ describe('token operations', () => {
     });
   });
 
-  describe('remove', () => {
+  describe('delete', () => {
     it('deletes the row, so the list no longer holds it', async () => {
       const created = await ship.tokens.create();
 
-      await ship.tokens.remove(created.token);
+      await ship.tokens.delete(created.token);
 
       const list = await ship.tokens.list();
       expect(list.tokens).toEqual([]);
@@ -124,7 +124,7 @@ describe('token operations', () => {
     });
 
     it('reports an unknown token as not found', async () => {
-      await expect(ship.tokens.remove('nosuch')).rejects.toMatchObject({
+      await expect(ship.tokens.delete('nosuch')).rejects.toMatchObject({
         type: ErrorType.NotFound,
         status: 404,
       });

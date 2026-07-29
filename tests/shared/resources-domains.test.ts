@@ -12,7 +12,7 @@ describe('DomainResource', () => {
       setDomain: vi.fn(),
       getDomain: vi.fn(),
       listDomains: vi.fn(),
-      removeDomain: vi.fn(),
+      deleteDomain: vi.fn(),
       verifyDomain: vi.fn(),
       deploy: vi.fn(),
       ping: vi.fn(),
@@ -159,26 +159,26 @@ describe('DomainResource', () => {
     });
   });
 
-  describe('remove', () => {
+  describe('delete', () => {
     it('should resolve the acknowledgement the wire answered with', async () => {
-      // A removal answers with the resource it removed. The SDK used to
+      // A deletion answers with the resource it deleted. The SDK used to
       // discard that body and resolve `void` — one operation with two
       // contracts. It now passes the projection through unchanged.
       const ack = { domain: 'staging.example.com' };
-      (mockApi.removeDomain as any).mockResolvedValue(ack);
+      (mockApi.deleteDomain as any).mockResolvedValue(ack);
 
-      const result = await domains.remove('staging');
+      const result = await domains.delete('staging');
 
-      expect(mockApi.removeDomain).toHaveBeenCalledWith('staging');
+      expect(mockApi.deleteDomain).toHaveBeenCalledWith('staging');
       expect(result).toEqual(ack);
     });
 
     it('should handle different domain names', async () => {
-      (mockApi.removeDomain as any).mockResolvedValue({ domain: 'example.com' });
+      (mockApi.deleteDomain as any).mockResolvedValue({ domain: 'example.com' });
 
-      const result = await domains.remove('production');
+      const result = await domains.delete('production');
 
-      expect(mockApi.removeDomain).toHaveBeenCalledWith('production');
+      expect(mockApi.deleteDomain).toHaveBeenCalledWith('production');
       expect(result).toEqual({ domain: 'example.com' });
     });
   });
@@ -280,14 +280,14 @@ describe('DomainResource', () => {
     it('should return error for invalid domain', async () => {
       const mockValidateResponse = {
         valid: false,
-        error: 'Domain must be a fully qualified domain name',
+        reason: 'Domain must be a fully qualified domain name',
       };
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
 
       const result = await domains.validate('invalid');
 
       expect(result.valid).toBe(false);
-      expect(result.error).toBeDefined();
+      expect(result.reason).toBeDefined();
       expect(result.available).toBeUndefined();
     });
 
@@ -313,7 +313,7 @@ describe('DomainResource', () => {
       expect(typeof domains.set).toBe('function');
       expect(typeof domains.get).toBe('function');
       expect(typeof domains.list).toBe('function');
-      expect(typeof domains.remove).toBe('function');
+      expect(typeof domains.delete).toBe('function');
       expect(typeof domains.verify).toBe('function');
       expect(typeof domains.validate).toBe('function');
     });
@@ -322,7 +322,7 @@ describe('DomainResource', () => {
       (mockApi.setDomain as any).mockResolvedValue({});
       (mockApi.getDomain as any).mockResolvedValue({});
       (mockApi.listDomains as any).mockResolvedValue({});
-      (mockApi.removeDomain as any).mockResolvedValue({});
+      (mockApi.deleteDomain as any).mockResolvedValue({});
       (mockApi.verifyDomain as any).mockResolvedValue({});
       (mockApi as any).validateDomain = vi.fn().mockResolvedValue({});
 
@@ -333,7 +333,7 @@ describe('DomainResource', () => {
       expect(domains.set('test', { labels: ['tag1', 'tag2'] })).toBeInstanceOf(Promise);
       expect(domains.get('test')).toBeInstanceOf(Promise);
       expect(domains.list()).toBeInstanceOf(Promise);
-      expect(domains.remove('test')).toBeInstanceOf(Promise);
+      expect(domains.delete('test')).toBeInstanceOf(Promise);
       expect(domains.verify('test')).toBeInstanceOf(Promise);
       expect(domains.validate('test.example.com')).toBeInstanceOf(Promise);
     });

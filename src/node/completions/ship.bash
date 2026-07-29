@@ -22,14 +22,14 @@ _ship_completions() {
           COMPREPLY=( $(compgen -f -- "${current_word}") )
           return
           ;;
-        "get"|"set"|"remove")
+        "get"|"set"|"delete")
           # Deployment ID position
           COMPREPLY=()
           return
           ;;
         *)
           if [[ ${COMP_CWORD} -eq 2 ]]; then
-            completions="list upload get set remove"
+            completions="list upload get set delete"
             COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
             return
           fi
@@ -43,14 +43,14 @@ _ship_completions() {
           COMPREPLY=()
           return
           ;;
-        "get"|"validate"|"verify"|"remove")
+        "get"|"validate"|"verify"|"delete")
           # Domain name position
           COMPREPLY=()
           return
           ;;
         *)
           if [[ ${COMP_CWORD} -eq 2 ]]; then
-            completions="list get set validate verify remove"
+            completions="list get set validate verify delete"
             COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
             return
           fi
@@ -59,14 +59,14 @@ _ship_completions() {
       ;;
     "tokens")
       case "${COMP_WORDS[2]}" in
-        "remove")
+        "delete")
           # Token ID position
           COMPREPLY=()
           return
           ;;
         *)
           if [[ ${COMP_CWORD} -eq 2 ]]; then
-            completions="list create remove"
+            completions="list create delete"
             COMPREPLY=( $(compgen -W "${completions}" -- "${current_word}") )
             return
           fi

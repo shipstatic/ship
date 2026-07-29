@@ -390,11 +390,11 @@ export class ApiHttp extends SimpleEvents {
     );
   }
 
-  async removeDeployment(id: string): Promise<DeploymentDeleteResponse> {
+  async deleteDeployment(id: string): Promise<DeploymentDeleteResponse> {
     return this.request<DeploymentDeleteResponse>(
       `${this.apiUrl}${API_PATHS.DEPLOYMENT(encodeURIComponent(id))}`,
       { method: 'DELETE' },
-      'Remove deployment',
+      'Delete deployment',
     );
   }
 
@@ -439,11 +439,11 @@ export class ApiHttp extends SimpleEvents {
     );
   }
 
-  async removeDomain(name: string): Promise<DomainDeleteResponse> {
+  async deleteDomain(name: string): Promise<DomainDeleteResponse> {
     return this.request<DomainDeleteResponse>(
       `${this.apiUrl}${API_PATHS.DOMAIN(encodeURIComponent(name))}`,
       { method: 'DELETE' },
-      'Remove domain',
+      'Delete domain',
     );
   }
 
@@ -520,11 +520,11 @@ export class ApiHttp extends SimpleEvents {
     );
   }
 
-  async removeToken(token: string): Promise<TokenDeleteResponse> {
+  async deleteToken(token: string): Promise<TokenDeleteResponse> {
     return this.request<TokenDeleteResponse>(
       `${this.apiUrl}${API_PATHS.TOKEN(encodeURIComponent(token))}`,
       { method: 'DELETE' },
-      'Remove token',
+      'Delete token',
     );
   }
 
@@ -548,13 +548,8 @@ export class ApiHttp extends SimpleEvents {
     return this.request(`${this.apiUrl}${API_PATHS.LIMITS}`, { method: 'GET' }, 'Get limits');
   }
 
-  async ping(): Promise<boolean> {
-    const data = await this.request<PingResponse>(
-      `${this.apiUrl}${API_PATHS.PING}`,
-      { method: 'GET' },
-      'Ping',
-    );
-    return data?.success || false;
+  async ping(): Promise<PingResponse> {
+    return this.request<PingResponse>(`${this.apiUrl}${API_PATHS.PING}`, { method: 'GET' }, 'Ping');
   }
 
   // ===========================================================================

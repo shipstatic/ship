@@ -197,10 +197,10 @@ describe('domain operations', () => {
   });
 
   describe('delete', () => {
-    it('removes the row, so a follow-up read 404s', async () => {
+    it('deletes the row, so a follow-up read 404s', async () => {
       await ship.domains.set(CUSTOM, { deployment: DEPLOYMENT });
 
-      await ship.domains.remove(CUSTOM);
+      await ship.domains.delete(CUSTOM);
 
       // wire: routes/domains.ts:203 — 200 `{domain}` AND the row is gone. The
       // previous mock answered 204 and kept the row, so a delete that did

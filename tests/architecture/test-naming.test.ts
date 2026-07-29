@@ -90,6 +90,13 @@ const FEATURE_AXIS: ReadonlyArray<{ file: string; reason: string }> = [
       "the contract is the CLI's, not any single module's",
   },
   {
+    file: 'tests/node/cli/json-acknowledgements.test.ts',
+    reason:
+      'the --json acknowledgement envelope, asserted across every deletion that ' +
+      'produces one — the same contract as its error twin, and likewise the ' +
+      "CLI's rather than any single module's",
+  },
+  {
     file: 'tests/e2e/smoke.e2e.test.ts',
     reason: 'contract-drift detector against a REAL API; opt-in tier',
   },

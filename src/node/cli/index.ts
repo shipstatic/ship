@@ -82,7 +82,7 @@ ${applyBold('COMMANDS')}
   ship deployments upload <path>        Upload deployment from file or directory
   ship deployments get <deployment>     Show deployment information
   ship deployments set <deployment>     Set deployment labels
-  ship deployments remove <deployment>  Delete deployment permanently
+  ship deployments delete <deployment>  Delete deployment permanently
 
   ${icon('🌎')}${applyBold('Domains')}
   ship domains list                     List domains
@@ -93,12 +93,12 @@ ${applyBold('COMMANDS')}
   ship domains dns <name>               Look up DNS provider for a domain
   ship domains share <name>             Get shareable DNS setup link
   ship domains verify <name>            Trigger DNS verification for external domain
-  ship domains remove <name>            Delete domain permanently
+  ship domains delete <name>            Delete domain permanently
 
   ${icon('🔑')}${applyBold('Tokens')}
   ship tokens list                      List deploy tokens
   ship tokens create                    Create a new deploy token
-  ship tokens remove <token>            Delete token permanently
+  ship tokens delete <token>            Delete token permanently
 
   ${icon('⚙️')}${applyBold('Setup')}
   ship config                           Save your token
@@ -451,17 +451,19 @@ export function buildProgram(): Command {
    */
   function withErrorHandling<T extends unknown[], R extends CLIResult>(
     handler: (client: Ship, options: GlobalOptions, ...args: T) => Promise<R>,
-    context?: { operation?: string; resourceType?: string; getResourceId?: (...args: T) => string },
+    context?: { operation?: string; resourceType?: string },
   ) {
     return async function (this: Command, ...args: T) {
       const globalOptions = processOptions(this);
 
-      // Build context once for both output and error paths
+      // Build context once for both output and error paths. It carries what
+      // the command IS, never what the caller typed: the arguments are the
+      // request, and every sentence the CLI writes about a result is composed
+      // from the response.
       const resolvedContext: OutputContext = context
         ? {
             operation: context.operation,
             resourceType: context.resourceType,
-            resourceId: context.getResourceId?.(...args),
           }
         : {};
 
@@ -536,13 +538,14 @@ export function buildProgram(): Command {
     .command('ping')
     .description('Check API connectivity')
     .action(
-      withErrorHandling(async (client: Ship, _options: GlobalOptions) => {
-        const reachable = await client.ping();
-        // Composability: the exit code IS the result (quiet mode prints
-        // nothing) — same idiom as `domains validate`.
-        if (!reachable) process.exitCode = 1;
-        return reachable;
-      }),
+      withErrorHandling(
+        // Reachability is the absence of a throw: `ping()` resolves the server
+        // clock or raises a typed error, so there is nothing here to test. The
+        // exit code follows — 0 on resolve, 1 through `handleError` — which is
+        // the same composability `domains validate` relies on.
+        (client: Ship, _options: GlobalOptions) => client.ping(),
+        { operation: 'ping' },
+      ),
     );
 
   // Whoami shortcut - alias for account get
@@ -561,7 +564,7 @@ export function buildProgram(): Command {
     .command('deployments')
     .description('Manage deployments')
     .enablePositionalOptions()
-    .action(handleUnknownSubcommand('deployments', ['list', 'upload', 'get', 'set', 'remove']));
+    .action(handleUnknownSubcommand('deployments', ['list', 'upload', 'get', 'set', 'delete']));
 
   deploymentsCmd
     .command('list')
@@ -609,7 +612,7 @@ export function buildProgram(): Command {
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, deployment: string) =>
           client.deployments.get(deployment),
-        { operation: 'get', resourceType: 'Deployment', getResourceId: (id: string) => id },
+        { operation: 'get', resourceType: 'Deployment' },
       ),
     );
 
@@ -632,22 +635,20 @@ export function buildProgram(): Command {
         {
           operation: 'set',
           resourceType: 'Deployment',
-          getResourceId: (deployment: string) => deployment,
         },
       ),
     );
 
   deploymentsCmd
-    .command('remove <deployment>')
+    .command('delete <deployment>')
     .description('Delete deployment permanently')
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, deployment: string) =>
-          client.deployments.remove(deployment),
+          client.deployments.delete(deployment),
         {
-          operation: 'remove',
+          operation: 'delete',
           resourceType: 'Deployment',
-          getResourceId: (deployment: string) => deployment,
         },
       ),
     );
@@ -667,7 +668,7 @@ export function buildProgram(): Command {
         'dns',
         'share',
         'verify',
-        'remove',
+        'delete',
       ]),
     );
 
@@ -688,7 +689,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.get(name),
-        { operation: 'get', resourceType: 'Domain', getResourceId: (name: string) => name },
+        { operation: 'get', resourceType: 'Domain' },
       ),
     );
 
@@ -702,7 +703,7 @@ export function buildProgram(): Command {
           if (!result.valid) process.exitCode = 1;
           return result;
         },
-        { operation: 'validate', resourceType: 'Domain', getResourceId: (name: string) => name },
+        { operation: 'validate', resourceType: 'Domain' },
       ),
     );
 
@@ -712,7 +713,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.verify(name),
-        { operation: 'verify', resourceType: 'Domain', getResourceId: (name: string) => name },
+        { operation: 'verify', resourceType: 'Domain' },
       ),
     );
 
@@ -722,7 +723,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.records(name),
-        { operation: 'records', resourceType: 'Domain', getResourceId: (name: string) => name },
+        { operation: 'records', resourceType: 'Domain' },
       ),
     );
 
@@ -732,7 +733,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.dns(name),
-        { operation: 'dns', resourceType: 'Domain', getResourceId: (name: string) => name },
+        { operation: 'dns', resourceType: 'Domain' },
       ),
     );
 
@@ -742,7 +743,7 @@ export function buildProgram(): Command {
     .action(
       withErrorHandling(
         (client: Ship, _options: GlobalOptions, name: string) => client.domains.share(name),
-        { operation: 'share', resourceType: 'Domain', getResourceId: (name: string) => name },
+        { operation: 'share', resourceType: 'Domain' },
       ),
     );
 
@@ -797,17 +798,17 @@ export function buildProgram(): Command {
           }
           return result;
         },
-        { operation: 'set', resourceType: 'Domain', getResourceId: (name: string) => name },
+        { operation: 'set', resourceType: 'Domain' },
       ),
     );
 
   domainsCmd
-    .command('remove <name>')
+    .command('delete <name>')
     .description('Delete domain permanently')
     .action(
       withErrorHandling(
-        (client: Ship, _options: GlobalOptions, name: string) => client.domains.remove(name),
-        { operation: 'remove', resourceType: 'Domain', getResourceId: (name: string) => name },
+        (client: Ship, _options: GlobalOptions, name: string) => client.domains.delete(name),
+        { operation: 'delete', resourceType: 'Domain' },
       ),
     );
 
@@ -816,7 +817,7 @@ export function buildProgram(): Command {
     .command('tokens')
     .description('Manage deploy tokens')
     .enablePositionalOptions()
-    .action(handleUnknownSubcommand('tokens', ['list', 'create', 'remove']));
+    .action(handleUnknownSubcommand('tokens', ['list', 'create', 'delete']));
 
   tokensCmd
     .command('list')
@@ -857,12 +858,12 @@ export function buildProgram(): Command {
     );
 
   tokensCmd
-    .command('remove <token>')
+    .command('delete <token>')
     .description('Delete token permanently')
     .action(
       withErrorHandling(
-        (client: Ship, _options: GlobalOptions, token: string) => client.tokens.remove(token),
-        { operation: 'remove', resourceType: 'Token', getResourceId: (token: string) => token },
+        (client: Ship, _options: GlobalOptions, token: string) => client.tokens.delete(token),
+        { operation: 'delete', resourceType: 'Token' },
       ),
     );
 

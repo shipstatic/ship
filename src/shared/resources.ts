@@ -83,9 +83,9 @@ export function createDeploymentResource(
       return getApi().updateDeploymentLabels(id, options.labels);
     },
 
-    remove: async (id: string) => {
+    delete: async (id: string) => {
       await ensureInit();
-      return getApi().removeDeployment(id);
+      return getApi().deleteDeployment(id);
     },
   };
 }
@@ -121,9 +121,9 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
       return getApi().getDomain(name);
     },
 
-    remove: async (name: string) => {
+    delete: async (name: string) => {
       await ensureInit();
-      return getApi().removeDomain(name);
+      return getApi().deleteDomain(name);
     },
 
     verify: async (name: string) => {
@@ -189,9 +189,9 @@ export function createTokenResource(ctx: ResourceContext): TokenResource {
       return getApi().getToken(token);
     },
 
-    remove: async (token: string) => {
+    delete: async (token: string) => {
       await ensureInit();
-      return getApi().removeToken(token);
+      return getApi().deleteToken(token);
     },
   };
 }
