@@ -120,7 +120,7 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
   // --- /ping ------------------------------------------------------------
   // wire: routes/ping.ts:8
   if (path === '/ping' && method === 'GET') {
-    return json({ success: true, timestamp: state.now });
+    return json({ timestamp: state.now });
   }
 
   // --- /limits ----------------------------------------------------------

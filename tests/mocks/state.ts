@@ -114,7 +114,7 @@ export function createMockState(
           valid: false,
           normalized: null,
           available: null,
-          error: 'That is not a valid domain name.',
+          reason: 'That is not a valid domain name.',
         };
       }
       // Apex → `www.` (CNAME routing requires a subdomain). The CLI's auto-fix
@@ -124,7 +124,7 @@ export function createMockState(
       const available = isCustomDomain(normalized)
         ? true // any custom domain you own is addable
         : !state.domains.some((d) => d.domain === normalized);
-      return { valid: true, normalized, available, error: null };
+      return { valid: true, normalized, available, reason: null };
     },
   };
 

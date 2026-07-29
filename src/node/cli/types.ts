@@ -17,6 +17,7 @@ import type {
   DomainShareResponse,
   DomainValidateResponse,
   DomainVerifyResponse,
+  PingResponse,
   Token,
   TokenCreateResponse,
   TokenDeleteResponse,
@@ -104,7 +105,8 @@ export type CLIResult =
   | Token
   | TokenCreateResponse
   | DomainVerifyResponse
-  // A removal answers with the resource it removed — the acknowledgement law
+  | PingResponse
+  // A deletion answers with the resource it deleted — the acknowledgement law
   // (`@shipstatic/types`, DeploymentDeleteResponse). These used to resolve
   // `void`, so the CLI printed a composed sentence and the wire's answer was
   // discarded; now the same projection reaches the formatter as every other
@@ -112,6 +114,5 @@ export type CLIResult =
   | DeploymentDeleteResponse
   | DomainDeleteResponse
   | TokenDeleteResponse
-  | boolean
-  // biome-ignore lint/suspicious/noConfusingVoidType: some handlers still resolve with nothing; formatOutput routes undefined to the removal success message
+  // biome-ignore lint/suspicious/noConfusingVoidType: some handlers still resolve with nothing; formatOutput routes undefined to the deletion success message
   | void;

@@ -154,7 +154,7 @@ describe('Ship - Browser Implementation', () => {
       const seen: string[] = [];
       const fetch = vi.fn(async (input: any) => {
         seen.push(typeof input === 'string' ? input : input.url);
-        return new Response(JSON.stringify({ success: true }), {
+        return new Response(JSON.stringify({ success: true, timestamp: 1_700_000_000 }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
@@ -166,7 +166,7 @@ describe('Ship - Browser Implementation', () => {
         fetch,
       });
 
-      await expect(ship.ping()).resolves.toBe(true);
+      await expect(ship.ping()).resolves.toEqual({ success: true, timestamp: 1_700_000_000 });
       expect(seen).toEqual(['http://localhost:13579/limits', 'http://localhost:13579/ping']);
     });
   });

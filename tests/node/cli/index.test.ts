@@ -14,8 +14,6 @@
  */
 
 import { mkdtempSync } from 'node:fs';
-import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { ErrorType } from '@shipstatic/types';
@@ -107,28 +105,17 @@ describe('CLI command tree (in-process)', () => {
       expect(result.stdout.trim()).toBe('');
     });
 
-    it('ping exits 1 when the API answers unsuccessfully', async () => {
-      // The wire-truth mock can never answer `success: false` (the real API
-      // doesn't), so the defensive branch gets a bespoke non-conforming
-      // upstream. The exit code IS the result — `ship ping && …` must not
-      // proceed when the API is not reachable.
-      const server = createServer((req, res) => {
-        res.setHeader('content-type', 'application/json');
-        if (req.url?.startsWith('/limits')) {
-          res.end(JSON.stringify({ maxFileSize: 1, maxFilesCount: 1, maxTotalSize: 1 }));
-          return;
-        }
-        res.end(JSON.stringify({ success: false }));
-      });
-      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-      const { port } = server.address() as AddressInfo;
-      try {
-        const result = await runProgram(['--api-url', `http://127.0.0.1:${port}`, 'ping']);
-        expect(result.exitCode).toBe(1);
-        expect(result.stderr).toContain('api unreachable');
-      } finally {
-        await new Promise<void>((resolve) => server.close(() => resolve()));
-      }
+    it('ping exits 1 when the API does not answer', async () => {
+      // The exit code IS the result — `ship ping && …` must not proceed when
+      // the API is unreachable. This drove a bespoke server answering
+      // `{ success: false }` until 2026-07-29: a shape the real API cannot
+      // produce, invented to reach a branch that guarded a constant. The
+      // honest failure is transport, and it needs no fixture — an unroutable
+      // port refuses the connection.
+      const result = await runProgram(['--api-url', 'http://127.0.0.1:9', 'ping']);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('network error');
     });
 
     it('whoami prints the account email', async () => {
@@ -450,10 +437,14 @@ describe('CLI command tree (in-process)', () => {
       expect(row?.labels).toEqual([]);
     });
 
-    it('remove reports the async 202 outcome as a removal success', async () => {
-      const result = await runProgram(['deployments', 'remove', SEEDED_SLUG]);
+    it('delete reports the async 202 outcome as a deletion success', async () => {
+      // Addressed by BARE SLUG, acknowledged by HOSTNAME — the divergence this
+      // assertion exists for. A deployment is addressable either way, so a
+      // sentence built from the argument would name whichever form the caller
+      // happened to type; the platform's identifier is the one that is true.
+      const result = await runProgram(['deployments', 'delete', SEEDED_SLUG]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toBe(`${SEEDED_SLUG} deployment removed\n\n`);
+      expect(result.stdout).toBe(`${SEEDED} deployment deleted\n\n`);
     });
 
     it('--json errors are machine-readable', async () => {
@@ -553,11 +544,11 @@ describe('CLI command tree (in-process)', () => {
       expect(output.status).toBe('pending');
     });
 
-    it('remove deletes the row — a follow-up get is not-found', async () => {
+    it('delete removes the row — a follow-up get is not-found', async () => {
       await runProgram(['domains', 'set', 'www.short-lived.com']);
-      const removal = await runProgram(['domains', 'remove', 'www.short-lived.com']);
-      expect(removal.exitCode).toBe(0);
-      expect(removal.stdout).toBe('www.short-lived.com domain removed\n\n');
+      const deletion = await runProgram(['domains', 'delete', 'www.short-lived.com']);
+      expect(deletion.exitCode).toBe(0);
+      expect(deletion.stdout).toBe('www.short-lived.com domain deleted\n\n');
       const after = await runProgram(['domains', 'get', 'www.short-lived.com']);
       expect(after.exitCode).toBe(1);
     });
@@ -723,17 +714,17 @@ describe('CLI command tree (in-process)', () => {
       expect(output.tokens.map((t: { token: string }) => t.token)).toContain(id);
     });
 
-    it('remove deletes the token — 200 with the acknowledgement, and the row is gone', async () => {
+    it('delete revokes the token — 200 with the acknowledgement, and the row is gone', async () => {
       const created = await runProgram(['--json', 'tokens', 'create']);
       const id = JSON.parse(created.stdout.trim()).token;
-      const removal = await runProgram(['tokens', 'remove', id]);
-      expect(removal.exitCode).toBe(0);
-      expect(removal.stdout).toBe(`${id} token removed\n\n`);
+      const deletion = await runProgram(['tokens', 'delete', id]);
+      expect(deletion.exitCode).toBe(0);
+      expect(deletion.stdout).toBe(`${id} token deleted\n\n`);
       expect(mockState().tokens.find((t) => t.token === id)).toBeUndefined();
     });
 
-    it('remove for an unknown token exits 1 with not-found', async () => {
-      const result = await runProgram(['tokens', 'remove', 'absent1']);
+    it('delete for an unknown token exits 1 with not-found', async () => {
+      const result = await runProgram(['tokens', 'delete', 'absent1']);
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('not found');
     });

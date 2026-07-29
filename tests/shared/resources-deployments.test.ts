@@ -213,14 +213,14 @@ describe('Deployment Resource (Unified Architecture)', () => {
     });
   });
 
-  describe('remove', () => {
-    it('should call API removeDeployment after initialization', async () => {
-      mockApiHttp.removeDeployment = vi.fn().mockResolvedValue(undefined);
+  describe('delete', () => {
+    it('should call API deleteDeployment after initialization', async () => {
+      mockApiHttp.deleteDeployment = vi.fn().mockResolvedValue(undefined);
 
-      await deploymentResource.remove('dep_123');
+      await deploymentResource.delete('dep_123');
 
       expect(mockEnsureInit).toHaveBeenCalled();
-      expect(mockApiHttp.removeDeployment).toHaveBeenCalledWith('dep_123');
+      expect(mockApiHttp.deleteDeployment).toHaveBeenCalledWith('dep_123');
     });
   });
 });

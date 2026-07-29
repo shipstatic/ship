@@ -58,7 +58,7 @@ complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'list' -d 'L
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'upload' -d 'Upload deployment from file or directory'
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'get' -d 'Show deployment information'
 complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'set' -d 'Set deployment labels'
-complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'remove' -d 'Delete deployment permanently'
+complete -c ship -f -n '__fish_seen_subcommand_from deployments' -a 'delete' -d 'Delete deployment permanently'
 
 # Domains subcommands
 complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'list' -d 'List all domains'
@@ -66,12 +66,12 @@ complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'get' -d 'Show d
 complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'set' -d 'Create domain, link to deployment, or update labels'
 complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'validate' -d 'Check if domain name is valid and available'
 complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'verify' -d 'Trigger DNS verification for external domain'
-complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'remove' -d 'Delete domain permanently'
+complete -c ship -f -n '__fish_seen_subcommand_from domains' -a 'delete' -d 'Delete domain permanently'
 
 # Tokens subcommands
 complete -c ship -f -n '__fish_seen_subcommand_from tokens' -a 'list' -d 'List all deploy tokens'
 complete -c ship -f -n '__fish_seen_subcommand_from tokens' -a 'create' -d 'Create a new deploy token'
-complete -c ship -f -n '__fish_seen_subcommand_from tokens' -a 'remove' -d 'Delete token permanently'
+complete -c ship -f -n '__fish_seen_subcommand_from tokens' -a 'delete' -d 'Delete token permanently'
 
 # Tokens create options
 complete -c ship -l ttl -d 'Time to live in seconds' -x

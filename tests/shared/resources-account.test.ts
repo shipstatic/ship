@@ -15,12 +15,12 @@ describe('AccountResource', () => {
       deploy: vi.fn(),
       ping: vi.fn(),
       getDeployments: vi.fn(),
-      getDeployment: vi.fn(),
-      removeDeployment: vi.fn(),
-      getAliases: vi.fn(),
-      getAlias: vi.fn(),
-      setAlias: vi.fn(),
-      removeAlias: vi.fn(),
+      // The account resource reaches exactly one method. Listing more is not
+      // harmless padding: `as unknown as` hides the whole object from the
+      // typechecker, so a phantom survives every rename. This carried
+      // `getAliases`/`getAlias`/`setAlias`/`removeAlias` — an API generation
+      // that predates domains — which is the failure `base-ship.test.ts`
+      // documents and no assertion here could ever have caught.
       getAccount: vi.fn(),
     } as unknown as ApiHttp;
 

@@ -53,7 +53,7 @@ ship deployments list --limit 20                   # Page size; a hint shows the
 ship deployments list --cursor <cursor>            # Continue from a previous page
 ship deployments get <deployment>
 ship deployments set <deployment> --label production
-ship deployments remove <deployment>
+ship deployments delete <deployment>
 ```
 
 ```typescript
@@ -62,7 +62,7 @@ ship.deployments.upload(input, options?)
 ship.deployments.list(options?)            // { limit?, cursor? } — response carries the next cursor
 ship.deployments.get(deployment)
 ship.deployments.set(deployment, { labels })
-ship.deployments.remove(deployment)
+ship.deployments.delete(deployment)
 ```
 
 ### Domains
@@ -78,7 +78,7 @@ ship domains verify www.example.com
 ship domains records www.example.com
 ship domains dns www.example.com
 ship domains share www.example.com
-ship domains remove www.example.com
+ship domains delete www.example.com
 ```
 
 ```typescript
@@ -90,7 +90,7 @@ ship.domains.verify(name)
 ship.domains.records(name)
 ship.domains.dns(name)
 ship.domains.share(name)
-ship.domains.remove(name)
+ship.domains.delete(name)
 ```
 
 `domains.set()` is a merge-upsert — omitted fields are preserved on update, defaulted on create. Once linked, a domain cannot be unlinked (`{ deployment: null }` → 400). Switch deployments or delete the domain instead.
@@ -107,13 +107,13 @@ ship.domains.set('www.münchen.de');    // → Unicode supported
 ```bash
 ship tokens create --ttl 3600 --label ci
 ship tokens list
-ship tokens remove <token>
+ship tokens delete <token>
 ```
 
 ```typescript
 ship.tokens.create({ ttl?, labels? })
 ship.tokens.list()
-ship.tokens.remove(token)
+ship.tokens.delete(token)
 ```
 
 ### Account
@@ -143,8 +143,8 @@ ship ./dist -q | ship domains set www.example.com
 # Deploy and open in browser
 open https://$(ship ./dist -q)
 
-# Batch remove all deployments
-ship deployments list -q | xargs -I{} ship deployments remove {} -q
+# Batch delete all deployments
+ship deployments list -q | xargs -I{} ship deployments delete {} -q
 ```
 
 ### Shell Completion

@@ -38,7 +38,7 @@ COMMANDS
   ship deployments upload <path>        Upload deployment from file or directory
   ship deployments get <deployment>     Show deployment information
   ship deployments set <deployment>     Set deployment labels
-  ship deployments remove <deployment>  Delete deployment permanently
+  ship deployments delete <deployment>  Delete deployment permanently
 
   Domains
   ship domains list                     List domains
@@ -49,12 +49,12 @@ COMMANDS
   ship domains dns <name>               Look up DNS provider for a domain
   ship domains share <name>             Get shareable DNS setup link
   ship domains verify <name>            Trigger DNS verification for external domain
-  ship domains remove <name>            Delete domain permanently
+  ship domains delete <name>            Delete domain permanently
 
   Tokens
   ship tokens list                      List deploy tokens
   ship tokens create                    Create a new deploy token
-  ship tokens remove <token>            Delete token permanently
+  ship tokens delete <token>            Delete token permanently
 
   Setup
   ship config                           Save your token

@@ -135,7 +135,7 @@ describe('ApiHttp', () => {
   describe('ping', () => {
     it('should make GET request to /ping endpoint', async () => {
       (global.fetch as any).mockResolvedValue(
-        createMockResponse({ success: true, message: 'pong' }),
+        createMockResponse({ success: true, timestamp: 1_700_000_000 }),
       );
 
       const result = await apiHttp.ping();
@@ -149,7 +149,7 @@ describe('ApiHttp', () => {
           }),
         }),
       );
-      expect(result).toBe(true);
+      expect(result).toEqual({ success: true, timestamp: 1_700_000_000 });
     });
 
     it('should handle network errors', async () => {
@@ -605,11 +605,11 @@ describe('ApiHttp', () => {
     });
   });
 
-  describe('removeDeployment', () => {
-    it('should remove deployment', async () => {
+  describe('deleteDeployment', () => {
+    it('should delete deployment', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse(undefined, 204));
 
-      const result = await apiHttp.removeDeployment('test-deployment');
+      const result = await apiHttp.deleteDeployment('test-deployment');
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/deployments/test-deployment',
@@ -898,10 +898,10 @@ describe('ApiHttp', () => {
       expect(result).toEqual(mockDomains);
     });
 
-    it('should remove domain', async () => {
+    it('should delete domain', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse(undefined, 204));
 
-      const result = await apiHttp.removeDomain('staging');
+      const result = await apiHttp.deleteDomain('staging');
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/domains/staging',
@@ -1162,10 +1162,10 @@ describe('ApiHttp', () => {
       expect(result).toEqual(mockResponse);
     });
 
-    it('should remove token', async () => {
+    it('should delete token', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse(undefined, 204));
 
-      await apiHttp.removeToken('deploy-to-delete');
+      await apiHttp.deleteToken('deploy-to-delete');
 
       expect(fetch).toHaveBeenCalledWith(
         'https://api.test.com/tokens/deploy-to-delete',
@@ -1375,7 +1375,7 @@ describe('ApiHttp', () => {
   describe('fetch injection', () => {
     it('should use globalThis.fetch by default', async () => {
       (global.fetch as any).mockResolvedValue(
-        createMockResponse({ success: true, message: 'pong' }),
+        createMockResponse({ success: true, timestamp: 1_700_000_000 }),
       );
 
       const api = new ApiHttp(mockOptions);
@@ -1385,7 +1385,7 @@ describe('ApiHttp', () => {
         'https://api.test.com/ping',
         expect.objectContaining({ method: 'GET' }),
       );
-      expect(result).toBe(true);
+      expect(result).toEqual({ success: true, timestamp: 1_700_000_000 });
     });
 
     it('should route every API call through the injected fetcher and bypass globalThis.fetch', async () => {

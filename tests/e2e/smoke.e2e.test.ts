@@ -52,7 +52,7 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
   afterAll(async () => {
     for (const deploymentId of deploymentsToCleanup) {
       // Cleanup errors are non-fatal — the row may already be gone.
-      await ship.deployments.remove(deploymentId).catch(() => {});
+      await ship.deployments.delete(deploymentId).catch(() => {});
     }
   });
 
@@ -130,8 +130,8 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
       expect((await response.text()).length).toBeGreaterThan(0);
     });
 
-    it('removes the deployment; a follow-up get is a typed 404', async () => {
-      await ship.deployments.remove(deployed.deployment);
+    it('deletes the deployment; a follow-up get is a typed 404', async () => {
+      await ship.deployments.delete(deployed.deployment);
       deploymentsToCleanup.splice(deploymentsToCleanup.indexOf(deployed.deployment), 1);
 
       const error = await captureError(ship.deployments.get(deployed.deployment));

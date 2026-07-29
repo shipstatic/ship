@@ -118,24 +118,28 @@ describe('CLI Error Handling', () => {
     });
 
     describe('server errors', () => {
-      it('should show generic server error for API errors', () => {
+      // A 5xx message is authored for the user like any other — the API emits
+      // a deliberate sentence or a safe generic and sends the raw failure to
+      // Slack, so the CLI relays it and appends the one thing it knows that
+      // the server does not.
+      it('relays the wire message for a server fault, adding where to look', () => {
         const err = ShipError.api('Internal server error', 500);
 
         const message = getUserMessage(err);
 
         expect(message).toBe(
-          'server error: please try again or check https://status.shipstatic.com',
+          'Internal server error — try again, or check https://status.shipstatic.com',
         );
       });
 
-      it('should show generic server error for unknown error types', () => {
-        const err = new ShipError(ErrorType.Api, 'Something broke', 502);
+      it('relays a deliberately authored 5xx rather than flattening it', () => {
+        // The case that motivated this: a 503 that names its cause must not
+        // arrive as an anonymous "server error".
+        const err = new ShipError(ErrorType.Api, 'Content moderation is unavailable', 503);
 
         const message = getUserMessage(err);
 
-        expect(message).toBe(
-          'server error: please try again or check https://status.shipstatic.com',
-        );
+        expect(message).toContain('Content moderation is unavailable');
       });
     });
 
@@ -145,9 +149,7 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe(
-          'server error: please try again or check https://status.shipstatic.com',
-        );
+        expect(message).toBe('Error — try again, or check https://status.shipstatic.com');
       });
 
       it('should handle error with null details', () => {
@@ -155,9 +157,17 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe(
-          'server error: please try again or check https://status.shipstatic.com',
-        );
+        expect(message).toBe('Error — try again, or check https://status.shipstatic.com');
+      });
+
+      it("a cancellation is the caller's own action, never a server fault", () => {
+        // `Cancelled` sat outside the client-attributable set until
+        // 2026-07-29, so aborting a deploy reported "server error: please try
+        // again" — the fallback for everything that set does not claim.
+        const message = getUserMessage(ShipError.cancelled('Deploy was cancelled'));
+
+        expect(message).toBe('Deploy was cancelled');
+        expect(message).not.toContain('status.shipstatic.com');
       });
     });
   });

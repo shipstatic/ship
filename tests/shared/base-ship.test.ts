@@ -75,7 +75,7 @@ describe('Base Ship Class (Abstract)', () => {
       checkSPA: vi.fn().mockResolvedValue(false),
       listDeployments: vi.fn().mockResolvedValue({ deployments: [], cursor: null }),
       getDeployment: vi.fn().mockResolvedValue({ deployment: 'brave-otter-a1b2c3d' }),
-      removeDeployment: vi.fn().mockResolvedValue(undefined),
+      deleteDeployment: vi.fn().mockResolvedValue(undefined),
       getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
     };
   });
@@ -131,12 +131,12 @@ describe('Base Ship Class (Abstract)', () => {
       expect(typeof ship.deployments.list).toBe('function');
       expect(typeof ship.deployments.get).toBe('function');
       expect(typeof ship.deployments.set).toBe('function');
-      expect(typeof ship.deployments.remove).toBe('function');
+      expect(typeof ship.deployments.delete).toBe('function');
 
       expect(typeof ship.domains.set).toBe('function');
       expect(typeof ship.domains.get).toBe('function');
       expect(typeof ship.domains.list).toBe('function');
-      expect(typeof ship.domains.remove).toBe('function');
+      expect(typeof ship.domains.delete).toBe('function');
       expect(typeof ship.domains.verify).toBe('function');
 
       expect(typeof ship.account.get).toBe('function');

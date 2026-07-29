@@ -2,31 +2,42 @@
  * Pure formatting functions for CLI output.
  * All formatters are synchronous and have no side effects beyond console output.
  */
-import {
-  type Account,
-  type Deployment,
-  type DeploymentCreateResponse,
-  type DeploymentListResponse,
-  type Domain,
-  type DomainDnsResponse,
-  type DomainListResponse,
-  type DomainRecordsResponse,
-  type DomainShareResponse,
-  type DomainValidateResponse,
-  type DomainVerifyResponse,
-  ShipError,
-  type TokenCreateResponse,
-  type TokenListResponse,
+import type {
+  Account,
+  Deployment,
+  DeploymentCreateResponse,
+  DeploymentListResponse,
+  Domain,
+  DomainDnsResponse,
+  DomainListResponse,
+  DomainRecordsResponse,
+  DomainShareResponse,
+  DomainValidateResponse,
+  DomainVerifyResponse,
+  TokenCreateResponse,
+  TokenListResponse,
 } from '@shipstatic/types';
 import type { CLIResult, EnrichedDomain } from './types.js';
 import { error, formatDetails, formatTable, info, success } from './utils.js';
 
 const setupUrl = (hash: string, domain: string) => `https://setup.shipstatic.com/${hash}/${domain}`;
 
+/**
+ * Read a named field off a result whose shape the caller has already decided.
+ *
+ * The cast is the one narrowing TypeScript cannot do for us: `CLIResult` is a
+ * union of named response types and a member like `EnrichedDomain` carries no
+ * index signature, yet every member IS a plain object. Safe because the field
+ * name is derived from the command's own resource type — never from input —
+ * and the value is type-checked at the call site before it is used.
+ */
+function readField(source: object, field: string): unknown {
+  return (source as Record<string, unknown>)[field];
+}
+
 export interface OutputContext {
   operation?: string;
   resourceType?: string;
-  resourceId?: string;
 }
 
 export interface FormatOptions {
@@ -175,7 +186,7 @@ export function formatAccount(
  *
  * The wire carries no prose — an acknowledgement is the domain and the 202
  * that accepted it — so the copy is composed here. That is the same
- * carve-out the removal message below uses: a surface writes its own words
+ * carve-out the deletion message below uses: a surface writes its own words
  * exactly where no wire message exists.
  */
 export function formatDomainVerify(
@@ -212,7 +223,7 @@ export function formatDomainValidate(
     }
     console.log();
   } else {
-    error(result.error || 'domain is invalid', false, noColor);
+    error(result.reason || 'domain is invalid', false, noColor);
   }
 }
 
@@ -301,7 +312,7 @@ export function formatToken(
 
 /**
  * Main output function - routes to appropriate formatter based on result shape.
- * Handles JSON mode, removal operations, and ping results.
+ * Handles JSON mode, deletion operations, and ping results.
  */
 export function formatOutput(
   result: CLIResult,
@@ -312,7 +323,7 @@ export function formatOutput(
 
   // Quiet mode: output only the key identifier
   if (quiet) {
-    if (result === undefined || typeof result === 'boolean') return;
+    if (result === undefined) return;
     if (result !== null && typeof result === 'object') {
       if ('deployments' in result) {
         for (const d of (result as DeploymentListResponse).deployments) console.log(d.deployment);
@@ -345,34 +356,48 @@ export function formatOutput(
     return;
   }
 
-  // Handle removals — the wire answers with the resource it removed (the
-  // acknowledgement law), so the sentence is composed from that projection
-  // rather than from the absence of one. `undefined` still lands here for
-  // any handler that resolves nothing.
-  if (context.operation === 'remove') {
-    if (context.resourceType && context.resourceId) {
-      success(`${context.resourceId} ${context.resourceType.toLowerCase()} removed`, json, noColor);
-    } else {
-      success('removed successfully', json, noColor);
-    }
+  // Deletions answer with an acknowledgement, so text is the only channel that
+  // composes anything: JSON falls through to the one transmitter below, and
+  // quiet already read the key above. Text translates, JSON transmits.
+  //
+  // The identifier comes from the wire, never from what the caller typed —
+  // those differ routinely. A deployment is addressable by bare slug and
+  // answers with its hostname; a domain is accepted in any case and answers
+  // normalized. Only the noun is this CLI's word, and it is the same word
+  // that names the key: an acknowledgement is the resource noun carrying its
+  // canonical key (`@shipstatic/types`, `DeploymentDeleteResponse`), so one
+  // lowercased resource type both reads the field and writes the sentence.
+  if (context.operation === 'delete' && !json) {
+    const noun = context.resourceType?.toLowerCase();
+    const acknowledged =
+      noun && result !== null && typeof result === 'object' ? readField(result, noun) : undefined;
+
+    // A handler that resolved nothing leaves no identifier to report, and the
+    // CLI does not invent one.
+    success(
+      typeof acknowledged === 'string' ? `${acknowledged} ${noun} deleted` : 'deleted successfully',
+      false,
+      noColor,
+    );
     return;
   }
 
   if (result === undefined) {
-    success('removed successfully', json, noColor);
+    success('deleted successfully', json, noColor);
     return;
   }
 
-  // Handle ping result (boolean from client.ping())
-  if (typeof result === 'boolean') {
-    if (result) {
-      success('api reachable', json, noColor);
-    } else {
-      // `ping()` resolving false means the API answered non-OK — the one
-      // failure the CLI reports without an exception behind it, so it names
-      // its own type rather than reaching `handleError`.
-      error(ShipError.network('api unreachable'), json, noColor);
-    }
+  // Liveness is a question, so text answers it as one — "reachable" is the
+  // whole of what a person asked, and the server clock is noise to them. JSON
+  // falls through to the transmitter and carries the response. The same split
+  // as deletions above, for the same reason.
+  //
+  // There is no unreachable arm: a non-OK response throws in transport, so
+  // reaching this line at all IS the answer. The CLI carried a `success: false`
+  // branch until 2026-07-29 — unreachable code guarding a field the route set
+  // to a literal `true`.
+  if (context.operation === 'ping' && !json) {
+    success('api reachable', false, noColor);
     return;
   }
 
@@ -418,11 +443,18 @@ export function formatOutput(
     } else if ('valid' in result) {
       formatDomainValidate(result as DomainValidateResponse, context, options);
     } else {
-      // Fallback
-      success('success', json, noColor);
+      // A shape with no formatter of its own is not an occasion to print the
+      // word "success": that asserts the call worked, which the exit code
+      // already said, and it hides the answer the command was run for. Render
+      // what arrived. `GET /labels` and `GET /limits` are real endpoints with
+      // no CLI command yet (`CLAUDE.md`, "Routes the API exposes that the SDK
+      // does not reach"); when one lands it shows its content on the first
+      // run, and a bespoke formatter becomes an improvement rather than a
+      // prerequisite.
+      console.log(formatDetails(result, noColor));
     }
-  } else {
-    // Fallback for non-object results
-    success('success', json, noColor);
   }
+  // A non-object result is unrenderable — `undefined` is handled above, and
+  // `boolean` left this union with ping's `success` field. Saying nothing is
+  // honest; saying "success" would not be.
 }

@@ -93,10 +93,10 @@ describe('unknown commands', () => {
   describe('subcommand level', () => {
     // Scoped usage, not the full help: the user already picked the group.
     const groups: Array<[string, string[]]> = [
-      ['deployments', ['list', 'upload', 'get', 'set', 'remove']],
+      ['deployments', ['list', 'upload', 'get', 'set', 'delete']],
       [
         'domains',
-        ['list', 'get', 'set', 'validate', 'records', 'dns', 'share', 'verify', 'remove'],
+        ['list', 'get', 'set', 'validate', 'records', 'dns', 'share', 'verify', 'delete'],
       ],
       ['account', ['get']],
       ['completion', ['install', 'uninstall']],

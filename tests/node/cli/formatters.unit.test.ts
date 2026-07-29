@@ -182,34 +182,77 @@ describe('formatOutput router', () => {
     });
   });
 
-  describe('non-object results', () => {
-    it('renders a true ping as reachable', () => {
-      formatOutput(true as never, {}, text);
-      expect(out()).toContain('api reachable');
-    });
-
-    it('renders a false ping as an error', () => {
-      formatOutput(false as never, {}, text);
-      expect(errs.join('\n')).toContain('api unreachable');
-    });
-
-    it('renders a void result as a removal, naming the resource', () => {
+  describe('a shape with no formatter', () => {
+    it('renders what arrived, never the word "success"', () => {
+      // Reached the day a command returns a shape the router does not name —
+      // `GET /limits` and `GET /labels` are the live candidates. This printed
+      // a bare "success" until 2026-07-29: an assertion that the call worked,
+      // which the exit code already carried, in place of the answer.
       formatOutput(
-        undefined as never,
-        {
-          operation: 'remove',
-          resourceType: 'Domain',
-          resourceId: 'www.example.com',
-        },
+        { maxFileSize: 52428800, maxFilesCount: 1000, maxTotalSize: 209715200 } as never,
+        {},
         text,
       );
 
-      expect(out()).toContain('www.example.com domain removed');
+      expect(out()).toContain('maxFileSize');
+      expect(out()).toContain('52428800');
+      expect(out()).not.toMatch(/^success$/m);
+    });
+  });
+
+  describe('ping and void results', () => {
+    it('answers a reached ping as reachable — arriving here IS the answer', () => {
+      formatOutput({ timestamp: NOW } as never, { operation: 'ping' }, text);
+      expect(out()).toContain('api reachable');
     });
 
-    it('falls back to a generic success when a removal lacks context', () => {
-      formatOutput(undefined as never, { operation: 'remove' }, text);
-      expect(out()).toContain('removed successfully');
+    it('transmits the ping response in --json rather than a sentence', () => {
+      // This emitted `{ success: "api reachable" }` until 2026-07-29 — prose in
+      // the data channel, under a key the wire then also used as a boolean. The
+      // wire has since dropped `success` entirely, so the collision it caused
+      // cannot recur.
+      formatOutput(
+        { success: true, timestamp: NOW } as never,
+        { operation: 'ping' },
+        {
+          json: true,
+          noColor: true,
+        },
+      );
+      expect(JSON.parse(logs[0])).toEqual({ success: true, timestamp: NOW });
+    });
+
+    it('names a deleted deployment by the hostname the wire acknowledged', () => {
+      formatOutput(
+        { deployment: 'happy-cat-abc1234.shipstatic.com', status: 'deleting' } as never,
+        { operation: 'delete', resourceType: 'Deployment' },
+        text,
+      );
+
+      expect(out()).toContain('happy-cat-abc1234.shipstatic.com deployment deleted');
+    });
+
+    it('reads the key the resource names, so a domain is not read as a deployment', () => {
+      // A domain acknowledgement is `{domain}`; were the field chosen by shape
+      // rather than by the command's own resource, an entity carrying both
+      // nouns would resolve to the wrong one.
+      formatOutput(
+        { domain: 'www.example.com', deployment: 'happy-cat-abc1234.shipstatic.com' } as never,
+        { operation: 'delete', resourceType: 'Domain' },
+        text,
+      );
+
+      expect(out()).toContain('www.example.com domain deleted');
+    });
+
+    it('invents no identifier when a deletion resolves nothing', () => {
+      formatOutput(undefined as never, { operation: 'delete', resourceType: 'Domain' }, text);
+      expect(out()).toContain('deleted successfully');
+    });
+
+    it('falls back to a generic success when a deletion lacks context', () => {
+      formatOutput(undefined as never, { operation: 'delete' }, text);
+      expect(out()).toContain('deleted successfully');
     });
   });
 
@@ -232,7 +275,7 @@ describe('formatOutput router', () => {
           valid: false,
           normalized: null,
           available: null,
-          error: 'Contains invalid characters',
+          reason: 'Contains invalid characters',
         } as never,
         {},
         text,
@@ -287,9 +330,9 @@ describe('formatOutput router', () => {
       expect(logs).toEqual(['https://setup.shipstatic.com/abc123/www.example.com']);
     });
 
-    it('emits nothing at all for a ping or a removal', () => {
+    it('emits nothing at all for a ping or a deletion', () => {
       formatOutput(true as never, {}, quiet);
-      formatOutput(undefined as never, { operation: 'remove' }, quiet);
+      formatOutput(undefined as never, { operation: 'delete' }, quiet);
       expect(logs).toEqual([]);
     });
 

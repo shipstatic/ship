@@ -221,6 +221,46 @@ Two things hold it now, and neither is prose: `error()` in `utils.ts` is
 compile error), and `tests/node/cli/json-errors.test.ts` asserts the envelope
 across every producer — the global boundary, Commander's parser,
 `handleUnknownSubcommand`, the `preAction` validator, and transport failure.
+
+### Deletions answer with an acknowledgement
+
+The same law, one channel over. A deletion is not void: the wire answers with
+the resource noun carrying its canonical key, plus the resource's own state
+field where the state changed (`@shipstatic/types`,
+`DeploymentDeleteResponse`). It carries no `message` on purpose — *"an
+acknowledgement is data, and each surface composes its own copy"* — so this is
+the one shape where the API deliberately authors no prose and the CLI is
+expected to write the sentence itself.
+
+Three channels, one acknowledgement, each in its own idiom: **quiet** prints
+the key, **`--json`** transmits the shape through the single JSON exit in
+`formatOutput`, and **text** is the only one that composes copy.
+
+**The identifier in that sentence is the response's, never the request's.**
+The two diverge routinely — a deployment is addressable by bare slug and
+answers with its hostname; a domain is accepted in any case and answers
+normalized — so a sentence built from the argument names whichever form the
+caller happened to type. The resource noun is the CLI's own word, and because
+an acknowledgement is the resource noun carrying its key, that one lowercased
+`resourceType` both selects the field and writes the sentence.
+
+This regressed once, in `11fc633` ("the SDK reaches what the API offers"). The
+commit gave the delete methods real return types and, in the same diff, widened
+the formatter's branch from `result === undefined` to a test on the operation
+name — so the branch began intercepting the acknowledgement that commit had
+just plumbed through. `--json` emitted `{ success: "<slug> deployment
+removed" }`: prose in the data channel, a bare slug where the platform names
+an FQDN, and no `status` at all. Before that commit the CLI had been
+accidentally right, because a resolved result fell through to the shape
+router.
+
+Two things hold it now, and neither is a convention: `OutputContext` no longer
+carries the caller's argument at all — the field existed only to be echoed, so
+it went with the echo, and a sentence composed from input is now inexpressible
+— and `tests/node/cli/json-acknowledgements.test.ts` asserts the envelope for
+every deletion, including that deleting one deployment by slug and by hostname
+produces byte-identical output.
+
 ### What a status means
 
 `ErrorResponse.status` is documented **"HTTP status code (API contexts)"** — it
@@ -273,7 +313,7 @@ resolves the credential only for the auth branch, so a local failure never
 reads `.shiprc` to render its own message.
 
 - Text messages open lowercase (leading sentence word decapitalized; identifiers, paths, and acronyms survive verbatim); trailing periods stripped
-- Removal operations (void result) produce a success message
+- Removal operations produce a success message **in text only** — see "Removals answer with an acknowledgement" below
 - Internal fields (`isCreate`, `_dnsRecords`, `_shareHash`) are stripped from JSON output
 - `[error]`/`[warning]`/`[info]` prefixes use inverse color backgrounds in TTY
 
@@ -309,11 +349,17 @@ deploymentsCmd
   .action(withErrorHandling(
     (client: Ship, _options: GlobalOptions, deployment: string) =>
       client.deployments.get(deployment),
-    { operation: 'get', resourceType: 'Deployment', getResourceId: (id: string) => id }
+    { operation: 'get', resourceType: 'Deployment' }
   ));
 ```
 
-The context object (`operation`, `resourceType`, `getResourceId`) enriches error messages. `getResourceId` extracts the ID from positional args.
+The context object (`operation`, `resourceType`) names what the command IS, and
+is built once for both the output and error paths. It deliberately carries
+**no positional argument**: the arguments are the request, and every sentence
+the CLI writes about a result is composed from the response. A `getResourceId`
+plumbed the caller's argument to the formatter until 2026-07-29, where its only
+consumer echoed it back as the removal identifier — see "Removals answer with
+an acknowledgement".
 
 ### `formatOutput` Router
 
@@ -333,8 +379,13 @@ Routes by result shape (discriminated union) — order matters:
 'email' in result        → formatAccount
 'valid' in result        → formatDomainValidate
 boolean                  → ping result
-undefined                → removal success message
+undefined                → generic success message
 ```
+
+A removal short-circuits ahead of this table **in text mode only**, composing
+its sentence from the acknowledgement; in `--json` it falls through to the one
+JSON exit, and in `-q` the quiet branch above the table has already printed the
+key.
 
 ### DNS Enrichment on Domain Create
 
@@ -660,7 +711,7 @@ The correct instrument is an **idle timeout** — reset on progress, so it measu
 | `deployments.list()` | `GET /deployments` | Paginated — `{limit, cursor}` options (`--limit`/`--cursor` on the CLI; text mode prints a rerun hint while `--json` carries `cursor`) |
 | `deployments.get()` | `GET /deployments/:deployment` | |
 | `deployments.set()` | `PATCH /deployments/:deployment` | Labels only |
-| `deployments.remove()` | `DELETE /deployments/:deployment` | 202 (async) `{deployment, status:'deleting'}` — resolved, so a caller learns the transitional state without a re-read |
+| `deployments.delete()` | `DELETE /deployments/:deployment` | 202 (async) `{deployment, status:'deleting'}` — resolved, so a caller learns the transitional state without a re-read |
 | `domains.set()` | `PUT /domains/:name` | Upsert — create, repoint, or label |
 | `domains.list()` | `GET /domains` | Paginated — same `{limit, cursor}` contract |
 | `domains.get()` | `GET /domains/:name` | |
@@ -669,11 +720,11 @@ The correct instrument is an **idle timeout** — reset on progress, so it measu
 | `domains.dns()` | `GET /domains/:name/dns` | DNS provider information |
 | `domains.records()` | `GET /domains/:name/records` | Required DNS records |
 | `domains.share()` | `GET /domains/:name/share` | Shareable setup hash |
-| `domains.remove()` | `DELETE /domains/:domain` | 200 `{domain}` — resolved, not discarded |
+| `domains.delete()` | `DELETE /domains/:domain` | 200 `{domain}` — resolved, not discarded |
 | `tokens.create()` | `POST /tokens` | Returns 201 |
 | `tokens.list()` | `GET /tokens` | Paginated — same `{limit, cursor}` contract |
 | `tokens.get()` | `GET /tokens/:token` | The same row the listing carries, addressable — `ship tokens get` |
-| `tokens.remove()` | `DELETE /tokens/:token` | 200 `{token}` — resolved, not discarded |
+| `tokens.delete()` | `DELETE /tokens/:token` | 200 `{token}` — resolved, not discarded |
 | `account.get()` | `GET /account` | |
 | `ping()` | `GET /ping` | Returns boolean |
 | `getLimits()` | `GET /limits` | Cached after init |
