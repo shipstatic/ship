@@ -10,9 +10,19 @@
  * was prose with no enforcement.
  */
 
-import type { DeploymentCreateResponse } from '@shipstatic/types';
+import type {
+  DeploymentCreateResponse,
+  DeploymentDeleteResponse,
+  DeploymentListResponse,
+  DomainListResponse,
+  DomainValidateResponse,
+  DomainVerifyResponse,
+  PingResponse,
+  TokenListResponse,
+} from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatDeployment, formatOutput } from '../../../src/node/cli/formatters';
+import { makeDeployment, makeDomain, makeToken } from '../../fixtures/builders';
 
 const NOW = 1_700_000_000;
 const CLAIM_URL = `https://my.shipstatic.com/claim/${'a'.repeat(64)}`;
@@ -144,10 +154,9 @@ describe('formatOutput router', () => {
     it('routes `deployments` to the list table', () => {
       formatOutput(
         {
-          deployments: [{ deployment: 'brave-otter-a1b2c3d', labels: [], files: 2, size: 10 }],
+          deployments: [makeDeployment({ deployment: 'brave-otter-a1b2c3d', files: 2, size: 10 })],
           cursor: null,
-          total: 1,
-        } as never,
+        } satisfies DeploymentListResponse,
         {},
         text,
       );
@@ -157,9 +166,9 @@ describe('formatOutput router', () => {
     });
 
     it('says so plainly when a list is empty', () => {
-      formatOutput({ deployments: [], cursor: null } as never, {}, text);
-      formatOutput({ domains: [], cursor: null } as never, {}, text);
-      formatOutput({ tokens: [], cursor: null } as never, {}, text);
+      formatOutput({ deployments: [], cursor: null } satisfies DeploymentListResponse, {}, text);
+      formatOutput({ domains: [], cursor: null } satisfies DomainListResponse, {}, text);
+      formatOutput({ tokens: [], cursor: null } satisfies TokenListResponse, {}, text);
 
       expect(out()).toContain('no deployments found');
       expect(out()).toContain('no domains found');
@@ -169,13 +178,17 @@ describe('formatOutput router', () => {
     it('routes `domains` and `tokens` to their tables', () => {
       formatOutput(
         {
-          domains: [{ domain: 'www.example.com', deployment: null, labels: [] }],
-          total: 1,
-        } as never,
+          domains: [makeDomain('www.example.com', { deployment: null })],
+          cursor: null,
+        } satisfies DomainListResponse,
         {},
         text,
       );
-      formatOutput({ tokens: [{ token: 'a1b2c3d', labels: [] }], total: 1 } as never, {}, text);
+      formatOutput(
+        { tokens: [makeToken({ token: 'a1b2c3d' })], cursor: null } satisfies TokenListResponse,
+        {},
+        text,
+      );
 
       expect(out()).toContain('www.example.com');
       expect(out()).toContain('a1b2c3d');
@@ -202,7 +215,7 @@ describe('formatOutput router', () => {
 
   describe('ping and void results', () => {
     it('answers a reached ping as reachable — arriving here IS the answer', () => {
-      formatOutput({ timestamp: NOW } as never, { operation: 'ping' }, text);
+      formatOutput({ timestamp: NOW } satisfies PingResponse, { operation: 'ping' }, text);
       expect(out()).toContain('api reachable');
     });
 
@@ -210,32 +223,73 @@ describe('formatOutput router', () => {
       // This emitted `{ success: "api reachable" }` until 2026-07-29 — prose in
       // the data channel, under a key the wire then also used as a boolean. The
       // wire has since dropped `success` entirely, so the collision it caused
-      // cannot recur.
+      // cannot recur — and this fixture carried that dead key for another day,
+      // because `as never` let it.
       formatOutput(
-        { success: true, timestamp: NOW } as never,
+        { timestamp: NOW } satisfies PingResponse,
         { operation: 'ping' },
         {
           json: true,
           noColor: true,
         },
       );
-      expect(JSON.parse(logs[0])).toEqual({ success: true, timestamp: NOW });
+      expect(JSON.parse(logs[0])).toEqual({ timestamp: NOW });
     });
 
-    it('names a deleted deployment by the hostname the wire acknowledged', () => {
+    it('states the transitional status a deployment deletion acknowledged', () => {
+      // 202, not 200: the row is marked `deleting` and the files go on being
+      // served until the cleanup queue drains. Saying "deleted" here denied
+      // exactly that, to the one caller who most needs to know it.
       formatOutput(
-        { deployment: 'happy-cat-abc1234.shipstatic.com', status: 'deleting' } as never,
+        {
+          deployment: 'happy-cat-abc1234.shipstatic.com',
+          status: 'deleting',
+        } satisfies DeploymentDeleteResponse,
         { operation: 'delete', resourceType: 'Deployment' },
         text,
       );
 
-      expect(out()).toContain('happy-cat-abc1234.shipstatic.com deployment deleted');
+      expect(out()).toContain(
+        'happy-cat-abc1234.shipstatic.com deployment deleting — served until cleanup completes',
+      );
+      expect(out()).not.toContain('deployment deleted');
+    });
+
+    it("never reads an entity's own status as a deletion state", () => {
+      // `Domain.status` is `pending`/`success` — a fact about DNS, not about
+      // this deletion. Gating on the transitional-state map rather than on the
+      // presence of a `status` is what keeps "domain pending" unsayable here.
+      formatOutput(
+        makeDomain('www.example.com', { status: 'pending' }),
+        { operation: 'delete', resourceType: 'Domain' },
+        text,
+      );
+
+      expect(out()).toContain('www.example.com domain deleted');
+      expect(out()).not.toContain('pending');
+    });
+
+    it('says "deleted" for a hard delete, which carries no state to state', () => {
+      // A domain acknowledgement is the key alone — the row is gone, so the
+      // past tense is the whole truth. The tense follows the wire either way.
+      formatOutput(
+        { domain: 'www.example.com' },
+        { operation: 'delete', resourceType: 'Domain' },
+        text,
+      );
+
+      expect(out()).toContain('www.example.com domain deleted');
     });
 
     it('reads the key the resource names, so a domain is not read as a deployment', () => {
       // A domain acknowledgement is `{domain}`; were the field chosen by shape
       // rather than by the command's own resource, an entity carrying both
       // nouns would resolve to the wrong one.
+      // Deliberately a shape the API cannot send — no acknowledgement carries
+      // two resource nouns — because that is the only way to exercise the
+      // selection rule at all. The cast is the assertion: this is impossible
+      // input, and the formatter still resolves it by the command's resource
+      // rather than by whichever key it happens to meet first.
       formatOutput(
         { domain: 'www.example.com', deployment: 'happy-cat-abc1234.shipstatic.com' } as never,
         { operation: 'delete', resourceType: 'Domain' },
@@ -244,22 +298,17 @@ describe('formatOutput router', () => {
 
       expect(out()).toContain('www.example.com domain deleted');
     });
-
-    it('invents no identifier when a deletion resolves nothing', () => {
-      formatOutput(undefined as never, { operation: 'delete', resourceType: 'Domain' }, text);
-      expect(out()).toContain('deleted successfully');
-    });
-
-    it('falls back to a generic success when a deletion lacks context', () => {
-      formatOutput(undefined as never, { operation: 'delete' }, text);
-      expect(out()).toContain('deleted successfully');
-    });
   });
 
   describe('validate and acknowledgement shapes', () => {
     it('reports a valid domain with its normalized form and availability', () => {
       formatOutput(
-        { valid: true, normalized: 'www.example.com', available: true, error: null } as never,
+        {
+          valid: true,
+          normalized: 'www.example.com',
+          available: true,
+          reason: null,
+        } satisfies DomainValidateResponse,
         {},
         text,
       );
@@ -276,7 +325,7 @@ describe('formatOutput router', () => {
           normalized: null,
           available: null,
           reason: 'Contains invalid characters',
-        } as never,
+        } satisfies DomainValidateResponse,
         {},
         text,
       );
@@ -288,7 +337,7 @@ describe('formatOutput router', () => {
       // The wire carries no prose, so the CLI writes the sentence. A bare
       // `{ domain }` is the acknowledgement; a Domain entity carries `url`,
       // which is the only thing separating the two shapes here.
-      formatOutput({ domain: 'www.example.com' } as never, {}, text);
+      formatOutput({ domain: 'www.example.com' } satisfies DomainVerifyResponse, {}, text);
 
       expect(out()).toContain('www.example.com dns verification queued');
     });
@@ -330,10 +379,24 @@ describe('formatOutput router', () => {
       expect(logs).toEqual(['https://setup.shipstatic.com/abc123/www.example.com']);
     });
 
-    it('emits nothing at all for a ping or a deletion', () => {
-      formatOutput(true as never, {}, quiet);
-      formatOutput(undefined as never, { operation: 'delete' }, quiet);
+    it('emits nothing for a ping — a clock is not an identifier to pipe', () => {
+      formatOutput({ timestamp: NOW } satisfies PingResponse, {}, quiet);
       expect(logs).toEqual([]);
+    });
+
+    it('emits the key a deletion acknowledged, not nothing', () => {
+      // Quiet prints the key on every shape that has one, deletions included —
+      // that is what makes `ship deployments delete x -q` composable. This
+      // asserted silence while deletions still resolved void.
+      formatOutput(
+        {
+          deployment: 'happy-cat-abc1234.shipstatic.com',
+          status: 'deleting',
+        } satisfies DeploymentDeleteResponse,
+        { operation: 'delete', resourceType: 'Deployment' },
+        quiet,
+      );
+      expect(logs).toEqual(['happy-cat-abc1234.shipstatic.com']);
     });
 
     it('emits nothing for an invalid domain, so a pipeline sees empty output', () => {

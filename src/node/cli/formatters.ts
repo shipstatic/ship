@@ -35,6 +35,36 @@ function readField(source: object, field: string): unknown {
   return (source as Record<string, unknown>)[field];
 }
 
+/**
+ * The states a deletion can still be IN, and what each means for someone
+ * standing at the terminal.
+ *
+ * A deletion acknowledgement carries the resource's own state field **only
+ * where the resource survived mid-transition** (`@shipstatic/types`,
+ * `DeploymentDeleteResponse`); a hard delete has no state left to state, and
+ * "deleted" is then the whole truth.
+ *
+ * The tense is not a style question. `DELETE /deployments/:deployment` answers
+ * **202**, marks the row `deleting`, and queues the cleanup; the router serves
+ * from KV with no status gate, so the files stay public until that queue
+ * drains (~26s measured). The CLI said "deleted" anyway — reading the
+ * acknowledgement's key and discarding the one field that says otherwise —
+ * which is exactly backwards for the person deleting a deployment BECAUSE it
+ * exposed something. `--json` was truthful the whole time; only the sentence
+ * lied.
+ *
+ * This MAP is the gate, not the mere presence of a `status`, and the
+ * difference is load-bearing: `Deployment` and `Domain` both carry a `status`
+ * of their own (`pending`, `success`), so a formatter that reported any status
+ * it found would answer "www.example.com domain pending" the day a handler
+ * resolved an entity here. An unrecognised state is not in flight as far as
+ * this surface knows, so it reads as done — the same answer as before, never
+ * a sentence assembled out of an unrelated field.
+ */
+const DELETION_IN_FLIGHT: Readonly<Record<string, string>> = {
+  deleting: 'served until cleanup completes',
+};
+
 export interface OutputContext {
   operation?: string;
   resourceType?: string;
@@ -323,7 +353,6 @@ export function formatOutput(
 
   // Quiet mode: output only the key identifier
   if (quiet) {
-    if (result === undefined) return;
     if (result !== null && typeof result === 'object') {
       if ('deployments' in result) {
         for (const d of (result as DeploymentListResponse).deployments) console.log(d.deployment);
@@ -369,21 +398,20 @@ export function formatOutput(
   // lowercased resource type both reads the field and writes the sentence.
   if (context.operation === 'delete' && !json) {
     const noun = context.resourceType?.toLowerCase();
-    const acknowledged =
-      noun && result !== null && typeof result === 'object' ? readField(result, noun) : undefined;
+    const ack = result !== null && typeof result === 'object' ? result : undefined;
+    const acknowledged = noun && ack ? readField(ack, noun) : undefined;
+    const state = ack ? readField(ack, 'status') : undefined;
+    const inFlight = typeof state === 'string' ? DELETION_IN_FLIGHT[state] : undefined;
 
     // A handler that resolved nothing leaves no identifier to report, and the
     // CLI does not invent one.
     success(
-      typeof acknowledged === 'string' ? `${acknowledged} ${noun} deleted` : 'deleted successfully',
+      typeof acknowledged === 'string'
+        ? `${acknowledged} ${noun} ${inFlight ? `${state} — ${inFlight}` : 'deleted'}`
+        : 'deleted successfully',
       false,
       noColor,
     );
-    return;
-  }
-
-  if (result === undefined) {
-    success('deleted successfully', json, noColor);
     return;
   }
 

@@ -113,6 +113,4 @@ export type CLIResult =
   // result does.
   | DeploymentDeleteResponse
   | DomainDeleteResponse
-  | TokenDeleteResponse
-  // biome-ignore lint/suspicious/noConfusingVoidType: some handlers still resolve with nothing; formatOutput routes undefined to the deletion success message
-  | void;
+  | TokenDeleteResponse;
