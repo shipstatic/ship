@@ -14,11 +14,17 @@ import type {
   DomainShareResponse,
   DomainValidateResponse,
   DomainVerifyResponse,
+  Token,
   TokenCreateResponse,
   TokenListResponse,
 } from '@shipstatic/types';
 import type { CLIResult, EnrichedDomain } from './types.js';
-import { error, formatDetails, formatTable, info, success } from './utils.js';
+// No `error` import, and that is a property worth keeping: a formatter renders
+// a RESULT. Every failure — including a rejected request — reaches the user
+// through `handleError`, so there is exactly one writer of the error channel.
+// This module imported it until 2026-07-29 only to report `domains validate`'s
+// negative verdict, which was never a failure.
+import { formatDetails, formatTable, info, plainMessage, success } from './utils.js';
 
 const setupUrl = (hash: string, domain: string) => `https://setup.shipstatic.com/${hash}/${domain}`;
 
@@ -146,13 +152,13 @@ export function formatDomain(
   // Show success message for set operations
   if (context.operation === 'set') {
     const verb = isCreate ? 'created' : 'updated';
-    success(`${result.url} domain ${verb}`, false, noColor);
+    success(`${result.domain} domain ${verb}`, false, noColor);
   }
 
   // Display pre-fetched DNS records (for new external domains)
   if (_dnsRecords && _dnsRecords.length > 0) {
     console.log();
-    info('DNS Records to configure:', false, noColor);
+    info('DNS records to configure:', false, noColor);
     _dnsRecords.forEach((record) => {
       console.log(`  ${record.type}: ${record.name} → ${record.value}`);
     });
@@ -179,7 +185,7 @@ export function formatDeployment(
 
   // Show success message for upload operations
   if (context.operation === 'upload') {
-    success(`${result.url} deployment uploaded`, false, noColor);
+    success(`${result.deployment} deployment uploaded`, false, noColor);
   }
 
   console.log(formatDetails(result, noColor));
@@ -224,7 +230,7 @@ export function formatDomainVerify(
   _context: OutputContext,
   options: FormatOptions,
 ): void {
-  success(`${result.domain} dns verification queued`, false, options.noColor);
+  success(`${result.domain} domain verification queued`, false, options.noColor);
 }
 
 /**
@@ -238,11 +244,10 @@ export function formatDomainValidate(
   const { noColor } = options;
 
   if (result.valid) {
-    success(`domain is valid`, false, noColor);
+    // The subject is the RESPONSE's normalized name, so the sentence names the
+    // form the platform would store rather than whatever case the caller typed.
+    success(`${result.normalized ?? 'domain'} domain is valid`, false, noColor);
     console.log();
-    if (result.normalized) {
-      console.log(`  normalized: ${result.normalized}`);
-    }
     if (result.available !== null) {
       const availabilityText = result.available
         ? noColor
@@ -253,7 +258,18 @@ export function formatDomainValidate(
     }
     console.log();
   } else {
-    error(result.reason || 'domain is invalid', false, noColor);
+    // A verdict is not a failure. The call succeeded and the answer is "no", so
+    // the reason rides STDOUT like every other rendered answer — the exit code
+    // (set by the command) is the machine-readable half, which is what
+    // `ship domains validate x && …` reads. Writing it to stderr under
+    // `[error]` said the command had failed, contradicting both the SDK, which
+    // resolves this shape without throwing, and `--json`, which has always put
+    // the same verdict on stdout.
+    //
+    // It names no subject on purpose: `normalized` is null when invalid, so the
+    // response carries no identifier, and the CLI does not fall back to the
+    // caller's argument.
+    console.log(`${plainMessage(result.reason ?? 'domain is invalid')}\n`);
   }
 }
 
@@ -299,7 +315,13 @@ export function formatDomainShare(
   options: FormatOptions,
 ): void {
   const { noColor } = options;
-  success(setupUrl(result.hash, result.domain), false, noColor);
+  // Rendered like `dns` beside it, rather than announced as a success: nothing
+  // was mutated, so there is no acknowledgement to compose. It also stops text
+  // and `-q` from being byte-identical — `-q` still emits the bare URL, which
+  // is the whole point of that channel.
+  console.log(
+    formatDetails({ domain: result.domain, setup: setupUrl(result.hash, result.domain) }, noColor),
+  );
 }
 
 /**
@@ -334,7 +356,7 @@ export function formatToken(
   const { noColor } = options;
 
   if (context.operation === 'create' && result.token) {
-    success(`token ${result.token} created`, false, noColor);
+    success(`${result.token} token created`, false, noColor);
   }
 
   console.log(formatDetails(result, noColor));
@@ -374,7 +396,19 @@ export function formatOutput(
       } else if ('deployment' in result) {
         console.log((result as Deployment).deployment);
       } else if ('secret' in result) {
+        // Creation only, and deliberately the SECRET rather than the id: it is
+        // shown once and never again, so `ship tokens create -q >> .env` is the
+        // reason this channel exists here. Must precede the `token` branch —
+        // a creation response carries both.
         console.log((result as TokenCreateResponse).secret);
+      } else if ('token' in result) {
+        // `tokens get` and `tokens delete` printed NOTHING until 2026-07-29:
+        // the quiet router had a branch for the `tokens` COLLECTION and none
+        // for a single token, so the one resource whose identifier you most
+        // want to pipe was the one resource that emitted none — and
+        // `ship tokens list -q | xargs -I{} ship tokens delete {} -q`, the
+        // idiom this repo's own README teaches, went silent.
+        console.log((result as Token).token);
       } else if ('email' in result) {
         console.log((result as Account).email);
       } else if ('valid' in result) {
