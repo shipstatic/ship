@@ -25,13 +25,18 @@
  * (`ship.on('response', …)`), and a failure's status and type arrive on the
  * `ShipError`. Neither runner reaches inside the SDK.
  *
- * **Verified by reading `cloudflare/api` at 3531ab7 on 2026-07-30** — every
+ * **Verified by reading `cloudflare/api` at eda61be on 2026-07-30** — every
  * point below was checked against the route that answers it, not against the
  * mock. That distinction is the whole reason to write it down: the mock half of
  * this table passes tautologically if the expectations were read off the mock,
  * which is exactly how it was first drafted. Both halves of the pair need a
  * source of truth outside themselves, and for the offline half that source is a
- * person reading the routes. Re-stamp this line when that is done again.
+ * person reading the routes.
+ *
+ * The stamp is about ROUTES, not about that repo's HEAD: a commit touching only
+ * its docs or tests cannot invalidate it, so move the sha forward when you have
+ * actually re-read the routes and leave it alone otherwise. A stamp that has to
+ * be refreshed on every unrelated commit is a stamp nobody keeps.
  *
  * Where the API states a status implicitly (Hono's `c.json(body)` defaults to
  * 200) the table still states it explicitly, because a client cannot tell a
