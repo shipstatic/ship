@@ -22,16 +22,26 @@ src/
     ├── core/config.ts       # readEnvConfig — SHIP_* env-var resolution (no filesystem)
     ├── core/...             # node-files, deploy-body
     └── cli/
+        ├── bin.ts           # THE EXECUTABLE (dist/cli.cjs) — the only file with side effects
         ├── index.ts         # Commander.js command tree + withErrorHandling + performDeploy
         ├── create-client.ts # Credential precedence (flag → env → file) → Ship instance
         ├── shiprc.ts        # cosmiconfig loader for .shiprc / package.json — CLI ONLY
         ├── config.ts        # Interactive `ship config` wizard
         ├── error-handling.ts # toShipError + getUserMessage (TEXT channel)
-        ├── formatters.ts    # Resource-specific output (formatOutput router)
+        ├── formatters.ts    # announce() + the render router
         ├── utils.ts         # Output primitives (success/error/info, table, details)
         ├── types.ts         # CLI option + result types
+        ├── completions.ts   # Shell completion scripts, RENDERED from the tree
         └── completion.ts    # Shell completion install/uninstall
 ```
+
+**`bin.ts` is the executable; `index.ts` is a library.** Importing the command
+tree has no side effects, which is what lets the suite and the completion
+renderer read it. The bin block sat at the bottom of `index.ts` behind
+`if (process.env.NODE_ENV !== 'test')` until 2026-07-29 — production behaviour
+keyed on a test variable, and a real constraint besides: anything wanting to
+read the tree had to be a test or pretend to be one. A module boundary says the
+same thing to every caller, without the conditional.
 
 The SDK proper has no filesystem dependency — the only ambient credential source is `SHIP_*` env vars. File-based config (`.shiprc`, `package.json` `"ship"` key) lives entirely in `cli/shiprc.ts`. This is what makes `new Ship({})` safe to use in embedded contexts (MCP, n8n, GitHub Action) without leaking the host's `~/.shiprc` credentials.
 
@@ -56,6 +66,7 @@ pnpm build                   # Build all bundles
 | `src/shared/api/http.ts` | HTTP client (all API calls) |
 | `src/shared/base-ship.ts` | Base Ship class (auth, init, top-level methods) |
 | `src/node/core/config.ts` | `readEnvConfig` — SHIP_* env-var resolution (the SDK's only ambient source) |
+| `src/node/cli/bin.ts` | The executable — `dist/cli.cjs`. The one file that runs on import |
 | `src/node/cli/index.ts` | CLI command tree, `withErrorHandling`, `performDeploy` |
 | `src/node/cli/create-client.ts` | `createClient` + `mergeCliConfig` — credential precedence (flag > env > file) |
 | `src/node/cli/shiprc.ts` | `loadShipFile` — cosmiconfig-based loader for `.shiprc` / `package.json` (CLI only) |
@@ -64,6 +75,7 @@ pnpm build                   # Build all bundles
 | `src/node/cli/types.ts` | CLI option and result types (`GlobalOptions`, `CLIResult`, `EnrichedDomain`) |
 | `src/node/cli/error-handling.ts` | CLI error UX — `toShipError` (normalize), `getUserMessage` (translate). Text channel only; `--json` transmits `ShipError.toResponse()` via `utils.ts` `error()` |
 | `src/node/cli/config.ts` | Interactive `ship config` wizard (writes `~/.shiprc`) |
+| `src/node/cli/completions.ts` | `renderCompletion(program, shell)` — bash/zsh/fish scripts derived from the tree |
 | `src/node/cli/completion.ts` | Shell completion install/uninstall |
 | `tests/fixtures/builders.ts` | Typed fixture builders — the only fixture source |
 | `tests/mocks/handler.ts` | The mock API: one Web-standard handler, wire-cited per route |
@@ -335,11 +347,33 @@ reads `.shiprc` to render its own message.
 - Text messages open lowercase (leading sentence word decapitalized; identifiers, paths, and acronyms survive verbatim); trailing periods stripped — `plainMessage` in `utils.ts` is that typography, named once
 - Deletions produce a success message **in text only** — see "Deletions answer with an acknowledgement" below
 
-### One grammar: `<key> <noun> <verb>`
+### One grammar: `<key> <noun> <verb>` — and one function
 
-Every sentence the CLI composes about a result opens with **the canonical key
-the response carries**, then the resource noun, then a past-tense verb — or the
-wire's own state where the acknowledgement carries one:
+`announce(result, context)` in `formatters.ts` composes **every** sentence the
+CLI makes about a mutation, from the two things it already has: what the command
+IS (`OutputContext`) and what the wire ANSWERED. Nothing else is needed, and no
+formatter writes a template any more:
+
+```
+<canonical key> <resource noun> <past tense, or the wire's own state>
+```
+
+The key is read from the NOUN (`result[noun]`), so `.url` is not reachable; the
+word order belongs to the function, not a call site; and the state override
+applies everywhere at once, so an operation that becomes asynchronous tomorrow
+updates its own sentence. Five formatters each wrote their own template until
+2026-07-29 and produced six grammars between them — every one of those bugs was
+a formatter making a choice it did not need to make. Three of them stopped
+needing `context` at all once the sentences were hoisted, which is the cleanest
+evidence the split was real: a renderer does not need to know what the command
+was.
+
+**Mutations announce, reports render.** A report has no key and no verb, so it
+prints its answer instead — `ping`, `validate`, `records`, `dns`, `share`.
+`ACKNOWLEDGING` (`delete`, `verify`) names the mutations whose response is an
+acknowledgement and therefore has no entity to render beneath the sentence.
+
+The resulting sentences:
 
 ```
 mock-deploy-001.shipstatic.com deployment uploaded
@@ -382,6 +416,29 @@ the SDK (which resolves that shape without throwing) and `--json` (which has
 always put the same verdict on stdout). It names no subject because
 `normalized` is null when invalid: the response carries no identifier, and the
 CLI does not fall back to the caller's argument.
+
+**Shell completions are RENDERED from the tree, not shipped.**
+`renderCompletion(program, shell)` emits bash/zsh/fish, and
+`ship completion install` writes what it renders at that moment — so an
+installed completion always matches the binary that installed it, which a
+copied file could never promise. Three hand-written scripts lived in
+`src/node/completions/` until 2026-07-29 and were the third, fourth and fifth
+statement of the command tree: `ship tokens get` shipped the previous day and
+completed in **zero** shells, `--limit`/`--cursor` were in none of them, `--ttl`
+in one (unscoped), and several descriptions had drifted word for word from
+Commander's. Generation also changed the arithmetic on accuracy — per-subcommand
+flags are free once derived, so they are now offered where a hand-maintained
+matrix never bothered. `tests/node/cli/completions.test.ts` quantifies over the
+whole tree; the smoke tier installs through the real binary and runs `bash -n` /
+`zsh -n` / `fish --no-execute`, because a real shell is the only thing that can
+say the output parses.
+
+**The front page may curate, but not forget.** `helpText()` is hand-written and
+byte-pinned, so leaving a command off is legitimate — provided the omission is
+recorded in `HELP_OMISSIONS` (`tests/architecture/docs-contract.test.ts`) with
+its reason. It was missing `ping`, `account get` and `tokens get` when the fence
+was written; two were added to the page, and `account get` is recorded, because
+`ship whoami` is the same read and is the spelling the page shows.
 
 **`-q` prints the key for every shape that has one.** `tokens get` and
 `tokens delete` printed NOTHING until 2026-07-29 — the quiet router matched the
@@ -539,7 +596,7 @@ others cannot:
 |---|---|
 | `test-integrity.test.ts` | A test file that reaches NO production code — the tautology class. A tautology neither raises nor lowers coverage, so no ratchet can see it. Reach is resolved TRANSITIVELY through local test-support modules (`./harness`, `../mocks/…`) but importing only fixture builders does not count — builders pull in `@shipstatic/types`, never `src/`. Its only exceptions are the two artifact tiers (`smoke.test.ts`, `package/dist-entries.test.ts`), each recorded with a reason. |
 | `test-naming.test.ts` | Layout drift: a filename that describes the test instead of its subject, a mirror file with no `src/` counterpart, an aspect split not recorded in this file. |
-| `docs-contract.test.ts` | Drift between the PUBLISHED docs and this code — a command or flag the docs teach that does not exist, a command that exists and no doc teaches, an SDK member or response key the docs name that `@shipstatic/types` dropped. |
+| `docs-contract.test.ts` | Drift between the PUBLISHED docs and this code — a command or flag the docs teach that does not exist, a command that exists and no doc teaches, an SDK member or response key the docs name that `@shipstatic/types` dropped. Also the curated front page: a command missing from `helpText()` must be recorded in `HELP_OMISSIONS` with a reason. |
 | `coverage.thresholds` | Coverage decay. A ratchet — it only goes up. Global bar plus per-glob floors for the three files whose residual gaps are named in `vitest.config.ts` (bin block/spinner/SIGINT are smoke-proven; browser env arms are browser-tier-proven). |
 
 **`SKILL.md` is API surface, not prose.** `package.json` publishes it beside
@@ -677,6 +734,7 @@ coupling; separate CI step with `playwright install chromium`.
 tests/
 ├── architecture/     # Fences: integrity, naming, docs contract
 ├── browser/ node/ shared/   # Mirror axis — tests/<path>/<module>.test.ts
+├── node/cli/completions.test.ts  # The rendered shell scripts (mirror of completions.ts)
 ├── node/cli/harness.ts      # In-process CLI runner (buildProgram + capture)
 ├── node/cli/smoke.test.ts   # The ONE child-process file (dist/cli.cjs)
 ├── package/          # The BUILT artifact (dist entries)

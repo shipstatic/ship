@@ -13,7 +13,6 @@ import type {
   DomainRecordsResponse,
   DomainShareResponse,
   DomainValidateResponse,
-  DomainVerifyResponse,
   Token,
   TokenCreateResponse,
   TokenListResponse,
@@ -42,34 +41,96 @@ function readField(source: object, field: string): unknown {
 }
 
 /**
- * The states a deletion can still be IN, and what each means for someone
+ * The states a mutation can still be IN, and what each means for someone
  * standing at the terminal.
  *
- * A deletion acknowledgement carries the resource's own state field **only
+ * A mutation acknowledgement carries the resource's own state field **only
  * where the resource survived mid-transition** (`@shipstatic/types`,
- * `DeploymentDeleteResponse`); a hard delete has no state left to state, and
- * "deleted" is then the whole truth.
+ * `DeploymentDeleteResponse`); a hard delete has no state left to state.
  *
  * The tense is not a style question. `DELETE /deployments/:deployment` answers
  * **202**, marks the row `deleting`, and queues the cleanup; the router serves
  * from KV with no status gate, so the files stay public until that queue
- * drains (~26s measured). The CLI said "deleted" anyway — reading the
- * acknowledgement's key and discarding the one field that says otherwise —
- * which is exactly backwards for the person deleting a deployment BECAUSE it
- * exposed something. `--json` was truthful the whole time; only the sentence
- * lied.
+ * drains (~26s measured). Saying "deleted" is exactly backwards for someone
+ * deleting a deployment BECAUSE it exposed something.
  *
- * This MAP is the gate, not the mere presence of a `status`, and the
- * difference is load-bearing: `Deployment` and `Domain` both carry a `status`
- * of their own (`pending`, `success`), so a formatter that reported any status
- * it found would answer "www.example.com domain pending" the day a handler
- * resolved an entity here. An unrecognised state is not in flight as far as
- * this surface knows, so it reads as done — the same answer as before, never
- * a sentence assembled out of an unrelated field.
+ * This MAP is the gate, not the mere presence of a `status`, and the difference
+ * is load-bearing: `Deployment` and `Domain` both carry a resting status of
+ * their own (`pending`, `success`), so a formatter reporting any status it
+ * found would answer "www.example.com domain pending". Keys here are
+ * TRANSITIONAL states only; a resting one must never be added.
  */
-const DELETION_IN_FLIGHT: Readonly<Record<string, string>> = {
+const IN_FLIGHT: Readonly<Record<string, string>> = {
   deleting: 'served until cleanup completes',
 };
+
+/**
+ * What each mutating operation did, once it is done.
+ *
+ * `set` is absent because it is an upsert: the wire's 201-vs-200 decided which
+ * it was, and `isCreate` carries that decision onto the result.
+ */
+const PAST_TENSE: Readonly<Record<string, string>> = {
+  upload: 'uploaded',
+  create: 'created',
+  delete: 'deleted',
+  verify: 'verification queued',
+};
+
+/**
+ * Operations whose response is an ACKNOWLEDGEMENT — the resource noun carrying
+ * its key, maybe a state, and nothing else. The sentence is the whole output;
+ * there is no entity to render underneath it.
+ */
+const ACKNOWLEDGING = new Set(['delete', 'verify']);
+
+/**
+ * THE sentence. Every announcement the CLI makes about a mutation is this one
+ * function of two things it already has — what the command IS
+ * (`OutputContext`) and what the wire ANSWERED (`result`).
+ *
+ *     <canonical key> <resource noun> <past tense, or the wire's own state>
+ *
+ * Nothing else is needed, and that is the point: until 2026-07-29 five
+ * formatters each wrote their own template and produced six grammars between
+ * them. `token tok0001 created` inverted the order its own sibling
+ * `tok0002 token deleted` used; `ship ./dist` and `domains set` opened with the
+ * URL while `verify` and `delete` opened with the key, for the same resource;
+ * `domain is valid` named no subject at all. Every one of those was a formatter
+ * making a choice it did not need to make.
+ *
+ * Here the key is READ FROM THE NOUN (`result[noun]`), so `.url` is not
+ * reachable; the order belongs to the function, not to a call site; and the
+ * state override applies everywhere at once, so an operation that becomes
+ * asynchronous tomorrow updates its own sentence.
+ *
+ * Reports do not pass through here: they have no key and no verb, so they
+ * render their answer instead (`ping`, `validate`, `records`, `dns`, `share`).
+ * Mutations announce; reports render.
+ */
+function announce(result: CLIResult, context: OutputContext): string | null {
+  const { operation, resourceType } = context;
+  if (!operation || !resourceType) return null;
+  if (result === null || typeof result !== 'object') return null;
+
+  const noun = resourceType.toLowerCase();
+  const predicate =
+    operation === 'set'
+      ? readField(result, 'isCreate')
+        ? 'created'
+        : 'updated'
+      : PAST_TENSE[operation];
+  if (!predicate) return null; // a read: there is nothing to announce
+
+  const key = readField(result, noun);
+  // A handler that resolved no identifier leaves nothing to report, and the CLI
+  // does not invent one from the caller's argument.
+  if (typeof key !== 'string') return null;
+
+  const state = readField(result, 'status');
+  const consequence = typeof state === 'string' ? IN_FLIGHT[state] : undefined;
+  return `${key} ${noun} ${consequence ? `${state} — ${consequence}` : predicate}`;
+}
 
 export interface OutputContext {
   operation?: string;
@@ -141,19 +202,13 @@ export function formatDomainsList(
  */
 export function formatDomain(
   result: Domain | EnrichedDomain,
-  context: OutputContext,
+  _context: OutputContext,
   options: FormatOptions,
 ): void {
   const { noColor } = options;
 
   // Destructure enrichment fields (undefined when result is plain Domain)
   const { _dnsRecords, _shareHash, isCreate, ...displayResult } = result as EnrichedDomain;
-
-  // Show success message for set operations
-  if (context.operation === 'set') {
-    const verb = isCreate ? 'created' : 'updated';
-    success(`${result.domain} domain ${verb}`, false, noColor);
-  }
 
   // Display pre-fetched DNS records (for new external domains)
   if (_dnsRecords && _dnsRecords.length > 0) {
@@ -178,15 +233,10 @@ export function formatDomain(
  */
 export function formatDeployment(
   result: Deployment | DeploymentCreateResponse,
-  context: OutputContext,
+  _context: OutputContext,
   options: FormatOptions,
 ): void {
   const { noColor } = options;
-
-  // Show success message for upload operations
-  if (context.operation === 'upload') {
-    success(`${result.deployment} deployment uploaded`, false, noColor);
-  }
 
   console.log(formatDetails(result, noColor));
 
@@ -215,22 +265,6 @@ export function formatAccount(
 ): void {
   const { noColor } = options;
   console.log(formatDetails(result, noColor));
-}
-
-/**
- * Format the DNS-verification acknowledgement.
- *
- * The wire carries no prose — an acknowledgement is the domain and the 202
- * that accepted it — so the copy is composed here. That is the same
- * carve-out the deletion message below uses: a surface writes its own words
- * exactly where no wire message exists.
- */
-export function formatDomainVerify(
-  result: DomainVerifyResponse,
-  _context: OutputContext,
-  options: FormatOptions,
-): void {
-  success(`${result.domain} domain verification queued`, false, options.noColor);
 }
 
 /**
@@ -350,14 +384,10 @@ export function formatTokensList(
  */
 export function formatToken(
   result: TokenCreateResponse,
-  context: OutputContext,
+  _context: OutputContext,
   options: FormatOptions,
 ): void {
   const { noColor } = options;
-
-  if (context.operation === 'create' && result.token) {
-    success(`${result.token} token created`, false, noColor);
-  }
 
   console.log(formatDetails(result, noColor));
 }
@@ -419,59 +449,33 @@ export function formatOutput(
     return;
   }
 
-  // Deletions answer with an acknowledgement, so text is the only channel that
-  // composes anything: JSON falls through to the one transmitter below, and
-  // quiet already read the key above. Text translates, JSON transmits.
-  //
-  // The identifier comes from the wire, never from what the caller typed —
-  // those differ routinely. A deployment is addressable by bare slug and
-  // answers with its hostname; a domain is accepted in any case and answers
-  // normalized. Only the noun is this CLI's word, and it is the same word
-  // that names the key: an acknowledgement is the resource noun carrying its
-  // canonical key (`@shipstatic/types`, `DeploymentDeleteResponse`), so one
-  // lowercased resource type both reads the field and writes the sentence.
-  if (context.operation === 'delete' && !json) {
-    const noun = context.resourceType?.toLowerCase();
-    const ack = result !== null && typeof result === 'object' ? result : undefined;
-    const acknowledged = noun && ack ? readField(ack, noun) : undefined;
-    const state = ack ? readField(ack, 'status') : undefined;
-    const inFlight = typeof state === 'string' ? DELETION_IN_FLIGHT[state] : undefined;
-
-    // A handler that resolved nothing leaves no identifier to report, and the
-    // CLI does not invent one.
-    success(
-      typeof acknowledged === 'string'
-        ? `${acknowledged} ${noun} ${inFlight ? `${state} — ${inFlight}` : 'deleted'}`
-        : 'deleted successfully',
-      false,
-      noColor,
-    );
-    return;
-  }
-
-  // Liveness is a question, so text answers it as one — "reachable" is the
-  // whole of what a person asked, and the server clock is noise to them. JSON
-  // falls through to the transmitter and carries the response. The same split
-  // as deletions above, for the same reason.
-  //
-  // There is no unreachable arm: a non-OK response throws in transport, so
-  // reaching this line at all IS the answer. The CLI carried a `success: false`
-  // branch until 2026-07-29 — unreachable code guarding a field the route set
-  // to a literal `true`.
-  if (context.operation === 'ping' && !json) {
-    success('api reachable', false, noColor);
-    return;
-  }
-
-  // JSON mode: output raw JSON for all results
+  // JSON transmits, text translates. The data channel emits the wire's own
+  // shape and never a sentence, so it is answered first and once.
   if (json && result !== null && typeof result === 'object') {
-    // Filter internal fields from JSON output
     const output = { ...result } as Record<string, unknown>;
     delete output._dnsRecords;
     delete output._shareHash;
     delete output.isCreate;
     console.log(JSON.stringify(output, null, 2));
     console.log();
+    return;
+  }
+
+  // Text. A mutation announces, then renders whatever entity it produced; an
+  // acknowledgement has no entity underneath, so the sentence is all of it.
+  const sentence = announce(result, context);
+  if (sentence) success(sentence, false, noColor);
+  if (context.operation && ACKNOWLEDGING.has(context.operation)) return;
+
+  // Liveness is a question, so text answers it as one — "reachable" is the
+  // whole of what a person asked, and the server clock is noise to them.
+  //
+  // There is no unreachable arm: a non-OK response throws in transport, so
+  // reaching this line at all IS the answer. The CLI carried a `success: false`
+  // branch until 2026-07-29 — unreachable code guarding a field the route set
+  // to a literal `true`.
+  if (context.operation === 'ping') {
+    success('api reachable', false, noColor);
     return;
   }
 
@@ -490,10 +494,6 @@ export function formatOutput(
       formatDomainShare(result as DomainShareResponse, context, options);
     } else if ('dns' in result) {
       formatDomainDns(result as DomainDnsResponse, context, options);
-    } else if ('domain' in result && !('url' in result)) {
-      // The verify acknowledgement: the domain and nothing else. A Domain
-      // entity always carries its `url`, which is what tells the two apart.
-      formatDomainVerify(result as DomainVerifyResponse, context, options);
     } else if ('domain' in result) {
       formatDomain(result as Domain, context, options);
     } else if ('deployment' in result) {
