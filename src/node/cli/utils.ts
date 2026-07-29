@@ -23,6 +23,16 @@ const decapitalize = (msg: string): string =>
   /^[A-Z][a-z]/.test(msg) ? msg.charAt(0).toLowerCase() + msg.slice(1) : msg;
 
 /**
+ * The text channel's typography: lowercase opening, no trailing period.
+ *
+ * Exported because it is not a property of the message ENVELOPES — a rendered
+ * answer wants the same look without claiming to be a success, a warning or a
+ * failure. `domains validate` is the case: its negative verdict is data, not
+ * one of the three kinds.
+ */
+export const plainMessage = (msg: string): string => decapitalize(msg).replace(/\.$/, '');
+
+/**
  * The CLI's message envelopes. Each carries a sentence the CLI composed, so
  * `--json` wraps it as `{ kind: message }` — none of the three has a wire
  * counterpart to defer to. Failures do; see `error` below, which is shaped by
@@ -32,7 +42,7 @@ export const success = (msg: string, json?: boolean, noColor?: boolean) => {
   if (json) {
     console.log(`${JSON.stringify({ success: msg }, null, 2)}\n`);
   } else {
-    console.log(`${applyColor(green, decapitalize(msg).replace(/\.$/, ''), noColor)}\n`);
+    console.log(`${applyColor(green, plainMessage(msg), noColor)}\n`);
   }
 };
 
@@ -45,7 +55,7 @@ export const warn = (msg: string, json?: boolean, noColor?: boolean) => {
       `${applyColor(hidden, '[', noColor)}warning${applyColor(hidden, ']', noColor)}`,
       noColor,
     );
-    const warnMsg = applyColor(yellow, decapitalize(msg).replace(/\.$/, ''), noColor);
+    const warnMsg = applyColor(yellow, plainMessage(msg), noColor);
     console.log(`${warnPrefix} ${warnMsg}\n`);
   }
 };
@@ -59,7 +69,7 @@ export const info = (msg: string, json?: boolean, noColor?: boolean) => {
       `${applyColor(hidden, '[', noColor)}info${applyColor(hidden, ']', noColor)}`,
       noColor,
     );
-    const infoMsg = applyColor(blue, decapitalize(msg).replace(/\.$/, ''), noColor);
+    const infoMsg = applyColor(blue, plainMessage(msg), noColor);
     console.log(`${infoPrefix} ${infoMsg}\n`);
   }
 };
@@ -90,7 +100,7 @@ export function error(err: ShipError | string, json?: boolean, noColor?: boolean
     noColor,
   );
   const message = typeof err === 'string' ? err : err.message;
-  const errorMsg = applyColor(red, decapitalize(message).replace(/\.$/, ''), noColor);
+  const errorMsg = applyColor(red, plainMessage(message), noColor);
   console.error(`${errorPrefix} ${errorMsg}\n`);
 }
 

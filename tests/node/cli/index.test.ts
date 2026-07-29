@@ -194,9 +194,11 @@ describe('CLI command tree (in-process)', () => {
     it('text mode reports the uploaded deployment and its details', async () => {
       const result = await runProgram([DEMO_SITE]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toMatch(
-        /^https:\/\/mock-deploy-\d{3}\.shipstatic\.com deployment uploaded/,
-      );
+      // The sentence names the CANONICAL KEY, the same identifier `-q` pipes
+      // and `--json` carries; the URL is a field of the deployment and is
+      // printed on its own row in the details block below.
+      expect(result.stdout).toMatch(/^mock-deploy-\d{3}\.shipstatic\.com deployment uploaded/);
+      expect(result.stdout).toContain('url:');
       expect(result.stdout).toContain('status:');
     });
 

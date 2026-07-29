@@ -22,7 +22,12 @@ import type {
 } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatDeployment, formatOutput } from '../../../src/node/cli/formatters';
-import { makeDeployment, makeDomain, makeToken } from '../../fixtures/builders';
+import {
+  makeDeployment,
+  makeDomain,
+  makeToken,
+  makeTokenCreateResponse,
+} from '../../fixtures/builders';
 
 const NOW = 1_700_000_000;
 const CLAIM_URL = `https://my.shipstatic.com/claim/${'a'.repeat(64)}`;
@@ -313,12 +318,14 @@ describe('formatOutput router', () => {
         text,
       );
 
-      expect(out()).toContain('domain is valid');
-      expect(out()).toContain('normalized: www.example.com');
+      // The subject is the response's normalized name, so the sentence names
+      // it and the details block no longer repeats it.
+      expect(out()).toContain('www.example.com domain is valid');
       expect(out()).toContain('available');
+      expect(out()).not.toContain('normalized:');
     });
 
-    it('reports an invalid domain through the error channel', () => {
+    it('renders a negative verdict on stdout — a verdict is not a failure', () => {
       formatOutput(
         {
           valid: false,
@@ -330,7 +337,12 @@ describe('formatOutput router', () => {
         text,
       );
 
-      expect(errs.join('\n')).toContain('contains invalid characters');
+      // The call succeeded and the answer is "no". Stderr under `[error]` said
+      // the command had failed, contradicting the SDK (which resolves this
+      // shape without throwing) and `--json` (which has always put the same
+      // verdict on stdout). The exit code carries the machine-readable half.
+      expect(out()).toContain('contains invalid characters');
+      expect(errs.join('\n')).toBe('');
     });
 
     it('composes its own copy for the verify acknowledgement', () => {
@@ -339,7 +351,7 @@ describe('formatOutput router', () => {
       // which is the only thing separating the two shapes here.
       formatOutput({ domain: 'www.example.com' } satisfies DomainVerifyResponse, {}, text);
 
-      expect(out()).toContain('www.example.com dns verification queued');
+      expect(out()).toContain('www.example.com domain verification queued');
     });
 
     it('routes a full Domain entity to the entity formatter, not the ack', () => {
@@ -349,8 +361,86 @@ describe('formatOutput router', () => {
         text,
       );
 
-      expect(out()).not.toContain('dns verification queued');
+      expect(out()).not.toContain('domain verification queued');
       expect(out()).toContain('https://www.example.com');
+    });
+  });
+
+  describe('one grammar: every composed sentence opens with the key the response carries', () => {
+    // The law (`npm/ship/CLAUDE.md`, "Deletions answer with an acknowledgement"):
+    // a sentence about a result is `<canonical key> <resource noun> <verb or
+    // wire state>`. Before 2026-07-29 there were SIX forms across eleven
+    // messages — `token tok0001 created` inverted the order its own sibling
+    // `tok0002 token deleted` used, deploy and `domains set` opened with the
+    // URL while `verify` and `delete` opened with the key for the same
+    // resource, and `domain is valid` named no subject at all. The text
+    // channel disagreed with `-q`, which had always printed the key.
+    const DEPLOYMENT = 'brave-otter-a1b2c3d.shipstatic.com';
+    const DOMAIN = 'www.example.com';
+
+    it.each([
+      ['deploy', makeDeployment({ deployment: DEPLOYMENT }), { operation: 'upload' }, DEPLOYMENT],
+      [
+        'domains set (create)',
+        { ...makeDomain(DOMAIN), isCreate: true },
+        { operation: 'set' },
+        DOMAIN,
+      ],
+      [
+        'domains set (update)',
+        { ...makeDomain(DOMAIN), isCreate: false },
+        { operation: 'set' },
+        DOMAIN,
+      ],
+      [
+        'tokens create',
+        makeTokenCreateResponse({ token: 'tok0001' }),
+        { operation: 'create', resourceType: 'Token' },
+        'tok0001',
+      ],
+      [
+        'deployments delete',
+        { deployment: DEPLOYMENT, status: 'deleting' } satisfies DeploymentDeleteResponse,
+        { operation: 'delete', resourceType: 'Deployment' },
+        DEPLOYMENT,
+      ],
+      [
+        'domains delete',
+        { domain: DOMAIN },
+        { operation: 'delete', resourceType: 'Domain' },
+        DOMAIN,
+      ],
+      [
+        'tokens delete',
+        { token: 'tok0001' },
+        { operation: 'delete', resourceType: 'Token' },
+        'tok0001',
+      ],
+      ['domains verify', { domain: DOMAIN } satisfies DomainVerifyResponse, {}, DOMAIN],
+      [
+        'domains validate',
+        {
+          valid: true,
+          normalized: DOMAIN,
+          available: true,
+          reason: null,
+        } satisfies DomainValidateResponse,
+        {},
+        DOMAIN,
+      ],
+    ])('%s opens with its key', (_name, result, context, key) => {
+      formatOutput(result as never, context, text);
+      expect(out().startsWith(key as string), out()).toBe(true);
+    });
+
+    it('names the resource noun after the key, never before it', () => {
+      formatOutput(
+        makeTokenCreateResponse({ token: 'tok0001' }),
+        { operation: 'create', resourceType: 'Token' },
+        text,
+      );
+      expect(out()).toContain('tok0001 token created');
+      expect(out()).not.toContain('token tok0001 created');
     });
   });
 
@@ -372,6 +462,19 @@ describe('formatOutput router', () => {
     ])('%s', (_name, result, expected) => {
       formatOutput(result as never, {}, quiet);
       expect(logs).toEqual([expected]);
+    });
+
+    it.each([
+      ['tokens get', { token: 'tok0001', labels: [], created: 1, expires: null, used: null }],
+      ['tokens delete', { token: 'tok0001' }],
+    ])('%s emits the token id — the quiet router had no branch for one', (_name, result) => {
+      // `ship tokens list -q | xargs -I{} ship tokens delete {} -q` is an idiom
+      // this repo's README teaches. It emitted nothing for tokens until
+      // 2026-07-29: the router matched the `tokens` COLLECTION and had no case
+      // for a single one, so the resource whose identifier you most want to
+      // pipe was the only one that produced none.
+      formatOutput(result as never, {}, quiet);
+      expect(logs).toEqual(['tok0001']);
     });
 
     it('emits the setup URL for a share hash', () => {

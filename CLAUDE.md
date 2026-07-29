@@ -332,8 +332,67 @@ so `ship completion install && …` ran on after a failure. `handleError` in tur
 resolves the credential only for the auth branch, so a local failure never
 reads `.shiprc` to render its own message.
 
-- Text messages open lowercase (leading sentence word decapitalized; identifiers, paths, and acronyms survive verbatim); trailing periods stripped
+- Text messages open lowercase (leading sentence word decapitalized; identifiers, paths, and acronyms survive verbatim); trailing periods stripped — `plainMessage` in `utils.ts` is that typography, named once
 - Deletions produce a success message **in text only** — see "Deletions answer with an acknowledgement" below
+
+### One grammar: `<key> <noun> <verb>`
+
+Every sentence the CLI composes about a result opens with **the canonical key
+the response carries**, then the resource noun, then a past-tense verb — or the
+wire's own state where the acknowledgement carries one:
+
+```
+mock-deploy-001.shipstatic.com deployment uploaded
+www.example.com domain created            (…updated)
+tok0001 token created
+www.example.com domain verification queued
+www.example.com domain deleted
+tok0001 token deleted
+brave-otter-a1b2c3d.shipstatic.com deployment deleting — served until cleanup completes
+www.example.com domain is valid
+```
+
+**The key, never the URL.** A URL is a *field* of the resource and is already
+printed on its own row in the details block below, so opening with it made the
+text channel disagree with `-q` and `--json`, which have always named the key.
+`ship ./dist` and `domains set` opened with the URL while `verify` and `delete`
+opened with the key — one resource, two identifiers, decided by which command
+you happened to run.
+
+Audited against the real binary on 2026-07-29 and found to be **six** grammars
+across eleven messages: `token tok0001 created` inverted the order its own
+sibling `tok0002 token deleted` used; `domain is valid` named no subject at all
+though it held the normalized name; `domains share` emitted a bare URL
+identical to its own `-q` output. Fenced by the `it.each` table in
+`tests/node/cli/formatters.unit.test.ts` ("one grammar"), which asserts every
+composed sentence *starts with* the key its fixture carries — so a new command
+cannot invent a seventh form.
+
+**Reports render, mutations announce.** A report answers a question, so it
+prints its answer (`records` a table, `dns` and `share` a details block,
+`validate` its verdict, `ping` the word `api reachable`); only a mutation gets
+a success sentence. `share` printed a green URL under `success()` until this
+audit, which is why its text and `-q` output were byte-identical.
+
+**A verdict is not a failure.** `domains validate` on an invalid name writes
+the reason to **stdout** and sets exit 1. The exit code is the machine answer —
+`ship domains validate x && …` is the documented idiom — but the call
+*succeeded*, and stderr under `[error]` claimed otherwise, contradicting both
+the SDK (which resolves that shape without throwing) and `--json` (which has
+always put the same verdict on stdout). It names no subject because
+`normalized` is null when invalid: the response carries no identifier, and the
+CLI does not fall back to the caller's argument.
+
+**`-q` prints the key for every shape that has one.** `tokens get` and
+`tokens delete` printed NOTHING until 2026-07-29 — the quiet router matched the
+`tokens` collection and had no branch for a single token, so the one resource
+whose identifier you most want to pipe was the only one emitting none, and
+`ship tokens list -q | xargs -I{} ship tokens delete {} -q` (this repo's own
+README idiom, one noun over) was silent. The one deliberate exception is
+`tokens create -q`, which emits the **secret** rather than the id: it is shown
+once and never again, so `ship tokens create -q >> .env` is why that channel
+exists there. It is checked before the `token` branch, since a creation
+response carries both.
 - Internal fields (`isCreate`, `_dnsRecords`, `_shareHash`) are stripped from JSON output
 - `[error]`/`[warning]`/`[info]` prefixes use inverse color backgrounds in TTY
 
