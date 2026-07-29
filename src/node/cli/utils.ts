@@ -1,6 +1,7 @@
 /**
  * Simple CLI utilities following "impossible simplicity" mantra
  */
+import type { ShipError } from '@shipstatic/types';
 import columnify from 'columnify';
 import { blue, dim, green, hidden, inverse, red, yellow } from 'yoctocolors';
 
@@ -22,27 +23,16 @@ const decapitalize = (msg: string): string =>
   /^[A-Z][a-z]/.test(msg) ? msg.charAt(0).toLowerCase() + msg.slice(1) : msg;
 
 /**
- * Message helper functions for consistent CLI output
+ * The CLI's message envelopes. Each carries a sentence the CLI composed, so
+ * `--json` wraps it as `{ kind: message }` — none of the three has a wire
+ * counterpart to defer to. Failures do; see `error` below, which is shaped by
+ * the wire instead and is deliberately not one of these.
  */
 export const success = (msg: string, json?: boolean, noColor?: boolean) => {
   if (json) {
     console.log(`${JSON.stringify({ success: msg }, null, 2)}\n`);
   } else {
     console.log(`${applyColor(green, decapitalize(msg).replace(/\.$/, ''), noColor)}\n`);
-  }
-};
-
-export const error = (msg: string, json?: boolean, noColor?: boolean) => {
-  if (json) {
-    console.error(`${JSON.stringify({ error: msg }, null, 2)}\n`);
-  } else {
-    const errorPrefix = applyColor(
-      (text) => inverse(red(text)),
-      `${applyColor(hidden, '[', noColor)}error${applyColor(hidden, ']', noColor)}`,
-      noColor,
-    );
-    const errorMsg = applyColor(red, decapitalize(msg).replace(/\.$/, ''), noColor);
-    console.error(`${errorPrefix} ${errorMsg}\n`);
   }
 };
 
@@ -73,6 +63,36 @@ export const info = (msg: string, json?: boolean, noColor?: boolean) => {
     console.log(`${infoPrefix} ${infoMsg}\n`);
   }
 };
+
+/**
+ * Emit a failure on stderr. **Text translates, JSON transmits.**
+ *
+ * The two channels carry different words on purpose. Text renders the string
+ * it is handed — the CLI's own actionable copy, composed by `getUserMessage`.
+ * JSON emits the platform's `ErrorResponse` verbatim, so `error` names the
+ * `ErrorType` exactly as the API and the SDK produce it and a script branches
+ * on the same typed field everywhere.
+ *
+ * A bare string is therefore accepted for the text channel only: a message
+ * with no type has no wire shape to emit, and the overloads make writing one
+ * into `--json` a compile error rather than a convention.
+ */
+export function error(err: ShipError, json?: boolean, noColor?: boolean): void;
+export function error(msg: string, json: false | undefined, noColor?: boolean): void;
+export function error(err: ShipError | string, json?: boolean, noColor?: boolean): void {
+  if (json && typeof err !== 'string') {
+    console.error(`${JSON.stringify(err.toResponse(), null, 2)}\n`);
+    return;
+  }
+  const errorPrefix = applyColor(
+    (text) => inverse(red(text)),
+    `${applyColor(hidden, '[', noColor)}error${applyColor(hidden, ']', noColor)}`,
+    noColor,
+  );
+  const message = typeof err === 'string' ? err : err.message;
+  const errorMsg = applyColor(red, decapitalize(message).replace(/\.$/, ''), noColor);
+  console.error(`${errorPrefix} ${errorMsg}\n`);
+}
 
 /**
  * Format unix timestamp to ISO 8601 string without milliseconds, or return '-' if not provided

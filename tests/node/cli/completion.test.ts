@@ -17,6 +17,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { ErrorType, type ShipError } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installCompletion, uninstallCompletion } from '../../../src/node/cli/completion';
 
@@ -45,6 +46,23 @@ afterEach(() => {
 const useShell = (shell: string) => vi.stubEnv('SHELL', shell);
 const stdout = () => out.join('\n');
 const stderr = () => err.join('\n');
+
+/**
+ * Run a failing path and return the `ShipError` it threw.
+ *
+ * These commands report nothing themselves — they throw, and the CLI's one
+ * error boundary writes the message and sets the exit code (see the module
+ * docblock). Asserting on stderr here would prove the wrong thing: it passed
+ * for a year while `ship completion install` exited 0.
+ */
+function thrownBy(run: () => void): ShipError {
+  try {
+    run();
+  } catch (e) {
+    return e as ShipError;
+  }
+  throw new Error('expected a ShipError, but the call returned normally');
+}
 
 describe('installCompletion', () => {
   it('installs the zsh script and sources it from a fresh .zshrc', () => {
@@ -114,18 +132,24 @@ describe('installCompletion', () => {
   it('rejects an unsupported shell by name', () => {
     useShell('/bin/csh');
 
-    installCompletion(SCRIPT_DIR, { noColor: true });
+    const err = thrownBy(() => installCompletion(SCRIPT_DIR, { noColor: true }));
 
-    expect(stderr()).toContain('unsupported shell: /bin/csh');
-    expect(stderr()).toContain('bash, zsh, fish');
+    expect(err.message).toContain('unsupported shell: /bin/csh');
+    expect(err.message).toContain('bash, zsh, fish');
+    // A statement about the machine's shell setup, not a file operation.
+    expect(err.type).toBe(ErrorType.Config);
+    // No request was made, so there is no status to report.
+    expect(err.status).toBeUndefined();
   });
 
-  it('reports a missing source script instead of throwing', () => {
+  it('surfaces a missing source script as a file fault, not a raw crash', () => {
     useShell('/bin/zsh');
 
-    installCompletion('/nonexistent/script/dir', { noColor: true });
+    const err = thrownBy(() => installCompletion('/nonexistent/script/dir', { noColor: true }));
 
-    expect(stderr()).toContain('could not install completion script');
+    expect(err.message).toContain('could not install completion script');
+    expect(err.type).toBe(ErrorType.File);
+    expect(err.status).toBeUndefined();
   });
 
   it('emits JSON when asked', () => {
@@ -184,9 +208,10 @@ describe('uninstallCompletion', () => {
   it('reports a missing profile instead of creating one', () => {
     useShell('/bin/zsh');
 
-    uninstallCompletion({ noColor: true });
+    const err = thrownBy(() => uninstallCompletion({ noColor: true }));
 
-    expect(stderr()).toContain('profile file not found');
+    expect(err.message).toContain('profile file not found');
+    expect(err.type).toBe(ErrorType.Config);
     expect(existsSync(join(home, '.zshrc'))).toBe(false);
   });
 
@@ -194,9 +219,10 @@ describe('uninstallCompletion', () => {
     useShell('/bin/zsh');
     writeFileSync(join(home, '.zshrc'), 'export EDITOR=vim\n');
 
-    uninstallCompletion({ noColor: true });
+    const err = thrownBy(() => uninstallCompletion({ noColor: true }));
 
-    expect(stderr()).toContain('completion was not found in profile');
+    expect(err.message).toContain('completion was not found in profile');
+    expect(err.type).toBe(ErrorType.Config);
     expect(readFileSync(join(home, '.zshrc'), 'utf-8')).toBe('export EDITOR=vim\n');
   });
 
@@ -221,8 +247,17 @@ describe('uninstallCompletion', () => {
   it('rejects an unsupported shell by name', () => {
     useShell('/bin/csh');
 
-    uninstallCompletion({ noColor: true });
+    const err = thrownBy(() => uninstallCompletion({ noColor: true }));
 
-    expect(stderr()).toContain('unsupported shell: /bin/csh');
+    expect(err.message).toContain('unsupported shell: /bin/csh');
+    expect(err.type).toBe(ErrorType.Config);
+  });
+
+  it("never reports a failure itself — that is the boundary's job", () => {
+    useShell('/bin/csh');
+
+    thrownBy(() => uninstallCompletion({ noColor: true }));
+
+    expect(stderr()).toBe('');
   });
 });

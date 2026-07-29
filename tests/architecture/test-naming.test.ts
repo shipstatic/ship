@@ -83,6 +83,13 @@ const FEATURE_AXIS: ReadonlyArray<{ file: string; reason: string }> = [
       'completion fast-path through the real dist/cli.cjs',
   },
   {
+    file: 'tests/node/cli/json-errors.test.ts',
+    reason:
+      'the --json error envelope, asserted across every producer of one — the ' +
+      'global boundary, the parser, the preAction validator and ping — because ' +
+      "the contract is the CLI's, not any single module's",
+  },
+  {
     file: 'tests/e2e/smoke.e2e.test.ts',
     reason: 'contract-drift detector against a REAL API; opt-in tier',
   },

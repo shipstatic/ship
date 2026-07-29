@@ -8,7 +8,6 @@ import { ErrorType, ShipError } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
 import {
   type ErrorOptions,
-  formatErrorJson,
   getUserMessage,
   toShipError,
 } from '../../../src/node/cli/error-handling';
@@ -186,61 +185,6 @@ describe('CLI Error Handling', () => {
     it('should handle null/undefined gracefully', () => {
       expect(toShipError(null).message).toBe('Unknown error');
       expect(toShipError(undefined).message).toBe('Unknown error');
-    });
-  });
-
-  describe('formatErrorJson', () => {
-    it('should format error without details', () => {
-      const json = formatErrorJson('something went wrong');
-      const parsed = JSON.parse(json);
-
-      expect(parsed).toEqual({
-        error: 'something went wrong',
-      });
-    });
-
-    it('should format error with details', () => {
-      const details = { code: 'ERR_AUTH', data: { reason: 'expired' } };
-      const json = formatErrorJson('auth failed', details);
-      const parsed = JSON.parse(json);
-
-      expect(parsed).toEqual({
-        error: 'auth failed',
-        details: { code: 'ERR_AUTH', data: { reason: 'expired' } },
-      });
-    });
-
-    it('should handle undefined details', () => {
-      const json = formatErrorJson('error', undefined);
-      const parsed = JSON.parse(json);
-
-      expect(parsed).toEqual({
-        error: 'error',
-      });
-      expect(parsed).not.toHaveProperty('details');
-    });
-
-    it('should handle null details', () => {
-      const json = formatErrorJson('error', null);
-      const parsed = JSON.parse(json);
-
-      // null is falsy, so details should not be included
-      expect(parsed).toEqual({
-        error: 'error',
-      });
-    });
-
-    it('should produce valid JSON', () => {
-      const json = formatErrorJson('test');
-
-      expect(() => JSON.parse(json)).not.toThrow();
-    });
-
-    it('should be properly indented', () => {
-      const json = formatErrorJson('test', { foo: 'bar' });
-
-      expect(json).toContain('\n');
-      expect(json).toContain('  '); // 2-space indentation
     });
   });
 });

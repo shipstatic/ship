@@ -1,11 +1,30 @@
 /**
  * Shell completion install/uninstall logic.
  * Handles bash, zsh, and fish shells.
+ *
+ * **Failures throw; the caller's error boundary reports them.** These commands
+ * make no request, so they cannot use `withErrorHandling` — that builds a
+ * `Ship`, which resolves credentials — and they take the same shape `config`
+ * does instead: the action wraps the call and hands anything thrown to
+ * `handleError`. That is what puts a completion failure on the same footing as
+ * every other one: one writer, one exit code. Reporting inline (as this module
+ * did until 2026-07-29) printed `[error] …` and then exited **0**, so
+ * `ship completion install && …` proceeded after a failure.
+ *
+ * **Two error types, because no request means no status.** The client-only
+ * types (`Network`, `Cancelled`, `File`, `Config`) are exactly the statusless
+ * ones in `@shipstatic/types` — a status is an HTTP fact, and nothing here
+ * speaks HTTP. So the rule is: an fs call that threw is `File`; everything else
+ * is a statement about the user's shell setup, which is `Config`. `Validation`
+ * and `Business` are deliberately absent — both stamp a 400 on a failure that
+ * never made a request, which is a plausible lie rather than an obvious one.
+ * Neither command takes an argument, so there is no input here to validate.
  */
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { error, info, success, warn } from './utils.js';
+import { isShipError, ShipError } from '@shipstatic/types';
+import { info, success, warn } from './utils.js';
 
 export interface CompletionOptions {
   json?: boolean;
@@ -58,8 +77,7 @@ export function installCompletion(scriptDir: string, options: CompletionOptions 
   const homeDir = os.homedir();
 
   if (!shell) {
-    error(`unsupported shell: ${process.env.SHELL}. supported: bash, zsh, fish`, json, noColor);
-    return;
+    throw ShipError.config(`unsupported shell: ${process.env.SHELL}. supported: bash, zsh, fish`);
   }
 
   const paths = getShellPaths(shell, homeDir);
@@ -100,8 +118,9 @@ export function installCompletion(scriptDir: string, options: CompletionOptions 
       warn(`run "source ${paths.profileFile}" or restart your shell`, json, noColor);
     }
   } catch (e) {
+    if (isShipError(e)) throw e;
     const message = e instanceof Error ? e.message : String(e);
-    error(`could not install completion script: ${message}`, json, noColor);
+    throw ShipError.file(`could not install completion script: ${message}`);
   }
 }
 
@@ -114,8 +133,7 @@ export function uninstallCompletion(options: CompletionOptions = {}): void {
   const homeDir = os.homedir();
 
   if (!shell) {
-    error(`unsupported shell: ${process.env.SHELL}. supported: bash, zsh, fish`, json, noColor);
-    return;
+    throw ShipError.config(`unsupported shell: ${process.env.SHELL}. supported: bash, zsh, fish`);
   }
 
   const paths = getShellPaths(shell, homeDir);
@@ -141,8 +159,7 @@ export function uninstallCompletion(options: CompletionOptions = {}): void {
     if (!paths.profileFile) return;
 
     if (!fs.existsSync(paths.profileFile)) {
-      error('profile file not found', json, noColor);
-      return;
+      throw ShipError.config('profile file not found');
     }
 
     const content = fs.readFileSync(paths.profileFile, 'utf-8');
@@ -173,10 +190,11 @@ export function uninstallCompletion(options: CompletionOptions = {}): void {
       success(`completion script uninstalled for ${shell}`, json, noColor);
       warn(`run "source ${paths.profileFile}" or restart your shell`, json, noColor);
     } else {
-      error('completion was not found in profile', json, noColor);
+      throw ShipError.config('completion was not found in profile');
     }
   } catch (e) {
+    if (isShipError(e)) throw e;
     const message = e instanceof Error ? e.message : String(e);
-    error(`could not uninstall completion script: ${message}`, json, noColor);
+    throw ShipError.file(`could not uninstall completion script: ${message}`);
   }
 }

@@ -4,6 +4,7 @@
  * Fast, reliable, and easy to reason about
  */
 
+import { ErrorType, ShipError } from '@shipstatic/types';
 import { describe, expect, it, vi } from 'vitest';
 import {
   error,
@@ -89,13 +90,57 @@ describe('CLI Pure Functions', () => {
       consoleSpy.mockRestore();
     });
 
-    it('error should format message correctly in JSON mode', async () => {
+    // The JSON channel transmits the platform's `ErrorResponse` verbatim: the
+    // `error` key names the ErrorType, never the message. It carried prose
+    // until 2026-07-29, which left `--json` consumers nothing to branch on but
+    // the sentence — against the platform's own "branch on type / status,
+    // never on message strings" law.
+    it('error should emit the wire ErrorResponse in JSON mode', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      error('something went wrong', true);
+      error(ShipError.notFound('Deployment', 'nope'), true);
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"error"'));
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"something went wrong"'));
+      const parsed = JSON.parse(consoleSpy.mock.calls[0][0] as string);
+      expect(parsed).toEqual({
+        error: ErrorType.NotFound,
+        message: 'Deployment nope not found',
+        status: 404,
+        details: undefined,
+      });
+
+      consoleSpy.mockRestore();
+    });
+
+    it('error carries details through the JSON channel', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      error(ShipError.rateLimit('Too many requests', { retryAfter: 30 }), true);
+
+      const parsed = JSON.parse(consoleSpy.mock.calls[0][0] as string);
+      expect(parsed.error).toBe(ErrorType.RateLimit);
+      expect(parsed.details).toEqual({ retryAfter: 30 });
+
+      consoleSpy.mockRestore();
+    });
+
+    it('error strips internal auth telemetry in JSON mode (toResponse owns it)', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      error(ShipError.authentication('Authentication failed', { internal: 'jwt_missing' }), true);
+
+      const parsed = JSON.parse(consoleSpy.mock.calls[0][0] as string);
+      expect(parsed.error).toBe(ErrorType.Authentication);
+      expect(parsed.details).toBeUndefined();
+
+      consoleSpy.mockRestore();
+    });
+
+    it('error renders a ShipError message in text mode', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      error(ShipError.validation('bad input'), false);
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('bad input'));
 
       consoleSpy.mockRestore();
     });

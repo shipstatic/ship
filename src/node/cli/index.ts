@@ -26,7 +26,7 @@ import type { Ship } from '../index.js';
 import { installCompletion, uninstallCompletion } from './completion.js';
 import { runConfig } from './config.js';
 import { createClient, mergeCliConfig } from './create-client.js';
-import { formatErrorJson, getUserMessage, toShipError } from './error-handling.js';
+import { getUserMessage, toShipError } from './error-handling.js';
 import { formatOutput, type OutputContext } from './formatters.js';
 import { loadShipFile } from './shiprc.js';
 import type {
@@ -130,6 +130,18 @@ ${applyDim('Please report any issues to https://github.com/shipstatic/ship/issue
 
   return output;
 }
+
+/**
+ * A CLI grammar error — a command or flag this binary does not have.
+ *
+ * Deliberately STATUSLESS. `ErrorResponse.status` is documented "(API
+ * contexts)", and no API ever sees `ship foo`, so a 400 here would be an HTTP
+ * fact about an exchange that never happened. The dual-validation errors are
+ * the opposite case and rightly DO carry 400 — a blocked extension or a bad
+ * label is a rule the server enforces too, and the error must read the same
+ * wherever it was caught. See CLAUDE.md, "What a status means".
+ */
+const usageError = (message: string) => new ShipError(ErrorType.Validation, message);
 
 /**
  * Collector function for Commander.js to accumulate repeated option values.
@@ -351,7 +363,9 @@ export function buildProgram(): Command {
         .replace(/\.$/, '')
         .toLowerCase();
 
-      error(message, globalOptions.json, globalOptions.noColor);
+      // A Commander parse failure is a usage error — typed as such so
+      // `--json` carries `validation_failed` rather than bare prose.
+      error(usageError(message), globalOptions.json, globalOptions.noColor);
 
       if (!globalOptions.json) {
         program.outputHelp();
@@ -386,7 +400,11 @@ export function buildProgram(): Command {
       if (commandObj?.args?.length) {
         const unknownArg = commandObj.args.find((arg) => !validSubcommands.includes(arg));
         if (unknownArg) {
-          error(`unknown command '${unknownArg}'`, globalOptions.json, globalOptions.noColor);
+          error(
+            usageError(`unknown command '${unknownArg}'`),
+            globalOptions.json,
+            globalOptions.noColor,
+          );
         }
       }
 
@@ -405,15 +423,18 @@ export function buildProgram(): Command {
     const opts = processOptions(program);
     const shipError = toShipError(err);
 
-    // Get user-facing message using the extracted pure function
-    const message = getUserMessage(shipError, context, {
-      token: resolveCliToken(program.opts()),
-    });
-
-    // Output in appropriate format
+    // Text translates, JSON transmits: the machine channel emits the error's
+    // own `ErrorResponse`, so `error` names the ErrorType the API produced;
+    // the human channel gets the CLI's actionable rewording of it.
     if (opts.json) {
-      console.error(`${formatErrorJson(message, shipError.details)}\n`);
+      error(shipError, true, opts.noColor);
     } else {
+      // Only the auth branch consults the credential, and resolving it reads
+      // `.shiprc` — so a local failure (`completion install`, `config`) must
+      // not pay for it. Eager resolution made every error touch the disk.
+      const message = getUserMessage(shipError, context, {
+        token: shipError.isAuthError() ? resolveCliToken(program.opts()) : undefined,
+      });
       error(message, false, opts.noColor);
       // Show help only for unknown command errors (user CLI mistake)
       if (shipError.type === ErrorType.Validation && message.includes('unknown command')) {
@@ -502,7 +523,7 @@ export function buildProgram(): Command {
       }
     } catch (validationError) {
       if (isShipError(validationError)) {
-        error(validationError.message, options.json, options.noColor);
+        error(validationError, options.json, options.noColor);
         // Already reported — the bare CommanderError just carries the code.
         throw new CommanderError(1, 'ship.invalidOption', validationError.message);
       }
@@ -873,7 +894,11 @@ export function buildProgram(): Command {
     .action(() => {
       const options = processOptions(program);
       const scriptDir = path.resolve(__dirname, 'completions');
-      installCompletion(scriptDir, { json: options.json, noColor: options.noColor });
+      try {
+        installCompletion(scriptDir, { json: options.json, noColor: options.noColor });
+      } catch (err) {
+        handleError(err);
+      }
     });
 
   completionCmd
@@ -881,7 +906,11 @@ export function buildProgram(): Command {
     .description('Uninstall shell completion script')
     .action(() => {
       const options = processOptions(program);
-      uninstallCompletion({ json: options.json, noColor: options.noColor });
+      try {
+        uninstallCompletion({ json: options.json, noColor: options.noColor });
+      } catch (err) {
+        handleError(err);
+      }
     });
 
   // Config command
@@ -938,7 +967,7 @@ export function buildProgram(): Command {
           !deployPath.includes('.') &&
           !deployPath.startsWith('~');
         if (looksLikeCommand) {
-          handleError(ShipError.validation(`unknown command '${deployPath}'`), {
+          handleError(usageError(`unknown command '${deployPath}'`), {
             operation: 'upload',
           });
           return;

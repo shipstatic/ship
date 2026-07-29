@@ -6,6 +6,11 @@
  * a `ShipError` into the actionable string the CLI prints. Both are pure for
  * easy unit testing.
  *
+ * Both serve the TEXT channel only. `--json` transmits `ShipError.toResponse()`
+ * untouched — see `error()` in `utils.ts`, which owns both channels. There is
+ * deliberately no JSON formatter here: a second serializer is exactly how the
+ * `--json` error envelope drifted from the wire's in the first place.
+ *
  * Distinct from `ShipError.fromFetchError` (in `@shipstatic/types`), which is
  * for HTTP fetch failures. The CLI's global handler also catches things like
  * Commander parse errors, runtime exceptions in user code, etc. — so it uses
@@ -82,19 +87,4 @@ export function getUserMessage(
 
   // Server errors (5xx) - generic but actionable
   return 'server error: please try again or check https://status.shipstatic.com';
-}
-
-/**
- * Format error for JSON output.
- * Returns the JSON string to be output (without newline).
- */
-export function formatErrorJson(message: string, details?: unknown): string {
-  return JSON.stringify(
-    {
-      error: message,
-      ...(details ? { details } : {}),
-    },
-    null,
-    2,
-  );
 }

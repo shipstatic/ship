@@ -34,8 +34,13 @@ async function md5Path(path: string): Promise<MD5Result> {
   return new Promise((resolve, reject) => {
     const hash = createHash('md5');
     const stream = createReadStream(path);
+    // A local read that failed — no request was made and no server rule was
+    // being mirrored, so there is no status to report and this is the `File`
+    // type by definition (see CLAUDE.md, "What a status means"). The path
+    // rides `details`, per the factory's own convention, rather than being
+    // spelled into prose twice.
     stream.on('error', (err) =>
-      reject(ShipError.business(`Failed to read file for MD5: ${err.message}`)),
+      reject(ShipError.file(`Failed to read file for MD5: ${err.message}`, { filePath: path })),
     );
     stream.on('data', (chunk) => hash.update(chunk));
     stream.on('end', () => resolve({ md5: hash.digest('hex') }));
