@@ -114,6 +114,8 @@ describe('deletion sentences are composed from the response', () => {
     const byHostname = await runProgram(['deployments', 'delete', SEEDED]);
 
     expect(bySlug.stdout).toBe(byHostname.stdout);
-    expect(bySlug.stdout).toBe(`${SEEDED} deployment deleted\n\n`);
+    expect(bySlug.stdout).toBe(
+      `${SEEDED} deployment deleting — served until cleanup completes\n\n`,
+    );
   });
 });

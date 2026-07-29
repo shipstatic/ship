@@ -84,7 +84,7 @@ ship.deploy(input, options?)   // → deployments.upload()
 ship.whoami()                  // → account.get()
 
 // Top-level
-ship.ping()                    // returns boolean
+ship.ping()                    // returns PingResponse ({ timestamp })
 ship.getLimits()               // returns PlatformLimits (cached after init)
 ship.setToken(token)           // any platform token, or a TokenProvider
 ship.setHeaders(headers)       // global headers on every request (lowest priority)
@@ -236,6 +236,26 @@ Three channels, one acknowledgement, each in its own idiom: **quiet** prints
 the key, **`--json`** transmits the shape through the single JSON exit in
 `formatOutput`, and **text** is the only one that composes copy.
 
+**And the TENSE in that sentence is the response's too.** An acknowledgement
+carries the resource's own state field only where the resource survived
+mid-transition, so that field is how a surface knows whether to speak in the
+past. `DELETE /deployments/:deployment` answers **202**, marks the row
+`deleting`, and queues the cleanup; the router serves from KV with no status
+gate, so the files stay public until the queue drains (~26s measured). The CLI
+read the acknowledgement's key, discarded its `status`, and said "deleted"
+anyway — a completed past tense over a live site, which is precisely backwards
+for someone deleting a deployment BECAUSE it exposed something. `--json` was
+truthful throughout; only the sentence lied. Text now says
+`<host> deployment deleting — served until cleanup completes`, while a hard
+delete (`{domain}`, `{token}`) still says `deleted`, because there the row is
+genuinely gone.
+
+The gate is the transitional-state MAP in `formatters.ts`
+(`DELETION_IN_FLIGHT`), never the mere presence of a `status` — `Deployment`
+and `Domain` both carry a status of their own (`pending`, `success`), so a
+formatter keying on presence would answer "www.example.com domain pending" the
+day a handler resolved an entity here. An unrecognised state reads as done.
+
 **The identifier in that sentence is the response's, never the request's.**
 The two diverge routinely — a deployment is addressable by bare slug and
 answers with its hostname; a domain is accepted in any case and answers
@@ -313,7 +333,7 @@ resolves the credential only for the auth branch, so a local failure never
 reads `.shiprc` to render its own message.
 
 - Text messages open lowercase (leading sentence word decapitalized; identifiers, paths, and acronyms survive verbatim); trailing periods stripped
-- Removal operations produce a success message **in text only** — see "Removals answer with an acknowledgement" below
+- Deletions produce a success message **in text only** — see "Deletions answer with an acknowledgement" below
 - Internal fields (`isCreate`, `_dnsRecords`, `_shareHash`) are stripped from JSON output
 - `[error]`/`[warning]`/`[info]` prefixes use inverse color backgrounds in TTY
 
@@ -358,7 +378,7 @@ is built once for both the output and error paths. It deliberately carries
 **no positional argument**: the arguments are the request, and every sentence
 the CLI writes about a result is composed from the response. A `getResourceId`
 plumbed the caller's argument to the formatter until 2026-07-29, where its only
-consumer echoed it back as the removal identifier — see "Removals answer with
+consumer echoed it back as the deletion identifier — see "Deletions answer with
 an acknowledgement".
 
 ### `formatOutput` Router
@@ -378,11 +398,10 @@ Routes by result shape (discriminated union) — order matters:
 'token' in result        → formatToken
 'email' in result        → formatAccount
 'valid' in result        → formatDomainValidate
-boolean                  → ping result
-undefined                → generic success message
+(operation: 'ping')      → text says "api reachable"; --json transmits { timestamp }
 ```
 
-A removal short-circuits ahead of this table **in text mode only**, composing
+A deletion short-circuits ahead of this table **in text mode only**, composing
 its sentence from the acknowledgement; in `--json` it falls through to the one
 JSON exit, and in `-q` the quiet branch above the table has already printed the
 key.
@@ -741,7 +760,7 @@ The correct instrument is an **idle timeout** — reset on progress, so it measu
 | `tokens.get()` | `GET /tokens/:token` | The same row the listing carries, addressable — `ship tokens get` |
 | `tokens.delete()` | `DELETE /tokens/:token` | 200 `{token}` — resolved, not discarded |
 | `account.get()` | `GET /account` | |
-| `ping()` | `GET /ping` | Returns boolean |
+| `ping()` | `GET /ping` | Resolves `PingResponse` (`{timestamp}`) — reachability is the absence of a throw, so there is no boolean to read |
 | `getLimits()` | `GET /limits` | Cached after init |
 | (internal) | `POST /spa-check` | SPA detection during upload — optional auth, anonymous callers allowed |
 | (internal) | `POST /upload` | Only via the `@internal` `deployEndpoint` option (`web/my`, `web/www`) |

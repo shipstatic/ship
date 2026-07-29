@@ -12,10 +12,39 @@
  * exercise. This is a hand-maintained twin — `tests/e2e/smoke.e2e.test.ts`
  * pins the same contract points against the real thing.
  *
- * Verified against `cloudflare/api` on 2026-07-27.
+ * **And every body `satisfies` its published type**, which is the half a
+ * citation cannot do. A citation is prose: it says a reader checked, and it
+ * goes on saying so after the cited line changes. On 2026-07-29 this file
+ * answered `POST /domains/validate` with `error: 'Domain is required'` while
+ * the very line it cited (`lib/domains/validate.ts:32`) said `reason` — the
+ * key the wave had renamed BECAUSE `error` collides with `ErrorType`'s. The
+ * fiction was invisible because `json()` took `unknown`, so roughly 900 tests
+ * ran against a shape the API cannot produce, under a citation that made it
+ * look verified. The API annotates its own route literals this way; the twin
+ * now keeps the same discipline, so a fiction is a compile error rather than
+ * a reading exercise.
+ *
+ * Verified against `cloudflare/api` on 2026-07-29.
  */
 
-import { classifyToken, ShipError, TokenKind } from '@shipstatic/types';
+import {
+  classifyToken,
+  type DeploymentDeleteResponse,
+  type DeploymentListResponse,
+  type DomainDeleteResponse,
+  type DomainDnsResponse,
+  type DomainListResponse,
+  type DomainRecordsResponse,
+  type DomainShareResponse,
+  type DomainValidateResponse,
+  type DomainVerifyResponse,
+  type PingResponse,
+  ShipError,
+  type SPACheckResponse,
+  type TokenDeleteResponse,
+  TokenKind,
+  type TokenListResponse,
+} from '@shipstatic/types';
 import { isCustomDomain, makeDnsRecords, makeDomain } from '../fixtures/builders';
 import type { MockState } from './state';
 
@@ -120,7 +149,7 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
   // --- /ping ------------------------------------------------------------
   // wire: routes/ping.ts:8
   if (path === '/ping' && method === 'GET') {
-    return json({ timestamp: state.now });
+    return json({ timestamp: state.now } satisfies PingResponse);
   }
 
   // --- /limits ----------------------------------------------------------
@@ -150,7 +179,7 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       debug: isSPA
         ? { tier: 'inclusions', reason: 'React mount point detected' }
         : { tier: 'fallback', reason: 'No SPA indicators found' },
-    });
+    } satisfies SPACheckResponse);
   }
 
   // --- /deployments -----------------------------------------------------
@@ -161,7 +190,10 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
     // `deployments.list()` against state came back empty.
     if (method === 'GET') {
       const page = paginate(state.deployments, url.searchParams);
-      return json({ deployments: page.items, cursor: page.cursor });
+      return json({
+        deployments: page.items,
+        cursor: page.cursor,
+      } satisfies DeploymentListResponse);
     }
     // wire: routes/deployments.ts:52 → lib/deployment-orchestrator.ts — the
     // multipart form's `labels` (JSON array), `via`, and `password` fields are
@@ -212,7 +244,10 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       // survives its own deletion long enough to state the status it is
       // transitioning through; nothing else rides along.
       if (!found) return fail(ShipError.notFound('Deployment', id));
-      return json({ deployment: found.deployment, status: 'deleting' }, 202);
+      return json(
+        { deployment: found.deployment, status: 'deleting' } satisfies DeploymentDeleteResponse,
+        202,
+      );
     }
     return methodNotAllowed();
   }
@@ -221,14 +256,19 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
   if (path === '/domains' && method === 'GET') {
     // wire: routes/domains.ts:186 — same limit/cursor pagination.
     const page = paginate(state.domains, url.searchParams);
-    return json({ domains: page.items, cursor: page.cursor });
+    return json({ domains: page.items, cursor: page.cursor } satisfies DomainListResponse);
   }
 
   if (path === '/domains/validate' && method === 'POST') {
     // wire: lib/domains/validate.ts:25-75
     const body = (await request.json().catch(() => ({}))) as { domain?: unknown };
     if (typeof body.domain !== 'string') {
-      return json({ valid: false, normalized: null, available: null, error: 'Domain is required' });
+      return json({
+        valid: false,
+        normalized: null,
+        available: null,
+        reason: 'Domain is required',
+      } satisfies DomainValidateResponse);
     }
     return json(state.validateDomain(body.domain.trim()));
   }
@@ -260,7 +300,7 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       const index = state.domains.findIndex((d) => d.domain === name);
       if (index === -1) return fail(ShipError.notFound('Domain', name));
       state.domains.splice(index, 1);
-      return json({ domain: name });
+      return json({ domain: name } satisfies DomainDeleteResponse);
     }
     return methodNotAllowed();
   }
@@ -273,7 +313,7 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
     // count here: a page is not an aggregate.
     if (method === 'GET') {
       const page = paginate(state.tokens, url.searchParams);
-      return json({ tokens: page.items, cursor: page.cursor });
+      return json({ tokens: page.items, cursor: page.cursor } satisfies TokenListResponse);
     }
     // wire: routes/tokens.ts:66 — 201.
     if (method === 'POST') {
@@ -303,7 +343,7 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
     const index = state.tokens.findIndex((t) => t.token === id);
     if (index === -1) return fail(ShipError.notFound('Token'));
     state.tokens.splice(index, 1);
-    return json({ token: id });
+    return json({ token: id } satisfies TokenDeleteResponse);
   }
 
   // The API registers no `notFound` handler, so Hono's default answers:
@@ -365,14 +405,20 @@ function domainSubResource(sub: 'dns' | 'records' | 'share', name: string, state
   }
 
   if (sub === 'dns') {
-    return json({ domain: name, dns: { provider: { name: 'Cloudflare' } } });
+    return json({
+      domain: name,
+      dns: { provider: { name: 'Cloudflare' } },
+    } satisfies DomainDnsResponse);
   }
   if (sub === 'records') {
     // wire: routes/domains.ts:135 — apex from getApexDomain()
     const apex = name.startsWith('www.') ? name.slice(4) : name;
-    return json({ domain: name, apex, records: makeDnsRecords() });
+    return json({ domain: name, apex, records: makeDnsRecords() } satisfies DomainRecordsResponse);
   }
-  return json({ domain: name, hash: 'abc123def456abc123def456abc123de' });
+  return json({
+    domain: name,
+    hash: 'abc123def456abc123def456abc123de',
+  } satisfies DomainShareResponse);
 }
 
 /** wire: lib/domains/verify.ts:18-64 */
@@ -403,7 +449,7 @@ function verifyDomain(name: string, state: MockState) {
   }
   state.verifyCooldown.add(name);
   // 202: queued, not performed. wire: lib/domains/verify.ts:63
-  return json({ domain: name }, 202);
+  return json({ domain: name } satisfies DomainVerifyResponse, 202);
 }
 
 /** wire: lib/domains/upsert.ts — merge-upsert, 201 on create / 200 on update. */

@@ -437,14 +437,16 @@ describe('CLI command tree (in-process)', () => {
       expect(row?.labels).toEqual([]);
     });
 
-    it('delete reports the async 202 outcome as a deletion success', async () => {
+    it('delete reports the async 202 outcome as the state it acknowledged', async () => {
       // Addressed by BARE SLUG, acknowledged by HOSTNAME — the divergence this
       // assertion exists for. A deployment is addressable either way, so a
       // sentence built from the argument would name whichever form the caller
       // happened to type; the platform's identifier is the one that is true.
       const result = await runProgram(['deployments', 'delete', SEEDED_SLUG]);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toBe(`${SEEDED} deployment deleted\n\n`);
+      expect(result.stdout).toBe(
+        `${SEEDED} deployment deleting — served until cleanup completes\n\n`,
+      );
     });
 
     it('--json errors are machine-readable', async () => {
