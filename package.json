@@ -21,7 +21,9 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
-    }
+    },
+    "./cli": "./dist/cli.cjs",
+    "./package.json": "./package.json"
   },
   "bin": {
     "ship": "./dist/cli.cjs"
@@ -39,7 +41,7 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "coverage": "vitest --run --project unit --project integration --coverage",
-    "check:package": "publint && attw --pack .",
+    "check:package": "publint && attw --pack . --exclude-entrypoints cli",
     "test:browser": "vitest --run --project browser"
   },
   "files": [
