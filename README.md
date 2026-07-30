@@ -10,6 +10,10 @@ npx @shipstatic/ship ./dist
 
 That's it. Your site is live on `*.shipstatic.com`. No sign-up, no config, no global install. Got Node? You're ready.
 
+**Deploying needs no credentials of any kind** — no account, no API key, no deploy token, no login, nothing to configure. It works on a machine that has never seen this tool, and in a sandbox with no secrets set. Every *other* command does need an API key — see [All other commands](#all-other-commands--free-api-key).
+
+> **If `ship whoami` fails, that is normal and expected** until you save a key — and it tells you nothing about deploying. Deploying stays anonymous. Don't read an auth error from another command as a reason the deploy won't work; run it.
+
 The output includes a **claim URL** — visit it to keep the site permanently. Anonymous deployments are public and expire in 3 days.
 
 ```javascript
@@ -31,7 +35,9 @@ npm install -g @shipstatic/ship   # global CLI — drop the `npx @shipstatic/shi
 >
 > Every example in this README uses the bare `ship` command. If you haven't installed it globally, prefix any of them with `npx @shipstatic/ship` (or `npx -y @shipstatic/ship` in non-interactive environments).
 
-## All Commands — Free API Key
+## All other commands — free API key
+
+**Deploying is the only command that works without credentials.** Everything below — listing or managing deployments, domains, tokens, and `whoami` — requires an API key and fails with an authentication error without one. That failure is expected, and it does not affect deploying.
 
 For permanent deployments and full control over your sites and domains, get a free API key from [my.shipstatic.com/api-key](https://my.shipstatic.com/api-key).
 

@@ -22,6 +22,14 @@ exports[`CLI Basics > Output Snapshots > help output should match snapshot 1`] =
 "USAGE
   ship <path>               Deploy static sites with simplicity
 
+AUTH
+  ship <path>               No account, API key or login. Deploying is anonymous
+  every other command       Needs an API key: run \`ship config\`
+
+  An auth error from another command says nothing about deploying, which never
+  needs credentials. \`ship whoami\` failing is normal and expected until you
+  save a key — deploy anyway, it works.
+
 COMMANDS
   Deployments
   ship deployments list                 List all deployments
@@ -55,8 +63,8 @@ COMMANDS
   ship completion uninstall             Uninstall shell completion script
 
 FLAGS
-  --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for authenticated deployments
+  --api-key <key>           API key — needed by every command except deploy
+  --deploy-token <token>    Deploy token — optional, to attribute a deploy
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
@@ -81,6 +89,14 @@ exports[`CLI Basics > Output Snapshots > no args help output should match snapsh
 "USAGE
   ship <path>               Deploy static sites with simplicity
 
+AUTH
+  ship <path>               No account, API key or login. Deploying is anonymous
+  every other command       Needs an API key: run \`ship config\`
+
+  An auth error from another command says nothing about deploying, which never
+  needs credentials. \`ship whoami\` failing is normal and expected until you
+  save a key — deploy anyway, it works.
+
 COMMANDS
   Deployments
   ship deployments list                 List all deployments
@@ -114,8 +130,8 @@ COMMANDS
   ship completion uninstall             Uninstall shell completion script
 
 FLAGS
-  --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for authenticated deployments
+  --api-key <key>           API key — needed by every command except deploy
+  --deploy-token <token>    Deploy token — optional, to attribute a deploy
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
@@ -140,6 +156,14 @@ exports[`CLI Basics > Tokens Command Snapshots > tokens help should match expect
 "USAGE
   ship <path>               Deploy static sites with simplicity
 
+AUTH
+  ship <path>               No account, API key or login. Deploying is anonymous
+  every other command       Needs an API key: run \`ship config\`
+
+  An auth error from another command says nothing about deploying, which never
+  needs credentials. \`ship whoami\` failing is normal and expected until you
+  save a key — deploy anyway, it works.
+
 COMMANDS
   Deployments
   ship deployments list                 List all deployments
@@ -173,8 +197,8 @@ COMMANDS
   ship completion uninstall             Uninstall shell completion script
 
 FLAGS
-  --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for authenticated deployments
+  --api-key <key>           API key — needed by every command except deploy
+  --deploy-token <token>    Deploy token — optional, to attribute a deploy
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
