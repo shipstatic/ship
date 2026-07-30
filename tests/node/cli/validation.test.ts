@@ -11,13 +11,13 @@ describe('CLI Validation', () => {
     it('should reject API key without ship- prefix', async () => {
       const result = await runCli(['--api-key', 'invalid-key', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api key must start with "ship-"');
+      expect(result.stderr).toContain('API key must start with "ship-"');
     });
 
     it('should reject API key with wrong length', async () => {
       const result = await runCli(['--api-key', 'ship-short', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api key must be 69 characters total');
+      expect(result.stderr).toContain('API key must be 69 characters total');
     });
 
     it('should reject API key with invalid hex chars', async () => {
@@ -38,25 +38,25 @@ describe('CLI Validation', () => {
     it('should reject invalid URL format', async () => {
       const result = await runCli(['--api-url', 'not-a-url', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api url must be a valid url');
+      expect(result.stderr).toContain('API URL must be a valid URL');
     });
 
     it('should reject URL without protocol', async () => {
       const result = await runCli(['--api-url', 'api.example.com', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api url must be a valid url');
+      expect(result.stderr).toContain('API URL must be a valid URL');
     });
 
     it('should reject URL with path', async () => {
       const result = await runCli(['--api-url', 'https://api.example.com/path', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api url must not contain a path');
+      expect(result.stderr).toContain('API URL must not contain a path');
     });
 
     it('should reject URL with query parameters', async () => {
       const result = await runCli(['--api-url', 'https://api.example.com?param=value', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api url must not contain query parameters');
+      expect(result.stderr).toContain('API URL must not contain query parameters');
     });
 
     it('should accept valid HTTPS URL', async () => {
@@ -77,7 +77,7 @@ describe('CLI Validation', () => {
       // This ensures validation happens in option processing, not during API calls
       const result = await runCli(['--api-key', 'invalid', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('api key must start with "ship-"');
+      expect(result.stderr).toContain('API key must start with "ship-"');
       // Should fail fast without attempting network request
     });
   });

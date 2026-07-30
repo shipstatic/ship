@@ -89,8 +89,9 @@ function displayHelp(noColor?: boolean) {
   ship <path>               ${icon('🚀')}Deploy static sites with simplicity
 
 ${applyBold('AUTH')}
-  ship <path>               No account, API key or login. Deploying is anonymous
-  every other command       Needs an API key: run \`ship config\`
+  deploying                 No account, API key or login — it is anonymous.
+                            Both \`ship <path>\` and \`ship deployments upload <path>\`
+  everything else           Needs an API key: run \`ship config\`
 
   An auth error from another command says nothing about deploying, which never
   needs credentials. \`ship whoami\` failing is normal and expected until you

@@ -60,7 +60,7 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe('authentication required: use --api-key or --deploy-token, or set SHIP_API_KEY');
+        expect(message).toBe('authentication required for this command — deploying needs none: use --api-key or --deploy-token, or set SHIP_API_KEY');
       });
 
       it('should prefer apiKey message over deployToken when both provided', () => {
