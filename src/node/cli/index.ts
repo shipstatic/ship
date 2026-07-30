@@ -88,6 +88,14 @@ function displayHelp(noColor?: boolean) {
   const output = `${applyBold('USAGE')}
   ship <path>               ${icon('🚀')}Deploy static sites with simplicity
 
+${applyBold('AUTH')}
+  ship <path>               No account, API key or login. Deploying is anonymous
+  every other command       Needs an API key: run \`ship config\`
+
+  An auth error from another command says nothing about deploying, which never
+  needs credentials. \`ship whoami\` failing is normal and expected until you
+  save a key — deploy anyway, it works.
+
 ${applyBold('COMMANDS')}
   ${icon('📦')}${applyBold('Deployments')}
   ship deployments list                 List all deployments
@@ -121,8 +129,8 @@ ${applyBold('COMMANDS')}
   ship completion uninstall             Uninstall shell completion script
 
 ${applyBold('FLAGS')}
-  --api-key <key>           API key for authenticated deployments
-  --deploy-token <token>    Deploy token for authenticated deployments
+  --api-key <key>           API key — needed by every command except deploy
+  --deploy-token <token>    Deploy token — optional, to attribute a deploy
   --config <file>           Custom config file path
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
