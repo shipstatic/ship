@@ -1,6 +1,6 @@
 {
   "name": "@shipstatic/ship",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "SDK & CLI for ShipStatic platform",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -21,7 +21,9 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
-    }
+    },
+    "./cli": "./dist/cli.cjs",
+    "./package.json": "./package.json"
   },
   "bin": {
     "ship": "./dist/cli.cjs"

@@ -1,0 +1,138 @@
+# The 1.x line's CI. Same three-job law as `development` — the version picks
+# the channel, the branch grants the right to use it — differing only where
+# the 1.x tree itself differs. See root CLAUDE.md, "The npm publish law".
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # `version:` is pinned here, unlike development's, because the 1.x tree
+      # declares no `packageManager` field for the action to read. Do not drop
+      # it: a versionless action-setup fails outright on this branch.
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.12.4
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Build precedes the suite: the CLI tier executes dist/cli.cjs and would
+      # otherwise run against a stale or absent one.
+      - run: pnpm run build
+
+      # The 1.x tree has no lint, typecheck, coverage, test:browser or
+      # check:package scripts — those arrived with 2.x. This is the whole gate
+      # the line supports, and it is green (1060 passing).
+      - run: pnpm test:ci
+
+  # The publish decision is its own job because `publish`'s `environment:` is
+  # evaluated before any step runs — it can only read another job's outputs.
+  version:
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.decide.outputs.publish }}
+      version: ${{ steps.decide.outputs.version }}
+      tag: ${{ steps.decide.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: decide
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+
+          # The VERSION decides the channel: a prerelease (any `-` suffix) goes to
+          # `beta`, so `latest` keeps resolving the last stable release.
+          if [[ "$VERSION" == *-* ]]; then TAG=beta; else TAG=latest; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          # The BRANCH decides whether that channel may be published from here.
+          # `latest` is main-only. A stable version on an integration branch is a
+          # STAGED release, and staging one before merging is the normal flow — so
+          # this skips rather than fails, exactly like the idempotence check below.
+          if [[ "$TAG" == "latest" && "$GITHUB_REF_NAME" != "main" ]]; then
+            echo "::notice title=Release staged::$NAME@$VERSION is a stable version. latest publishes only from main, so nothing was published from $GITHUB_REF_NAME. Merge to main to release it."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Idempotence: once the version is on the registry, any push is a no-op.
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION already on the registry — nothing to publish"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: version
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # `npm-latest` carries a main-only deployment branch policy, so publishing
+    # `latest` off `main` is refused by GitHub before a step runs.
+    environment: npm-${{ needs.version.outputs.tag }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.12.4
+
+      # No `registry-url`: it would write an `_authToken` line into .npmrc, and
+      # npm reads that line — even with no token — as "token auth is configured"
+      # and skips the OIDC handshake (actions/setup-node#1551).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run build
+
+      # OIDC needs npm >= 11.5.1; node 22 bundles 10.x, and pnpm has no OIDC
+      # support — hence `npm`, not `pnpm`, for the publish.
+      - run: npm install -g npm@latest
+
+      # Trusted publishing: no NODE_AUTH_TOKEN anywhere in this job — npm
+      # authenticates with a token whenever one is present and attempts OIDC
+      # only in its absence.
+      - run: npm publish --access public --provenance --tag "${{ needs.version.outputs.tag }}"
+
+      - uses: slackapi/slack-github-action@v4
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "✅ @shipstatic/ship ${{ needs.version.outputs.version }} published (${{ needs.version.outputs.tag }})"
+
+      - if: failure()
+        uses: slackapi/slack-github-action@v4
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "🔴 @shipstatic/ship publish failed"
