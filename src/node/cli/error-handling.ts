@@ -59,7 +59,14 @@ export function getUserMessage(
     } else if (options?.deployToken) {
       return 'authentication failed: invalid or expired deploy token';
     } else {
-      return 'authentication required: use --api-key or --deploy-token, or set SHIP_API_KEY';
+      // Scoped to THIS command, and says what deploying needs, because this is
+      // the sentence a reader is holding when they decide what is possible. An
+      // unqualified "authentication required" reads as a session-wide state —
+      // which is what `whoami` means in gh, docker, aws and npm — and a reader
+      // who concludes it from a failed probe never reaches the docs that say
+      // otherwise. Deploying is anonymous; the correction belongs here, at the
+      // moment of the failure, not only upstream of it.
+      return 'authentication required for this command — deploying needs none: use --api-key or --deploy-token, or set SHIP_API_KEY';
     }
   }
 
