@@ -51,10 +51,14 @@ export default defineConfig({
        * class is fenced by tests/architecture/test-integrity.test.ts.
        */
       thresholds: {
-        statements: 94,
-        branches: 88,
-        functions: 96,
-        lines: 95,
+        // Ratcheted 2026-07-30 (94/88/96/95 → 95/89/97/96) against a measured
+        // 95.71/89.02/97.72/96.56, after the config-writer and shape-router
+        // work brought their own tests. A ratchet that is not raised when
+        // coverage rises is just a floor the gains can erode back through.
+        statements: 95,
+        branches: 89,
+        functions: 97,
+        lines: 96,
         // The TTY-only spinner and the SIGINT handler are unreachable
         // in-process by design — the smoke tier proves them through the real
         // binary. (The bin execution block used to be here too; it moved to

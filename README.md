@@ -327,7 +327,11 @@ The **SDK** (`new Ship(...)`) resolves its token in this order:
 1. Constructor option: `new Ship({ token })`
 2. Environment variable: `SHIP_TOKEN`
 
-`--api-url` / `SHIP_API_URL` / `apiUrl` resolve the same way for the API endpoint.
+`--api-url` / `SHIP_API_URL` / `apiUrl` resolve the same way for the API endpoint, with one
+restriction: **a project config may not set `apiUrl`.** A `.shiprc` or `package.json` found by
+searching up from the working directory can hold a `token`, but the endpoint that token is sent
+to must come from `--api-url`, `SHIP_API_URL`, `~/.shiprc`, or a file you name with `--config` —
+never from a repository you cloned. Setting it in a project config is an error naming the file.
 
 The SDK never reads `.shiprc` or `package.json` — file resolution is a CLI feature, not an SDK feature. This keeps `new Ship({})` safe to use from embedded contexts (MCP, n8n, library wrappers) without inheriting the host developer's personal credentials.
 

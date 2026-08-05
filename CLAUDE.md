@@ -74,7 +74,7 @@ pnpm build                   # Build all bundles
 | `src/node/cli/formatters.ts` | Resource-specific output formatters, `formatOutput` router |
 | `src/node/cli/types.ts` | CLI option and result types (`GlobalOptions`, `CLIResult`, `EnrichedDomain`) |
 | `src/node/cli/error-handling.ts` | CLI error UX — `toShipError` (normalize), `getUserMessage` (translate). Text channel only; `--json` transmits `ShipError.toResponse()` via `utils.ts` `error()` |
-| `src/node/cli/config.ts` | Interactive `ship config` wizard (writes `~/.shiprc`) |
+| `src/node/cli/config.ts` | Interactive `ship config` wizard — the only WRITER of the file `shiprc.ts` is the only reader of (writes `~/.shiprc`, or the file `--config` names) |
 | `src/node/cli/completions.ts` | `renderCompletion(program, shell)` — bash/zsh/fish scripts derived from the tree |
 | `src/node/cli/completion.ts` | Shell completion install/uninstall |
 | `tests/fixtures/builders.ts` | Typed fixture builders — the only fixture source |
@@ -433,6 +433,25 @@ whole tree; the smoke tier installs through the real binary and runs `bash -n` /
 `zsh -n` / `fish --no-execute`, because a real shell is the only thing that can
 say the output parses.
 
+**And so is scoped usage.** `handleUnknownSubcommand` — what a command GROUP
+runs when none of its own subcommands matched — took `(parentName,
+validSubcommands[])` by hand until 2026-07-30 and was the last hand-written
+restatement of the tree, the fifth statement after the three shell scripts
+generation had just deleted. It was stale in the same way and for the same
+reason: `ship tokens get` shipped on 2026-07-28, the array beside it was not
+updated, and `ship tokens bogus` answered `usage: ship tokens
+<list|create|delete>` while the derived completion one module over offered all
+four. It now reads `this.name()` and `subcommandsOf(this)` — Commander binds
+`this` to the command and collects the leftover words in `this.args` — so it
+takes no arguments, closes over nothing, and lives at module scope.
+
+The fence is in `tests/node/cli/unknown-commands.test.ts`, and it too is
+quantified over `buildProgram()`: the hand-written table that used to sit there
+carried the very defect it existed to catch, omitting `tokens` altogether. Note
+the consequence for word order — the printed list is now REGISTRATION order,
+which is also what `ship domains --help` and the completions show. One order,
+three surfaces. The front page keeps its own, by design.
+
 **The front page may curate, but not forget.** `helpText()` is hand-written and
 byte-pinned, so leaving a command off is legitimate — provided the omission is
 recorded in `HELP_OMISSIONS` (`tests/architecture/docs-contract.test.ts`) with
@@ -452,6 +471,100 @@ exists there. It is checked before the `token` branch, since a creation
 response carries both.
 - Internal fields (`isCreate`, `_dnsRecords`, `_shareHash`) are stripped from JSON output
 - `[error]`/`[warning]`/`[info]` prefixes use inverse color backgrounds in TTY
+
+### A project config may name a credential, never the endpoint
+
+The search reaches `./.shiprc` and `package.json` **before** `$HOME/.shiprc`.
+That is the right precedence for configuration — it is what npm, ESLint,
+Prettier and Biome all do — and the wrong one for a *destination*.
+
+Verified against the real binary on 2026-07-30: a cloned repo whose
+`package.json` carried `{"ship": {"apiUrl": "http://127.0.0.1:19099"}}`
+received `Authorization: Bearer <the user's SHIP_TOKEN>` on a plain
+`ship deployments list` — exit 0, no warning. `git clone && cd && ship ./dist`
+is the persona's actual flow and reaches it without `npm install`, so the
+usual "a hostile repo owns you via lifecycle scripts anyway" defence does not
+apply here.
+
+**The tool-idiom argument is what fails, and it is worth knowing why.** ESLint
+and friends carry no credential, so they transmit nothing. npm is the true
+analogue and it *defends* this case: a project `.npmrc` may set `registry`,
+but auth is bound to the registry (`//host/:_authToken`), so a redirect does
+not carry the token. One unscoped bearer plus a project-settable endpoint is
+the combination npm avoided and we had.
+
+So: `apiUrl` is honored from `--api-url`, `SHIP_API_URL`, `~/.shiprc`, and an
+explicit `--config <file>`; from a searched project file it is **refused with
+an error naming the file** (`refuseProjectApiUrl` in `shiprc.ts`). Refused
+rather than silently stripped — a config that quietly does not do what it says
+is how someone spends an afternoon debugging the wrong layer. A project config
+may still carry a `token`; only the endpoint is denied.
+
+Narrower than it looks, and the reason is the one-slot design: if a project
+file wins the search, `~/.shiprc` is never read, so a user whose token lives
+only there has none to leak. It needs `SHIP_TOKEN` or `--token` — which is the
+documented CI path, hence the realistic population.
+
+**The home-file comparison is canonical, not textual.** On macOS `/var` and
+`/tmp` are symlinks, so cosmiconfig reports `/private/var/…/.shiprc` where
+`homedir()` says `/var/…`; a string compare would classify the user's OWN home
+file as a project file and refuse the endpoint they set themselves. The
+home-file test caught exactly that during implementation.
+
+### One file, two commands, one idea of what it is
+
+`ship config` is the only WRITER of the file `shiprc.ts` is the only READER of.
+They held different ideas of it until 2026-07-30, in both directions, and both
+were user-visible:
+
+- The reader parses with cosmiconfig and validates against `CREDENTIAL_FIELDS`;
+  the writer parsed with a bare `JSON.parse` inside a `catch → {}`. So a
+  `.shiprc` the reader rejected BY NAME — `Invalid config in …` — read here as
+  "no existing config", and the wizard wrote `{}` over it. Token and `apiUrl`
+  gone, under a `saved to …` message. The natural response to the reader's
+  error is to run `ship config`, which made **the recovery path the
+  destructive one**.
+- Going the other way, "preserve every other field" preserved fields that make
+  the file UNLOADABLE. The reader's own rename hint reads `"apiKey" is no
+  longer supported — the key is now "token". Run \`ship config\` to rewrite
+  it`; doing so wrote `token` and KEPT `apiKey`, so the next command failed
+  with the identical error. **The advice was a loop.**
+
+Both are one rule now: **the schema is the file.** `CREDENTIAL_FIELDS` is
+`.strict()`, so `token` and `apiUrl` are not merely the fields the wizard cares
+about — they are the only fields a `.shiprc` may legally hold. The writer
+rebuilds the file from `Object.keys(CREDENTIAL_FIELDS)` rather than mutating
+what it read, so a key the reader would reject cannot survive a rewrite;
+dropping one IS the repair the rename hint promises, and it is announced rather
+than done quietly. And it **refuses what it cannot parse** instead of replacing
+it, with `ErrorType.Config` and the writer's own closing clause — *the file was
+left unchanged* — because a file we cannot read is a file whose contents we
+cannot claim to preserve.
+
+**The FORMAT is shared outright, and this took two passes to get right.** The
+first fix left a bare `JSON.parse` in the writer, which repaired the schema
+layer and moved the divergence down one: the reader's loader is YAML (a JSON
+superset), so a YAML-style `token: ship-…` and — far more commonly — an EMPTY
+file, which `touch ~/.shiprc` and any interrupted write produce, loaded fine on
+every read path and came back "Invalid config in …" from the one command whose
+job is to fix it. Safe, since it refused rather than destroyed, but the file was
+*fine*. `readExistingConfig` now calls the reader's own `parseShipFile`.
+
+**One parse, two policies** is the whole statement: the reader parses then
+validates and rejects; the writer parses then repairs what the reader rejects.
+The schema layer diverges *on purpose* — the writer must accept `{apiKey}` in
+order to fix it — which is why the fence asserts format agreement only, per
+file, in `tests/node/cli/config.test.ts` ("one parse, two policies"): reader and
+writer are run over the same content and their verdicts compared, rather than
+each side being checked against a hand-written expectation of the other.
+
+`--config <file>` names the file to WRITE here, as it names the file to read
+everywhere else. Without that, the loader accepted any path (`dev.shiprc`,
+`prod.shiprc`) while the wizard could only ever maintain `~/.shiprc`.
+
+The tie is asserted end to end, not per side: the round-trip block in
+`tests/node/cli/config.test.ts` runs the wizard over a legacy file and hands
+the result to the real `loadShipFile`.
 
 ### Composability
 
@@ -511,27 +624,61 @@ response. A `getResourceId` plumbed the caller's argument to the formatter
 until 2026-07-29, where its only consumer echoed it back as the deletion
 identifier — see "Deletions answer with an acknowledgement".
 
-### `formatOutput` Router
+### `formatOutput` Router — one table, both channels
 
-Routes by result shape (discriminated union) — order matters:
+`SHAPES` in `formatters.ts` lists every response shape the CLI can receive, in
+resolution order, each stated ONCE with both of the things a channel needs from
+it: the key `-q` pipes forward, and the formatter text renders.
 
-```
-'deployments' in result  → formatDeploymentsList
-'domains' in result      → formatDomainsList
-'tokens' in result       → formatTokensList
-'records' in result      → formatDomainRecords   // must precede 'domain' check
-'hash' in result         → formatDomainShare     // must precede 'domain' check
-'dns' in result          → formatDomainDns       // must precede 'domain' check
-'domain' without 'url'   → formatDomainVerify     // the acknowledgement, not the entity
-'domain' in result       → formatDomain          // plain Domain or EnrichedDomain
-'deployment' in result   → formatDeployment
-'token' in result        → formatToken
-'email' in result        → formatAccount
-'valid' in result        → formatDomainValidate
-(operation: 'ping')      → text says "api reachable"; --json transmits { timestamp }
-```
+| Discriminant | `-q` emits | Text |
+|---|---|---|
+| `deployments` | one id per row | `formatDeploymentsList` |
+| `domains` | one name per row | `formatDomainsList` |
+| `tokens` | one id per row | `formatTokensList` |
+| `records` | `<type> <name> <value>` per row | `formatDomainRecords` |
+| `hash` | the setup URL | `formatDomainShare` |
+| `dns` | the provider name, if resolved | `formatDomainDns` |
+| `domain` | the name | `formatDomain` (plain `Domain` or `EnrichedDomain`) |
+| `deployment` | the id | `formatDeployment` |
+| `secret` | the SECRET — shown once, never again | `formatToken` |
+| `token` | the id | `formatToken` |
+| `email` | the address | `formatAccount` |
+| `valid` | the normalized name, or nothing | `formatDomainValidate` |
 
-A deletion short-circuits ahead of this table **in text mode only**, composing
+Plus `(operation: 'ping')`, answered before the table — text says
+`api reachable`, `--json` transmits `{ timestamp }`, `-q` says nothing.
+
+**Order is load-bearing** in two places, and both are ties rather than
+preferences: `Domain` carries a `deployment` field, so `domain` must precede
+`deployment`; a token creation carries both `token` and `secret`, so `secret`
+must precede `token`.
+
+**The two channels were two independent `if/else` chains until 2026-07-30** —
+twelve branches and eleven, same discriminants, same order, nothing tying them.
+That is not a hypothetical hazard; it is a bug this CLI shipped. `tokens get`
+and `tokens delete` printed NOTHING under `-q` until 2026-07-29, because the
+quiet chain had a branch for the `tokens` COLLECTION and none for a single
+token while the text chain had both — so the one resource whose identifier you
+most want to pipe was the only one emitting none. A row cannot half-exist, and
+resolution order is now a property of the list rather than something two chains
+have to keep agreeing on.
+
+`SHAPES` is **exported for the suite**, and that tie is load-bearing rather than
+cosmetic. `tests/node/cli/formatters.unit.test.ts` pins a hand-written case per
+row — the values `-q` must emit — and then asserts its own list deep-equals
+`SHAPES.map(s => s.on)`. Without that last line the completeness check counted
+the test's own array and was a tautology: a thirteenth row added to `SHAPES`
+left the suite green while that shape was asserted by nothing, which is the
+precise scenario the check claimed to prevent (caught in review, 2026-07-30).
+Asserting the mapped list rather than a length also makes the two order ties
+above enforced rather than trusted to this paragraph. A fence must quantify over
+PRODUCTION and pin expectations by hand; both sides hand-written is a mirror.
+
+A shape with no row falls through to `formatDetails`, deliberately — a future
+`GET /labels` shows its content on the first run rather than needing a
+formatter first.
+
+A deletion short-circuits ahead of the table **in text mode only**, composing
 its sentence from the acknowledgement; in `--json` it falls through to the one
 JSON exit, and in `-q` the quiet branch above the table has already printed the
 key.
@@ -963,11 +1110,15 @@ the API's contract is its routes.
 
 *Open product questions (awaiting a call — see `HANDOVER-SHIP-OVERHAUL.md`
 flagged decisions):* `GET /labels` (a real endpoint with no SDK method —
-a CLI user would plausibly want it), and `Idempotency-Key` on deploys (the
-API's retry-replay contract explicitly targets "agents that retry", yet the
-SDK/CLI never send the header and expose no option — today only reachable
-via `setHeaders`; flagged 2026-07-27). Neither is drift, and neither should
-be added without the call. (List pagination, formerly in this list, shipped
+a CLI user would plausibly want it), and an `--idempotency-key` CLI flag.
+The SDK half of that second one **shipped**: `deploy()` takes
+`idempotencyKey`, validates it through `validateIdempotencyKey`, and sends
+the header (see the Backend Integration table). Only the CLI has no way to
+name one, so a shell-driven retry — which is exactly the "agents that retry"
+case the API's contract targets — still cannot reach it. This paragraph
+claimed "the SDK/CLI never send the header" until 2026-07-30, which was
+true when written and stale thereafter. Neither item is drift, and neither
+should be added without the call. (List pagination, formerly in this list, shipped
 2026-07-27 as F1 and reached the last collection — tokens — on 2026-07-28;
 see the Backend Integration table.)
 
