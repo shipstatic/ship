@@ -51,12 +51,21 @@ export default defineConfig({
        * class is fenced by tests/architecture/test-integrity.test.ts.
        */
       thresholds: {
-        // Ratcheted 2026-07-30 (94/88/96/95 → 95/89/97/96) against a measured
-        // 95.71/89.02/97.72/96.56, after the config-writer and shape-router
-        // work brought their own tests. A ratchet that is not raised when
-        // coverage rises is just a floor the gains can erode back through.
+        // A ratchet that is not raised when coverage rises is just a floor the
+        // gains can erode back through — so these move up with the suite.
+        //
+        // BRANCHES is the one exception, and it moved DOWN (89 → 88) as a
+        // recorded decision rather than a silent lower. The 2.0.0 deletions
+        // (project-config search, `config --json`, the shape router) removed
+        // **22 branches, all 22 of them covered and none uncovered**: the
+        // absolute uncovered count is unchanged at 103, and the ratio fell only
+        // because the denominator shrank. Statements, functions and lines all
+        // ROSE across the same change (95.71→96.00, 97.72→98.02, 96.56→96.82),
+        // which is the corroboration. Deleting well-tested code is supposed to
+        // look like this; a floor that punishes it is measuring the wrong
+        // thing.
         statements: 95,
-        branches: 89,
+        branches: 88,
         functions: 97,
         lines: 96,
         // The TTY-only spinner and the SIGINT handler are unreachable
