@@ -234,14 +234,9 @@ function processOptions(command: Command): GlobalOptions {
  * **It states nothing about the tree.** Commander binds `this` to the command
  * and collects the leftover words in `this.args`, so the group's name and its
  * subcommands are read from the tree at parse time, exactly as the completion
- * renderer reads them. This took `(parentName, validSubcommands[])` by hand
- * until 2026-07-30 and was the last hand-written restatement of a tree
- * `buildProgram()` already holds — the fifth statement after the three shell
- * scripts that `completions.ts` deleted, and stale in the same way for the same
- * reason: `ship tokens get` shipped on 2026-07-28, the array beside it was not
- * updated, and `ship tokens bogus` answered `usage: ship tokens
- * <list|create|delete>` while the derived completion one module over offered
- * all four. A list that cannot be edited cannot drift.
+ * renderer reads them. A list that cannot be edited cannot drift.
+ *
+ * See CLAUDE.md, "the last hand-written copy of the command tree".
  */
 function handleUnknownSubcommand(this: Command): void {
   const options = processOptions(this);
@@ -453,10 +448,8 @@ export function buildProgram(): Command {
    * The context says what the command IS — never what the caller typed, since
    * the arguments are the request and every sentence about a result is composed
    * from the response. It reaches `formatOutput` and nothing else: the error
-   * path took it too until 2026-07-29, and ignored it (`getUserMessage`'s
-   * parameter was literally `_context`). It could not have used it either — the
-   * wire message already names the resource, which is exactly why the CLI
-   * relays it.
+   * path has no use for it, because the wire message already names the
+   * resource, which is exactly why the CLI relays it.
    */
   function withErrorHandling<T extends unknown[], R extends CLIResult>(
     handler: (client: Ship, options: GlobalOptions, ...args: T) => Promise<R>,

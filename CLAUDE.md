@@ -81,6 +81,28 @@ pnpm build                   # Build all bundles
 | `tests/mocks/handler.ts` | The mock API: one Web-standard handler, wire-cited per route |
 | `tests/architecture/` | Suite-time fences (integrity, naming, docs contract) |
 
+## Comments state the law; this file keeps the story
+
+**A comment in code states the rule and, where the rule was bought with a bug,
+one short pointer — "see CLAUDE.md §…". The dated war story lives only here.**
+
+Narratives drift exactly like code does, and a story told in three places
+drifts three ways. Worse, much of what accumulates describes mechanisms a later
+change deletes: at one point `config.ts` opened with a 37-line account of a
+`JSON.parse` divergence whose parser no longer existed, and `formatters.ts`
+explained resolution-order ties that had become inexpressible.
+
+This is a correction, not a new convention. The rest of the platform already
+works this way — `cloudflare/api/src` carries 2 dated references across 90
+files, `cloudflare/router/src` none across 19, and the SDK half of this package
+none at all. The CLI files briefly carried 13 of the package's 18, one of them
+58% comment by line. That was drift toward narration, and it is being undone.
+
+What stays in code: the rule, the mechanism, and the non-obvious constraint —
+`this`-binding, registration order, why a cast is safe, why a check is
+canonical rather than textual. What moves here: dates, bug archaeology, and
+"it used to be X" where X is gone.
+
 ## Core Patterns
 
 ### Ship Class Public Surface (base-ship.ts)

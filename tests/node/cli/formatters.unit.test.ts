@@ -2,12 +2,9 @@
  * @file Subject: `src/node/cli/formatters.ts` — every resource formatter and
  * the `formatOutput` router that dispatches to them.
  *
- * The router's branch ORDER is load-bearing and documented in
- * `npm/ship/CLAUDE.md`: `records`/`hash`/`dns` must be tested before
- * `domain`, because those payloads carry a `domain` field too and would
- * otherwise be formatted as a plain domain. Until 2026-07-27 nothing tested
- * the router at all — the module sat at 13.6% — so that documented ordering
- * was prose with no enforcement.
+ * The router dispatches on the command's declared identity, so these tests
+ * pass a context everywhere and there is no branch order to pin. See
+ * CLAUDE.md, "formatOutput Router".
  */
 
 import type {

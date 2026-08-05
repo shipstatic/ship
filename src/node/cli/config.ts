@@ -53,13 +53,11 @@ function maskToken(token: string): string {
  * Read the file this command is about to REWRITE — through the READER's parse,
  * never a second one.
  *
- * A bare `JSON.parse` sat here until 2026-07-30 and was a third parsing rule
- * for a file that must have exactly one: the reader takes YAML (a JSON
- * superset), so `token: ship-…` and, more commonly, an EMPTY file — `touch
- * ~/.shiprc`, or any interrupted write — loaded fine everywhere and came back
- * "Invalid config in …" from the one command whose job is to fix it.
+ * A private parser here would be a second answer to the format question, and
+ * a file that loads everywhere would be called broken by the one command whose
+ * job is to repair it. See CLAUDE.md, "one file, two commands".
  *
- * What it still adds is the fact only a WRITER can state: nothing was written.
+ * What this adds is the fact only a WRITER can state: nothing was written.
  * That is the whole reason to refuse rather than replace.
  */
 function readExistingConfig(configPath: string): Record<string, unknown> {

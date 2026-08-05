@@ -1,22 +1,12 @@
 /**
- * @file Subject: `src/node/cli/config.ts` — the interactive `ship config`
- * wizard, the only WRITER of the file `shiprc.ts` is the only reader of.
+ * @file Subject: `src/node/cli/config.ts` — the `ship config` wizard, the only
+ * WRITER of the file `shiprc.ts` is the only reader of.
  *
- * IN-PROCESS, for the same two reasons as `completion.test.ts`: a subprocess is
- * invisible to V8 (this module read 0% covered while being tested), and a file
- * that only spawns a binary reaches no production code, which the integrity
- * fence rejects.
- *
- * One seam makes it drivable: the prompt comes from `node:readline/promises`,
- * mocked here to a scripted answer — a recorded exception to the "no internal
- * module mocks" canon, because stdin is the one collaborator a test cannot
- * supply for real.
- *
- * There used to be a second: `CONFIG_PATH` was computed from `homedir()` at
- * MODULE LOAD, so every test stubbed `HOME` and then re-imported the module
- * through `vi.resetModules()`. The path is a parameter now (`--config` names
- * the file to write, as it names the file to read everywhere else), resolved
- * per call — so the re-import dance lost its reason and went with it.
+ * IN-PROCESS: a subprocess is invisible to V8 coverage, and a file that only
+ * spawns a binary reaches no production code, which the integrity fence
+ * rejects. The one seam is `node:readline/promises`, mocked to a scripted
+ * answer — a recorded exception to the "no internal module mocks" canon,
+ * because stdin is the one collaborator a test cannot supply for real.
  */
 
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';

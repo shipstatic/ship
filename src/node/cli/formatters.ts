@@ -28,8 +28,7 @@ import type { CLIResult, EnrichedDomain } from './types.js';
 // No `error` import, and that is a property worth keeping: a formatter renders
 // a RESULT. Every failure — including a rejected request — reaches the user
 // through `handleError`, so there is exactly one writer of the error channel.
-// This module imported it until 2026-07-29 only to report `domains validate`'s
-// negative verdict, which was never a failure.
+// (`domains validate`'s negative verdict is not a failure; it renders.)
 import { formatDetails, formatTable, info, plainMessage, success } from './utils.js';
 
 const setupUrl = (hash: string, domain: string) => `https://setup.shipstatic.com/${hash}/${domain}`;
@@ -91,13 +90,9 @@ const PAST_TENSE: Readonly<Partial<Record<Operation, string>>> = {
  *
  *     <canonical key> <resource noun> <past tense, or the wire's own state>
  *
- * Nothing else is needed, and that is the point: until 2026-07-29 five
- * formatters each wrote their own template and produced six grammars between
- * them. `token tok0001 created` inverted the order its own sibling
- * `tok0002 token deleted` used; `ship ./dist` and `domains set` opened with the
- * URL while `verify` and `delete` opened with the key, for the same resource;
- * `domain is valid` named no subject at all. Every one of those was a formatter
- * making a choice it did not need to make.
+ * Nothing else is needed, and that is the point: a formatter writing its own
+ * template is a formatter making a choice it does not need to make, and five of
+ * them once produced six grammars between them. See CLAUDE.md, "One grammar".
  *
  * Here the key is READ FROM THE NOUN (`result[noun]`), so `.url` is not
  * reachable; the order belongs to the function, not to a call site; and the
@@ -419,32 +414,20 @@ const keyOf = (context: OutputContext): OutputKey =>
  * EVERY command's output, keyed by what the command IS.
  *
  * **Output is selected by what the command DECLARED, never by what the
- * response LOOKS LIKE.** `OutputContext` already says which command ran; the
- * router used to throw that away and reconstruct it by sniffing the payload
- * (`'secret' in result`…). Reconstruction is what made resolution ORDER a
- * load-bearing concept — `secret` before `token`, `domain` before
- * `deployment`, because those payloads overlap — and order had to be
- * documented, fenced, and preserved by hand. Keyed by identity, the ties are
- * not merely resolved: they are inexpressible. `token.create` emitting the
- * secret is simply a different row from `token.get`.
+ * response LOOKS LIKE.** Sniffing the payload to re-derive the command is what
+ * makes resolution ORDER load-bearing — `token`/`secret` and
+ * `domain`/`deployment` overlap — and order then has to be documented, fenced
+ * and preserved by hand. Keyed by identity, those ties are inexpressible.
  *
- * Two things follow. The entries need no casts, because the key implies the
- * response type via the wire contract (context ↔ endpoint ↔ response). And the
- * special cases stop being special: `ping`'s pre-table answer and the
- * text-mode-only deletion short-circuit are ordinary rows.
+ * Entries need no casts: the key implies the response type through the wire
+ * contract (context ↔ endpoint ↔ response), which `row<T>()` carries.
  *
- * The table doubles as the CLI's entire output surface, written down once —
- * which is what lets `tests/architecture/sdk-cli-parity.test.ts` check it
- * against the SDK's own resource methods.
+ * The table doubles as the CLI's whole output surface, which is what lets
+ * `tests/architecture/sdk-cli-parity.test.ts` check it against the SDK's own
+ * resource methods. Exported for that fence and for the suite, which pins its
+ * per-row cases against this list rather than against itself.
  *
- * Exported for the suite, which pins its own per-row cases AGAINST this list;
- * a hand-written expectation checked against a hand-written list is a mirror,
- * not a fence.
- */
-/**
- * `Partial` because `OutputKey` is the full cross-product of resources and
- * operations while only ~20 of those pairs are real commands. The parity fence
- * is what proves the set is exactly right; the key type only stops typos.
+ * See CLAUDE.md, "formatOutput Router", for how it got here.
  */
 export const OUTPUTS: Partial<Record<OutputKey, Output>> = {
   // ─── deployments ───
