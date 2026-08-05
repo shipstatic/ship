@@ -14,7 +14,10 @@ import type {
   DeploymentCreateResponse,
   DeploymentDeleteResponse,
   DeploymentListResponse,
+  DomainDnsResponse,
   DomainListResponse,
+  DomainRecordsResponse,
+  DomainShareResponse,
   DomainValidateResponse,
   DomainVerifyResponse,
   PingResponse,
@@ -25,10 +28,13 @@ import {
   formatDeployment,
   formatOutput,
   type OutputContext,
+  SHAPES,
 } from '../../../src/node/cli/formatters';
 import type { CLIResult } from '../../../src/node/cli/types';
 import {
+  makeAccountRow,
   makeDeployment,
+  makeDnsRecords,
   makeDomain,
   makeToken,
   makeTokenCreateResponse,
@@ -521,6 +527,113 @@ describe('formatOutput router', () => {
     it('emits nothing for an invalid domain, so a pipeline sees empty output', () => {
       formatOutput({ valid: false, normalized: null } as never, {}, quiet);
       expect(logs).toEqual([]);
+    });
+  });
+
+  describe('every shape the router knows resolves a row, in both channels', () => {
+    // `-q` and text used to be two independent if/else chains over the same
+    // discriminants — twelve branches and eleven, same order, nothing tying
+    // them. That is how `tokens get` and `tokens delete` came to print nothing
+    // under `-q` (see the case above): the shape existed in one chain and not
+    // the other, and no test could see the asymmetry because each chain was
+    // only ever tested against itself.
+    //
+    // They are ONE table now, so a shape cannot half-exist and this particular
+    // divergence is no longer expressible — the design is the fence, and a
+    // test asserting it would only prove the code agrees with itself. What is
+    // still worth proving is COMPLETENESS: every shape the CLI can receive
+    // resolves to a row rather than falling through to the generic renderer,
+    // which is silent under `-q` and is exactly what the old bug looked like.
+    const records = makeDnsRecords();
+    const account = makeAccountRow();
+    const created = makeTokenCreateResponse();
+
+    const shapes: Array<[string, CLIResult, string[]]> = [
+      [
+        'deployments',
+        {
+          deployments: [makeDeployment({ deployment: 'brave-otter-a1b2c3d' })],
+          cursor: null,
+        } satisfies DeploymentListResponse,
+        ['brave-otter-a1b2c3d'],
+      ],
+      [
+        'domains',
+        { domains: [makeDomain('www.example.com')], cursor: null } satisfies DomainListResponse,
+        ['www.example.com'],
+      ],
+      [
+        'tokens',
+        { tokens: [makeToken({ token: 'tok0001' })], cursor: null } satisfies TokenListResponse,
+        ['tok0001'],
+      ],
+      [
+        'records',
+        {
+          domain: 'www.example.com',
+          apex: 'example.com',
+          records,
+        } satisfies DomainRecordsResponse,
+        records.map((r) => `${r.type} ${r.name} ${r.value}`),
+      ],
+      [
+        'hash',
+        { domain: 'www.example.com', hash: 'abc123' } satisfies DomainShareResponse,
+        ['https://setup.shipstatic.com/abc123/www.example.com'],
+      ],
+      [
+        'dns',
+        {
+          domain: 'www.example.com',
+          dns: { provider: { name: 'Cloudflare' } },
+        } as DomainDnsResponse,
+        ['Cloudflare'],
+      ],
+      ['domain', makeDomain('www.example.com'), ['www.example.com']],
+      [
+        'deployment',
+        makeDeployment({ deployment: 'brave-otter-a1b2c3d' }),
+        ['brave-otter-a1b2c3d'],
+      ],
+      // Must resolve BEFORE `token`: a creation carries both, and the secret is
+      // shown once and never again.
+      ['secret', created, [created.secret]],
+      ['token', makeToken({ token: 'tok0001' }), ['tok0001']],
+      ['email', account, [account.email]],
+      [
+        'valid',
+        {
+          valid: true,
+          normalized: 'www.example.com',
+          available: true,
+          reason: null,
+        } satisfies DomainValidateResponse,
+        ['www.example.com'],
+      ],
+    ];
+
+    it.each(shapes)('%s', (_name, result, quietLines) => {
+      formatOutput(result, {}, { quiet: true });
+      expect(logs, 'quiet channel').toEqual(quietLines);
+
+      logs.length = 0;
+      formatOutput(result, {}, text);
+      expect(out().trim(), 'text channel rendered nothing').not.toBe('');
+    });
+
+    it('covers every row of the table, in order', () => {
+      // Tied to PRODUCTION, which is the whole point. This asserted
+      // `shapes.toHaveLength(12)` until review caught it — `shapes` is this
+      // file's own array, so it counted itself: a thirteenth row added to
+      // `SHAPES` left the suite green while that shape was asserted by
+      // nothing, the exact scenario the comment claimed to prevent. A
+      // hand-written expectation checked against a hand-written list is not a
+      // fence, it is a mirror.
+      //
+      // Order is asserted with it, so the two ties that make the table correct
+      // — `secret` before `token`, `domain` before `deployment` — are enforced
+      // rather than trusted to a comment.
+      expect(shapes.map(([on]) => on)).toEqual(SHAPES.map((shape) => shape.on));
     });
   });
 
