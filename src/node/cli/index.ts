@@ -24,6 +24,7 @@ import { bold, dim } from 'yoctocolors';
 import { readEnvConfig } from '../core/config.js';
 import type { Ship } from '../index.js';
 import { installCompletion, uninstallCompletion } from './completion.js';
+import { subcommandsOf } from './completions.js';
 import { runConfig } from './config.js';
 import { createClient, mergeCliConfig } from './create-client.js';
 import { getUserMessage, toShipError } from './error-handling.js';
@@ -226,6 +227,38 @@ function processOptions(command: Command): GlobalOptions {
 }
 
 /**
+ * What a command GROUP does when none of its own subcommands matched: name the
+ * unknown word, then print scoped usage rather than the whole front page — the
+ * user already knows which group they are in.
+ *
+ * **It states nothing about the tree.** Commander binds `this` to the command
+ * and collects the leftover words in `this.args`, so the group's name and its
+ * subcommands are read from the tree at parse time, exactly as the completion
+ * renderer reads them. This took `(parentName, validSubcommands[])` by hand
+ * until 2026-07-30 and was the last hand-written restatement of a tree
+ * `buildProgram()` already holds — the fifth statement after the three shell
+ * scripts that `completions.ts` deleted, and stale in the same way for the same
+ * reason: `ship tokens get` shipped on 2026-07-28, the array beside it was not
+ * updated, and `ship tokens bogus` answered `usage: ship tokens
+ * <list|create|delete>` while the derived completion one module over offered
+ * all four. A list that cannot be edited cannot drift.
+ */
+function handleUnknownSubcommand(this: Command): void {
+  const options = processOptions(this);
+  const subcommands = subcommandsOf(this).map((c) => c.name());
+
+  const unknown = this.args.find((arg) => !subcommands.includes(arg));
+  if (unknown) {
+    error(usageError(`unknown command '${unknown}'`), options.json, options.noColor);
+  }
+
+  if (!options.json) {
+    console.log(`usage: ship ${this.name()} <${subcommands.join('|')}>\n`);
+  }
+  process.exitCode = 1;
+}
+
+/**
  * The credential the CLI actually resolved (flag > env > file). The error
  * path must diagnose with the same lens the client was built with — a user
  * whose `SHIP_TOKEN` or `.shiprc` token was rejected is credentialed, and
@@ -385,39 +418,6 @@ export function buildProgram(): Command {
     });
 
   /**
-   * Handle unknown or missing subcommand for parent commands.
-   * Shows scoped usage instead of full help — the user already knows the group.
-   */
-  function handleUnknownSubcommand(
-    parentName: string,
-    validSubcommands: string[],
-  ): (...args: unknown[]) => void {
-    return (...args: unknown[]) => {
-      const globalOptions = processOptions(program);
-
-      // Get the command object (last argument) - Commander passes it as the final arg
-      const commandObj = args[args.length - 1] as { args?: string[] } | undefined;
-
-      // Check if an unknown subcommand was provided
-      if (commandObj?.args?.length) {
-        const unknownArg = commandObj.args.find((arg) => !validSubcommands.includes(arg));
-        if (unknownArg) {
-          error(
-            usageError(`unknown command '${unknownArg}'`),
-            globalOptions.json,
-            globalOptions.noColor,
-          );
-        }
-      }
-
-      if (!globalOptions.json) {
-        console.log(`usage: ship ${parentName} <${validSubcommands.join('|')}>\n`);
-      }
-      process.exitCode = 1;
-    };
-  }
-
-  /**
    * Error handler - outputs errors consistently in text or JSON format.
    * Message formatting is delegated to the error-handling module.
    */
@@ -562,7 +562,7 @@ export function buildProgram(): Command {
     .command('deployments')
     .description('Manage deployments')
     .enablePositionalOptions()
-    .action(handleUnknownSubcommand('deployments', ['list', 'upload', 'get', 'set', 'delete']));
+    .action(handleUnknownSubcommand);
 
   deploymentsCmd
     .command('list')
@@ -656,19 +656,7 @@ export function buildProgram(): Command {
     .command('domains')
     .description('Manage domains')
     .enablePositionalOptions()
-    .action(
-      handleUnknownSubcommand('domains', [
-        'list',
-        'get',
-        'set',
-        'validate',
-        'records',
-        'dns',
-        'share',
-        'verify',
-        'delete',
-      ]),
-    );
+    .action(handleUnknownSubcommand);
 
   domainsCmd
     .command('list')
@@ -815,7 +803,7 @@ export function buildProgram(): Command {
     .command('tokens')
     .description('Manage deploy tokens')
     .enablePositionalOptions()
-    .action(handleUnknownSubcommand('tokens', ['list', 'create', 'delete']));
+    .action(handleUnknownSubcommand);
 
   tokensCmd
     .command('list')
@@ -850,8 +838,9 @@ export function buildProgram(): Command {
     .command('get <token>')
     .description('Show one deploy token')
     .action(
-      withErrorHandling((client: Ship, _options: GlobalOptions, token: string) =>
-        client.tokens.get(token),
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, token: string) => client.tokens.get(token),
+        { operation: 'get', resource: 'token' },
       ),
     );
 
@@ -869,7 +858,7 @@ export function buildProgram(): Command {
   const accountCmd = program
     .command('account')
     .description('Manage account')
-    .action(handleUnknownSubcommand('account', ['get']));
+    .action(handleUnknownSubcommand);
 
   accountCmd
     .command('get')
@@ -885,7 +874,7 @@ export function buildProgram(): Command {
   const completionCmd = program
     .command('completion')
     .description('Setup shell completion')
-    .action(handleUnknownSubcommand('completion', ['install', 'uninstall']));
+    .action(handleUnknownSubcommand);
 
   completionCmd
     .command('install')
@@ -919,7 +908,13 @@ export function buildProgram(): Command {
     .action(async () => {
       const options = processOptions(program);
       try {
-        await runConfig({ noColor: options.noColor, json: options.json });
+        await runConfig({
+          noColor: options.noColor,
+          json: options.json,
+          // `--config` names the file to read everywhere else, so it names the
+          // file to write here.
+          configFile: options.config,
+        });
       } catch (err) {
         handleError(err);
       }

@@ -24,8 +24,19 @@ import type { Command } from 'commander';
 
 export type Shell = 'bash' | 'zsh' | 'fish';
 
-/** Commander's own `help` command is machinery, not a command a user browses. */
-const subcommandsOf = (cmd: Command): Command[] => cmd.commands.filter((c) => c.name() !== 'help');
+/**
+ * The subcommands of `cmd` that a user browses — Commander's own `help` is
+ * machinery, not one of them.
+ *
+ * Exported because the completion scripts are not the only thing that must
+ * name a group's subcommands: `handleUnknownSubcommand` in `index.ts` prints
+ * the same list as a usage line. Both now read it from the tree, which is the
+ * whole point — the hand-written array that used to back the usage line had
+ * already drifted (`ship tokens <list|create|delete>` omitted `get`) while the
+ * derived completion beside it was correct.
+ */
+export const subcommandsOf = (cmd: Command): Command[] =>
+  cmd.commands.filter((c) => c.name() !== 'help');
 
 /** A group is a command that exists to hold others. */
 const groupsOf = (program: Command): Command[] =>

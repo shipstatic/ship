@@ -21,6 +21,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ErrorType } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
+import { buildProgram } from '../../../src/node/cli/index';
 import { runProgram } from './harness';
 
 const ANSI = /\u001b\[[0-9;]*m/g;
@@ -92,24 +93,55 @@ describe('unknown commands', () => {
 
   describe('subcommand level', () => {
     // Scoped usage, not the full help: the user already picked the group.
-    const groups: Array<[string, string[]]> = [
-      ['deployments', ['list', 'upload', 'get', 'set', 'delete']],
-      [
+    //
+    // The groups and their subcommands are READ FROM THE TREE, never listed
+    // here. A hand-written table sat in this spot until 2026-07-30 and carried
+    // the very defect it existed to catch: it omitted `tokens` altogether, so
+    // when `ship tokens get` shipped on 2026-07-28 and the (then hand-written)
+    // usage array beside it was not updated, nothing went red — `ship tokens
+    // bogus` answered `<list|create|delete>` for two days under a green suite.
+    // Quantifying over `buildProgram()` covers a command the moment it is
+    // registered, which is the only schedule that works.
+    //
+    // Deliberately NOT via `subcommandsOf` (the helper production uses): an
+    // expectation computed by the code under test proves only that the code
+    // agrees with itself. `commands` is Commander's own record of what was
+    // registered, which is the independent fact.
+    const groups = buildProgram()
+      .commands.filter((c) => c.commands.length > 0)
+      .map(
+        (c) =>
+          [c.name(), c.commands.map((s) => s.name()).filter((n) => n !== 'help')] as [
+            string,
+            string[],
+          ],
+      );
+
+    it('finds every command group in the tree', () => {
+      // Guards the quantifier itself: were the filter above to match nothing,
+      // `it.each` would silently assert nothing at all.
+      expect(groups.map(([name]) => name)).toEqual([
+        'deployments',
         'domains',
-        ['list', 'get', 'set', 'validate', 'records', 'dns', 'share', 'verify', 'delete'],
-      ],
-      ['account', ['get']],
-      ['completion', ['install', 'uninstall']],
-    ];
-
-    it.each(groups)('shows scoped usage for an unknown %s subcommand', async (group, expected) => {
-      const result = await runProgram([group, 'bad']);
-
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("unknown command 'bad'");
-      expect(result.stdout).toContain(`usage: ship ${group}`);
-      for (const sub of expected) expect(result.stdout).toContain(sub);
+        'tokens',
+        'account',
+        'completion',
+      ]);
     });
+
+    it.each(groups)(
+      'lists every registered %s subcommand in its scoped usage',
+      async (group, expected) => {
+        const result = await runProgram([group, 'bad']);
+
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain("unknown command 'bad'");
+        // The whole line, not a substring per subcommand: this pins the order
+        // and forbids extras, so the printed list and the tree cannot differ
+        // in either direction.
+        expect(result.stdout).toContain(`usage: ship ${group} <${expected.join('|')}>`);
+      },
+    );
 
     it('names only the first unknown subcommand token', async () => {
       const result = await runProgram(['deployments', 'bad1', 'bad2']);
