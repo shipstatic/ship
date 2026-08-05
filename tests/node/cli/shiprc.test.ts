@@ -55,16 +55,12 @@ describe('CLI shiprc loader', () => {
     });
 
     it('finds .shiprc in the current directory', async () => {
-      await fs.writeFile(
-        path.join(dirs.deep, '.shiprc'),
-        JSON.stringify({ token: 'cwd-token', apiUrl: 'https://cwd.example.com' }),
-      );
+      // Token only: a project file may name a credential but not the endpoint
+      // it is sent to (see "a project config may not choose the endpoint").
+      await fs.writeFile(path.join(dirs.deep, '.shiprc'), JSON.stringify({ token: 'cwd-token' }));
       process.chdir(dirs.deep);
 
-      expect(loadShipFile()).toEqual({
-        token: 'cwd-token',
-        apiUrl: 'https://cwd.example.com',
-      });
+      expect(loadShipFile()).toEqual({ token: 'cwd-token' });
     });
 
     it('walks up the directory tree to find .shiprc', async () => {
@@ -91,15 +87,12 @@ describe('CLI shiprc loader', () => {
         path.join(dirs.middle, 'package.json'),
         JSON.stringify({
           name: 'test-pkg',
-          ship: { token: 'pkg-token', apiUrl: 'https://pkg.example.com' },
+          ship: { token: 'pkg-token' },
         }),
       );
       process.chdir(dirs.deep);
 
-      expect(loadShipFile()).toEqual({
-        token: 'pkg-token',
-        apiUrl: 'https://pkg.example.com',
-      });
+      expect(loadShipFile()).toEqual({ token: 'pkg-token' });
     });
 
     it('prefers the closer config when multiple are present', async () => {
@@ -115,7 +108,6 @@ describe('CLI shiprc loader', () => {
 
   describe('explicit path (--config)', () => {
     it('loads the exact file when a path is provided', async () => {
-      // cosmiconfig parses `.json` (and `.shiprc`-named) files directly.
       const explicit = path.join(tempDir, 'custom.json');
       await fs.writeFile(
         explicit,
@@ -127,6 +119,24 @@ describe('CLI shiprc loader', () => {
         token: 'explicit-token',
         apiUrl: 'https://explicit.example.com',
       });
+    });
+
+    it.each([
+      ['.shiprc', 'the conventional name, in another directory'],
+      ['dev.shiprc', 'the two-environment convention'],
+      ['prod.shiprc', 'its sibling'],
+      ['custom.shiprc.json', 'name plus an explicit extension'],
+      ['.shiprc-dev', 'a suffixed variant'],
+    ])('loads %s (%s)', async (filename) => {
+      // `--config` is "load exactly this file", so every spelling a user might
+      // reach for must work. `dev.shiprc` did not until 2026-07-30: its
+      // extname IS `.shiprc`, and cosmiconfig had no loader registered for
+      // that, so it threw `No loader specified for extension ".shiprc"` while
+      // the identically-formatted `.shiprc` beside it loaded fine.
+      const explicit = path.join(dirs.deep, filename);
+      await fs.writeFile(explicit, JSON.stringify({ token: `token-${filename}` }));
+
+      expect(loadShipFile(explicit)).toEqual({ token: `token-${filename}` });
     });
 
     it('throws when the explicit path does not exist', () => {
@@ -147,9 +157,68 @@ describe('CLI shiprc loader', () => {
     });
   });
 
+  describe('a project config may not choose the endpoint', () => {
+    // Verified against the real binary on 2026-07-30: a cloned repo whose
+    // `package.json` carried `{"ship": {"apiUrl": "http://127.0.0.1:19099"}}`
+    // received `Authorization: Bearer <the user's SHIP_TOKEN>` on a plain
+    // `ship deployments list` — exit 0, no warning. The search reaches project
+    // files before `$HOME/.shiprc`, which is right for configuration and wrong
+    // for a destination.
+    //
+    // Only reachable when the credential comes from env or `--token`: if the
+    // project file wins the search, `~/.shiprc` is never read, so a user whose
+    // token lives only there has none to leak. `SHIP_TOKEN` is the documented
+    // CI path, so that population is the realistic one.
+    it.each([
+      ['./.shiprc', (d: typeof dirs) => path.join(d.deep, '.shiprc'), false],
+      ['a parent .shiprc', (d: typeof dirs) => path.join(d.shallow, '.shiprc'), false],
+      ['package.json', (d: typeof dirs) => path.join(d.middle, 'package.json'), true],
+    ])('refuses apiUrl from %s', async (_name, target, isPkg) => {
+      const body = isPkg
+        ? { name: 'some-cloned-repo', ship: { apiUrl: 'https://evil.example.com' } }
+        : { apiUrl: 'https://evil.example.com' };
+      await fs.writeFile(target(dirs), JSON.stringify(body));
+      process.chdir(dirs.deep);
+
+      expect(() => loadShipFile()).toThrow(/"apiUrl" may not come from a project config/);
+    });
+
+    it('still accepts a token from a project config', async () => {
+      // The credential half is legitimate — only the endpoint is refused.
+      await fs.writeFile(path.join(dirs.deep, '.shiprc'), JSON.stringify({ token: 'proj-token' }));
+      process.chdir(dirs.deep);
+
+      expect(loadShipFile()).toEqual({ token: 'proj-token' });
+    });
+
+    it('accepts apiUrl from the home file, which is the user’s own', async () => {
+      await fs.writeFile(
+        path.join(dirs.home, '.shiprc'),
+        JSON.stringify({ token: 'home-token', apiUrl: 'https://api.example.com' }),
+      );
+      process.chdir(dirs.deep);
+
+      expect(loadShipFile()).toEqual({
+        token: 'home-token',
+        apiUrl: 'https://api.example.com',
+      });
+    });
+
+    it('accepts apiUrl from an explicit --config, because naming a file is intent', async () => {
+      const explicit = path.join(dirs.deep, 'dev.shiprc');
+      await fs.writeFile(explicit, JSON.stringify({ apiUrl: 'https://api.example.com' }));
+      process.chdir(dirs.deep);
+
+      expect(loadShipFile(explicit)).toEqual({ apiUrl: 'https://api.example.com' });
+    });
+  });
+
   describe('validation', () => {
     it('throws on invalid apiUrl', async () => {
-      await fs.writeFile(path.join(dirs.deep, '.shiprc'), JSON.stringify({ apiUrl: 'not-a-url' }));
+      // In the HOME file, which is the only searched place allowed to set an
+      // endpoint — from a project file it would be refused before the URL was
+      // ever judged, so this would pass for the wrong reason.
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), JSON.stringify({ apiUrl: 'not-a-url' }));
       process.chdir(dirs.deep);
 
       expect(() => loadShipFile()).toThrow(/Invalid config/);

@@ -1,23 +1,30 @@
 /**
  * @file Subject: `src/node/cli/config.ts` — the interactive `ship config`
- * wizard that writes `~/.shiprc`.
+ * wizard, the only WRITER of the file `shiprc.ts` is the only reader of.
  *
  * IN-PROCESS, for the same two reasons as `completion.test.ts`: a subprocess is
  * invisible to V8 (this module read 0% covered while being tested), and a file
  * that only spawns a binary reaches no production code, which the integrity
  * fence rejects.
  *
- * Two seams make it drivable. `CONFIG_PATH` is computed from `homedir()` at
- * MODULE LOAD, so each test stubs `HOME` and then imports the module fresh.
- * And the prompt comes from `node:readline/promises`, mocked here to a scripted
- * answer — a recorded exception to the "no internal module mocks" canon,
- * because stdin is the one collaborator a test cannot supply for real.
+ * One seam makes it drivable: the prompt comes from `node:readline/promises`,
+ * mocked here to a scripted answer — a recorded exception to the "no internal
+ * module mocks" canon, because stdin is the one collaborator a test cannot
+ * supply for real.
+ *
+ * There used to be a second: `CONFIG_PATH` was computed from `homedir()` at
+ * MODULE LOAD, so every test stubbed `HOME` and then re-imported the module
+ * through `vi.resetModules()`. The path is a parameter now (`--config` names
+ * the file to write, as it names the file to read everywhere else), resolved
+ * per call — so the re-import dance lost its reason and went with it.
  */
 
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { runConfig } from '../../../src/node/cli/config';
+import { loadShipFile } from '../../../src/node/cli/shiprc';
 
 const TEST_TOKEN = `ship-${'a'.repeat(64)}`;
 const ALT_TOKEN = `ship-${'b'.repeat(64)}`;
@@ -35,12 +42,6 @@ vi.mock('node:readline/promises', () => ({
 let home: string;
 let configPath: string;
 let out: string[];
-
-/** Fresh import, so `CONFIG_PATH` is recomputed against the stubbed HOME. */
-async function loadRunConfig() {
-  vi.resetModules();
-  return (await import('../../../src/node/cli/config')).runConfig;
-}
 
 beforeEach(() => {
   home = mkdtempSync(join(tmpdir(), 'ship-config-'));
@@ -61,8 +62,6 @@ describe('--json mode', () => {
   const readJson = () => JSON.parse(out.join('\n').trim());
 
   it('reports the path and that no config exists', async () => {
-    const runConfig = await loadRunConfig();
-
     await runConfig({ json: true });
 
     const output = readJson();
@@ -73,7 +72,6 @@ describe('--json mode', () => {
 
   it('masks the token rather than printing it', async () => {
     writeFileSync(configPath, JSON.stringify({ token: TEST_TOKEN }));
-    const runConfig = await loadRunConfig();
 
     await runConfig({ json: true });
 
@@ -85,7 +83,6 @@ describe('--json mode', () => {
 
   it('masks a short opaque token entirely', async () => {
     writeFileSync(configPath, JSON.stringify({ token: 'short-tok' }));
-    const runConfig = await loadRunConfig();
 
     await runConfig({ json: true });
 
@@ -94,7 +91,6 @@ describe('--json mode', () => {
 
   it('omits the API URL when it is the default', async () => {
     writeFileSync(configPath, JSON.stringify({ token: TEST_TOKEN }));
-    const runConfig = await loadRunConfig();
 
     await runConfig({ json: true });
 
@@ -106,27 +102,26 @@ describe('--json mode', () => {
       configPath,
       JSON.stringify({ token: TEST_TOKEN, apiUrl: 'https://custom.example.com' }),
     );
-    const runConfig = await loadRunConfig();
 
     await runConfig({ json: true });
 
     expect(readJson().apiUrl).toBe('https://custom.example.com');
   });
 
-  it('survives an unreadable config rather than throwing', async () => {
+  it('refuses an unreadable config instead of reporting it as absent', async () => {
+    // This asserted the opposite until 2026-07-30 — "survives an unreadable
+    // config rather than throwing" — and the survival was the bug: an
+    // unparseable file read as `{}`, so this channel reported a config with no
+    // token where one existed, and the interactive channel wrote `{}` over it.
     writeFileSync(configPath, 'not json at all');
-    const runConfig = await loadRunConfig();
 
-    await runConfig({ json: true });
-
-    expect(readJson()).toMatchObject({ exists: true });
+    await expect(runConfig({ json: true })).rejects.toThrow(/Invalid config in/);
   });
 });
 
 describe('interactive flow', () => {
   it('writes the token the user typed', async () => {
     answer = TEST_TOKEN;
-    const runConfig = await loadRunConfig();
 
     await runConfig({ noColor: true });
 
@@ -137,7 +132,6 @@ describe('interactive flow', () => {
   it('keeps the existing token when the user presses Enter', async () => {
     writeFileSync(configPath, JSON.stringify({ token: TEST_TOKEN }));
     answer = '';
-    const runConfig = await loadRunConfig();
 
     await runConfig({ noColor: true });
 
@@ -147,20 +141,18 @@ describe('interactive flow', () => {
   it('replaces the existing token with new input', async () => {
     writeFileSync(configPath, JSON.stringify({ token: TEST_TOKEN }));
     answer = ALT_TOKEN;
-    const runConfig = await loadRunConfig();
 
     await runConfig({ noColor: true });
 
     expect(JSON.parse(readFileSync(configPath, 'utf-8')).token).toBe(ALT_TOKEN);
   });
 
-  it('preserves every other field in the file', async () => {
+  it('preserves every other field the schema permits', async () => {
     writeFileSync(
       configPath,
       JSON.stringify({ token: TEST_TOKEN, apiUrl: 'https://custom.example.com' }),
     );
     answer = ALT_TOKEN;
-    const runConfig = await loadRunConfig();
 
     await runConfig({ noColor: true });
 
@@ -172,7 +164,6 @@ describe('interactive flow', () => {
 
   it('creates an empty config when there is nothing to keep', async () => {
     answer = '';
-    const runConfig = await loadRunConfig();
 
     await runConfig({ noColor: true });
 
@@ -181,7 +172,6 @@ describe('interactive flow', () => {
 
   it('writes the credential file owner-only (0600)', async () => {
     answer = TEST_TOKEN;
-    const runConfig = await loadRunConfig();
 
     await runConfig({ noColor: true });
 
@@ -191,7 +181,6 @@ describe('interactive flow', () => {
   it('repairs permissions on a pre-existing world-readable config', async () => {
     writeFileSync(configPath, JSON.stringify({ token: TEST_TOKEN }), { mode: 0o644 });
     answer = '';
-    const runConfig = await loadRunConfig();
 
     await runConfig({ noColor: true });
 
@@ -202,7 +191,6 @@ describe('interactive flow', () => {
     // Prefixed tokens carry format guarantees — a truncated paste fails here
     // rather than as a confusing 401 later.
     answer = 'ship-short';
-    const runConfig = await loadRunConfig();
 
     await expect(runConfig({ noColor: true })).rejects.toThrow(/ship-/);
     expect(existsSync(configPath)).toBe(false);
@@ -210,12 +198,168 @@ describe('interactive flow', () => {
 
   it('accepts an opaque bearer, whose validity is the server to judge', async () => {
     answer = 'an-opaque-oauth-access-token';
-    const runConfig = await loadRunConfig();
 
     await runConfig({ noColor: true });
 
     expect(JSON.parse(readFileSync(configPath, 'utf-8')).token).toBe(
       'an-opaque-oauth-access-token',
     );
+  });
+});
+
+describe('a file it cannot read is a file it must not replace', () => {
+  // The destructive case, and the reason `readExistingConfig` throws. A
+  // malformed `.shiprc` makes every command fail with "Invalid config in …",
+  // whose obvious remedy is to run `ship config` — which read the file as
+  // `{}`, wrote `{}` back, and said `saved to …`. The recovery path destroyed
+  // the credential it was run to repair.
+  it.each([
+    ['unparseable content', '{'],
+    ['broken indentation', 'a: b\n  c: d'],
+    ['a bare scalar', 'not a mapping at all'],
+    ['a list', '["token"]'],
+  ])('refuses %s and leaves the file byte-identical', async (_name, contents) => {
+    writeFileSync(configPath, contents);
+    answer = TEST_TOKEN;
+
+    // Asserted on the WRITER's own guarantee rather than either wording:
+    // unparseable content and a parsed non-mapping fail differently ("Failed
+    // to read ship config …" vs "Invalid config in …: expected a mapping"),
+    // and both are the reader's sentences. The clause this command adds is the
+    // one fact only it can state.
+    await expect(runConfig({ noColor: true })).rejects.toThrow(/the file was left unchanged/);
+    expect(readFileSync(configPath, 'utf-8')).toBe(contents);
+    expect(out.join('\n')).not.toContain('saved to');
+  });
+});
+
+describe('one parse, two policies', () => {
+  // The FORMAT question — "is this a config file at all?" — must get one
+  // answer. The writer used a bare `JSON.parse` until review caught it, which
+  // fixed the schema layer and left this one split: a YAML-style `token: …`,
+  // and far more commonly an EMPTY file (`touch ~/.shiprc`, or an interrupted
+  // write), loaded fine on every read path and came back "Invalid config in …"
+  // from the one command whose job is to fix it.
+  //
+  // Asserted as AGREEMENT rather than per side, because the claim is about the
+  // pair. Only format cases belong here: at the SCHEMA layer the two diverge
+  // on purpose — the writer accepts `{apiKey}` precisely so it can repair what
+  // the reader rejects, which the block below covers.
+  const accepts = (run: () => unknown): boolean => {
+    try {
+      run();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  it.each([
+    ['JSON, as the wizard writes it', '{"token": "ship-x"}', true],
+    ['YAML, which the loader has always taken', 'token: ship-x', true],
+    ['a trailing comma', '{"token": "ship-x",}', true],
+    ['an empty file', '', true],
+    ['whitespace only', '\n   \n', true],
+    ['a comment only', '# nothing here\n', true],
+    ['unparseable content', '{', false],
+    ['broken indentation', 'a: b\n  c: d', false],
+    ['a bare scalar', 'not a mapping at all', false],
+    ['a list', '["token"]', false],
+  ])('%s', async (_name, contents, expected) => {
+    writeFileSync(configPath, contents);
+
+    const readerAccepts = accepts(() => loadShipFile(configPath));
+
+    answer = TEST_TOKEN;
+    const writerAccepts = await runConfig({ noColor: true }).then(
+      () => true,
+      () => false,
+    );
+
+    expect(writerAccepts, 'writer and reader must agree').toBe(readerAccepts);
+    expect(readerAccepts).toBe(expected);
+  });
+});
+
+describe('the schema is the file', () => {
+  it('drops a retired key, which is what makes the rename hint true', async () => {
+    // The loader answers a legacy file with `"apiKey" is no longer supported —
+    // the key is now "token". Run \`ship config\` to rewrite it`. Doing so used
+    // to write `token` and KEEP `apiKey`, so the next command failed with the
+    // identical error: the advice was a loop. See the round trip below.
+    writeFileSync(
+      configPath,
+      JSON.stringify({ apiKey: 'legacy-value', apiUrl: 'https://custom.example.com' }),
+    );
+    answer = TEST_TOKEN;
+
+    await runConfig({ noColor: true });
+
+    expect(JSON.parse(readFileSync(configPath, 'utf-8'))).toEqual({
+      apiUrl: 'https://custom.example.com',
+      token: TEST_TOKEN,
+    });
+  });
+
+  it('says which keys it dropped rather than removing them quietly', async () => {
+    writeFileSync(configPath, JSON.stringify({ apiKey: 'legacy', nonsense: 1 }));
+    answer = TEST_TOKEN;
+
+    await runConfig({ noColor: true });
+
+    expect(out.join('\n')).toContain('dropped "apiKey", "nonsense"');
+  });
+
+  it.each([
+    ['a legacy apiKey', { apiKey: 'legacy-value' }],
+    ['a legacy deployToken', { deployToken: 'deploy-legacy' }],
+    ['an unknown key', { token: TEST_TOKEN, typo: true }],
+    ['a lowercase typo', { apikey: 'oops' }],
+  ])('round trip: what this command writes, the loader reads (%s)', async (_name, startingFile) => {
+    // THE fence for "one file, two commands, one idea of what it is". The
+    // writer and the reader disagreed in both directions, so the tie has to
+    // be asserted end to end rather than per side: run the wizard, then hand
+    // the result to the real loader.
+    writeFileSync(configPath, JSON.stringify(startingFile));
+    answer = TEST_TOKEN;
+
+    await runConfig({ noColor: true });
+
+    expect(loadShipFile(configPath)).toEqual({ token: TEST_TOKEN });
+  });
+});
+
+describe('--config names the file to write, as it names the file to read', () => {
+  it('writes the named file and leaves the default alone', async () => {
+    const explicit = join(home, 'dev.shiprc');
+    answer = TEST_TOKEN;
+
+    await runConfig({ noColor: true, configFile: explicit });
+
+    expect(JSON.parse(readFileSync(explicit, 'utf-8')).token).toBe(TEST_TOKEN);
+    expect(existsSync(configPath)).toBe(false);
+    expect(out.join('\n')).toContain(explicit);
+  });
+
+  it('reports the named file in --json mode', async () => {
+    const explicit = join(home, 'prod.shiprc');
+    writeFileSync(explicit, JSON.stringify({ token: TEST_TOKEN }));
+
+    await runConfig({ json: true, configFile: explicit });
+
+    const output = JSON.parse(out.join('\n').trim());
+    expect(output.path).toBe(explicit);
+    expect(output.exists).toBe(true);
+  });
+
+  it('round trips through the loader under a non-default name', async () => {
+    // `dev.shiprc` is the spelling the loader gained on 2026-07-30; a file the
+    // CLI can read but not write would be half a feature.
+    const explicit = join(home, 'dev.shiprc');
+    answer = TEST_TOKEN;
+
+    await runConfig({ noColor: true, configFile: explicit });
+
+    expect(loadShipFile(explicit)).toEqual({ token: TEST_TOKEN });
   });
 });
