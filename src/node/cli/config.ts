@@ -24,7 +24,7 @@ import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { DEFAULT_API, isShipError, ShipError, validateToken } from '@shipstatic/types';
+import { isShipError, ShipError, validateToken } from '@shipstatic/types';
 import { dim, green } from 'yoctocolors';
 import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
 import { parseShipFile } from './shiprc.js';
@@ -78,35 +78,15 @@ function readExistingConfig(configPath: string): Record<string, unknown> {
  * Asks for a token, keeps the fields the schema permits, and writes the file.
  */
 export async function runConfig(
-  options: { noColor?: boolean; json?: boolean; configFile?: string } = {},
+  options: { noColor?: boolean; configFile?: string } = {},
 ): Promise<void> {
-  const { noColor, json } = options;
+  const { noColor } = options;
   // `--config <file>` means "exactly this file" for reading, so it means the
   // same for writing. Without it this command could only ever maintain
   // `~/.shiprc`, which is half a feature beside a loader that takes any path.
   const configPath = options.configFile || defaultConfigPath();
   const applyDim = (text: string) => (noColor ? text : dim(text));
   const applyGreen = (text: string) => (noColor ? text : green(text));
-
-  // JSON mode: show current config status
-  if (json) {
-    const existing = readExistingConfig(configPath);
-    const token = typeof existing.token === 'string' ? existing.token : undefined;
-    const apiUrl = typeof existing.apiUrl === 'string' ? existing.apiUrl : undefined;
-    console.log(
-      `${JSON.stringify(
-        {
-          path: configPath,
-          exists: existsSync(configPath),
-          ...(token ? { token: maskToken(token) } : {}),
-          ...(apiUrl && apiUrl !== DEFAULT_API ? { apiUrl } : {}),
-        },
-        null,
-        2,
-      )}\n`,
-    );
-    return;
-  }
 
   const existing = readExistingConfig(configPath);
   const existingToken = typeof existing.token === 'string' ? existing.token : undefined;
