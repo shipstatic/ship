@@ -25,7 +25,7 @@ src/
         ├── bin.ts           # THE EXECUTABLE (dist/cli.cjs) — the only file with side effects
         ├── index.ts         # Commander.js command tree + withErrorHandling + performDeploy
         ├── create-client.ts # Credential precedence (flag → env → file) → Ship instance
-        ├── shiprc.ts        # cosmiconfig loader for .shiprc / package.json — CLI ONLY
+        ├── shiprc.ts        # ~/.shiprc + --config reader (strict JSON) — CLI ONLY
         ├── config.ts        # Interactive `ship config` wizard
         ├── error-handling.ts # toShipError + getUserMessage (TEXT channel)
         ├── formatters.ts    # announce() + the render router
@@ -43,7 +43,7 @@ keyed on a test variable, and a real constraint besides: anything wanting to
 read the tree had to be a test or pretend to be one. A module boundary says the
 same thing to every caller, without the conditional.
 
-The SDK proper has no filesystem dependency — the only ambient credential source is `SHIP_*` env vars. File-based config (`.shiprc`, `package.json` `"ship"` key) lives entirely in `cli/shiprc.ts`. This is what makes `new Ship({})` safe to use in embedded contexts (MCP, n8n, GitHub Action) without leaking the host's `~/.shiprc` credentials.
+The SDK proper has no filesystem dependency — the only ambient credential source is `SHIP_*` env vars. File-based config (`~/.shiprc`, or a `--config` path) lives entirely in `cli/shiprc.ts`. This is what makes `new Ship({})` safe to use in embedded contexts (MCP, n8n, GitHub Action) without leaking the host's `~/.shiprc` credentials.
 
 ## Quick Reference
 
@@ -69,7 +69,7 @@ pnpm build                   # Build all bundles
 | `src/node/cli/bin.ts` | The executable — `dist/cli.cjs`. The one file that runs on import |
 | `src/node/cli/index.ts` | CLI command tree, `withErrorHandling`, `performDeploy` |
 | `src/node/cli/create-client.ts` | `createClient` + `mergeCliConfig` — credential precedence (flag > env > file) |
-| `src/node/cli/shiprc.ts` | `loadShipFile` — cosmiconfig-based loader for `.shiprc` / `package.json` (CLI only) |
+| `src/node/cli/shiprc.ts` | `loadShipFile` / `parseShipFile` — strict-JSON reader for `~/.shiprc` and `--config` (CLI only). No repository file is ever read |
 | `src/node/cli/utils.ts` | Output primitives (`success`, `error`, `warn`, `info`, `formatTable`, `formatDetails`) |
 | `src/node/cli/formatters.ts` | Resource-specific output formatters, `formatOutput` router |
 | `src/node/cli/types.ts` | CLI option and result types (`GlobalOptions`, `CLIResult`, `EnrichedDomain`) |
@@ -148,7 +148,7 @@ The constructor is fully synchronous: the credential and the HTTP client are for
 1. Constructor argument (`new Ship({ token })`)
 2. Environment variable: `SHIP_TOKEN` (plus `SHIP_API_URL` for the endpoint)
 
-That's the entire SDK contract. `~/.shiprc` and `package.json` `"ship"` keys are **CLI-only** — see `src/node/cli/shiprc.ts`. This separation is what makes `new Ship({})` safe in embedded contexts: the SDK can't reach into the host developer's personal dotfile and silently leak credentials into anonymous public deployments. The single env var follows the industry's one-token idiom (`GITHUB_TOKEN`, `NPM_TOKEN`, `VERCEL_TOKEN`).
+That's the entire SDK contract. `~/.shiprc` and the `--config` path are **CLI-only** — see `src/node/cli/shiprc.ts`. This separation is what makes `new Ship({})` safe in embedded contexts: the SDK can't reach into the host developer's personal dotfile and silently leak credentials into anonymous public deployments. The single env var follows the industry's one-token idiom (`GITHUB_TOKEN`, `NPM_TOKEN`, `VERCEL_TOKEN`).
 
 **The lifetime-dominance doctrine:** storage must not outlive the credential. A dotfile is indefinite — `.shiprc` holds durable tokens. A process environment lives as long as the process — `SHIP_TOKEN` holds whatever its provisioner keeps fresh (a CI job injecting a short-lived token per run is correct). A constructor argument or provider lives per request — it holds anything, which is where hourly OAuth bearers belong.
 
@@ -472,44 +472,44 @@ response carries both.
 - Internal fields (`isCreate`, `_dnsRecords`, `_shareHash`) are stripped from JSON output
 - `[error]`/`[warning]`/`[info]` prefixes use inverse color backgrounds in TTY
 
-### A project config may name a credential, never the endpoint
+### No repository file is ever read
 
-The search reaches `./.shiprc` and `package.json` **before** `$HOME/.shiprc`.
-That is the right precedence for configuration — it is what npm, ESLint,
-Prettier and Biome all do — and the wrong one for a *destination*.
+`.shiprc` resolution is **two locations**: `~/.shiprc`, or the path `--config`
+names. A project-level search — `./.shiprc`, `package.json` `"ship"`, walking
+up from the cwd — sat in front of both until 2.0.0 and is gone, along with
+cosmiconfig.
 
-Verified against the real binary on 2026-07-30: a cloned repo whose
-`package.json` carried `{"ship": {"apiUrl": "http://127.0.0.1:19099"}}`
-received `Authorization: Bearer <the user's SHIP_TOKEN>` on a plain
-`ship deployments list` — exit 0, no warning. `git clone && cd && ship ./dist`
-is the persona's actual flow and reaches it without `npm install`, so the
-usual "a hostile repo owns you via lifecycle scripts anyway" defence does not
-apply here.
+It was deleted rather than fixed, because its only capability WAS the
+anti-pattern: a repository-controlled file supplying credentials. Two exploits
+were verified against the real binary on 2026-07-30:
 
-**The tool-idiom argument is what fails, and it is worth knowing why.** ESLint
-and friends carry no credential, so they transmit nothing. npm is the true
-analogue and it *defends* this case: a project `.npmrc` may set `registry`,
-but auth is bound to the registry (`//host/:_authToken`), so a redirect does
-not carry the token. One unscoped bearer plus a project-settable endpoint is
-the combination npm avoided and we had.
+1. A cloned repo's `package.json` carrying `{"ship": {"apiUrl": "http://…"}}`
+   received `Authorization: Bearer <the user's SHIP_TOKEN>` on a plain
+   `ship deployments list` — exit 0, no warning.
+2. **Worse, because it survived the first patch:** a repo's `token` outranked
+   `~/.shiprc` entirely, so `ship ./dist` in a cloned repo deployed to the
+   *repo owner's* account, silently.
 
-So: `apiUrl` is honored from `--api-url`, `SHIP_API_URL`, `~/.shiprc`, and an
-explicit `--config <file>`; from a searched project file it is **refused with
-an error naming the file** (`refuseProjectApiUrl` in `shiprc.ts`). Refused
-rather than silently stripped — a config that quietly does not do what it says
-is how someone spends an afternoon debugging the wrong layer. A project config
-may still carry a `token`; only the endpoint is denied.
+The first was patched with a `refuseProjectApiUrl` rule (~50 lines with
+symlink canonicalisation, since `/var` is a symlink on macOS and a textual
+compare misread the user's own home file as a project file). That patch was
+the wrong SHAPE of fix: it refused one field of a surface whose every field
+was equally untrustworthy, which is why the second exploit was still there
+after it. Both are properties of the surface, so the surface went.
 
-Narrower than it looks, and the reason is the one-slot design: if a project
-file wins the search, `~/.shiprc` is never read, so a user whose token lives
-only there has none to leak. It needs `SHIP_TOKEN` or `--token` — which is the
-documented CI path, hence the realistic population.
+The asymmetry that gives the game away: the wizard `chmod`s `~/.shiprc` to
+0600 "like `~/.netrc`" while the reader accepted the same credential from a
+tracked, world-readable `package.json`.
 
-**The home-file comparison is canonical, not textual.** On macOS `/var` and
-`/tmp` are symlinks, so cosmiconfig reports `/private/var/…/.shiprc` where
-`homedir()` says `/var/…`; a string compare would classify the user's OWN home
-file as a project file and refuse the endpoint they set themselves. The
-home-file test caught exactly that during implementation.
+`--config <file>` is unaffected and is now strictly better — there is no
+extension dispatch to work around, so any path is simply read.
+
+**Format: strict JSON.** YAML acceptance was an accident of cosmiconfig's
+`noExt` loader default, and it cost the `dev.shiprc` "No loader specified"
+bug, a two-pass writer/reader repair, and a 15-line comment explaining
+`extname` dispatch. Nothing in the product ever produced YAML — the wizard
+writes JSON and the docs show JSON. An **empty file is an absent config**, not
+a broken one; `touch ~/.shiprc` and any interrupted write produce one.
 
 ### One file, two commands, one idea of what it is
 
@@ -517,7 +517,7 @@ home-file test caught exactly that during implementation.
 They held different ideas of it until 2026-07-30, in both directions, and both
 were user-visible:
 
-- The reader parses with cosmiconfig and validates against `CREDENTIAL_FIELDS`;
+- The reader parses and validates against `CREDENTIAL_FIELDS`;
   the writer parsed with a bare `JSON.parse` inside a `catch → {}`. So a
   `.shiprc` the reader rejected BY NAME — `Invalid config in …` — read here as
   "no existing config", and the wizard wrote `{}` over it. Token and `apiUrl`
@@ -541,30 +541,22 @@ it, with `ErrorType.Config` and the writer's own closing clause — *the file wa
 left unchanged* — because a file we cannot read is a file whose contents we
 cannot claim to preserve.
 
-**The FORMAT is shared outright, and this took two passes to get right.** The
-first fix left a bare `JSON.parse` in the writer, which repaired the schema
-layer and moved the divergence down one: the reader's loader is YAML (a JSON
-superset), so a YAML-style `token: ship-…` and — far more commonly — an EMPTY
-file, which `touch ~/.shiprc` and any interrupted write produce, loaded fine on
-every read path and came back "Invalid config in …" from the one command whose
-job is to fix it. Safe, since it refused rather than destroyed, but the file was
-*fine*. `readExistingConfig` now calls the reader's own `parseShipFile`.
+**The FORMAT is shared outright.** `readExistingConfig` calls the reader's own
+`parseShipFile`. Getting here took two passes: the first fix repaired the
+schema layer and left a bare `JSON.parse` in the writer, which moved the
+divergence down one level rather than closing it — an empty file read as
+absent everywhere and as broken here.
 
 **One parse, two policies** is the whole statement: the reader parses then
 validates and rejects; the writer parses then repairs what the reader rejects.
 The schema layer diverges *on purpose* — the writer must accept `{apiKey}` in
 order to fix it — which is why the fence asserts format agreement only, per
-file, in `tests/node/cli/config.test.ts` ("one parse, two policies"): reader and
-writer are run over the same content and their verdicts compared, rather than
-each side being checked against a hand-written expectation of the other.
-
-`--config <file>` names the file to WRITE here, as it names the file to read
-everywhere else. Without that, the loader accepted any path (`dev.shiprc`,
-`prod.shiprc`) while the wizard could only ever maintain `~/.shiprc`.
-
-The tie is asserted end to end, not per side: the round-trip block in
-`tests/node/cli/config.test.ts` runs the wizard over a legacy file and hands
-the result to the real `loadShipFile`.
+file, in `tests/node/cli/config.test.ts` ("one parse, two policies"): reader
+and writer are run over the same content and their verdicts compared, rather
+than each side being checked against a hand-written expectation of the other.
+When `.shiprc` became strict JSON in 2.0.0 that fence needed no structural
+change — only its `expected` column moved, on both sides at once, which is the
+fence working.
 
 ### Composability
 
@@ -1017,7 +1009,7 @@ first place. See "Output Conventions" above.
 
 | Layer | Where | Reads |
 |---|---|---|
-| **CLI** | `src/node/cli/shiprc.ts` | `.shiprc`, `package.json` `"ship"` (cosmiconfig) |
+| **CLI** | `src/node/cli/shiprc.ts` | `~/.shiprc`, or the `--config` path (strict JSON) |
 | **CLI** | `src/node/cli/create-client.ts` `createClient()` | merges flag → env → file via `mergeCliConfig`, hands result to `new Ship({...})` |
 | **SDK (Node)** | `src/node/index.ts` constructor | `SHIP_TOKEN`, `SHIP_API_URL` (under any constructor arg) |
 | **SDK (Browser)** | `src/browser/index.ts` constructor | nothing — fully explicit |

@@ -254,15 +254,19 @@ describe('one parse, two policies', () => {
     }
   };
 
+  // The `expected` column moved in 2.0.0 when `.shiprc` became strict JSON —
+  // and the fence needed no other change, because it asserts AGREEMENT rather
+  // than each side against a hand-written expectation of the other. A format
+  // change that moves both sides together is green by construction. That is
+  // the fence working, not the fence being weak.
   it.each([
     ['JSON, as the wizard writes it', '{"token": "ship-x"}', true],
-    ['YAML, which the loader has always taken', 'token: ship-x', true],
-    ['a trailing comma', '{"token": "ship-x",}', true],
     ['an empty file', '', true],
     ['whitespace only', '\n   \n', true],
-    ['a comment only', '# nothing here\n', true],
+    ['YAML, once accepted by accident', 'token: ship-x', false],
+    ['a trailing comma', '{"token": "ship-x",}', false],
+    ['a comment', '# nothing here\n', false],
     ['unparseable content', '{', false],
-    ['broken indentation', 'a: b\n  c: d', false],
     ['a bare scalar', 'not a mapping at all', false],
     ['a list', '["token"]', false],
   ])('%s', async (_name, contents, expected) => {

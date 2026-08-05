@@ -1,39 +1,23 @@
 /**
- * @file Interactive config file creation for `ship config`.
+ * @file The `ship config` wizard — the only WRITER of the file `shiprc.ts` is
+ * the only reader of. Writes `~/.shiprc`, or the file `--config` names.
  *
- * Writes `~/.shiprc`, or the file `--config` names. Uses Node.js built-in
- * readline/promises — zero additional dependencies.
+ * Three rules, each bought with a shipped bug (CLAUDE.md, "one file, two
+ * commands, one idea of what it is"):
  *
- * **This command is the only WRITER of the file `shiprc.ts` is the only READER
- * of, so the two must not hold different ideas of what that file is.** They
- * did until 2026-07-30, in both directions, and both were user-visible:
+ * - **One parse.** The format question is answered once, by the reader's
+ *   `parseShipFile`. A private parser here means a file that loads everywhere
+ *   and is called broken by the one command whose job is to repair it.
+ * - **The schema is the file.** `CREDENTIAL_FIELDS` is `.strict()`, so its
+ *   keys are not the fields we care about — they are the only fields a
+ *   `.shiprc` may legally hold. The wizard rebuilds from those keys rather
+ *   than mutating what it read, which is what makes the loader's `apiKey`
+ *   rename hint true instead of a loop.
+ * - **Refuse, never replace.** A file we cannot read is a file whose contents
+ *   we cannot claim to preserve.
  *
- * - The reader parses with cosmiconfig and validates against the credential
- *   schema; this writer parsed with a bare `JSON.parse` inside a
- *   `catch → {}`. So a `.shiprc` the reader rejected by name — "Invalid
- *   config in …" — was read here as "no existing config", and the wizard
- *   wrote `{}` over it: token and apiUrl gone, under a `saved to …` message.
- *   The natural response to the reader's error is to run this command, which
- *   made the repair path the destructive one.
- * - Going the other way, "preserve every other field" preserved fields that
- *   make the file UNLOADABLE. The reader's own rename hint reads `"apiKey" is
- *   no longer supported — the key is now "token". Run \`ship config\` to
- *   rewrite it`; doing so wrote `token` and kept `apiKey`, so the very next
- *   command failed with the identical error. The advice was a loop.
- *
- * Both are one rule now: **the schema is the file.** `CREDENTIAL_FIELDS` is
- * `.strict()`, so `token` and `apiUrl` are not merely the fields we care
- * about — they are the only fields a `.shiprc` may legally hold. This writer
- * keeps exactly those and drops the rest, which is what makes the rename hint
- * true. And it refuses what it cannot parse rather than replacing it, because
- * a file we cannot read is a file whose contents we cannot claim to preserve.
- *
- * The FORMAT half is shared outright: `readExistingConfig` calls the reader's
- * own `parseShipFile`. The first fix of this pair kept a bare `JSON.parse`
- * here, which merely moved the divergence down a layer — an empty `.shiprc`
- * (`touch`, or an interrupted write) read as absent everywhere and as broken
- * here. **One parse, two policies:** the reader validates and rejects, the
- * writer repairs what the reader rejects.
+ * The schema half stays split on purpose: the reader validates and rejects,
+ * this writer repairs what the reader rejects.
  */
 
 import { chmodSync, existsSync, writeFileSync } from 'node:fs';
