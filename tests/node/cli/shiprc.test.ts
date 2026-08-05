@@ -1,10 +1,15 @@
 /**
- * @file Tests for the CLI's `.shiprc` / `package.json` loader.
+ * @file Subject: `src/node/cli/shiprc.ts` — the CLI's config-file reader.
  *
- * The CLI is the only place that touches the filesystem for credentials —
- * the SDK reads only `SHIP_*` env vars. These tests cover what the CLI loader
- * actually needs to do: cosmiconfig directory traversal, home-dir fallback,
- * explicit-path loading via `--config`, and schema validation.
+ * The CLI is the only place that touches the filesystem for credentials; the
+ * SDK reads only `SHIP_*` env vars. Two locations exist and no repository file
+ * is one of them, so these tests cover exactly that: `~/.shiprc`, the
+ * `--config` path, strict-JSON parsing, and schema validation.
+ *
+ * The directory-walk and `package.json` blocks that used to live here went
+ * with the search itself in 2.0.0 (see CLAUDE.md, "no repository file is ever
+ * read"). What replaced them is the booby-trap test at the bottom, which is
+ * the only one of the group with teeth.
  */
 
 import { promises as fs } from 'node:fs';
@@ -20,7 +25,7 @@ vi.mock('os', async () => {
 
 describe('CLI shiprc loader', () => {
   let tempDir: string;
-  let dirs: { home: string; shallow: string; middle: string; deep: string };
+  let dirs: { home: string; project: string };
   let originalCwd: string;
   let originalHome: string | undefined;
 
@@ -28,11 +33,9 @@ describe('CLI shiprc loader', () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ship-shiprc-test-'));
     dirs = {
       home: path.join(tempDir, 'home'),
-      shallow: path.join(tempDir, 'home', 'a'),
-      middle: path.join(tempDir, 'home', 'a', 'b'),
-      deep: path.join(tempDir, 'home', 'a', 'b', 'c'),
+      project: path.join(tempDir, 'home', 'work', 'project'),
     };
-    await fs.mkdir(dirs.deep, { recursive: true });
+    await fs.mkdir(dirs.project, { recursive: true });
 
     originalHome = process.env.HOME;
     process.env.HOME = dirs.home;
@@ -48,61 +51,40 @@ describe('CLI shiprc loader', () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  describe('search', () => {
-    it('returns empty when no config file exists', async () => {
-      process.chdir(dirs.deep);
+  describe('the home file', () => {
+    it('returns empty when it does not exist', () => {
+      process.chdir(dirs.project);
       expect(loadShipFile()).toEqual({});
     });
 
-    it('finds .shiprc in the current directory', async () => {
-      // Token only: a project file may name a credential but not the endpoint
-      // it is sent to (see "a project config may not choose the endpoint").
-      await fs.writeFile(path.join(dirs.deep, '.shiprc'), JSON.stringify({ token: 'cwd-token' }));
-      process.chdir(dirs.deep);
-
-      expect(loadShipFile()).toEqual({ token: 'cwd-token' });
-    });
-
-    it('walks up the directory tree to find .shiprc', async () => {
+    it('reads ~/.shiprc regardless of the working directory', async () => {
       await fs.writeFile(
-        path.join(dirs.shallow, '.shiprc'),
-        JSON.stringify({ token: 'shallow-token' }),
+        path.join(dirs.home, '.shiprc'),
+        JSON.stringify({ token: 'home-token', apiUrl: 'https://api.example.com' }),
       );
-      process.chdir(dirs.deep);
+      process.chdir(dirs.project);
 
-      const result = loadShipFile();
-      expect(result.token).toBe('shallow-token');
+      expect(loadShipFile()).toEqual({
+        token: 'home-token',
+        apiUrl: 'https://api.example.com',
+      });
     });
 
-    it('falls back to $HOME/.shiprc when no project file is found', async () => {
-      await fs.writeFile(path.join(dirs.home, '.shiprc'), JSON.stringify({ token: 'home-token' }));
-      process.chdir(dirs.deep);
+    it('treats an empty file as an absent config, not a broken one', async () => {
+      // `touch ~/.shiprc` and any interrupted write produce this, and both are
+      // ordinary. Refusing it would send the user to `ship config` to repair a
+      // file that is fine.
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), '');
+      process.chdir(dirs.project);
 
-      const result = loadShipFile();
-      expect(result.token).toBe('home-token');
+      expect(loadShipFile()).toEqual({});
     });
 
-    it('reads the "ship" key from package.json', async () => {
-      await fs.writeFile(
-        path.join(dirs.middle, 'package.json'),
-        JSON.stringify({
-          name: 'test-pkg',
-          ship: { token: 'pkg-token' },
-        }),
-      );
-      process.chdir(dirs.deep);
+    it('treats a whitespace-only file the same way', async () => {
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), '\n   \n');
+      process.chdir(dirs.project);
 
-      expect(loadShipFile()).toEqual({ token: 'pkg-token' });
-    });
-
-    it('prefers the closer config when multiple are present', async () => {
-      // .shiprc in the deep dir should win over a $HOME/.shiprc.
-      await fs.writeFile(path.join(dirs.home, '.shiprc'), JSON.stringify({ token: 'home-token' }));
-      await fs.writeFile(path.join(dirs.deep, '.shiprc'), JSON.stringify({ token: 'deep-token' }));
-      process.chdir(dirs.deep);
-
-      const result = loadShipFile();
-      expect(result.token).toBe('deep-token');
+      expect(loadShipFile()).toEqual({});
     });
   });
 
@@ -113,7 +95,7 @@ describe('CLI shiprc loader', () => {
         explicit,
         JSON.stringify({ token: 'explicit-token', apiUrl: 'https://explicit.example.com' }),
       );
-      process.chdir(dirs.deep);
+      process.chdir(dirs.project);
 
       expect(loadShipFile(explicit)).toEqual({
         token: 'explicit-token',
@@ -129,11 +111,10 @@ describe('CLI shiprc loader', () => {
       ['.shiprc-dev', 'a suffixed variant'],
     ])('loads %s (%s)', async (filename) => {
       // `--config` is "load exactly this file", so every spelling a user might
-      // reach for must work. `dev.shiprc` did not until 2026-07-30: its
-      // extname IS `.shiprc`, and cosmiconfig had no loader registered for
-      // that, so it threw `No loader specified for extension ".shiprc"` while
-      // the identically-formatted `.shiprc` beside it loaded fine.
-      const explicit = path.join(dirs.deep, filename);
+      // reach for must work. These were once a real bug class — the loader
+      // dispatched on file extension, so `dev.shiprc` threw where `.shiprc`
+      // loaded. There is no extension dispatch any more: a path is just read.
+      const explicit = path.join(dirs.project, filename);
       await fs.writeFile(explicit, JSON.stringify({ token: `token-${filename}` }));
 
       expect(loadShipFile(explicit)).toEqual({ token: `token-${filename}` });
@@ -147,106 +128,116 @@ describe('CLI shiprc loader', () => {
 
     it('supports relative paths', async () => {
       await fs.writeFile(
-        path.join(dirs.middle, 'ship.config.json'),
+        path.join(dirs.project, 'ship.config.json'),
         JSON.stringify({ token: 'relative-token' }),
       );
-      process.chdir(dirs.deep);
+      process.chdir(dirs.project);
 
-      const result = loadShipFile('../ship.config.json');
-      expect(result.token).toBe('relative-token');
+      expect(loadShipFile('./ship.config.json').token).toBe('relative-token');
+    });
+
+    it('an empty --config falls through to the home file', async () => {
+      // `--config "$VAR"` with VAR unset must not error; it is absence.
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), JSON.stringify({ token: 'home-token' }));
+      process.chdir(dirs.project);
+
+      expect(loadShipFile('')).toEqual({ token: 'home-token' });
     });
   });
 
-  describe('a project config may not choose the endpoint', () => {
-    // Verified against the real binary on 2026-07-30: a cloned repo whose
-    // `package.json` carried `{"ship": {"apiUrl": "http://127.0.0.1:19099"}}`
-    // received `Authorization: Bearer <the user's SHIP_TOKEN>` on a plain
-    // `ship deployments list` — exit 0, no warning. The search reaches project
-    // files before `$HOME/.shiprc`, which is right for configuration and wrong
-    // for a destination.
+  describe('no repository file is ever read', () => {
+    // The reason the project search is gone, stated as behavior. Two exploits
+    // were verified against the real binary before this change (CLAUDE.md
+    // carries the transcripts): a cloned repo's `package.json` could redirect
+    // `apiUrl` and receive the user's bearer token, and — worse, because it
+    // survived the first patch — a repo's `token` outranked `~/.shiprc`
+    // entirely, so `ship ./dist` deployed to the repo owner's account.
     //
-    // Only reachable when the credential comes from env or `--token`: if the
-    // project file wins the search, `~/.shiprc` is never read, so a user whose
-    // token lives only there has none to leak. `SHIP_TOKEN` is the documented
-    // CI path, so that population is the realistic one.
+    // Both were properties of the SURFACE, not of any particular field, which
+    // is why the fix is a deletion rather than a rule.
+    const planted = {
+      token: `ship-${'b'.repeat(64)}`,
+      apiUrl: 'http://127.0.0.1:1',
+    };
+
     it.each([
-      ['./.shiprc', (d: typeof dirs) => path.join(d.deep, '.shiprc'), false],
-      ['a parent .shiprc', (d: typeof dirs) => path.join(d.shallow, '.shiprc'), false],
-      ['package.json', (d: typeof dirs) => path.join(d.middle, 'package.json'), true],
-    ])('refuses apiUrl from %s', async (_name, target, isPkg) => {
-      const body = isPkg
-        ? { name: 'some-cloned-repo', ship: { apiUrl: 'https://evil.example.com' } }
-        : { apiUrl: 'https://evil.example.com' };
-      await fs.writeFile(target(dirs), JSON.stringify(body));
-      process.chdir(dirs.deep);
-
-      expect(() => loadShipFile()).toThrow(/"apiUrl" may not come from a project config/);
-    });
-
-    it('still accepts a token from a project config', async () => {
-      // The credential half is legitimate — only the endpoint is refused.
-      await fs.writeFile(path.join(dirs.deep, '.shiprc'), JSON.stringify({ token: 'proj-token' }));
-      process.chdir(dirs.deep);
-
-      expect(loadShipFile()).toEqual({ token: 'proj-token' });
-    });
-
-    it('accepts apiUrl from the home file, which is the user’s own', async () => {
+      ['./.shiprc', '.shiprc', (c: object) => c],
+      ['./package.json', 'package.json', (c: object) => ({ name: 'cloned-repo', ship: c })],
+    ])('ignores a planted %s entirely', async (_name, filename, wrap) => {
+      await fs.writeFile(path.join(dirs.project, filename), JSON.stringify(wrap(planted)));
       await fs.writeFile(
         path.join(dirs.home, '.shiprc'),
-        JSON.stringify({ token: 'home-token', apiUrl: 'https://api.example.com' }),
+        JSON.stringify({ token: `ship-${'a'.repeat(64)}` }),
       );
-      process.chdir(dirs.deep);
+      process.chdir(dirs.project);
 
-      expect(loadShipFile()).toEqual({
-        token: 'home-token',
-        apiUrl: 'https://api.example.com',
-      });
+      // The user's own credential, and no endpoint from the repository.
+      expect(loadShipFile()).toEqual({ token: `ship-${'a'.repeat(64)}` });
     });
 
-    it('accepts apiUrl from an explicit --config, because naming a file is intent', async () => {
-      const explicit = path.join(dirs.deep, 'dev.shiprc');
-      await fs.writeFile(explicit, JSON.stringify({ apiUrl: 'https://api.example.com' }));
-      process.chdir(dirs.deep);
+    it('a planted project file cannot even supply config when the home file is absent', async () => {
+      await fs.writeFile(path.join(dirs.project, '.shiprc'), JSON.stringify(planted));
+      process.chdir(dirs.project);
 
-      expect(loadShipFile(explicit)).toEqual({ apiUrl: 'https://api.example.com' });
+      expect(loadShipFile()).toEqual({});
+    });
+
+    it('a broken project file cannot break the CLI either', async () => {
+      // It is not read, so it cannot even raise a parse error — which is the
+      // difference between "not trusted" and "not consulted".
+      await fs.writeFile(path.join(dirs.project, '.shiprc'), '{ this is not json');
+      process.chdir(dirs.project);
+
+      expect(loadShipFile()).toEqual({});
+    });
+  });
+
+  describe('format', () => {
+    it.each([
+      ['a trailing comma', '{"token": "x",}'],
+      ['a YAML mapping', 'token: x'],
+      ['a comment', '{"token": "x"} // nope'],
+      ['a bare scalar', 'not json at all'],
+      ['a list', '["token"]'],
+    ])('refuses %s — the file is strict JSON', async (_name, contents) => {
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), contents);
+      process.chdir(dirs.project);
+
+      expect(() => loadShipFile()).toThrow(/Invalid config in/);
     });
   });
 
   describe('validation', () => {
     it('throws on invalid apiUrl', async () => {
-      // In the HOME file, which is the only searched place allowed to set an
-      // endpoint — from a project file it would be refused before the URL was
-      // ever judged, so this would pass for the wrong reason.
       await fs.writeFile(path.join(dirs.home, '.shiprc'), JSON.stringify({ apiUrl: 'not-a-url' }));
-      process.chdir(dirs.deep);
+      process.chdir(dirs.project);
 
       expect(() => loadShipFile()).toThrow(/Invalid config/);
     });
 
     it('rejects empty-string credentials', async () => {
-      await fs.writeFile(path.join(dirs.deep, '.shiprc'), JSON.stringify({ token: '' }));
-      process.chdir(dirs.deep);
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), JSON.stringify({ token: '' }));
+      process.chdir(dirs.project);
 
       expect(() => loadShipFile()).toThrow(/Invalid config/);
     });
 
     it('rejects unknown keys (strict schema)', async () => {
       await fs.writeFile(
-        path.join(dirs.deep, '.shiprc'),
+        path.join(dirs.home, '.shiprc'),
         JSON.stringify({ token: 'some-token', unknownField: 'huh' }),
       );
-      process.chdir(dirs.deep);
+      process.chdir(dirs.project);
 
       expect(() => loadShipFile()).toThrow(/Invalid config/);
     });
 
     it('names the rename for a retired credential key', async () => {
       await fs.writeFile(
-        path.join(dirs.deep, '.shiprc'),
+        path.join(dirs.home, '.shiprc'),
         JSON.stringify({ apiKey: `ship-${'a'.repeat(64)}` }),
       );
-      process.chdir(dirs.deep);
+      process.chdir(dirs.project);
 
       expect(() => loadShipFile()).toThrow(
         /"apiKey" is no longer supported — the key is now "token"/,
@@ -255,17 +246,17 @@ describe('CLI shiprc loader', () => {
 
     it('names both retired keys when both are present', async () => {
       await fs.writeFile(
-        path.join(dirs.deep, '.shiprc'),
+        path.join(dirs.home, '.shiprc'),
         JSON.stringify({ apiKey: 'a', deployToken: 'b' }),
       );
-      process.chdir(dirs.deep);
+      process.chdir(dirs.project);
 
       expect(() => loadShipFile()).toThrow(/"apiKey" and "deployToken" are no longer supported/);
     });
 
-    it('returns empty for an empty config file', async () => {
-      await fs.writeFile(path.join(dirs.deep, '.shiprc'), '{}');
-      process.chdir(dirs.deep);
+    it('returns empty for an empty JSON object', async () => {
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), '{}');
+      process.chdir(dirs.project);
 
       expect(loadShipFile()).toEqual({});
     });

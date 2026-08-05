@@ -320,18 +320,22 @@ The **CLI** (`ship`) resolves its token in this order:
 
 1. CLI flag: `--token`
 2. Environment variable: `SHIP_TOKEN`
-3. Config files: `.shiprc` or `package.json` `"ship"` key (run `ship config` to create one)
+3. Config file: `~/.shiprc` (run `ship config` to create one)
+
+`--config <file>` reads any path you name instead of `~/.shiprc`, which is how per-environment
+configs work (`ship --config dev.shiprc ...`). The file is strict JSON; an empty one means "no
+config".
+
+**No repository file is ever read.** A `.shiprc` or `package.json` `"ship"` key in your working
+directory is ignored — cloning a repo can never change which account you deploy to, or which
+host your token is sent to.
 
 The **SDK** (`new Ship(...)`) resolves its token in this order:
 
 1. Constructor option: `new Ship({ token })`
 2. Environment variable: `SHIP_TOKEN`
 
-`--api-url` / `SHIP_API_URL` / `apiUrl` resolve the same way for the API endpoint, with one
-restriction: **a project config may not set `apiUrl`.** A `.shiprc` or `package.json` found by
-searching up from the working directory can hold a `token`, but the endpoint that token is sent
-to must come from `--api-url`, `SHIP_API_URL`, `~/.shiprc`, or a file you name with `--config` —
-never from a repository you cloned. Setting it in a project config is an error naming the file.
+`--api-url` / `SHIP_API_URL` / `apiUrl` resolve the same way for the API endpoint.
 
 The SDK never reads `.shiprc` or `package.json` — file resolution is a CLI feature, not an SDK feature. This keeps `new Ship({})` safe to use from embedded contexts (MCP, n8n, library wrappers) without inheriting the host developer's personal credentials.
 
