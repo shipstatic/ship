@@ -431,6 +431,130 @@ export function formatToken(
 }
 
 /**
+ * A response shape the CLI can receive: the property whose presence identifies
+ * it, and what each channel does with it.
+ */
+interface Shape {
+  /** The discriminant. Presence alone selects the shape — order breaks ties. */
+  readonly on: string;
+  /** `-q`: the identifier(s) you would pipe onward, or none if it has none. */
+  readonly quiet: (result: CLIResult) => string[];
+  /** Text: the formatter that renders it. */
+  readonly text: (result: CLIResult, context: OutputContext, options: FormatOptions) => void;
+}
+
+/**
+ * EVERY shape, in resolution order, stated ONCE.
+ *
+ * The two channels used to walk this list separately — a twelve-branch
+ * `if/else` chain for `-q` and an eleven-branch one for text, same
+ * discriminants, same order, nothing tying them. That is not a hypothetical
+ * hazard, it is a bug this CLI has already shipped: `tokens get` and
+ * `tokens delete` printed NOTHING under `-q` until 2026-07-29, because the
+ * quiet chain had a branch for the `tokens` COLLECTION and none for a single
+ * token, while the text chain had both. The one resource whose identifier you
+ * most want to pipe was the only one emitting none.
+ *
+ * A row cannot half-exist. Adding a shape means answering both questions in
+ * one place, and the resolution order is a property of the list rather than
+ * something two chains have to keep agreeing on.
+ *
+ * **Order is load-bearing** and is the old text chain's, preserved exactly:
+ * `Domain` carries a `deployment` field, so `domain` must precede
+ * `deployment`; a token creation carries both `token` and `secret`, so
+ * `secret` must precede `token`. The casts are per-row rather than one blanket
+ * cast on the table — each sits beside the discriminant that justifies it.
+ *
+ * Exported for the suite, which pins its own per-row cases AGAINST this list.
+ * Without that tie the completeness check was a tautology: it counted the
+ * test's own array, so a thirteenth row added here stayed green while that
+ * shape was asserted by nothing — the precise scenario it claimed to prevent.
+ * Same reason `subcommandsOf` is exported one module over.
+ */
+export const SHAPES: readonly Shape[] = [
+  {
+    on: 'deployments',
+    quiet: (r) => (r as DeploymentListResponse).deployments.map((d) => d.deployment),
+    text: (r, c, o) => formatDeploymentsList(r as DeploymentListResponse, c, o),
+  },
+  {
+    on: 'domains',
+    quiet: (r) => (r as DomainListResponse).domains.map((d) => d.domain),
+    text: (r, c, o) => formatDomainsList(r as DomainListResponse, c, o),
+  },
+  {
+    on: 'tokens',
+    quiet: (r) => (r as TokenListResponse).tokens.map((t) => t.token),
+    text: (r, c, o) => formatTokensList(r as TokenListResponse, c, o),
+  },
+  {
+    on: 'records',
+    quiet: (r) =>
+      (r as DomainRecordsResponse).records.map((rec) => `${rec.type} ${rec.name} ${rec.value}`),
+    text: (r, c, o) => formatDomainRecords(r as DomainRecordsResponse, c, o),
+  },
+  {
+    on: 'hash',
+    quiet: (r) => [setupUrl((r as DomainShareResponse).hash, (r as DomainShareResponse).domain)],
+    text: (r, c, o) => formatDomainShare(r as DomainShareResponse, c, o),
+  },
+  {
+    on: 'dns',
+    // A lookup that resolved no provider has no identifier to pipe.
+    quiet: (r) => {
+      const name = (r as DomainDnsResponse).dns?.provider?.name;
+      return name ? [name] : [];
+    },
+    text: (r, c, o) => formatDomainDns(r as DomainDnsResponse, c, o),
+  },
+  {
+    on: 'domain',
+    quiet: (r) => [(r as Domain).domain],
+    text: (r, c, o) => formatDomain(r as Domain, c, o),
+  },
+  {
+    on: 'deployment',
+    quiet: (r) => [(r as Deployment).deployment],
+    text: (r, c, o) => formatDeployment(r as Deployment, c, o),
+  },
+  {
+    on: 'secret',
+    // Creation only, and deliberately the SECRET rather than the id: it is
+    // shown once and never again, so `ship tokens create -q >> .env` is the
+    // reason this channel exists here. Its text rendering is `formatToken`
+    // like any other token — only `-q` distinguishes the two.
+    quiet: (r) => [(r as TokenCreateResponse).secret],
+    text: (r, c, o) => formatToken(r as TokenCreateResponse, c, o),
+  },
+  {
+    on: 'token',
+    quiet: (r) => [(r as Token).token],
+    text: (r, c, o) => formatToken(r as TokenCreateResponse, c, o),
+  },
+  {
+    on: 'email',
+    quiet: (r) => [(r as Account).email],
+    text: (r, c, o) => formatAccount(r as Account, c, o),
+  },
+  {
+    on: 'valid',
+    // An invalid name has no `normalized` form, so there is no identifier —
+    // the verdict rides the exit code, which is what `-q` callers read.
+    quiet: (r) => {
+      const v = r as DomainValidateResponse;
+      return v.valid && v.normalized ? [v.normalized] : [];
+    },
+    text: (r, c, o) => formatDomainValidate(r as DomainValidateResponse, c, o),
+  },
+];
+
+/** The first shape whose discriminant this result carries. */
+function shapeOf(result: CLIResult): Shape | undefined {
+  if (result === null || typeof result !== 'object') return undefined;
+  return SHAPES.find((shape) => shape.on in result);
+}
+
+/**
  * Main output function - routes to appropriate formatter based on result shape.
  * Handles JSON mode, deletion operations, and ping results.
  */
@@ -443,47 +567,7 @@ export function formatOutput(
 
   // Quiet mode: output only the key identifier
   if (quiet) {
-    if (result !== null && typeof result === 'object') {
-      if ('deployments' in result) {
-        for (const d of (result as DeploymentListResponse).deployments) console.log(d.deployment);
-      } else if ('domains' in result) {
-        for (const d of (result as DomainListResponse).domains) console.log(d.domain);
-      } else if ('tokens' in result) {
-        for (const t of (result as TokenListResponse).tokens) console.log(t.token);
-      } else if ('records' in result) {
-        for (const r of (result as DomainRecordsResponse).records)
-          console.log(`${r.type} ${r.name} ${r.value}`);
-      } else if ('hash' in result) {
-        const r = result as DomainShareResponse;
-        console.log(setupUrl(r.hash, r.domain));
-      } else if ('dns' in result) {
-        const name = (result as DomainDnsResponse).dns?.provider?.name;
-        if (name) console.log(name);
-      } else if ('domain' in result) {
-        console.log((result as Domain).domain);
-      } else if ('deployment' in result) {
-        console.log((result as Deployment).deployment);
-      } else if ('secret' in result) {
-        // Creation only, and deliberately the SECRET rather than the id: it is
-        // shown once and never again, so `ship tokens create -q >> .env` is the
-        // reason this channel exists here. Must precede the `token` branch —
-        // a creation response carries both.
-        console.log((result as TokenCreateResponse).secret);
-      } else if ('token' in result) {
-        // `tokens get` and `tokens delete` printed NOTHING until 2026-07-29:
-        // the quiet router had a branch for the `tokens` COLLECTION and none
-        // for a single token, so the one resource whose identifier you most
-        // want to pipe was the one resource that emitted none — and
-        // `ship tokens list -q | xargs -I{} ship tokens delete {} -q`, the
-        // idiom this repo's own README teaches, went silent.
-        console.log((result as Token).token);
-      } else if ('email' in result) {
-        console.log((result as Account).email);
-      } else if ('valid' in result) {
-        const v = result as DomainValidateResponse;
-        if (v.valid && v.normalized) console.log(v.normalized);
-      }
-    }
+    for (const line of shapeOf(result)?.quiet(result) ?? []) console.log(line);
     return;
   }
 
@@ -517,42 +601,19 @@ export function formatOutput(
     return;
   }
 
-  // Route to specific formatter based on result shape
-  // Order matters: check list types before singular types
-  if (result !== null && typeof result === 'object') {
-    if ('deployments' in result) {
-      formatDeploymentsList(result as DeploymentListResponse, context, options);
-    } else if ('domains' in result) {
-      formatDomainsList(result as DomainListResponse, context, options);
-    } else if ('tokens' in result) {
-      formatTokensList(result as TokenListResponse, context, options);
-    } else if ('records' in result) {
-      formatDomainRecords(result as DomainRecordsResponse, context, options);
-    } else if ('hash' in result) {
-      formatDomainShare(result as DomainShareResponse, context, options);
-    } else if ('dns' in result) {
-      formatDomainDns(result as DomainDnsResponse, context, options);
-    } else if ('domain' in result) {
-      formatDomain(result as Domain, context, options);
-    } else if ('deployment' in result) {
-      formatDeployment(result as Deployment, context, options);
-    } else if ('token' in result) {
-      formatToken(result as TokenCreateResponse, context, options);
-    } else if ('email' in result) {
-      formatAccount(result as Account, context, options);
-    } else if ('valid' in result) {
-      formatDomainValidate(result as DomainValidateResponse, context, options);
-    } else {
-      // A shape with no formatter of its own is not an occasion to print the
-      // word "success": that asserts the call worked, which the exit code
-      // already said, and it hides the answer the command was run for. Render
-      // what arrived. `GET /labels` and `GET /limits` are real endpoints with
-      // no CLI command yet (`CLAUDE.md`, "Routes the API exposes that the SDK
-      // does not reach"); when one lands it shows its content on the first
-      // run, and a bespoke formatter becomes an improvement rather than a
-      // prerequisite.
-      console.log(formatDetails(result, noColor));
-    }
+  // Route to the shape's own formatter — same table, same order, as `-q`.
+  const shape = shapeOf(result);
+  if (shape) {
+    shape.text(result, context, options);
+  } else if (result !== null && typeof result === 'object') {
+    // A shape with no row of its own is not an occasion to print the word
+    // "success": that asserts the call worked, which the exit code already
+    // said, and it hides the answer the command was run for. Render what
+    // arrived. `GET /labels` and `GET /limits` are real endpoints with no CLI
+    // command yet (`CLAUDE.md`, "Routes the API exposes that the SDK does not
+    // reach"); when one lands it shows its content on the first run, and a
+    // bespoke formatter becomes an improvement rather than a prerequisite.
+    console.log(formatDetails(result, noColor));
   }
   // A non-object result is unrenderable — `undefined` is handled above, and
   // `boolean` left this union with ping's `success` field. Saying nothing is
