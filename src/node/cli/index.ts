@@ -914,9 +914,17 @@ export function buildProgram(): Command {
     .action(async () => {
       const options = processOptions(program);
       try {
+        // `--json` is a RENDERING channel on every other command. Here it used
+        // to change what the command DID — skip the prompt and print a status
+        // report instead — which is a second command wearing the first one's
+        // name. The report is gone; the wizard is all this is.
+        if (options.json) {
+          throw usageError(
+            'ship config is interactive — run it without --json (it shows the token already saved)',
+          );
+        }
         await runConfig({
           noColor: options.noColor,
-          json: options.json,
           // `--config` names the file to read everywhere else, so it names the
           // file to write here.
           configFile: options.config,

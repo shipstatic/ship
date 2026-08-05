@@ -22,9 +22,11 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { ErrorType } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runConfig } from '../../../src/node/cli/config';
 import { loadShipFile } from '../../../src/node/cli/shiprc';
+import { runProgram } from './harness';
 
 const TEST_TOKEN = `ship-${'a'.repeat(64)}`;
 const ALT_TOKEN = `ship-${'b'.repeat(64)}`;
@@ -58,64 +60,33 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('--json mode', () => {
-  const readJson = () => JSON.parse(out.join('\n').trim());
+describe('--json is refused: this command has one personality', () => {
+  // `--json` is a RENDERING channel on every other command. Here it used to
+  // change what the command DID — skip the prompt, print a
+  // `{path, exists, token(masked), apiUrl}` status report — which is a second
+  // command wearing the first one's name.
+  //
+  // The report went rather than grew: it had no known consumer, and after the
+  // project-config search was deleted there is exactly one ambient file plus
+  // `--config`, so "which file am I even reading?" mostly stopped being a
+  // question. The interactive prompt already shows the masked existing token,
+  // which is the part anyone actually wanted.
+  it('rejects --json through the CLI, naming what to do instead', async () => {
+    const result = await runProgram(['config', '--json']);
 
-  it('reports the path and that no config exists', async () => {
-    await runConfig({ json: true });
-
-    const output = readJson();
-    expect(output.path).toBe(configPath);
-    expect(output.exists).toBe(false);
-    expect(output.token).toBeUndefined();
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stderr);
+    expect(parsed.error).toBe(ErrorType.Validation);
+    expect(parsed.message).toContain('interactive');
   });
 
-  it('masks the token rather than printing it', async () => {
-    writeFileSync(configPath, JSON.stringify({ token: TEST_TOKEN }));
+  it('leaves any existing config untouched when it refuses', async () => {
+    const before = JSON.stringify({ token: TEST_TOKEN });
+    writeFileSync(configPath, before);
 
-    await runConfig({ json: true });
+    await runProgram(['config', '--json']);
 
-    const output = readJson();
-    expect(output.exists).toBe(true);
-    expect(output.token).toBe('ship-aaaa...aaaa');
-    expect(out.join('\n')).not.toContain(TEST_TOKEN);
-  });
-
-  it('masks a short opaque token entirely', async () => {
-    writeFileSync(configPath, JSON.stringify({ token: 'short-tok' }));
-
-    await runConfig({ json: true });
-
-    expect(readJson().token).toBe('...');
-  });
-
-  it('omits the API URL when it is the default', async () => {
-    writeFileSync(configPath, JSON.stringify({ token: TEST_TOKEN }));
-
-    await runConfig({ json: true });
-
-    expect(readJson().apiUrl).toBeUndefined();
-  });
-
-  it('includes a custom API URL', async () => {
-    writeFileSync(
-      configPath,
-      JSON.stringify({ token: TEST_TOKEN, apiUrl: 'https://custom.example.com' }),
-    );
-
-    await runConfig({ json: true });
-
-    expect(readJson().apiUrl).toBe('https://custom.example.com');
-  });
-
-  it('refuses an unreadable config instead of reporting it as absent', async () => {
-    // This asserted the opposite until 2026-07-30 — "survives an unreadable
-    // config rather than throwing" — and the survival was the bug: an
-    // unparseable file read as `{}`, so this channel reported a config with no
-    // token where one existed, and the interactive channel wrote `{}` over it.
-    writeFileSync(configPath, 'not json at all');
-
-    await expect(runConfig({ json: true })).rejects.toThrow(/Invalid config in/);
+    expect(readFileSync(configPath, 'utf-8')).toBe(before);
   });
 });
 
@@ -343,17 +314,6 @@ describe('--config names the file to write, as it names the file to read', () =>
     expect(JSON.parse(readFileSync(explicit, 'utf-8')).token).toBe(TEST_TOKEN);
     expect(existsSync(configPath)).toBe(false);
     expect(out.join('\n')).toContain(explicit);
-  });
-
-  it('reports the named file in --json mode', async () => {
-    const explicit = join(home, 'prod.shiprc');
-    writeFileSync(explicit, JSON.stringify({ token: TEST_TOKEN }));
-
-    await runConfig({ json: true, configFile: explicit });
-
-    const output = JSON.parse(out.join('\n').trim());
-    expect(output.path).toBe(explicit);
-    expect(output.exists).toBe(true);
   });
 
   it('round trips through the loader under a non-default name', async () => {
