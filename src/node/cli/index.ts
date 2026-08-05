@@ -460,7 +460,7 @@ export function buildProgram(): Command {
    */
   function withErrorHandling<T extends unknown[], R extends CLIResult>(
     handler: (client: Ship, options: GlobalOptions, ...args: T) => Promise<R>,
-    context: OutputContext = {},
+    context: OutputContext,
   ) {
     return async function (this: Command, ...args: T) {
       const globalOptions = processOptions(this);
@@ -570,8 +570,10 @@ export function buildProgram(): Command {
     .option('--limit <count>', 'Maximum number of results per page', parseInteger)
     .option('--cursor <cursor>', "Continue from a previous page's cursor")
     .action(
-      withErrorHandling((client: Ship, _options: GlobalOptions, cmdOptions: ListCommandOptions) =>
-        client.deployments.list(cmdOptions),
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, cmdOptions: ListCommandOptions) =>
+          client.deployments.list(cmdOptions),
+        { operation: 'list', resource: 'deployment' },
       ),
     );
 
@@ -664,8 +666,10 @@ export function buildProgram(): Command {
     .option('--limit <count>', 'Maximum number of results per page', parseInteger)
     .option('--cursor <cursor>', "Continue from a previous page's cursor")
     .action(
-      withErrorHandling((client: Ship, _options: GlobalOptions, cmdOptions: ListCommandOptions) =>
-        client.domains.list(cmdOptions),
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, cmdOptions: ListCommandOptions) =>
+          client.domains.list(cmdOptions),
+        { operation: 'list', resource: 'domain' },
       ),
     );
 
@@ -811,8 +815,10 @@ export function buildProgram(): Command {
     .option('--limit <count>', 'Maximum number of results per page', parseInteger)
     .option('--cursor <cursor>', "Continue from a previous page's cursor")
     .action(
-      withErrorHandling((client: Ship, _options: GlobalOptions, cmdOptions: ListCommandOptions) =>
-        client.tokens.list(cmdOptions),
+      withErrorHandling(
+        (client: Ship, _options: GlobalOptions, cmdOptions: ListCommandOptions) =>
+          client.tokens.list(cmdOptions),
+        { operation: 'list', resource: 'token' },
       ),
     );
 

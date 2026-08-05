@@ -7,15 +7,20 @@ import type {
   Account,
   Deployment,
   DeploymentCreateResponse,
+  DeploymentDeleteResponse,
   DeploymentListResponse,
   Domain,
+  DomainDeleteResponse,
   DomainDnsResponse,
   DomainListResponse,
   DomainRecordsResponse,
   DomainShareResponse,
   DomainValidateResponse,
+  DomainVerifyResponse,
+  PingResponse,
   Token,
   TokenCreateResponse,
+  TokenDeleteResponse,
   TokenListResponse,
 } from '@shipstatic/types';
 import { DeploymentStatus } from '@shipstatic/types';
@@ -80,13 +85,6 @@ const PAST_TENSE: Readonly<Partial<Record<Operation, string>>> = {
 };
 
 /**
- * Operations whose response is an ACKNOWLEDGEMENT — the resource noun carrying
- * its key, maybe a state, and nothing else. The sentence is the whole output;
- * there is no entity to render underneath it.
- */
-const ACKNOWLEDGING: ReadonlySet<Operation> = new Set<Operation>(['delete', 'verify']);
-
-/**
  * THE sentence. Every announcement the CLI makes about a mutation is this one
  * function of two things it already has — what the command IS
  * (`OutputContext`) and what the wire ANSWERED (`result`).
@@ -112,7 +110,7 @@ const ACKNOWLEDGING: ReadonlySet<Operation> = new Set<Operation>(['delete', 'ver
  */
 function announce(result: CLIResult, context: OutputContext): string | null {
   const { operation, resource } = context;
-  if (!operation || !resource) return null;
+  if (!resource) return null;
   if (result === null || typeof result !== 'object') return null;
 
   const predicate =
@@ -141,6 +139,7 @@ function announce(result: CLIResult, context: OutputContext): string | null {
  * command that silently announced nothing, with every test still green.
  */
 export type Operation =
+  | 'list'
   | 'upload'
   | 'set'
   | 'create'
@@ -171,7 +170,8 @@ export type Resource = 'deployment' | 'domain' | 'token' | 'account';
  * about a result is composed from the response.
  */
 export interface OutputContext {
-  operation?: Operation;
+  operation: Operation;
+  /** Absent only for `ping`, which names no resource. */
   resource?: Resource;
 }
 
@@ -186,7 +186,6 @@ export interface FormatOptions {
  */
 export function formatDeploymentsList(
   result: DeploymentListResponse,
-  _context: OutputContext,
   options: FormatOptions,
 ): void {
   const { noColor } = options;
@@ -216,11 +215,7 @@ function printCursorHint(cursor: string | null | undefined, noColor?: boolean): 
 /**
  * Format domains list
  */
-export function formatDomainsList(
-  result: DomainListResponse,
-  _context: OutputContext,
-  options: FormatOptions,
-): void {
+export function formatDomainsList(result: DomainListResponse, options: FormatOptions): void {
   const { noColor } = options;
 
   if (result.domains.length === 0) {
@@ -238,11 +233,7 @@ export function formatDomainsList(
  * Format single domain result.
  * Accepts plain Domain (from get) or EnrichedDomain (from set, with DNS info).
  */
-export function formatDomain(
-  result: Domain | EnrichedDomain,
-  _context: OutputContext,
-  options: FormatOptions,
-): void {
+export function formatDomain(result: Domain | EnrichedDomain, options: FormatOptions): void {
   const { noColor } = options;
 
   // Destructure enrichment fields (undefined when result is plain Domain)
@@ -271,7 +262,6 @@ export function formatDomain(
  */
 export function formatDeployment(
   result: Deployment | DeploymentCreateResponse,
-  _context: OutputContext,
   options: FormatOptions,
 ): void {
   const { noColor } = options;
@@ -296,11 +286,7 @@ export function formatDeployment(
 /**
  * Format account/email result
  */
-export function formatAccount(
-  result: Account,
-  _context: OutputContext,
-  options: FormatOptions,
-): void {
+export function formatAccount(result: Account, options: FormatOptions): void {
   const { noColor } = options;
   console.log(formatDetails(result, noColor));
 }
@@ -308,11 +294,7 @@ export function formatAccount(
 /**
  * Format domain validation result
  */
-export function formatDomainValidate(
-  result: DomainValidateResponse,
-  _context: OutputContext,
-  options: FormatOptions,
-): void {
+export function formatDomainValidate(result: DomainValidateResponse, options: FormatOptions): void {
   const { noColor } = options;
 
   if (result.valid) {
@@ -348,11 +330,7 @@ export function formatDomainValidate(
 /**
  * Format domain DNS records result
  */
-export function formatDomainRecords(
-  result: DomainRecordsResponse,
-  _context: OutputContext,
-  options: FormatOptions,
-): void {
+export function formatDomainRecords(result: DomainRecordsResponse, options: FormatOptions): void {
   const { noColor } = options;
 
   if (result.records.length === 0) {
@@ -368,11 +346,7 @@ export function formatDomainRecords(
 /**
  * Format domain DNS provider result
  */
-export function formatDomainDns(
-  result: DomainDnsResponse,
-  _context: OutputContext,
-  options: FormatOptions,
-): void {
+export function formatDomainDns(result: DomainDnsResponse, options: FormatOptions): void {
   const { noColor } = options;
   const provider = result.dns?.provider?.name || null;
   console.log(formatDetails({ domain: result.domain, provider }, noColor));
@@ -381,11 +355,7 @@ export function formatDomainDns(
 /**
  * Format domain share result as setup URL
  */
-export function formatDomainShare(
-  result: DomainShareResponse,
-  _context: OutputContext,
-  options: FormatOptions,
-): void {
+export function formatDomainShare(result: DomainShareResponse, options: FormatOptions): void {
   const { noColor } = options;
   // Rendered like `dns` beside it, rather than announced as a success: nothing
   // was mutated, so there is no acknowledgement to compose. It also stops text
@@ -399,11 +369,7 @@ export function formatDomainShare(
 /**
  * Format tokens list
  */
-export function formatTokensList(
-  result: TokenListResponse,
-  _context: OutputContext,
-  options: FormatOptions,
-): void {
+export function formatTokensList(result: TokenListResponse, options: FormatOptions): void {
   const { noColor } = options;
 
   if (result.tokens.length === 0) {
@@ -420,143 +386,176 @@ export function formatTokensList(
 /**
  * Format single token result (creation response includes both token ID and secret)
  */
-export function formatToken(
-  result: TokenCreateResponse,
-  _context: OutputContext,
-  options: FormatOptions,
-): void {
+export function formatToken(result: Token | TokenCreateResponse, options: FormatOptions): void {
   const { noColor } = options;
 
   console.log(formatDetails(result, noColor));
 }
 
 /**
- * A response shape the CLI can receive: the property whose presence identifies
- * it, and what each channel does with it.
+ * What one command produces, in each of the two channels that render it.
+ *
+ * `T` is the response type that command's endpoint returns, so an entry's
+ * bodies are typed and contain no casts of their own.
  */
-interface Shape {
-  /** The discriminant. Presence alone selects the shape — order breaks ties. */
-  readonly on: string;
+interface Output<T = CLIResult> {
   /** `-q`: the identifier(s) you would pipe onward, or none if it has none. */
-  readonly quiet: (result: CLIResult) => string[];
-  /** Text: the formatter that renders it. */
-  readonly text: (result: CLIResult, context: OutputContext, options: FormatOptions) => void;
+  readonly quiet: (result: T) => string[];
+  /** Text: render the answer. The mutation SENTENCE is `announce`'s job. */
+  readonly text: (result: T, options: FormatOptions) => void;
 }
 
+/** Give one entry its real response type. An identity function, nothing more. */
+const row = <T>(spec: Output<T>) => spec as Output;
+
+/** Every key the table can hold — the typo guard. */
+type OutputKey = `${Resource}.${Exclude<Operation, 'ping'>}` | 'ping';
+
+/** The key a command's declared identity resolves to. */
+const keyOf = (context: OutputContext): OutputKey =>
+  (context.resource ? `${context.resource}.${context.operation}` : context.operation) as OutputKey;
+
 /**
- * EVERY shape, in resolution order, stated ONCE.
+ * EVERY command's output, keyed by what the command IS.
  *
- * The two channels used to walk this list separately — a twelve-branch
- * `if/else` chain for `-q` and an eleven-branch one for text, same
- * discriminants, same order, nothing tying them. That is not a hypothetical
- * hazard, it is a bug this CLI has already shipped: `tokens get` and
- * `tokens delete` printed NOTHING under `-q` until 2026-07-29, because the
- * quiet chain had a branch for the `tokens` COLLECTION and none for a single
- * token, while the text chain had both. The one resource whose identifier you
- * most want to pipe was the only one emitting none.
+ * **Output is selected by what the command DECLARED, never by what the
+ * response LOOKS LIKE.** `OutputContext` already says which command ran; the
+ * router used to throw that away and reconstruct it by sniffing the payload
+ * (`'secret' in result`…). Reconstruction is what made resolution ORDER a
+ * load-bearing concept — `secret` before `token`, `domain` before
+ * `deployment`, because those payloads overlap — and order had to be
+ * documented, fenced, and preserved by hand. Keyed by identity, the ties are
+ * not merely resolved: they are inexpressible. `token.create` emitting the
+ * secret is simply a different row from `token.get`.
  *
- * A row cannot half-exist. Adding a shape means answering both questions in
- * one place, and the resolution order is a property of the list rather than
- * something two chains have to keep agreeing on.
+ * Two things follow. The entries need no casts, because the key implies the
+ * response type via the wire contract (context ↔ endpoint ↔ response). And the
+ * special cases stop being special: `ping`'s pre-table answer and the
+ * text-mode-only deletion short-circuit are ordinary rows.
  *
- * **Order is load-bearing** and is the old text chain's, preserved exactly:
- * `Domain` carries a `deployment` field, so `domain` must precede
- * `deployment`; a token creation carries both `token` and `secret`, so
- * `secret` must precede `token`. The casts are per-row rather than one blanket
- * cast on the table — each sits beside the discriminant that justifies it.
+ * The table doubles as the CLI's entire output surface, written down once —
+ * which is what lets `tests/architecture/sdk-cli-parity.test.ts` check it
+ * against the SDK's own resource methods.
  *
- * Exported for the suite, which pins its own per-row cases AGAINST this list.
- * Without that tie the completeness check was a tautology: it counted the
- * test's own array, so a thirteenth row added here stayed green while that
- * shape was asserted by nothing — the precise scenario it claimed to prevent.
- * Same reason `subcommandsOf` is exported one module over.
+ * Exported for the suite, which pins its own per-row cases AGAINST this list;
+ * a hand-written expectation checked against a hand-written list is a mirror,
+ * not a fence.
  */
-export const SHAPES: readonly Shape[] = [
-  {
-    on: 'deployments',
-    quiet: (r) => (r as DeploymentListResponse).deployments.map((d) => d.deployment),
-    text: (r, c, o) => formatDeploymentsList(r as DeploymentListResponse, c, o),
-  },
-  {
-    on: 'domains',
-    quiet: (r) => (r as DomainListResponse).domains.map((d) => d.domain),
-    text: (r, c, o) => formatDomainsList(r as DomainListResponse, c, o),
-  },
-  {
-    on: 'tokens',
-    quiet: (r) => (r as TokenListResponse).tokens.map((t) => t.token),
-    text: (r, c, o) => formatTokensList(r as TokenListResponse, c, o),
-  },
-  {
-    on: 'records',
-    quiet: (r) =>
-      (r as DomainRecordsResponse).records.map((rec) => `${rec.type} ${rec.name} ${rec.value}`),
-    text: (r, c, o) => formatDomainRecords(r as DomainRecordsResponse, c, o),
-  },
-  {
-    on: 'hash',
-    quiet: (r) => [setupUrl((r as DomainShareResponse).hash, (r as DomainShareResponse).domain)],
-    text: (r, c, o) => formatDomainShare(r as DomainShareResponse, c, o),
-  },
-  {
-    on: 'dns',
-    // A lookup that resolved no provider has no identifier to pipe.
-    quiet: (r) => {
-      const name = (r as DomainDnsResponse).dns?.provider?.name;
-      return name ? [name] : [];
-    },
-    text: (r, c, o) => formatDomainDns(r as DomainDnsResponse, c, o),
-  },
-  {
-    on: 'domain',
-    quiet: (r) => [(r as Domain).domain],
-    text: (r, c, o) => formatDomain(r as Domain, c, o),
-  },
-  {
-    on: 'deployment',
-    quiet: (r) => [(r as Deployment).deployment],
-    text: (r, c, o) => formatDeployment(r as Deployment, c, o),
-  },
-  {
-    on: 'secret',
-    // Creation only, and deliberately the SECRET rather than the id: it is
-    // shown once and never again, so `ship tokens create -q >> .env` is the
-    // reason this channel exists here. Its text rendering is `formatToken`
-    // like any other token — only `-q` distinguishes the two.
-    quiet: (r) => [(r as TokenCreateResponse).secret],
-    text: (r, c, o) => formatToken(r as TokenCreateResponse, c, o),
-  },
-  {
-    on: 'token',
-    quiet: (r) => [(r as Token).token],
-    text: (r, c, o) => formatToken(r as TokenCreateResponse, c, o),
-  },
-  {
-    on: 'email',
-    quiet: (r) => [(r as Account).email],
-    text: (r, c, o) => formatAccount(r as Account, c, o),
-  },
-  {
-    on: 'valid',
+/**
+ * `Partial` because `OutputKey` is the full cross-product of resources and
+ * operations while only ~20 of those pairs are real commands. The parity fence
+ * is what proves the set is exactly right; the key type only stops typos.
+ */
+export const OUTPUTS: Partial<Record<OutputKey, Output>> = {
+  // ─── deployments ───
+  'deployment.list': row<DeploymentListResponse>({
+    quiet: (r) => r.deployments.map((d) => d.deployment),
+    text: formatDeploymentsList,
+  }),
+  'deployment.upload': row<Deployment>({
+    quiet: (r) => [r.deployment],
+    text: formatDeployment,
+  }),
+  'deployment.get': row<Deployment>({
+    quiet: (r) => [r.deployment],
+    text: formatDeployment,
+  }),
+  'deployment.set': row<Deployment>({
+    quiet: (r) => [r.deployment],
+    text: formatDeployment,
+  }),
+  'deployment.delete': row<DeploymentDeleteResponse>({
+    quiet: (r) => [r.deployment],
+    // An acknowledgement is the sentence and nothing else — there is no entity
+    // left to render beneath it. `announce` has already written it.
+    text: () => {},
+  }),
+
+  // ─── domains ───
+  'domain.list': row<DomainListResponse>({
+    quiet: (r) => r.domains.map((d) => d.domain),
+    text: formatDomainsList,
+  }),
+  'domain.get': row<Domain>({
+    quiet: (r) => [r.domain],
+    text: formatDomain,
+  }),
+  'domain.set': row<Domain | EnrichedDomain>({
+    quiet: (r) => [r.domain],
+    text: formatDomain,
+  }),
+  'domain.validate': row<DomainValidateResponse>({
     // An invalid name has no `normalized` form, so there is no identifier —
     // the verdict rides the exit code, which is what `-q` callers read.
-    quiet: (r) => {
-      const v = r as DomainValidateResponse;
-      return v.valid && v.normalized ? [v.normalized] : [];
-    },
-    text: (r, c, o) => formatDomainValidate(r as DomainValidateResponse, c, o),
-  },
-];
+    quiet: (r) => (r.valid && r.normalized ? [r.normalized] : []),
+    text: formatDomainValidate,
+  }),
+  'domain.verify': row<DomainVerifyResponse>({
+    quiet: (r) => [r.domain],
+    text: () => {},
+  }),
+  'domain.records': row<DomainRecordsResponse>({
+    quiet: (r) => r.records.map((rec) => `${rec.type} ${rec.name} ${rec.value}`),
+    text: formatDomainRecords,
+  }),
+  'domain.dns': row<DomainDnsResponse>({
+    // A lookup that resolved no provider has no identifier to pipe.
+    quiet: (r) => (r.dns?.provider?.name ? [r.dns.provider.name] : []),
+    text: formatDomainDns,
+  }),
+  'domain.share': row<DomainShareResponse>({
+    quiet: (r) => [setupUrl(r.hash, r.domain)],
+    text: formatDomainShare,
+  }),
+  'domain.delete': row<DomainDeleteResponse>({
+    quiet: (r) => [r.domain],
+    text: () => {},
+  }),
 
-/** The first shape whose discriminant this result carries. */
-function shapeOf(result: CLIResult): Shape | undefined {
-  if (result === null || typeof result !== 'object') return undefined;
-  return SHAPES.find((shape) => shape.on in result);
-}
+  // ─── tokens ───
+  'token.list': row<TokenListResponse>({
+    quiet: (r) => r.tokens.map((t) => t.token),
+    text: formatTokensList,
+  }),
+  'token.create': row<TokenCreateResponse>({
+    // The SECRET rather than the id, deliberately: it is shown once and never
+    // again, so `ship tokens create -q >> .env` is why this channel exists
+    // here. Under the old shape-router this needed `secret` to be probed
+    // before `token`; now it is simply a different row.
+    quiet: (r) => [r.secret],
+    text: formatToken,
+  }),
+  'token.get': row<Token>({
+    quiet: (r) => [r.token],
+    text: formatToken,
+  }),
+  'token.delete': row<TokenDeleteResponse>({
+    quiet: (r) => [r.token],
+    text: () => {},
+  }),
+
+  // ─── account ───
+  'account.get': row<Account>({
+    quiet: (r) => [r.email],
+    text: formatAccount,
+  }),
+
+  // ─── top level ───
+  ping: row<PingResponse>({
+    // A clock is not an identifier to pipe.
+    quiet: () => [],
+    // Liveness is a question, so text answers it as one — the server clock is
+    // noise to a person. There is no unreachable arm: a non-OK response throws
+    // in transport, so reaching this line at all IS the answer.
+    text: (_r, o) => success('api reachable', false, o.noColor),
+  }),
+};
 
 /**
- * Main output function - routes to appropriate formatter based on result shape.
- * Handles JSON mode, deletion operations, and ping results.
+ * The one output path: JSON transmits, `-q` pipes the key, text renders.
+ *
+ * Every channel dispatches on the command's DECLARED identity — never on the
+ * shape of the response. See `OUTPUTS`.
  */
 export function formatOutput(
   result: CLIResult,
@@ -564,58 +563,44 @@ export function formatOutput(
   options: FormatOptions,
 ): void {
   const { json, quiet, noColor } = options;
+  const output = OUTPUTS[keyOf(context)];
 
-  // Quiet mode: output only the key identifier
+  // Quiet mode: output only the key identifier.
   if (quiet) {
-    for (const line of shapeOf(result)?.quiet(result) ?? []) console.log(line);
+    for (const line of output?.quiet(result) ?? []) console.log(line);
     return;
   }
 
   // JSON transmits, text translates. The data channel emits the wire's own
   // shape and never a sentence, so it is answered first and once.
   if (json && result !== null && typeof result === 'object') {
-    const output = { ...result } as Record<string, unknown>;
-    delete output._dnsRecords;
-    delete output._shareHash;
-    delete output.isCreate;
-    console.log(JSON.stringify(output, null, 2));
+    const payload = { ...result } as Record<string, unknown>;
+    delete payload._dnsRecords;
+    delete payload._shareHash;
+    delete payload.isCreate;
+    console.log(JSON.stringify(payload, null, 2));
     console.log();
     return;
   }
 
-  // Text. A mutation announces, then renders whatever entity it produced; an
-  // acknowledgement has no entity underneath, so the sentence is all of it.
+  // Text. A mutation announces, then its row renders whatever entity it
+  // produced — an acknowledgement's row renders nothing, because the sentence
+  // is the whole of it.
   const sentence = announce(result, context);
   if (sentence) success(sentence, false, noColor);
-  if (context.operation && ACKNOWLEDGING.has(context.operation)) return;
 
-  // Liveness is a question, so text answers it as one — "reachable" is the
-  // whole of what a person asked, and the server clock is noise to them.
-  //
-  // There is no unreachable arm: a non-OK response throws in transport, so
-  // reaching this line at all IS the answer. The CLI carried a `success: false`
-  // branch until 2026-07-29 — unreachable code guarding a field the route set
-  // to a literal `true`.
-  if (context.operation === 'ping') {
-    success('api reachable', false, noColor);
-    return;
-  }
-
-  // Route to the shape's own formatter — same table, same order, as `-q`.
-  const shape = shapeOf(result);
-  if (shape) {
-    shape.text(result, context, options);
+  if (output) {
+    output.text(result, options);
   } else if (result !== null && typeof result === 'object') {
-    // A shape with no row of its own is not an occasion to print the word
+    // A command with no row of its own is not an occasion to print the word
     // "success": that asserts the call worked, which the exit code already
     // said, and it hides the answer the command was run for. Render what
     // arrived. `GET /labels` and `GET /limits` are real endpoints with no CLI
     // command yet (`CLAUDE.md`, "Routes the API exposes that the SDK does not
-    // reach"); when one lands it shows its content on the first run, and a
-    // bespoke formatter becomes an improvement rather than a prerequisite.
+    // reach") — a safety net, not a plan: the parity fence goes red before an
+    // unmapped command could ever be run.
     console.log(formatDetails(result, noColor));
   }
-  // A non-object result is unrenderable — `undefined` is handled above, and
-  // `boolean` left this union with ping's `success` field. Saying nothing is
-  // honest; saying "success" would not be.
+  // A non-object result is unrenderable. Saying nothing is honest; saying
+  // "success" would not be.
 }
