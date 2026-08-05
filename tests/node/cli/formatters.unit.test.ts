@@ -27,8 +27,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   formatDeployment,
   formatOutput,
+  OUTPUTS,
   type OutputContext,
-  SHAPES,
 } from '../../../src/node/cli/formatters';
 import type { CLIResult } from '../../../src/node/cli/types';
 import {
@@ -69,7 +69,7 @@ describe('claim CTA', () => {
   });
 
   it('prints the claim URL with the expiry window in text output', () => {
-    formatDeployment(anonymousDeployment, { operation: 'upload' }, { noColor: true });
+    formatDeployment(anonymousDeployment, { noColor: true });
 
     const output = logs.join('\n');
     expect(output).toContain('expires in 3 days');
@@ -81,7 +81,7 @@ describe('claim CTA', () => {
 
   it('omits the CTA entirely for credentialed deploys', () => {
     const { claim: _claim, expires: _expires, ...kept } = anonymousDeployment;
-    formatDeployment(kept as DeploymentCreateResponse, { operation: 'upload' }, { noColor: true });
+    formatDeployment(kept as DeploymentCreateResponse, { noColor: true });
 
     const output = logs.join('\n');
     expect(output).not.toContain('claim');
@@ -91,7 +91,7 @@ describe('claim CTA', () => {
   it('keeps `claim` in --json output for scripts, while `isCreate` stays internal', () => {
     formatOutput(
       { ...anonymousDeployment, isCreate: true } as unknown as DeploymentCreateResponse,
-      {},
+      { operation: 'upload', resource: 'deployment' },
       { json: true },
     );
 
@@ -117,63 +117,69 @@ describe('formatOutput router', () => {
   const out = () => logs.join('\n');
   const text = { noColor: true };
 
-  describe('order-critical dispatch (payloads that also carry `domain`)', () => {
-    // Each of these has a `domain` field. If the router checked `domain`
-    // first, all three would render as a plain domain — which is exactly the
-    // regression the documented ordering exists to prevent.
-    it('routes `records` to the DNS-records table, not to formatDomain', () => {
-      formatOutput(
+  describe('declaration decides, never the shape of the response', () => {
+    // Every payload here carries a `domain` field. Under the old shape-sniffing
+    // router their resolution ORDER was load-bearing — `records`, `hash` and
+    // `dns` had to be probed before `domain`, or all three would have rendered
+    // as a plain domain. Order is not a concept any more: the command says
+    // which it is, so these cases cannot collide.
+    const DOMAIN = 'www.example.com';
+
+    it.each<[OutputContext, CLIResult, string]>([
+      [
+        { operation: 'records', resource: 'domain' },
         {
-          domain: 'www.example.com',
+          domain: DOMAIN,
           apex: 'example.com',
           records: [{ type: 'CNAME', name: 'www', value: 'cname.shipstatic.com' }],
         } as never,
-        {},
-        text,
-      );
-
-      expect(out()).toContain('type');
-      expect(out()).toContain('CNAME');
-      expect(out()).toContain('cname.shipstatic.com');
+        'cname.shipstatic.com',
+      ],
+      [
+        { operation: 'share', resource: 'domain' },
+        { domain: DOMAIN, hash: 'abc123' } as never,
+        'https://setup.shipstatic.com/abc123/www.example.com',
+      ],
+      [
+        { operation: 'dns', resource: 'domain' },
+        { domain: DOMAIN, dns: { provider: { name: 'Cloudflare' } } } as never,
+        'Cloudflare',
+      ],
+      [
+        { operation: 'get', resource: 'domain' },
+        { domain: DOMAIN, url: `https://${DOMAIN}`, deployment: null } as never,
+        'domain:',
+      ],
+    ])('%o renders its own answer', (context, result, expected) => {
+      formatOutput(result, context, text);
+      expect(out()).toContain(expected);
     });
 
-    it('routes `hash` to the setup URL, not to formatDomain', () => {
-      formatOutput({ domain: 'www.example.com', hash: 'abc123' } as never, {}, text);
+    it('renders ONE payload two ways, according to the command', () => {
+      // The property the old router could not have at any price: this payload
+      // carries both `domain` and `hash`, so a shape-keyed chain resolved it by
+      // whichever key it happened to probe first — one answer, forever. The
+      // command is what differs, so the answer differs.
+      const payload = { domain: DOMAIN, hash: 'abc123' } as never;
 
+      formatOutput(payload, { operation: 'share', resource: 'domain' }, text);
       expect(out()).toContain('https://setup.shipstatic.com/abc123/www.example.com');
-    });
 
-    it('routes `dns` to the provider view, not to formatDomain', () => {
-      formatOutput(
-        { domain: 'www.example.com', dns: { provider: { name: 'Cloudflare' } } } as never,
-        {},
-        text,
-      );
-
-      expect(out()).toContain('provider');
-      expect(out()).toContain('Cloudflare');
-    });
-
-    it('routes a plain domain to formatDomain once the three above are ruled out', () => {
-      formatOutput(
-        { domain: 'www.example.com', url: 'https://www.example.com', deployment: null } as never,
-        {},
-        text,
-      );
-
+      logs.length = 0;
+      formatOutput(payload, { operation: 'get', resource: 'domain' }, text);
       expect(out()).toContain('domain:');
-      expect(out()).toContain('www.example.com');
+      expect(out()).not.toContain('setup.shipstatic.com');
     });
   });
 
-  describe('list shapes precede singular shapes', () => {
+  describe('lists render as tables', () => {
     it('routes `deployments` to the list table', () => {
       formatOutput(
         {
           deployments: [makeDeployment({ deployment: 'brave-otter-a1b2c3d', files: 2, size: 10 })],
           cursor: null,
         } satisfies DeploymentListResponse,
-        {},
+        { operation: 'list', resource: 'deployment' },
         text,
       );
 
@@ -182,9 +188,19 @@ describe('formatOutput router', () => {
     });
 
     it('says so plainly when a list is empty', () => {
-      formatOutput({ deployments: [], cursor: null } satisfies DeploymentListResponse, {}, text);
-      formatOutput({ domains: [], cursor: null } satisfies DomainListResponse, {}, text);
-      formatOutput({ tokens: [], cursor: null } satisfies TokenListResponse, {}, text);
+      const list = (r: 'deployment' | 'domain' | 'token') =>
+        ({ operation: 'list', resource: r }) satisfies OutputContext;
+      formatOutput(
+        { deployments: [], cursor: null } satisfies DeploymentListResponse,
+        list('deployment'),
+        text,
+      );
+      formatOutput(
+        { domains: [], cursor: null } satisfies DomainListResponse,
+        list('domain'),
+        text,
+      );
+      formatOutput({ tokens: [], cursor: null } satisfies TokenListResponse, list('token'), text);
 
       expect(out()).toContain('no deployments found');
       expect(out()).toContain('no domains found');
@@ -197,12 +213,12 @@ describe('formatOutput router', () => {
           domains: [makeDomain('www.example.com', { deployment: null })],
           cursor: null,
         } satisfies DomainListResponse,
-        {},
+        { operation: 'list', resource: 'domain' },
         text,
       );
       formatOutput(
         { tokens: [makeToken({ token: 'a1b2c3d' })], cursor: null } satisfies TokenListResponse,
-        {},
+        { operation: 'list', resource: 'token' },
         text,
       );
 
@@ -211,15 +227,17 @@ describe('formatOutput router', () => {
     });
   });
 
-  describe('a shape with no formatter', () => {
+  describe('a command with no row', () => {
     it('renders what arrived, never the word "success"', () => {
-      // Reached the day a command returns a shape the router does not name —
-      // `GET /limits` and `GET /labels` are the live candidates. This printed
-      // a bare "success" until 2026-07-29: an assertion that the call worked,
-      // which the exit code already carried, in place of the answer.
+      // The safety net, reached the day a command lands before its row does —
+      // `GET /limits` and `GET /labels` are the live candidates. It printed a
+      // bare "success" until 2026-07-29: an assertion that the call worked,
+      // which the exit code already carried, in place of the answer. The parity
+      // fence now goes red before such a command could be run, so this is a net
+      // and not a plan.
       formatOutput(
         { maxFileSize: 52428800, maxFilesCount: 1000, maxTotalSize: 209715200 } as never,
-        {},
+        { operation: 'list', resource: 'account' },
         text,
       );
 
@@ -325,7 +343,7 @@ describe('formatOutput router', () => {
           available: true,
           reason: null,
         } satisfies DomainValidateResponse,
-        {},
+        { operation: 'validate', resource: 'domain' },
         text,
       );
 
@@ -344,7 +362,7 @@ describe('formatOutput router', () => {
           available: null,
           reason: 'Contains invalid characters',
         } satisfies DomainValidateResponse,
-        {},
+        { operation: 'validate', resource: 'domain' },
         text,
       );
 
@@ -367,17 +385,6 @@ describe('formatOutput router', () => {
       );
 
       expect(out()).toContain('www.example.com domain verification queued');
-    });
-
-    it('routes a full Domain entity to the entity formatter, not the ack', () => {
-      formatOutput(
-        { domain: 'www.example.com', url: 'https://www.example.com', links: 1 } as never,
-        {},
-        text,
-      );
-
-      expect(out()).not.toContain('domain verification queued');
-      expect(out()).toContain('https://www.example.com');
     });
   });
 
@@ -445,7 +452,7 @@ describe('formatOutput router', () => {
           available: true,
           reason: null,
         } satisfies DomainValidateResponse,
-        {},
+        { operation: 'validate', resource: 'domain' },
         DOMAIN,
       ],
     ];
@@ -466,174 +473,159 @@ describe('formatOutput router', () => {
     });
   });
 
-  describe('quiet mode emits only the pipeable identifier', () => {
-    const quiet = { quiet: true };
-
-    it.each([
-      [
-        'deployments',
-        { deployments: [{ deployment: 'brave-otter-a1b2c3d' }] },
-        'brave-otter-a1b2c3d',
-      ],
-      ['domains', { domains: [{ domain: 'www.example.com' }] }, 'www.example.com'],
-      ['tokens', { tokens: [{ token: 'a1b2c3d' }] }, 'a1b2c3d'],
-      ['single domain', { domain: 'www.example.com' }, 'www.example.com'],
-      ['single deployment', { deployment: 'brave-otter-a1b2c3d' }, 'brave-otter-a1b2c3d'],
-      ['account', { email: 'test@example.com' }, 'test@example.com'],
-      ['token secret', { secret: 'deploy-abc' }, 'deploy-abc'],
-    ])('%s', (_name, result, expected) => {
-      formatOutput(result as never, {}, quiet);
-      expect(logs).toEqual([expected]);
-    });
-
-    it.each([
-      ['tokens get', { token: 'tok0001', labels: [], created: 1, expires: null, used: null }],
-      ['tokens delete', { token: 'tok0001' }],
-    ])('%s emits the token id — the quiet router had no branch for one', (_name, result) => {
-      // `ship tokens list -q | xargs -I{} ship tokens delete {} -q` is an idiom
-      // this repo's README teaches. It emitted nothing for tokens until
-      // 2026-07-29: the router matched the `tokens` COLLECTION and had no case
-      // for a single one, so the resource whose identifier you most want to
-      // pipe was the only one that produced none.
-      formatOutput(result as never, {}, quiet);
-      expect(logs).toEqual(['tok0001']);
-    });
-
-    it('emits the setup URL for a share hash', () => {
-      formatOutput({ domain: 'www.example.com', hash: 'abc123' } as never, {}, quiet);
-      expect(logs).toEqual(['https://setup.shipstatic.com/abc123/www.example.com']);
-    });
-
-    it('emits nothing for a ping — a clock is not an identifier to pipe', () => {
-      formatOutput({ timestamp: NOW } satisfies PingResponse, {}, quiet);
-      expect(logs).toEqual([]);
-    });
-
-    it('emits the key a deletion acknowledged, not nothing', () => {
-      // Quiet prints the key on every shape that has one, deletions included —
-      // that is what makes `ship deployments delete x -q` composable. This
-      // asserted silence while deletions still resolved void.
-      formatOutput(
-        {
-          deployment: 'happy-cat-abc1234.shipstatic.com',
-          status: 'deleting',
-        } satisfies DeploymentDeleteResponse,
-        { operation: 'delete', resource: 'deployment' },
-        quiet,
-      );
-      expect(logs).toEqual(['happy-cat-abc1234.shipstatic.com']);
-    });
-
-    it('emits nothing for an invalid domain, so a pipeline sees empty output', () => {
-      formatOutput({ valid: false, normalized: null } as never, {}, quiet);
-      expect(logs).toEqual([]);
-    });
-  });
-
-  describe('every shape the router knows resolves a row, in both channels', () => {
-    // `-q` and text used to be two independent if/else chains over the same
-    // discriminants — twelve branches and eleven, same order, nothing tying
-    // them. That is how `tokens get` and `tokens delete` came to print nothing
-    // under `-q` (see the case above): the shape existed in one chain and not
-    // the other, and no test could see the asymmetry because each chain was
-    // only ever tested against itself.
+  describe('every row of the table, in both channels', () => {
+    // `-q` and text used to be two independent if/else chains over the SHAPE of
+    // the response — twelve branches and eleven, same discriminants, same
+    // order, nothing tying them. That is how `tokens get` and `tokens delete`
+    // came to print nothing under `-q`: the shape existed in one chain and not
+    // the other. One table fixed that; keying it by the command's DECLARED
+    // identity then removed resolution order as a concept entirely.
     //
-    // They are ONE table now, so a shape cannot half-exist and this particular
-    // divergence is no longer expressible — the design is the fence, and a
-    // test asserting it would only prove the code agrees with itself. What is
-    // still worth proving is COMPLETENESS: every shape the CLI can receive
-    // resolves to a row rather than falling through to the generic renderer,
-    // which is silent under `-q` and is exactly what the old bug looked like.
+    // What a test can still prove is COMPLETENESS — that every command has a
+    // row, in both channels — and that is what this is.
     const records = makeDnsRecords();
     const account = makeAccountRow();
     const created = makeTokenCreateResponse();
+    const DOMAIN = 'www.example.com';
+    const DEPLOYMENT = 'brave-otter-a1b2c3d';
 
-    const shapes: Array<[string, CLIResult, string[]]> = [
+    const ROWS: Array<[string, OutputContext, CLIResult, string[]]> = [
       [
-        'deployments',
+        'deployment.list',
+        { operation: 'list', resource: 'deployment' },
         {
-          deployments: [makeDeployment({ deployment: 'brave-otter-a1b2c3d' })],
+          deployments: [makeDeployment({ deployment: DEPLOYMENT })],
           cursor: null,
         } satisfies DeploymentListResponse,
-        ['brave-otter-a1b2c3d'],
+        [DEPLOYMENT],
       ],
       [
-        'domains',
-        { domains: [makeDomain('www.example.com')], cursor: null } satisfies DomainListResponse,
-        ['www.example.com'],
+        'deployment.upload',
+        { operation: 'upload', resource: 'deployment' },
+        makeDeployment({ deployment: DEPLOYMENT }),
+        [DEPLOYMENT],
       ],
       [
-        'tokens',
+        'deployment.get',
+        { operation: 'get', resource: 'deployment' },
+        makeDeployment({ deployment: DEPLOYMENT }),
+        [DEPLOYMENT],
+      ],
+      [
+        'deployment.set',
+        { operation: 'set', resource: 'deployment' },
+        makeDeployment({ deployment: DEPLOYMENT }),
+        [DEPLOYMENT],
+      ],
+      [
+        'deployment.delete',
+        { operation: 'delete', resource: 'deployment' },
+        { deployment: DEPLOYMENT, status: 'deleting' } satisfies DeploymentDeleteResponse,
+        [DEPLOYMENT],
+      ],
+      [
+        'domain.list',
+        { operation: 'list', resource: 'domain' },
+        { domains: [makeDomain(DOMAIN)], cursor: null } satisfies DomainListResponse,
+        [DOMAIN],
+      ],
+      ['domain.get', { operation: 'get', resource: 'domain' }, makeDomain(DOMAIN), [DOMAIN]],
+      ['domain.set', { operation: 'set', resource: 'domain' }, makeDomain(DOMAIN), [DOMAIN]],
+      [
+        'domain.validate',
+        { operation: 'validate', resource: 'domain' },
+        {
+          valid: true,
+          normalized: DOMAIN,
+          available: true,
+          reason: null,
+        } satisfies DomainValidateResponse,
+        [DOMAIN],
+      ],
+      [
+        'domain.verify',
+        { operation: 'verify', resource: 'domain' },
+        { domain: DOMAIN } satisfies DomainVerifyResponse,
+        [DOMAIN],
+      ],
+      [
+        'domain.records',
+        { operation: 'records', resource: 'domain' },
+        { domain: DOMAIN, apex: 'example.com', records } satisfies DomainRecordsResponse,
+        records.map((r) => `${r.type} ${r.name} ${r.value}`),
+      ],
+      [
+        'domain.dns',
+        { operation: 'dns', resource: 'domain' },
+        { domain: DOMAIN, dns: { provider: { name: 'Cloudflare' } } } as DomainDnsResponse,
+        ['Cloudflare'],
+      ],
+      [
+        'domain.share',
+        { operation: 'share', resource: 'domain' },
+        { domain: DOMAIN, hash: 'abc123' } satisfies DomainShareResponse,
+        [`https://setup.shipstatic.com/abc123/${DOMAIN}`],
+      ],
+      ['domain.delete', { operation: 'delete', resource: 'domain' }, { domain: DOMAIN }, [DOMAIN]],
+      [
+        'token.list',
+        { operation: 'list', resource: 'token' },
         { tokens: [makeToken({ token: 'tok0001' })], cursor: null } satisfies TokenListResponse,
         ['tok0001'],
       ],
       [
-        'records',
-        {
-          domain: 'www.example.com',
-          apex: 'example.com',
-          records,
-        } satisfies DomainRecordsResponse,
-        records.map((r) => `${r.type} ${r.name} ${r.value}`),
+        // The secret, not the id — shown once and never again, which is why
+        // `ship tokens create -q >> .env` exists. Under the shape-keyed router
+        // this needed `secret` probed before `token`; now it is just a row.
+        'token.create',
+        { operation: 'create', resource: 'token' },
+        created,
+        [created.secret],
       ],
       [
-        'hash',
-        { domain: 'www.example.com', hash: 'abc123' } satisfies DomainShareResponse,
-        ['https://setup.shipstatic.com/abc123/www.example.com'],
+        'token.get',
+        { operation: 'get', resource: 'token' },
+        makeToken({ token: 'tok0001' }),
+        ['tok0001'],
       ],
       [
-        'dns',
-        {
-          domain: 'www.example.com',
-          dns: { provider: { name: 'Cloudflare' } },
-        } as DomainDnsResponse,
-        ['Cloudflare'],
+        'token.delete',
+        { operation: 'delete', resource: 'token' },
+        { token: 'tok0001' },
+        ['tok0001'],
       ],
-      ['domain', makeDomain('www.example.com'), ['www.example.com']],
-      [
-        'deployment',
-        makeDeployment({ deployment: 'brave-otter-a1b2c3d' }),
-        ['brave-otter-a1b2c3d'],
-      ],
-      // Must resolve BEFORE `token`: a creation carries both, and the secret is
-      // shown once and never again.
-      ['secret', created, [created.secret]],
-      ['token', makeToken({ token: 'tok0001' }), ['tok0001']],
-      ['email', account, [account.email]],
-      [
-        'valid',
-        {
-          valid: true,
-          normalized: 'www.example.com',
-          available: true,
-          reason: null,
-        } satisfies DomainValidateResponse,
-        ['www.example.com'],
-      ],
+      ['account.get', { operation: 'get', resource: 'account' }, account, [account.email]],
+      // A clock is not an identifier to pipe.
+      ['ping', { operation: 'ping' }, { timestamp: NOW } satisfies PingResponse, []],
     ];
 
-    it.each(shapes)('%s', (_name, result, quietLines) => {
-      formatOutput(result, {}, { quiet: true });
+    it.each(ROWS)('%s', (_key, context, result, quietLines) => {
+      formatOutput(result, context, { quiet: true });
       expect(logs, 'quiet channel').toEqual(quietLines);
 
       logs.length = 0;
-      formatOutput(result, {}, text);
+      formatOutput(result, context, text);
       expect(out().trim(), 'text channel rendered nothing').not.toBe('');
     });
 
-    it('covers every row of the table, in order', () => {
-      // Tied to PRODUCTION, which is the whole point. This asserted
-      // `shapes.toHaveLength(12)` until review caught it — `shapes` is this
-      // file's own array, so it counted itself: a thirteenth row added to
-      // `SHAPES` left the suite green while that shape was asserted by
-      // nothing, the exact scenario the comment claimed to prevent. A
-      // hand-written expectation checked against a hand-written list is not a
-      // fence, it is a mirror.
-      //
-      // Order is asserted with it, so the two ties that make the table correct
-      // — `secret` before `token`, `domain` before `deployment` — are enforced
-      // rather than trusted to a comment.
-      expect(shapes.map(([on]) => on)).toEqual(SHAPES.map((shape) => shape.on));
+    it('covers every row of the table', () => {
+      // Tied to PRODUCTION. This once asserted a LENGTH against this file's own
+      // array — it counted itself, so a row added to the table left the suite
+      // green while that command was asserted by nothing, the exact scenario it
+      // claimed to prevent. A hand-written expectation checked against a
+      // hand-written list is a mirror, not a fence.
+      expect(ROWS.map(([key]) => key).sort()).toEqual(Object.keys(OUTPUTS).sort());
+    });
+
+    it('emits nothing under -q for a verdict with no identifier', () => {
+      // An invalid name has no normalized form, so a pipeline sees empty output
+      // and the exit code carries the answer.
+      formatOutput(
+        { valid: false, normalized: null, available: null, reason: 'bad' },
+        { operation: 'validate', resource: 'domain' },
+        { quiet: true },
+      );
+      expect(logs).toEqual([]);
     });
   });
 
@@ -646,7 +638,7 @@ describe('formatOutput router', () => {
           _dnsRecords: [{ type: 'A', name: '@', value: '1.2.3.4' }],
           _shareHash: 'abc',
         } as never,
-        {},
+        { operation: 'set', resource: 'domain' },
         { json: true },
       );
 
