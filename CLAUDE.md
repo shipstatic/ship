@@ -1045,15 +1045,21 @@ For a CLI user who has all three: `--token` flag → env → file, per value. Fo
 | `SHIP_PASSWORD` | Default for `--password <password>` on `ship deploy` / `ship deployments upload`. Empty string is normalized to absence (so unset CI variables don't accidentally protect a deploy). |
 | `SHIP_VIA` | Overrides the deploy `via` field (the CLI sends `'cli'` when unset). Used by integrations that **wrap the CLI as a subprocess** — the GitHub Action sets `SHIP_VIA=git`. In-process SDK consumers (e.g. the MCP server) set the same field as a programmatic `via` option on the SDK call (`ship.deployments.upload(..., { via: 'mcp' })`) — same destination, different mechanism. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
 
-**Every deploy names its surface; `via` is never empty by accident.** Each
-client owns its own string — `cli`, `git` (Action), `mcp`, `vsc`, `web` (the
-web apps) — and a direct SDK call falls back to `sdk`, applied at the single
-wire boundary in `api/http.ts` so it cannot differ per platform. There is
-deliberately no central registry of values: integrations outside this repo
-mint their own. What the default buys is that an absent `via` on a stored
-deployment means an unattributed caller (raw HTTP), never "probably the
-SDK" — the reading Vercel's `source` and every self-identifying SDK client
-(AWS, Stripe, OpenAI) assume.
+**Every deploy names its surface; `via` is never empty by accident.** The
+registry is `DeploymentVia` in `@shipstatic/types` — closed on purpose. Each
+client owns its member (`cli`, `git` for the Action, `mcp`, `vsc`, `web` for
+the web apps, `n8n`, `gpt`), and a direct SDK call falls back to `sdk`,
+applied at the single wire boundary in `api/http.ts` so it cannot differ per
+platform. A closed enum is what makes a surface's attribution the COMPILER's
+business: the vscode extension's `via: 'vsc'` stopped being a lockstep anyone
+had to remember the day the types pin landed there, and a typo'd value cannot
+silently store as `NULL` — `normalizeVia` drops what the vocabulary does not
+name, and the request option refuses it at compile time. Adding a
+distribution surface is a types PR, which is exactly the ceremony a new
+surface deserves. What the `sdk` default buys is that an absent `via` on a
+stored deployment means an unattributed caller (raw HTTP), never "probably
+the SDK" — the reading Vercel's `source` and every self-identifying SDK
+client (AWS, Stripe, OpenAI) assume.
 
 > **Doc placement note:** `SHIP_VIA` and `caller` are intentionally *not* in the public README's CLI Reference / SDK Deploy Options. They're ShipStatic-specific operational levers (analytics origin, rate-limit bucketing) that serve first-party integration code paths and stay in internal-tier surfaces (this file + JSDoc + the integrations submodules). Keep mechanisms of the same shape — platform-tier behavior shaping — in the same tier.
 >
