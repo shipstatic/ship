@@ -13,8 +13,11 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import {
   type Deployment,
+  DeploymentVia,
+  type DeploymentViaType,
   ErrorType,
   isShipError,
+  normalizeVia,
   ShipError,
   validateApiUrl,
   validateToken,
@@ -305,13 +308,20 @@ async function performDeploy(
   }
 
   const deployOptions: {
-    via: string;
+    via: DeploymentViaType;
     labels?: string[];
     password?: string;
     pathDetect?: boolean;
     spaDetect?: boolean;
     signal?: AbortSignal;
-  } = { via: process.env.SHIP_VIA || 'cli' };
+  } = {
+    // `SHIP_VIA` exists so a wrapper can relabel the origin — the GitHub
+    // Action sends `git`. An unrecognized label falls back to `cli` rather
+    // than riding along: the server silently drops what it does not know, so
+    // forwarding a typo recorded NOTHING, while the honest default records
+    // the truth (this deploy did come from the CLI).
+    via: normalizeVia(process.env.SHIP_VIA) ?? DeploymentVia.CLI,
+  };
 
   // Handle labels
   if (labels !== undefined) deployOptions.labels = labels;

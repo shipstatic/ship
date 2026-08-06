@@ -26,7 +26,14 @@ import type {
   TokenDeleteResponse,
   TokenListResponse,
 } from '@shipstatic/types';
-import { API_PATHS, DEFAULT_API, ShipError, validateIdempotencyKey } from '@shipstatic/types';
+import {
+  API_PATHS,
+  CALLER,
+  DEFAULT_API,
+  IDEMPOTENCY_KEY_CONSTRAINTS,
+  ShipError,
+  validateIdempotencyKey,
+} from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 import { validateDeployConfig, validateLabels, validatePassword } from '../lib/validation.js';
 import type {
@@ -259,7 +266,7 @@ export class ApiHttp extends SimpleEvents {
     // request rather than any single operation.
     return {
       ...this.globalHeaders,
-      ...(this.caller ? { 'X-Caller': this.caller } : {}),
+      ...(this.caller ? { [CALLER.HEADER]: this.caller } : {}),
       ...(await this.getAuthHeadersCallback()),
       ...customHeaders,
     };
@@ -348,7 +355,7 @@ export class ApiHttp extends SimpleEvents {
         method: 'POST',
         body,
         headers: idempotencyKey
-          ? { ...bodyHeaders, 'Idempotency-Key': idempotencyKey }
+          ? { ...bodyHeaders, [IDEMPOTENCY_KEY_CONSTRAINTS.HEADER]: idempotencyKey }
           : bodyHeaders,
         signal: options.signal || null,
       },
