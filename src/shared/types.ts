@@ -4,7 +4,7 @@
  * Core types come from @shipstatic/types, while SDK-specific types are defined here.
  */
 
-import type { DeploymentUploadOptions, StaticFile } from '@shipstatic/types';
+import type { DeploymentUploadOptions, DeploymentViaType, StaticFile } from '@shipstatic/types';
 
 // Re-export all types from @shipstatic/types for convenience.
 export * from '@shipstatic/types';
@@ -52,8 +52,13 @@ export interface DeployBodyContext {
    * `LABEL_CONSTRAINTS` (length and pattern, lowercased+trimmed).
    */
   labels?: string[];
-  /** Client identifier (`cli`, `sdk`, `web`). */
-  via?: string;
+  /**
+   * Which client is deploying — the same closed vocabulary the public option
+   * carries, not a second `string`. This context receives an already-narrowed
+   * value and passed it on widened, which made the narrowing stop one seam
+   * short of the wire.
+   */
+  via?: DeploymentViaType;
   /**
    * Optional plaintext password to protect the deployment.
    * Length: `PASSWORD_CONSTRAINTS.MIN_LENGTH` to `PASSWORD_CONSTRAINTS.MAX_LENGTH`
