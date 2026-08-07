@@ -24,7 +24,7 @@ import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { isShipError, ShipError, validateToken } from '@shipstatic/types';
+import { isShipError, MY_API_KEY_URL, ShipError, validateToken } from '@shipstatic/types';
 import { dim, green } from 'yoctocolors';
 import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
 import { parseShipFile } from './shiprc.js';
@@ -96,7 +96,7 @@ export async function runConfig(
   });
 
   console.log('');
-  console.log(`  ${applyDim('Create a free API key at')} https://my.shipstatic.com/api-key`);
+  console.log(`  ${applyDim('Create a free API key at')} ${MY_API_KEY_URL}`);
   console.log('');
 
   const prompt = existingToken ? `  Token (${applyDim(maskToken(existingToken))}): ` : '  Token: ';

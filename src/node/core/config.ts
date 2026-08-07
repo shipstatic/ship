@@ -9,12 +9,12 @@
  *
  * File-based config (`~/.shiprc`, `package.json` `"ship"` key) is the CLI's
  * responsibility — see `src/node/cli/shiprc.ts`. The SDK does not read files,
- * which is what lets embedded consumers (MCP, n8n, GitHub Action) construct
- * `new Ship({})` for anonymous deployments without leaking the host developer's
- * personal credentials.
+ * which is what lets embedded consumers (MCP, the VS Code extension, GitHub
+ * Action) construct `new Ship({})` for anonymous deployments without leaking
+ * the host developer's personal credentials.
  */
 
-import { ShipError } from '@shipstatic/types';
+import { SHIP_ENV, ShipError } from '@shipstatic/types';
 import { z } from 'zod';
 import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
 import { getENV } from '../../shared/lib/env.js';
@@ -36,8 +36,8 @@ const EnvConfigSchema = z.object(CREDENTIAL_FIELDS).strict();
  * than a regex because the set is small, fixed, and unambiguous.
  */
 const ENV_VAR_BY_FIELD: Record<string, string> = {
-  apiUrl: 'SHIP_API_URL',
-  token: 'SHIP_TOKEN',
+  apiUrl: SHIP_ENV.API_URL,
+  token: SHIP_ENV.TOKEN,
 };
 
 /**
@@ -54,8 +54,8 @@ export function readEnvConfig(): Partial<ShipClientOptions> {
   if (getENV() !== 'node') return {};
 
   const raw = {
-    apiUrl: process.env.SHIP_API_URL || undefined,
-    token: process.env.SHIP_TOKEN || undefined,
+    apiUrl: process.env[SHIP_ENV.API_URL] || undefined,
+    token: process.env[SHIP_ENV.TOKEN] || undefined,
   };
 
   try {
