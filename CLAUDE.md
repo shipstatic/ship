@@ -87,21 +87,12 @@ pnpm build                   # Build all bundles
 one short pointer — "see CLAUDE.md §…". The dated war story lives only here.**
 
 Narratives drift exactly like code does, and a story told in three places
-drifts three ways. Worse, much of what accumulates describes mechanisms a later
-change deletes: at one point `config.ts` opened with a 37-line account of a
-`JSON.parse` divergence whose parser no longer existed, and `formatters.ts`
-explained resolution-order ties that had become inexpressible.
-
-This is a correction, not a new convention. The rest of the platform already
-works this way — `cloudflare/api/src` carries 2 dated references across 90
-files, `cloudflare/router/src` none across 19, and the SDK half of this package
-none at all. The CLI files briefly carried 13 of the package's 18, one of them
-58% comment by line. That was drift toward narration, and it is being undone.
-
-What stays in code: the rule, the mechanism, and the non-obvious constraint —
-`this`-binding, registration order, why a cast is safe, why a check is
-canonical rather than textual. What moves here: dates, bug archaeology, and
-"it used to be X" where X is gone.
+drifts three ways — at one point `config.ts` opened with a 37-line account of
+a `JSON.parse` divergence whose parser no longer existed. What stays in code:
+the rule, the mechanism, and the non-obvious constraint — `this`-binding,
+registration order, why a cast is safe. What moves here: dates, bug
+archaeology, and "it used to be X" where X is gone. The rest of the platform
+already works this way.
 
 ## Core Patterns
 
@@ -298,22 +289,17 @@ caller happened to type. The resource noun is the CLI's own word, and because
 an acknowledgement is the resource noun carrying its key, that one `resource`
 both selects the field and writes the sentence.
 
-This regressed once, in `11fc633` ("the SDK reaches what the API offers"). The
-commit gave the delete methods real return types and, in the same diff, widened
-the formatter's branch from `result === undefined` to a test on the operation
-name — so the branch began intercepting the acknowledgement that commit had
-just plumbed through. `--json` emitted `{ success: "<slug> deployment
-removed" }`: prose in the data channel, a bare slug where the platform names
-an FQDN, and no `status` at all. Before that commit the CLI had been
-accidentally right, because a resolved result fell through to the shape
-router.
-
-Two things hold it now, and neither is a convention: `OutputContext` no longer
-carries the caller's argument at all — the field existed only to be echoed, so
-it went with the echo, and a sentence composed from input is now inexpressible
-— and `tests/node/cli/json-acknowledgements.test.ts` asserts the envelope for
-every deletion, including that deleting one deployment by slug and by hostname
-produces byte-identical output.
+This regressed once (`11fc633`): the commit that gave the delete methods real
+return types also widened the formatter's branch to a test on the operation
+name, intercepting the acknowledgement it had just plumbed through — `--json`
+emitted `{ success: "<slug> deployment removed" }`: prose in the data
+channel, a bare slug where the platform names an FQDN, no `status`. Two
+things hold it now, and neither is a convention: `OutputContext` no longer
+carries the caller's argument at all (the field existed only to be echoed, so
+a sentence composed from input is now inexpressible), and
+`tests/node/cli/json-acknowledgements.test.ts` asserts the envelope for every
+deletion — including that deleting by slug and by hostname produces
+byte-identical output.
 
 ### What a status means
 
@@ -441,38 +427,26 @@ CLI does not fall back to the caller's argument.
 
 **Shell completions are RENDERED from the tree, not shipped.**
 `renderCompletion(program, shell)` emits bash/zsh/fish, and
-`ship completion install` writes what it renders at that moment — so an
+`ship completion install` writes what it renders at that moment — an
 installed completion always matches the binary that installed it, which a
-copied file could never promise. Three hand-written scripts lived in
-`src/node/completions/` until 2026-07-29 and were the third, fourth and fifth
-statement of the command tree: `ship tokens get` shipped the previous day and
-completed in **zero** shells, `--limit`/`--cursor` were in none of them, `--ttl`
-in one (unscoped), and several descriptions had drifted word for word from
-Commander's. Generation also changed the arithmetic on accuracy — per-subcommand
-flags are free once derived, so they are now offered where a hand-maintained
-matrix never bothered. `tests/node/cli/completions.test.ts` quantifies over the
-whole tree; the smoke tier installs through the real binary and runs `bash -n` /
-`zsh -n` / `fish --no-execute`, because a real shell is the only thing that can
-say the output parses.
+copied file could never promise. Three hand-written scripts were the third,
+fourth and fifth statement of the command tree until 2026-07-29 (`ship tokens
+get` shipped the previous day and completed in **zero** shells;
+`--limit`/`--cursor` were in none of them). `tests/node/cli/completions.test.ts`
+quantifies over the whole tree; the smoke tier installs through the real
+binary and runs `bash -n` / `zsh -n` / `fish --no-execute`, because a real
+shell is the only thing that can say the output parses.
 
-**And so is scoped usage.** `handleUnknownSubcommand` — what a command GROUP
-runs when none of its own subcommands matched — took `(parentName,
-validSubcommands[])` by hand until 2026-07-30 and was the last hand-written
-restatement of the tree, the fifth statement after the three shell scripts
-generation had just deleted. It was stale in the same way and for the same
-reason: `ship tokens get` shipped on 2026-07-28, the array beside it was not
-updated, and `ship tokens bogus` answered `usage: ship tokens
-<list|create|delete>` while the derived completion one module over offered all
-four. It now reads `this.name()` and `subcommandsOf(this)` — Commander binds
-`this` to the command and collects the leftover words in `this.args` — so it
-takes no arguments, closes over nothing, and lives at module scope.
-
-The fence is in `tests/node/cli/unknown-commands.test.ts`, and it too is
-quantified over `buildProgram()`: the hand-written table that used to sit there
-carried the very defect it existed to catch, omitting `tokens` altogether. Note
-the consequence for word order — the printed list is now REGISTRATION order,
-which is also what `ship domains --help` and the completions show. One order,
-three surfaces. The front page keeps its own, by design.
+**And so is scoped usage.** `handleUnknownSubcommand` reads `this.name()` and
+`subcommandsOf(this)` — no arguments, no closure, module scope. Until
+2026-07-30 it took `(parentName, validSubcommands[])` by hand — the last
+hand-written restatement of the tree, stale the same way (`ship tokens bogus`
+offered three subcommands while the derived completion one module over
+offered four). Fenced in `tests/node/cli/unknown-commands.test.ts`,
+quantified over `buildProgram()` (the hand-written table it replaced carried
+the very defect it existed to catch). Consequence for word order: the printed
+list is REGISTRATION order — the same order `--help` and the completions
+show. One order, three surfaces; the front page keeps its own, by design.
 
 **The front page may curate, but not forget.** `helpText()` is hand-written and
 byte-pinned, so leaving a command off is legitimate — provided the omission is
@@ -535,50 +509,32 @@ a broken one; `touch ~/.shiprc` and any interrupted write produce one.
 
 ### One file, two commands, one idea of what it is
 
-`ship config` is the only WRITER of the file `shiprc.ts` is the only READER of.
-They held different ideas of it until 2026-07-30, in both directions, and both
-were user-visible:
-
-- The reader parses and validates against `CREDENTIAL_FIELDS`;
-  the writer parsed with a bare `JSON.parse` inside a `catch → {}`. So a
-  `.shiprc` the reader rejected BY NAME — `Invalid config in …` — read here as
-  "no existing config", and the wizard wrote `{}` over it. Token and `apiUrl`
-  gone, under a `saved to …` message. The natural response to the reader's
-  error is to run `ship config`, which made **the recovery path the
-  destructive one**.
-- Going the other way, "preserve every other field" preserved fields that make
-  the file UNLOADABLE. The reader's own rename hint reads `"apiKey" is no
-  longer supported — the key is now "token". Run \`ship config\` to rewrite
-  it`; doing so wrote `token` and KEPT `apiKey`, so the next command failed
-  with the identical error. **The advice was a loop.**
+`ship config` is the only WRITER of the file `shiprc.ts` is the only READER
+of. Until 2026-07-30 they held different ideas of it, in both directions: the
+writer's bare `JSON.parse` inside `catch → {}` read a file the reader
+rejected BY NAME as "no existing config" and wrote `{}` over it — token and
+`apiUrl` gone, under a `saved to …` message, making **the recovery path the
+destructive one**; and "preserve every other field" kept the very `apiKey`
+the reader's rename hint promised `ship config` would fix, so **the advice
+was a loop**.
 
 Both are one rule now: **the schema is the file.** `CREDENTIAL_FIELDS` is
-`.strict()`, so `token` and `apiUrl` are not merely the fields the wizard cares
-about — they are the only fields a `.shiprc` may legally hold. The writer
-rebuilds the file from `Object.keys(CREDENTIAL_FIELDS)` rather than mutating
-what it read, so a key the reader would reject cannot survive a rewrite;
-dropping one IS the repair the rename hint promises, and it is announced rather
-than done quietly. And it **refuses what it cannot parse** instead of replacing
-it, with `ErrorType.Config` and the writer's own closing clause — *the file was
-left unchanged* — because a file we cannot read is a file whose contents we
-cannot claim to preserve.
+`.strict()` — `token` and `apiUrl` are the only fields a `.shiprc` may
+legally hold. The writer rebuilds the file from
+`Object.keys(CREDENTIAL_FIELDS)` rather than mutating what it read (dropping
+a rejected key IS the repair the hint promises, announced rather than done
+quietly), and it **refuses what it cannot parse** instead of replacing it
+(`ErrorType.Config`, *the file was left unchanged*) — a file we cannot read
+is a file whose contents we cannot claim to preserve.
 
-**The FORMAT is shared outright.** `readExistingConfig` calls the reader's own
-`parseShipFile`. Getting here took two passes: the first fix repaired the
-schema layer and left a bare `JSON.parse` in the writer, which moved the
-divergence down one level rather than closing it — an empty file read as
-absent everywhere and as broken here.
-
-**One parse, two policies** is the whole statement: the reader parses then
-validates and rejects; the writer parses then repairs what the reader rejects.
-The schema layer diverges *on purpose* — the writer must accept `{apiKey}` in
-order to fix it — which is why the fence asserts format agreement only, per
-file, in `tests/node/cli/config.test.ts` ("one parse, two policies"): reader
-and writer are run over the same content and their verdicts compared, rather
-than each side being checked against a hand-written expectation of the other.
-When `.shiprc` became strict JSON in 2.0.0 that fence needed no structural
-change — only its `expected` column moved, on both sides at once, which is the
-fence working.
+**The FORMAT is shared outright** — `readExistingConfig` calls the reader's
+own `parseShipFile`. **One parse, two policies**: the reader parses then
+rejects; the writer parses then repairs what the reader rejects (it must
+accept `{apiKey}` in order to fix it). The fence therefore asserts format
+agreement only, per file (`tests/node/cli/config.test.ts`): reader and writer
+run over the same content and their verdicts are compared — when `.shiprc`
+became strict JSON in 2.0.0 that fence needed no structural change, only its
+`expected` column moved on both sides at once, which is the fence working.
 
 ### Composability
 
@@ -668,25 +624,18 @@ preferences: `Domain` carries a `deployment` field, so `domain` must precede
 must precede `token`.
 
 **The two channels were two independent `if/else` chains until 2026-07-30** —
-twelve branches and eleven, same discriminants, same order, nothing tying them.
-That is not a hypothetical hazard; it is a bug this CLI shipped. `tokens get`
-and `tokens delete` printed NOTHING under `-q` until 2026-07-29, because the
-quiet chain had a branch for the `tokens` COLLECTION and none for a single
-token while the text chain had both — so the one resource whose identifier you
-most want to pipe was the only one emitting none. A row cannot half-exist, and
-resolution order is now a property of the list rather than something two chains
-have to keep agreeing on.
-
-`SHAPES` is **exported for the suite**, and that tie is load-bearing rather than
-cosmetic. `tests/node/cli/formatters.unit.test.ts` pins a hand-written case per
-row — the values `-q` must emit — and then asserts its own list deep-equals
-`SHAPES.map(s => s.on)`. Without that last line the completeness check counted
-the test's own array and was a tautology: a thirteenth row added to `SHAPES`
-left the suite green while that shape was asserted by nothing, which is the
-precise scenario the check claimed to prevent (caught in review, 2026-07-30).
-Asserting the mapped list rather than a length also makes the two order ties
-above enforced rather than trusted to this paragraph. A fence must quantify over
-PRODUCTION and pin expectations by hand; both sides hand-written is a mirror.
+same discriminants, same order, nothing tying them — and it shipped a bug:
+`tokens get`/`tokens delete` printed NOTHING under `-q` (the quiet chain had
+a branch for the collection, none for a single token). A row cannot
+half-exist now; resolution order is a property of the list. `SHAPES` is
+**exported for the suite**, and that tie is load-bearing:
+`tests/node/cli/formatters.unit.test.ts` pins a hand-written case per row,
+then asserts its own list deep-equals `SHAPES.map(s => s.on)` — without that
+line the completeness check counted the test's own array and was a tautology
+(caught in review, 2026-07-30). Asserting the mapped list also makes the two
+order ties above enforced rather than trusted to this paragraph. A fence must
+quantify over PRODUCTION and pin expectations by hand; both sides
+hand-written is a mirror.
 
 A shape with no row falls through to `formatDetails`, deliberately — a future
 `GET /labels` shows its content on the first run rather than needing a
@@ -1074,14 +1023,6 @@ client (AWS, Stripe, OpenAI) assume.
 |------------|--------------|-------|
 | `deployments.upload()` | `POST /deployments` | Multipart upload |
 | ↳ `idempotencyKey` | header `Idempotency-Key` | Replays the original 201 within 24h instead of deploying twice. Key the ATTEMPT (run id, commit sha), never the try. |
-
-**Deploys get their own timeout ceilings — three budgets, one per kind of work.** 30s is right for a metadata read, where anything slower is a fault rather than a payload. A deploy is bounded by the platform instead: `DEPLOYMENT.MAX_TOTAL_SIZE` is 50MB, and 50MB in 30s needs ~13 Mbit/s of sustained UPLOAD — above most residential links — so a deployment the API permits was being aborted client-side, which is exactly the failure `Idempotency-Key` repairs. `DEFAULT_DEPLOY_TIMEOUT` is 5 minutes (50MB at ~1.4 Mbit/s).
-
-A **build or prerender** deploy is the third: it waits for work the SERVER does after the upload lands, so `DEFAULT_DEPLOY_BUILD_TIMEOUT` is **derived, not chosen** — written in code as `DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET`, so the name and the value compose the same way (`DEPLOY` plus `BUILD`; the deploy budget plus the build budget) and tuning either half carries. Raising that server constant must raise this one; they sit in different repos so nothing fences the pair, and the constraint is stated at both ends. `spa` does NOT qualify: it is local detection bounded by the AI tier's own 10s, and only build/prerender reach the build service.
-
-**Only the DEFAULTS split by operation** — an explicit `timeout` option governs every request including deploys, because a caller who names a ceiling asked for a ceiling, not for one with an exception.
-
-The correct instrument is an **idle timeout** — reset on progress, so it measures whether the connection is alive rather than whether the transfer has been long, which is the only formulation independent of payload size. It is blocked on upload-progress observation, which `fetch` cannot provide in the browser. Build it when someone wants a progress bar; the timeout falls out of that work for free.
 | `deployments.list()` | `GET /deployments` | Paginated — `{limit, cursor}` options (`--limit`/`--cursor` on the CLI; text mode prints a rerun hint while `--json` carries `cursor`) |
 | `deployments.get()` | `GET /deployments/:deployment` | |
 | `deployments.set()` | `PATCH /deployments/:deployment` | Labels only |
@@ -1104,6 +1045,12 @@ The correct instrument is an **idle timeout** — reset on progress, so it measu
 | `getLimits()` | `GET /limits` | Cached after init |
 | (internal) | `POST /spa-check` | SPA detection during upload — optional auth, anonymous callers allowed |
 | (internal) | `POST /upload` | Only via the `@internal` `deployEndpoint` option (`web/my`, `web/www`) |
+
+**Deploys get their own timeout ceilings — three budgets, one per kind of work.** 30s is right for a metadata read, where anything slower is a fault rather than a payload. A deploy is bounded by the platform instead: `DEPLOYMENT.MAX_TOTAL_SIZE` is 50MB, and 50MB in 30s needs ~13 Mbit/s of sustained UPLOAD — above most residential links — so a deployment the API permits was being aborted client-side, which is exactly the failure `Idempotency-Key` repairs. `DEFAULT_DEPLOY_TIMEOUT` is 5 minutes (50MB at ~1.4 Mbit/s).
+
+A **build or prerender** deploy is the third: it waits for work the SERVER does after the upload lands, so `DEFAULT_DEPLOY_BUILD_TIMEOUT` is **derived, not chosen** — written in code as `DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET`, so tuning either half carries. Raising that server constant must raise this one; they sit in different repos so nothing fences the pair, and the constraint is stated at both ends. `spa` does NOT qualify: it is local detection bounded by the AI tier's own 10s; only build/prerender reach the build service.
+
+**Only the DEFAULTS split by operation** — an explicit `timeout` option governs every request including deploys: a caller who names a ceiling asked for a ceiling, not for one with an exception. The correct long-term instrument is an **idle timeout** — reset on progress, the only formulation independent of payload size — blocked on upload-progress observation, which browser `fetch` cannot provide. Build it when someone wants a progress bar; the timeout falls out of that work for free.
 
 **Routes the API exposes that the SDK does not reach.** Two classes — do not
 conflate them:
