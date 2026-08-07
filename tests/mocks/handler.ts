@@ -206,6 +206,12 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
     // multipart form's `labels` (JSON array), `via`, and `password` fields are
     // persisted and echoed on the response.
     if (method === 'POST') {
+      // wire: middleware/idempotency.ts — a stored 201 replays verbatim, ahead
+      // of everything else the route would do, so a retry costs nothing.
+      const idempotencyKey = request.headers.get('Idempotency-Key')?.trim();
+      const replay = idempotencyKey ? state.idempotency.get(idempotencyKey) : undefined;
+      if (replay) return json(replay, 201, { 'Idempotency-Replay': 'true' });
+
       const anonymous = !request.headers.get('Authorization');
       const form = await request.formData().catch(() => null);
       const labelsField = form?.get('labels');
@@ -222,6 +228,8 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
         ...(typeof viaField === 'string' && viaField !== '' && { via: viaField }),
         password: typeof form?.get('password') === 'string',
       });
+      // Only 201s are stored — a failed attempt retries fresh.
+      if (idempotencyKey) state.idempotency.set(idempotencyKey, deployment);
       return json(deployment, 201);
     }
     return methodNotAllowed();

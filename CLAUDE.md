@@ -1043,6 +1043,7 @@ For a CLI user who has all three: `--token` flag → env → file, per value. Fo
 | Var | Purpose |
 |---|---|
 | `SHIP_PASSWORD` | Default for `--password <password>` on `ship deploy` / `ship deployments upload`. Empty string is normalized to absence (so unset CI variables don't accidentally protect a deploy). |
+| `SHIP_IDEMPOTENCY_KEY` | The SDK's `idempotencyKey` for `ship deploy` / `ship deployments upload` — a stored 201 replays instead of deploying twice (see the Backend Integration table). Empty string is normalized to absence, for the same reason `SHIP_PASSWORD` is: an unset CI variable must not collapse every deploy in a job into one replay. There is **no flag** — this is the whole CLI surface, and it exists for the integrations that wrap the CLI as a subprocess: the GitHub Action derives one key per workflow run, so re-running a job replays the original deployment rather than creating a second one. A shell user's `--idempotency-key` remains the open product call below. |
 | `SHIP_VIA` | Overrides the deploy `via` field (the CLI sends `'cli'` when unset). Used by integrations that **wrap the CLI as a subprocess** — the GitHub Action sets `SHIP_VIA=git`. In-process SDK consumers (e.g. the MCP server) set the same field as a programmatic `via` option on the SDK call (`ship.deployments.upload(..., { via: 'mcp' })`) — same destination, different mechanism. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
 
 **Every deploy names its surface; `via` is never empty by accident.** The
@@ -1133,12 +1134,21 @@ flagged decisions):* `GET /labels` (a real endpoint with no SDK method —
 a CLI user would plausibly want it), and an `--idempotency-key` CLI flag.
 The SDK half of that second one **shipped**: `deploy()` takes
 `idempotencyKey`, validates it through `validateIdempotencyKey`, and sends
-the header (see the Backend Integration table). Only the CLI has no way to
-name one, so a shell-driven retry — which is exactly the "agents that retry"
-case the API's contract targets — still cannot reach it. This paragraph
+the header (see the Backend Integration table). This paragraph
 claimed "the SDK/CLI never send the header" until 2026-07-30, which was
 true when written and stale thereafter. Neither item is drift, and neither
-should be added without the call. (List pagination, formerly in this list, shipped
+should be added without the call.
+
+**The FLAG is still open; the env var is not.** `SHIP_IDEMPOTENCY_KEY`
+landed 2026-08-07 (see "CLI-only env vars") because the two audiences are
+different and only one of them was blocked. A subprocess-wrapping
+integration has no other channel at all — it composes an argv it does not
+own and cannot reach a per-call SDK option — and the GitHub Action is that
+consumer, deriving a key per workflow run so a re-run replays. A shell user
+already has one (`SHIP_IDEMPOTENCY_KEY=… ship ./dist`), which is why the
+flag stays a product call rather than a gap: it would be a second way to
+say what the tier already says, and the reason to add it is ergonomics for
+humans, not reach. (List pagination, formerly in this list, shipped
 2026-07-27 as F1 and reached the last collection — tokens — on 2026-07-28;
 see the Backend Integration table.)
 
