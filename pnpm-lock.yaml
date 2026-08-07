@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@shipstatic/types':
-        specifier: 2.5.0-beta.21
-        version: 2.5.0-beta.21
       columnify:
         specifier: ^1.6.0
         version: 1.6.0
@@ -45,6 +42,9 @@ importers:
       '@biomejs/biome':
         specifier: 2.5.5
         version: 2.5.5
+      '@shipstatic/types':
+        specifier: 2.5.0-beta.21
+        version: 2.5.0-beta.21
       '@types/columnify':
         specifier: ^1.5.4
         version: 1.5.4

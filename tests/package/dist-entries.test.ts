@@ -71,4 +71,40 @@ describe('built package entries', () => {
     expect(required.ShipError).toBeDefined();
     expect(required.ErrorType?.Validation).toBe('validation_failed');
   });
+
+  it('the star re-export of @shipstatic/types survives into BOTH entries', async () => {
+    // `ShipError`/`ErrorType` above are ALSO re-exported BY NAME in
+    // shared/index.ts, so they stayed green on 2026-08-07 while the whole
+    // `export * from '@shipstatic/types'` expansion silently vanished from the
+    // built entries — 2.0.0-beta.16 shipped with 26 exports instead of ~76,
+    // and every consumer of the vocabulary (the MCP's PASSWORD_CONSTRAINTS
+    // interpolation, first) broke at import time. The names below arrive
+    // ONLY through the star, so they fence the expansion itself.
+    const star = [
+      'PASSWORD_CONSTRAINTS',
+      'validateToken',
+      'AuthMethod',
+      'DEPLOY_FIELDS',
+      'SHIP_ENV',
+    ];
+    const cjs = require(resolve(DIST, 'index.cjs'));
+    const esm = await import(pathToFileURL(resolve(DIST, 'index.js')).href);
+
+    for (const name of star) {
+      expect(cjs[name], `CJS entry lost '${name}' from the types star re-export`).toBeDefined();
+      expect(esm[name], `ESM entry lost '${name}' from the types star re-export`).toBeDefined();
+    }
+  });
+
+  it('@shipstatic/types is NEVER a runtime dependency', () => {
+    // The manifest half of the same 2026-08-07 escape: tsup auto-externalizes
+    // `dependencies`, so a types entry there flips the bundler from "inline
+    // the vocabulary" to "leave an import a consumer cannot resolve" — the
+    // exact mechanism that broke beta.16, via a version bump applied to the
+    // wrong key. Bundling requires the pin to live in devDependencies alone.
+    const pkg = require(resolve(DIST, '../package.json'));
+
+    expect(pkg.dependencies).not.toHaveProperty('@shipstatic/types');
+    expect(pkg.devDependencies).toHaveProperty('@shipstatic/types');
+  });
 });
