@@ -44,6 +44,16 @@ export interface MockState {
   domains: Domain[];
   tokens: Token[];
   verifyCooldown: Set<string>;
+  /**
+   * Stored 201s, keyed by `Idempotency-Key`.
+   *
+   * wire: `api/src/middleware/idempotency.ts` — the real key is
+   * `idempotency:{actor}:{sha256(key)}`, and the actor half is collapsed here
+   * because one mock serves one caller. What survives is the property a
+   * consumer depends on: a repeat of the same key replays the original
+   * deployment instead of creating a second one.
+   */
+  idempotency: Map<string, DeploymentCreateResponse>;
   findDeployment(idOrHostname: string): Deployment | undefined;
   createDeployment(
     anonymous: boolean,
@@ -68,6 +78,7 @@ export function createMockState(
     domains: [makeDomain(platformDomain(), { deployment: deploymentId(), links: 1, linked: now })],
     tokens: [],
     verifyCooldown: new Set(),
+    idempotency: new Map(),
 
     /** The API accepts a bare slug or the full hostname. wire: normalizeDeployment */
     findDeployment(idOrHostname) {

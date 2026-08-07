@@ -340,6 +340,61 @@ describe('CLI command tree (in-process)', () => {
     });
   });
 
+  describe('deploy: idempotency', () => {
+    // The env var is the CLI's whole surface for the SDK's `idempotencyKey`
+    // (there is no flag), and the consumer it exists for is an integration
+    // shelling out to `ship` — the GitHub Action, which derives one key per
+    // workflow run so a re-run replays rather than deploys twice.
+    it('SHIP_IDEMPOTENCY_KEY replays the first deployment instead of deploying twice', async () => {
+      const first = await runProgram(['--json', DEMO_SITE], {
+        env: { SHIP_IDEMPOTENCY_KEY: 'owner/repo-1658821493-deploy' },
+      });
+      const second = await runProgram(['--json', DEMO_SITE], {
+        env: { SHIP_IDEMPOTENCY_KEY: 'owner/repo-1658821493-deploy' },
+      });
+      expect(first.exitCode).toBe(0);
+      expect(second.exitCode).toBe(0);
+      expect(JSON.parse(second.stdout.trim()).deployment).toBe(
+        JSON.parse(first.stdout.trim()).deployment,
+      );
+    });
+
+    it('keys the attempt, not the tool — two keys are two deployments', async () => {
+      const first = await runProgram(['--json', DEMO_SITE], {
+        env: { SHIP_IDEMPOTENCY_KEY: 'owner/repo-1-deploy' },
+      });
+      const second = await runProgram(['--json', DEMO_SITE], {
+        env: { SHIP_IDEMPOTENCY_KEY: 'owner/repo-2-deploy' },
+      });
+      expect(JSON.parse(second.stdout.trim()).deployment).not.toBe(
+        JSON.parse(first.stdout.trim()).deployment,
+      );
+    });
+
+    it('treats an empty SHIP_IDEMPOTENCY_KEY as unset (CI/Docker convention)', async () => {
+      // An unset CI variable must not collapse every deploy in the job into
+      // one replay — the failure would be silent and would return the wrong
+      // site's URL.
+      const first = await runProgram(['--json', DEMO_SITE], {
+        env: { SHIP_IDEMPOTENCY_KEY: '' },
+      });
+      const second = await runProgram(['--json', DEMO_SITE], {
+        env: { SHIP_IDEMPOTENCY_KEY: '' },
+      });
+      expect(JSON.parse(second.stdout.trim()).deployment).not.toBe(
+        JSON.parse(first.stdout.trim()).deployment,
+      );
+    });
+
+    it('refuses an over-long key before any request (the SDK boundary relays)', async () => {
+      const result = await runProgram(['--json', DEMO_SITE], {
+        env: { SHIP_IDEMPOTENCY_KEY: 'x'.repeat(257) },
+      });
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stderr.trim()).message).toContain('at most 256 characters');
+    });
+  });
+
   // ---------------------------------------------------------------------------
   // Deployments resource commands
   // ---------------------------------------------------------------------------

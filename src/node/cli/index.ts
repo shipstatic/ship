@@ -311,6 +311,7 @@ async function performDeploy(
     via: DeploymentViaType;
     labels?: string[];
     password?: string;
+    idempotencyKey?: string;
     pathDetect?: boolean;
     spaDetect?: boolean;
     signal?: AbortSignal;
@@ -325,6 +326,16 @@ async function performDeploy(
 
   // Handle labels
   if (labels !== undefined) deployOptions.labels = labels;
+
+  // `SHIP_IDEMPOTENCY_KEY` is the subprocess-wrapping consumer's half of the
+  // SDK's `idempotencyKey` — the same tier and the same reason as
+  // `SHIP_PASSWORD`: an integration that shells out to `ship` has no other way
+  // to reach a per-call option. The GitHub Action derives one per workflow
+  // run, so pressing "re-run jobs" replays the original 201 instead of
+  // deploying twice. Empty is absence (CI sets unset variables to ""); the
+  // value itself is validated by the SDK, which is where the wire rule lives.
+  const idempotencyKey = process.env.SHIP_IDEMPOTENCY_KEY || undefined;
+  if (idempotencyKey !== undefined) deployOptions.idempotencyKey = idempotencyKey;
 
   // Empty password strings flow through to the SDK validator (clear length
   // error) instead of being silently dropped.
