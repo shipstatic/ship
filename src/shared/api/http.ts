@@ -32,6 +32,7 @@ import {
   DEFAULT_API,
   IDEMPOTENCY_KEY_CONSTRAINTS,
   ShipError,
+  SPA_CHECK_CONSTRAINTS,
   validateIdempotencyKey,
 } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
@@ -564,8 +565,12 @@ export class ApiHttp extends SimpleEvents {
   // ===========================================================================
 
   async checkSPA(files: StaticFile[], _options: ApiDeployOptions = {}): Promise<boolean> {
-    const indexFile = files.find((f) => f.path === 'index.html' || f.path === '/index.html');
-    if (!indexFile || indexFile.size > 100 * 1024) {
+    const indexFile = files.find(
+      (f) =>
+        f.path === SPA_CHECK_CONSTRAINTS.INDEX_FILE ||
+        f.path === `/${SPA_CHECK_CONSTRAINTS.INDEX_FILE}`,
+    );
+    if (!indexFile || indexFile.size > SPA_CHECK_CONSTRAINTS.MAX_INDEX_BYTES) {
       return false;
     }
 

@@ -43,7 +43,7 @@ keyed on a test variable, and a real constraint besides: anything wanting to
 read the tree had to be a test or pretend to be one. A module boundary says the
 same thing to every caller, without the conditional.
 
-The SDK proper has no filesystem dependency — the only ambient credential source is `SHIP_*` env vars. File-based config (`~/.shiprc`, or a `--config` path) lives entirely in `cli/shiprc.ts`. This is what makes `new Ship({})` safe to use in embedded contexts (MCP, n8n, GitHub Action) without leaking the host's `~/.shiprc` credentials.
+The SDK proper has no filesystem dependency — the only ambient credential source is `SHIP_*` env vars. File-based config (`~/.shiprc`, or a `--config` path) lives entirely in `cli/shiprc.ts`. This is what makes `new Ship({})` safe to use in embedded contexts (MCP, GitHub Action) without leaking the host's `~/.shiprc` credentials. (The n8n node is NOT an SDK consumer — zero runtime dependencies is n8n Cloud's verification requirement, so it speaks HTTP directly and its credential comes from n8n's own store.)
 
 ## Quick Reference
 
@@ -180,7 +180,7 @@ Browser `Ship` has no ambient source at all — the token comes from constructor
 
 #### Strict-isolation contract for embedded hosts
 
-The env-var fallback is **the** SDK contract. There is no programmatic opt-out — no `envFallback: false` flag, no `token: null` sentinel. Embedded SDK consumers (MCP, n8n, GitHub Action, library wrappers, multi-tenant integrations) are expected to manage `SHIP_TOKEN` at the process boundary:
+The env-var fallback is **the** SDK contract. There is no programmatic opt-out — no `envFallback: false` flag, no `token: null` sentinel. Embedded SDK consumers (MCP, GitHub Action, library wrappers, multi-tenant integrations) are expected to manage `SHIP_TOKEN` at the process boundary:
 
 - **Hosts that pass credentials explicitly** (e.g. MCP receives a token via its server config and forwards it to `new Ship({ token })`) get exactly what they expect — explicit args win, no surprises.
 - **Hosts that need strict isolation** (e.g. a multi-tenant runner where the deployer's identity must never leak into a customer's deployment) must scrub `SHIP_TOKEN` from the worker process or run the SDK in a sub-process with a clean env. The SDK trusts whatever env it sees.

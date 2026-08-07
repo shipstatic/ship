@@ -1,7 +1,7 @@
 /**
  * Node.js-specific deploy body creation.
  */
-import { ShipError } from '@shipstatic/types';
+import { DEPLOY_FIELDS, ShipError } from '@shipstatic/types';
 import type { DeployBody, DeployBodyContext, StaticFile } from '../../shared/types.js';
 
 export async function createDeployBody(
@@ -33,19 +33,19 @@ export async function createDeployBody(
 
     // 3. Create File and append — API derives Content-Type from extension
     const fileInstance = new File([file.content], file.path, { type: 'application/octet-stream' });
-    formData.append('files[]', fileInstance);
+    formData.append(DEPLOY_FIELDS.FILES, fileInstance);
     checksums.push(file.md5);
   }
 
-  formData.append('checksums', JSON.stringify(checksums));
+  formData.append(DEPLOY_FIELDS.CHECKSUMS, JSON.stringify(checksums));
 
-  if (labels && labels.length > 0) formData.append('labels', JSON.stringify(labels));
-  if (via) formData.append('via', via);
-  if (password) formData.append('password', password);
-  if (flags?.build) formData.append('build', 'true');
-  if (flags?.prerender) formData.append('prerender', 'true');
-  if (flags?.spa) formData.append('spa', 'true');
-  if (captcha) formData.append('captcha', captcha);
+  if (labels && labels.length > 0) formData.append(DEPLOY_FIELDS.LABELS, JSON.stringify(labels));
+  if (via) formData.append(DEPLOY_FIELDS.VIA, via);
+  if (password) formData.append(DEPLOY_FIELDS.PASSWORD, password);
+  if (flags?.build) formData.append(DEPLOY_FIELDS.BUILD, 'true');
+  if (flags?.prerender) formData.append(DEPLOY_FIELDS.PRERENDER, 'true');
+  if (flags?.spa) formData.append(DEPLOY_FIELDS.SPA, 'true');
+  if (captcha) formData.append(DEPLOY_FIELDS.CAPTCHA, captcha);
 
   const encoder = new FormDataEncoder(formData);
   const chunks = [];
