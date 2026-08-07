@@ -1129,8 +1129,7 @@ surface — added, then reverted, on 2026-07-28 for precisely this reason.
 The `*Resource` interfaces describe **the SDK's** contract, not the API's;
 the API's contract is its routes.
 
-*Open product questions (awaiting a call — see `HANDOVER-SHIP-OVERHAUL.md`
-flagged decisions):* `GET /labels` (a real endpoint with no SDK method —
+*Open product questions (awaiting a call):* `GET /labels` (a real endpoint with no SDK method —
 a CLI user would plausibly want it), and an `--idempotency-key` CLI flag.
 The SDK half of that second one **shipped**: `deploy()` takes
 `idempotencyKey`, validates it through `validateIdempotencyKey`, and sends
