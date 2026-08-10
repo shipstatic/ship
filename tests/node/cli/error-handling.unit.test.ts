@@ -143,6 +143,32 @@ describe('CLI Error Handling', () => {
       });
     });
 
+    describe('maintenance', () => {
+      // A closed platform is a STATE, not a fault, and the two neighbouring
+      // arms would both mis-serve it: the generic 5xx one advises "try again"
+      // (the message already says when), and `Api` at 503 is the platform's
+      // OTHER 503 — a dependency that failed.
+      it('relays the operator sentence and points at status, without advising a retry', () => {
+        const err = ShipError.maintenance(
+          'ShipStatic is briefly down for scheduled maintenance and will be back shortly.',
+        );
+
+        const message = getUserMessage(err);
+
+        expect(message).toBe(
+          'ShipStatic is briefly down for scheduled maintenance and will be back shortly — check https://status.shipstatic.com',
+        );
+        expect(message).not.toContain('try again');
+      });
+
+      it('is not read as a client fault, so the sentence is never swallowed', () => {
+        const err = ShipError.maintenance('Back at 14:30 UTC.');
+
+        expect(err.isClientError()).toBe(false);
+        expect(getUserMessage(err)).toContain('Back at 14:30 UTC');
+      });
+    });
+
     describe('edge cases', () => {
       it('should handle error with empty details', () => {
         const err = new ShipError(ErrorType.Api, 'Error', 500, {});
