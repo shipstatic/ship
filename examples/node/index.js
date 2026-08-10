@@ -4,7 +4,7 @@ async function deploy() {
   const directoryToDeploy = process.argv[2] || '.';
 
   const ship = new Ship({
-    apiKey: 'ship-1d11faea37a531a65ea8e8dbad6814d300a6aa5de95a47d6559b7ae287221160',
+    apiKey: 'ship-YOUR_API_KEY',
   });
 
   console.log('Deploying...');
