@@ -47,6 +47,17 @@
  * has never touched domains or tokens — but it was invisible; nobody could
  * say which contract points the real API actually verifies. Now the file says
  * so, row by row.
+ *
+ * **`ErrorType.Maintenance` has NO row here, deliberately.** Every point in
+ * this table is a per-call outcome: this request, against that route, answers
+ * that status. Maintenance is a platform STATE — while it is set, every route
+ * answers it, and while it is unset, no route can. Neither runner can produce
+ * one honestly: the live runner would have to close the dev API mid-suite, and
+ * a mock row would assert only that the mock was told to. Its end-to-end proof
+ * lives where the state can actually be observed — the API repo's post-deploy
+ * smoke (`cloudflare/api/smoke.mjs`), which detects a maintenance 503 and
+ * verifies the gate instead of reporting it as a fault. Read the absence as a
+ * decision, not as drift.
  */
 
 import { ErrorType } from '@shipstatic/types';

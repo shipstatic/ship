@@ -963,7 +963,14 @@ All errors use `ShipError` from `@shipstatic/types`. The class provides the full
 
 **CLI error UX** (`src/node/cli/error-handling.ts`) — pure functions, fully unit-testable:
 - `toShipError(err)` — normalizes any thrown value to a `ShipError` (used by the CLI's global error handler for non-fetch errors like Commander parse failures).
-- `getUserMessage(err, context, options)` — maps a `ShipError` to an actionable user-facing CLI string (auth → credential hints, network → connectivity, client/4xx → trust the API message, 5xx → generic "try again"). **Text channel only.**
+- `getUserMessage(err, context, options)` — maps a `ShipError` to an actionable user-facing CLI string (auth → credential hints, network → connectivity, maintenance → the operator's sentence + where to watch, client/4xx → trust the API message, 5xx → generic "try again"). **Text channel only.**
+
+  The maintenance arm sits between network and client for a reason: a closed
+  platform is neither the caller's fault nor a transport failure nor a server
+  fault, and each neighbouring arm would mis-serve it. It relays the sentence
+  and appends the status URL but **never "try again"** — that advice belongs to
+  the 5xx arm, which has nothing better to say, whereas a maintenance message
+  states when. See root `plan-maintenance-mode.md`.
 
 There is deliberately no JSON formatter in this module. `--json` serialization
 is `ShipError.toResponse()`, emitted by `error()` in `utils.ts` — a second

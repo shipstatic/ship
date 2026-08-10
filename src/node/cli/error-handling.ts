@@ -19,7 +19,7 @@
  * original message rather than swallowing it as a generic "server error".
  */
 
-import { isShipError, ShipError } from '@shipstatic/types';
+import { ErrorType, isShipError, ShipError } from '@shipstatic/types';
 
 /**
  * Normalize any thrown value to a `ShipError` for the CLI error boundary.
@@ -70,6 +70,16 @@ export function getUserMessage(err: ShipError, options?: ErrorOptions): string {
   // `ShipError.fromFetchError` carries `{ cause }` — so the branch was dead.)
   if (err.isNetworkError()) {
     return 'network error: could not reach the API. check your internet connection';
+  }
+
+  // Maintenance — a state, not a fault. The platform is closed on purpose, so
+  // the API's sentence is the whole answer and it is relayed verbatim; the CLI
+  // adds only the one thing the server cannot, where to watch for the
+  // all-clear. Deliberately NOT the generic 5xx arm's "try again": that arm
+  // advises a retry because it has nothing better to say, and here the message
+  // itself says when.
+  if (err.isType(ErrorType.Maintenance)) {
+    return `${err.message.replace(/\.$/, '')} — check https://status.shipstatic.com`;
   }
 
   // Client-attributable — a client-fault type, or any 4xx status (the guard
