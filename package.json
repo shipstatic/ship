@@ -37,6 +37,7 @@
     "typecheck": "tsc -p tsconfig.check.json --noEmit",
     "clean": "rm -rf dist",
     "build": "pnpm run clean && tsup && node scripts/post-build.cjs",
+    "prepack": "pnpm run build",
     "prepare": "git config core.hooksPath scripts/githooks",
     "lint": "biome check .",
     "format": "biome format --write .",
@@ -109,5 +110,9 @@
     "vite": "^8.1.5",
     "vitest": "4.1.10"
   },
-  "packageManager": "pnpm@10.12.4"
+  "packageManager": "pnpm@10.12.4",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }
