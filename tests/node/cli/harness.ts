@@ -22,10 +22,12 @@ import { join } from 'node:path';
 import { CommanderError } from 'commander';
 import { vi } from 'vitest';
 import { buildProgram } from '../../../src/node/cli/index';
+import { apiKey } from '../../fixtures/builders';
 import { getMockServerUrl } from '../../mocks/server';
 
-/** 69 chars: `ship-` + 64 hex — passes the platform's own token validator. */
-export const TEST_TOKEN = `ship-${'1234567890abcdef'.repeat(4)}`;
+/** Built from the shape constants — a literal here would stop passing
+ * the platform's own validator the day the width moved. */
+export const TEST_TOKEN = apiKey('1');
 
 const EMPTY_CONFIG = join(mkdtempSync(join(tmpdir(), 'ship-inproc-')), 'shiprc.json');
 writeFileSync(EMPTY_CONFIG, '{}\n');

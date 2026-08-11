@@ -13,9 +13,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Ship from '../../../src/node';
+import { apiKey } from '../../fixtures/builders';
 import { getMockServerUrl, resetMockServer } from '../../mocks/server';
 
-const API_KEY = `ship-${'a'.repeat(64)}`;
+const API_KEY = apiKey('a');
 
 const site = mkdtempSync(join(tmpdir(), 'ship-claim-test-'));
 writeFileSync(join(site, 'index.html'), '<html>claim me</html>');

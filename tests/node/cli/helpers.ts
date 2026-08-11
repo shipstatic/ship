@@ -20,6 +20,7 @@ import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { apiKey } from '../../fixtures/builders';
 import { getMockServerUrl } from '../../mocks/server';
 
 const PACKAGE_ROOT = path.resolve(__dirname, '../../..');
@@ -29,8 +30,9 @@ export const CLI_PATH = path.join(PACKAGE_ROOT, 'dist/cli.cjs');
 // Resolved per call: the mock server binds an ephemeral port, so the URL is
 // only known after `setup-server.ts`'s beforeAll has run.
 
-/** 69 chars: `ship-` + 64 hex — passes the platform's own token validator. */
-const TEST_TOKEN = 'ship-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+/** Built from the shape constants — a literal here would stop passing
+ * the platform's own validator the day the width moved. */
+const TEST_TOKEN = apiKey('1');
 
 // =============================================================================
 // DIST FRESHNESS GUARD

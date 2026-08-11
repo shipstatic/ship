@@ -16,7 +16,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
-import { ErrorType } from '@shipstatic/types';
+import { API_KEY, DEPLOY_TOKEN, ErrorType } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
 import { A_RECORD_IP, CNAME_TARGET, deploymentId } from '../../fixtures/builders';
 import { mockState } from '../../mocks/server';
@@ -217,7 +217,9 @@ describe('CLI command tree (in-process)', () => {
       const result = await runProgram(['--json', DEMO_SITE], { anonymous: true });
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.claim).toMatch(/^https:\/\/my\.shipstatic\.com\/claim\/[a-f0-9]{64}$/);
+      expect(output.claim).toMatch(
+        new RegExp(`^https://my\\.shipstatic\\.com/claim/[a-f0-9]{${API_KEY.HEX_LENGTH}}$`),
+      );
       expect(output.expires).toBeGreaterThan(output.created);
     });
 
@@ -700,7 +702,9 @@ describe('CLI command tree (in-process)', () => {
       const result = await runProgram(['--json', 'tokens', 'create']);
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
-      expect(output.secret).toMatch(/^deploy-[0-9a-f]{64}$/);
+      expect(output.secret).toMatch(
+        new RegExp(`^${DEPLOY_TOKEN.PREFIX}[0-9a-f]{${DEPLOY_TOKEN.HEX_LENGTH}}$`),
+      );
       expect(output.labels).toEqual([]);
     });
 
@@ -738,7 +742,9 @@ describe('CLI command tree (in-process)', () => {
     it('create -q prints exactly the secret (the value you pipe forward)', async () => {
       const result = await runProgram(['-q', 'tokens', 'create']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toMatch(/^deploy-[0-9a-f]{64}$/);
+      expect(result.stdout.trim()).toMatch(
+        new RegExp(`^${DEPLOY_TOKEN.PREFIX}[0-9a-f]{${DEPLOY_TOKEN.HEX_LENGTH}}$`),
+      );
     });
 
     it('get resolves one token — the same row the listing shows', async () => {

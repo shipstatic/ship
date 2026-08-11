@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import BrowserDefault, { Ship } from '../../src/browser/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
 import type { Fetch } from '../../src/shared/types';
-import { FREE_PLAN_LIMITS } from '../fixtures/builders';
+import { deployToken, FREE_PLAN_LIMITS } from '../fixtures/builders';
 
 // Mock browser file processing
 vi.mock('../../src/browser/core/browser-files', () => ({
@@ -17,7 +17,7 @@ vi.mock('../../src/browser/core/browser-files', () => ({
 }));
 
 // Deploy token in the canonical format: 'deploy-' + 64 hex chars
-const TEST_DEPLOY_TOKEN = `deploy-${'a'.repeat(64)}`;
+const TEST_DEPLOY_TOKEN = deployToken('a');
 
 describe('Ship - Browser Implementation', () => {
   beforeEach(() => {

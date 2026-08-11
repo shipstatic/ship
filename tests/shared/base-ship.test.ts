@@ -9,6 +9,7 @@
  * (`ShipClientOptions.fetch`), so the test dogfoods it, and nothing global is
  * mutated for other files to trip over.
  */
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
 import type {
@@ -18,6 +19,7 @@ import type {
   Fetch,
   StaticFile,
 } from '../../src/shared/types';
+import { apiKey } from '../fixtures/builders';
 
 const mockDeployBodyCreator: DeployBodyCreator = async (_files, _context) => ({
   body: new ArrayBuffer(0),
@@ -25,7 +27,7 @@ const mockDeployBodyCreator: DeployBodyCreator = async (_files, _context) => ({
 });
 
 /** API key in the canonical format: `ship-` + 64 hex. */
-const TEST_API_KEY = `ship-${'a'.repeat(64)}`;
+const TEST_API_KEY = apiKey('a');
 
 const INDEX_HTML: StaticFile = {
   path: 'index.html',

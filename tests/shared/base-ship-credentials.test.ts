@@ -7,9 +7,10 @@ import type {
   DeploymentOptions,
   StaticFile,
 } from '../../src/shared/types';
+import { apiKey, deployToken } from '../fixtures/builders';
 
-const TEST_API_KEY = `ship-${'a'.repeat(64)}`;
-const TEST_DEPLOY_TOKEN = `deploy-${'b'.repeat(64)}`;
+const TEST_API_KEY = apiKey('a');
+const TEST_DEPLOY_TOKEN = deployToken('b');
 
 const mockDeployBodyCreator: DeployBodyCreator = async () => ({
   body: new ArrayBuffer(0),

@@ -23,6 +23,7 @@ import type {
   Token,
   TokenCreateResponse,
 } from '@shipstatic/types';
+import { API_KEY, DEPLOY_TOKEN } from '@shipstatic/types';
 
 // =============================================================================
 // PLATFORM CONSTANTS (wire truth)
@@ -78,14 +79,26 @@ export const timestamps = {
  */
 export const deploymentId = (slug = 'brave-otter-a1b2c3d') => `${slug}.${PLATFORM_DOMAIN}`;
 
-/** `ship-` + 64 hex (69 chars). wire: types API_KEY */
-export const apiKey = (fill = 'a') => `ship-${fill.repeat(64)}`;
+/**
+ * The two prefixed credential populations, built from their own shape
+ * constants. The widths are READ, never written: this file exists because
+ * fixtures that fail the platform's real validators calibrate tests against
+ * inputs no user can send, and a hand-typed length is the version of that
+ * mistake which only appears the day the shape moves. wire: types API_KEY
+ */
+export const apiKey = (fill = 'a') => `${API_KEY.PREFIX}${fill.repeat(API_KEY.HEX_LENGTH)}`;
 
-/** `deploy-` + 64 hex (71 chars). wire: types DEPLOY_TOKEN */
-export const deployToken = (fill = 'b') => `deploy-${fill.repeat(64)}`;
+/** wire: types DEPLOY_TOKEN — same width as `apiKey` by the shape law. */
+export const deployToken = (fill = 'b') =>
+  `${DEPLOY_TOKEN.PREFIX}${fill.repeat(DEPLOY_TOKEN.HEX_LENGTH)}`;
 
-/** Claim URL: 32 random bytes as hex, on the `my.` host. wire: deployment-orchestrator.ts:309 */
-export const claimUrl = (code = 'c'.repeat(64)) => `https://my.${PLATFORM_DOMAIN}/claim/${code}`;
+/**
+ * Claim URL, on the `my.` host. The code is unprefixed by the shape law — it
+ * arrives at its own route, so the path is what names it — and shares the
+ * platform's one entropy width. wire: deployment-orchestrator.ts
+ */
+export const claimUrl = (code = 'c'.repeat(API_KEY.HEX_LENGTH)) =>
+  `https://my.${PLATFORM_DOMAIN}/claim/${code}`;
 
 /** A platform domain label must be at least 6 chars. wire: createDomainCreateSchema */
 export const platformDomain = (label = 'staging-site') => `${label}.${PLATFORM_DOMAIN}`;

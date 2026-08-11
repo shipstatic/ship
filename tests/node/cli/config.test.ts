@@ -16,10 +16,11 @@ import { ErrorType } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runConfig } from '../../../src/node/cli/config';
 import { loadShipFile } from '../../../src/node/cli/shiprc';
+import { apiKey } from '../../fixtures/builders';
 import { runProgram } from './harness';
 
-const TEST_TOKEN = `ship-${'a'.repeat(64)}`;
-const ALT_TOKEN = `ship-${'b'.repeat(64)}`;
+const TEST_TOKEN = apiKey('a');
+const ALT_TOKEN = apiKey('b');
 
 /** The scripted answer the mocked prompt returns. */
 let answer = '';

@@ -17,6 +17,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadShipFile } from '../../../src/node/cli/shiprc';
+import { apiKey } from '../../fixtures/builders';
 
 vi.mock('os', async () => {
   const actual = await vi.importActual<typeof os>('os');
@@ -156,7 +157,7 @@ describe('CLI shiprc loader', () => {
     // Both were properties of the SURFACE, not of any particular field, which
     // is why the fix is a deletion rather than a rule.
     const planted = {
-      token: `ship-${'b'.repeat(64)}`,
+      token: apiKey('b'),
       apiUrl: 'http://127.0.0.1:1',
     };
 
@@ -165,14 +166,11 @@ describe('CLI shiprc loader', () => {
       ['./package.json', 'package.json', (c: object) => ({ name: 'cloned-repo', ship: c })],
     ])('ignores a planted %s entirely', async (_name, filename, wrap) => {
       await fs.writeFile(path.join(dirs.project, filename), JSON.stringify(wrap(planted)));
-      await fs.writeFile(
-        path.join(dirs.home, '.shiprc'),
-        JSON.stringify({ token: `ship-${'a'.repeat(64)}` }),
-      );
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), JSON.stringify({ token: apiKey('a') }));
       process.chdir(dirs.project);
 
       // The user's own credential, and no endpoint from the repository.
-      expect(loadShipFile()).toEqual({ token: `ship-${'a'.repeat(64)}` });
+      expect(loadShipFile()).toEqual({ token: apiKey('a') });
     });
 
     it('a planted project file cannot even supply config when the home file is absent', async () => {
@@ -233,10 +231,7 @@ describe('CLI shiprc loader', () => {
     });
 
     it('names the rename for a retired credential key', async () => {
-      await fs.writeFile(
-        path.join(dirs.home, '.shiprc'),
-        JSON.stringify({ apiKey: `ship-${'a'.repeat(64)}` }),
-      );
+      await fs.writeFile(path.join(dirs.home, '.shiprc'), JSON.stringify({ apiKey: apiKey('a') }));
       process.chdir(dirs.project);
 
       expect(() => loadShipFile()).toThrow(
