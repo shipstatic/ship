@@ -16,9 +16,10 @@ import path from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../src/node';
 import { CONTRACT, type ContractContext, expected, observe } from './contract';
+import { apiKey } from './fixtures/builders';
 import { getMockServerUrl } from './mocks/server';
 
-const API_KEY = `ship-${'a'.repeat(64)}`;
+const API_KEY = apiKey('a');
 /** The same fixture the e2e half deploys, so both halves upload like a user. */
 const DEMO_SITE = path.resolve(__dirname, './fixtures/demo-site');
 

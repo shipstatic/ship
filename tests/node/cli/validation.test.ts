@@ -12,7 +12,9 @@
  * validity is the server's to decide.
  */
 
+import { API_KEY, DEPLOY_TOKEN } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
+import { apiKey, deployToken } from '../../fixtures/builders';
 import { runProgram } from './harness';
 
 describe('CLI validation', () => {
@@ -20,29 +22,31 @@ describe('CLI validation', () => {
     it('rejects a ship- token with wrong length', async () => {
       const result = await runProgram(['--token', 'ship-short', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('API key must be 69 characters total');
+      expect(result.stderr).toContain(`API key must be ${API_KEY.TOTAL_LENGTH} characters total`);
     });
 
     it('rejects a ship- token with invalid hex chars', async () => {
-      const result = await runProgram(['--token', `ship-${'g'.repeat(64)}`, 'ping']);
+      const result = await runProgram(['--token', apiKey('g'), 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('must contain 64 hexadecimal characters');
+      expect(result.stderr).toContain(`must contain ${API_KEY.HEX_LENGTH} hexadecimal characters`);
     });
 
     it('rejects a deploy- token with wrong length', async () => {
       const result = await runProgram(['--token', 'deploy-short', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('deploy token must be 71 characters total');
+      expect(result.stderr).toContain(
+        `deploy token must be ${DEPLOY_TOKEN.TOTAL_LENGTH} characters total`,
+      );
     });
 
     it('accepts a valid API key', async () => {
-      const result = await runProgram(['--token', `ship-${'a'.repeat(64)}`, '--help']);
+      const result = await runProgram(['--token', apiKey('a'), '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
     });
 
     it('accepts a valid deploy token', async () => {
-      const result = await runProgram(['--token', `deploy-${'a'.repeat(64)}`, '--help']);
+      const result = await runProgram(['--token', deployToken('a'), '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('USAGE');
     });
@@ -106,7 +110,7 @@ describe('CLI validation', () => {
     it('validates before any network call — the hook rejects, not the server', async () => {
       const result = await runProgram(['--token', 'ship-invalid', 'ping']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('API key must be 69 characters total');
+      expect(result.stderr).toContain(`API key must be ${API_KEY.TOTAL_LENGTH} characters total`);
     });
   });
 });

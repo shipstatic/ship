@@ -18,6 +18,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/node/index';
 import { SimpleEvents } from '../../src/shared/events';
 import type { Fetch } from '../../src/shared/types';
+import { apiKey } from '../fixtures/builders';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -213,7 +214,7 @@ describe('Ship event delegation', () => {
   }
 
   const newShip = (fetch: Fetch) =>
-    new Ship({ apiUrl: 'https://api.example.com', token: `ship-${'a'.repeat(64)}`, fetch });
+    new Ship({ apiUrl: 'https://api.example.com', token: apiKey('a'), fetch });
 
   it('hands the response event a body that is still readable', async () => {
     // The emitted Response is a clone; handing out the original would consume
@@ -285,7 +286,7 @@ describe('Ship event delegation', () => {
 
     await ship.ping();
 
-    expect(auth).toEqual([`Bearer ship-${'a'.repeat(64)}`]);
+    expect(auth).toEqual([`Bearer ${apiKey('a')}`]);
   });
 
   it('emits an error event when the transport fails', async () => {

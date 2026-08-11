@@ -2,6 +2,7 @@ import { ErrorType, ShipError } from '@shipstatic/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http';
 import type { Fetch } from '../../../src/shared/types';
+import { deployToken } from '../../fixtures/builders';
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -1065,7 +1066,7 @@ describe('ApiHttp', () => {
     it('should create token with ttl', async () => {
       const mockResponse = {
         token: 'a1b2c3d',
-        secret: 'deploy-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        secret: deployToken('1'),
         expires: 1234567890,
         labels: [],
       };
@@ -1089,7 +1090,7 @@ describe('ApiHttp', () => {
     it('should create token with labels', async () => {
       const mockResponse = {
         token: 'd3f4567',
-        secret: 'deploy-d3f4567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        secret: deployToken('d'),
         expires: 1234567890,
         labels: ['cicd', 'deploy'],
       };

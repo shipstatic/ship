@@ -20,6 +20,7 @@ import type {
   PingResponse,
   TokenListResponse,
 } from '@shipstatic/types';
+import { API_KEY } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   formatDeployment,
@@ -29,6 +30,7 @@ import {
 } from '../../../src/node/cli/formatters';
 import type { CLIResult } from '../../../src/node/cli/types';
 import {
+  claimUrl,
   makeAccountRow,
   makeDeployment,
   makeDnsRecords,
@@ -38,7 +40,7 @@ import {
 } from '../../fixtures/builders';
 
 const NOW = 1_700_000_000;
-const CLAIM_URL = `https://my.shipstatic.com/claim/${'a'.repeat(64)}`;
+const CLAIM_URL = claimUrl('a'.repeat(API_KEY.HEX_LENGTH));
 
 const anonymousDeployment = {
   deployment: 'proud-falcon-a1b2c3',

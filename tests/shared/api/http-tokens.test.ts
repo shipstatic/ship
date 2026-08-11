@@ -11,7 +11,7 @@
  * public route (wire: routes/tokens.ts:56-58).
  */
 
-import { ErrorType } from '@shipstatic/types';
+import { DEPLOY_TOKEN, ErrorType } from '@shipstatic/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../../src/node';
 import { apiKey, timestamps } from '../../fixtures/builders';
@@ -35,7 +35,9 @@ describe('token operations', () => {
       expect(created.token).toMatch(/^[a-z0-9]{7}$/);
       // The secret is the credential the user pastes; a shape the platform's
       // own validator would reject is not a useful fixture.
-      expect(created.secret).toMatch(/^deploy-[0-9a-f]{64}$/);
+      expect(created.secret).toMatch(
+        new RegExp(`^${DEPLOY_TOKEN.PREFIX}[0-9a-f]{${DEPLOY_TOKEN.HEX_LENGTH}}$`),
+      );
       expect(created.labels).toEqual([]);
       expect(created.expires).toBeNull();
     });

@@ -8,9 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship as BrowserShip } from '../../src/browser/index';
 import { Ship as NodeShip } from '../../src/node/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
+import { deployToken } from '../fixtures/builders';
 
 // Deploy token in the canonical format: 'deploy-' + 64 hex chars
-const TEST_DEPLOY_TOKEN = `deploy-${'a'.repeat(64)}`;
+const TEST_DEPLOY_TOKEN = deployToken('a');
 
 describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
   const mockLimits: PlatformLimits = {
