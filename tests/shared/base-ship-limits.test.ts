@@ -10,7 +10,7 @@ import { Ship as NodeShip } from '../../src/node/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
 import { deployToken } from '../fixtures/builders';
 
-// Deploy token in the canonical format: 'deploy-' + 64 hex chars
+// A deploy token in the platform's canonical shape, built from its constants
 const TEST_DEPLOY_TOKEN = deployToken('a');
 
 describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {

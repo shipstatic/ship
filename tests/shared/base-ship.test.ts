@@ -26,7 +26,7 @@ const mockDeployBodyCreator: DeployBodyCreator = async (_files, _context) => ({
   headers: { 'Content-Type': 'multipart/form-data' },
 });
 
-/** API key in the canonical format: `ship-` + 64 hex. */
+/** An API key in the platform's canonical shape, built from its constants. */
 const TEST_API_KEY = apiKey('a');
 
 const INDEX_HTML: StaticFile = {

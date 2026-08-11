@@ -16,7 +16,7 @@ vi.mock('../../src/browser/core/browser-files', () => ({
     ]),
 }));
 
-// Deploy token in the canonical format: 'deploy-' + 64 hex chars
+// A deploy token in the platform's canonical shape, built from its constants
 const TEST_DEPLOY_TOKEN = deployToken('a');
 
 describe('Ship - Browser Implementation', () => {
