@@ -93,12 +93,12 @@ export const deployToken = (fill = 'b') =>
   `${DEPLOY_TOKEN.PREFIX}${fill.repeat(DEPLOY_TOKEN.HEX_LENGTH)}`;
 
 /**
- * Claim URL, on the `my.` host: the plural collection, then a `claim-` code at
- * the platform's one entropy width — the third minted population, named by its
- * prefix like the other two. wire: deployment-orchestrator.ts
+ * Claim URL, on the `my.` host: the singular door, then a bare code at the
+ * platform's one entropy width — the claim never rides the Bearer slot, so
+ * it carries no population prefix. wire: deployment-orchestrator.ts
  */
-export const claimUrl = (code = `claim-${'c'.repeat(API_KEY.HEX_LENGTH)}`) =>
-  `https://my.${PLATFORM_DOMAIN}/claims/${code}`;
+export const claimUrl = (code = 'c'.repeat(API_KEY.HEX_LENGTH)) =>
+  `https://my.${PLATFORM_DOMAIN}/claim/${code}`;
 
 /** A platform domain label must be at least 6 chars. wire: createDomainCreateSchema */
 export const platformDomain = (label = 'staging-site') => `${label}.${PLATFORM_DOMAIN}`;
