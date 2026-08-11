@@ -93,9 +93,9 @@ export const deployToken = (fill = 'b') =>
   `${DEPLOY_TOKEN.PREFIX}${fill.repeat(DEPLOY_TOKEN.HEX_LENGTH)}`;
 
 /**
- * Claim URL, on the `my.` host. The code is unprefixed by the shape law — it
- * arrives at its own route, so the path is what names it — and shares the
- * platform's one entropy width. wire: deployment-orchestrator.ts
+ * Claim URL, on the `my.` host: the plural collection, then a `claim-` code at
+ * the platform's one entropy width — the third minted population, named by its
+ * prefix like the other two. wire: deployment-orchestrator.ts
  */
 export const claimUrl = (code = `claim-${'c'.repeat(API_KEY.HEX_LENGTH)}`) =>
   `https://my.${PLATFORM_DOMAIN}/claims/${code}`;
