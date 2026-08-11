@@ -24,7 +24,14 @@ import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { isShipError, MY_API_KEY_URL, ShipError, validateToken } from '@shipstatic/types';
+import {
+  API_KEY,
+  DEPLOY_TOKEN,
+  isShipError,
+  MY_API_KEY_URL,
+  ShipError,
+  validateToken,
+} from '@shipstatic/types';
 import { dim, green } from 'yoctocolors';
 import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
 import { parseShipFile } from './shiprc.js';
@@ -41,12 +48,28 @@ const ALLOWED_KEYS = Object.keys(CREDENTIAL_FIELDS);
 const defaultConfigPath = () => join(homedir(), '.shiprc');
 
 /**
- * Mask a token for display: ship-a1b2...c3d4. A token too short to keep a
- * useful prefix + suffix is masked entirely — never printed verbatim.
+ * Mask a token for display: `ship-a1b2...c3d4`.
+ *
+ * Both ends read `API_KEY` rather than counting characters. The tail is
+ * `HINT_LENGTH`, which is the same last-4 the SERVER stores as a key's hint —
+ * two surfaces showing one thing, so a change to what a hint IS moves both.
+ * The head keeps the prefix plus that many characters, which also fixes an
+ * asymmetry a literal 9 could not: `ship-` and `deploy-` are different
+ * lengths, so a fixed head revealed 4 hex of one and 2 of the other.
+ *
+ * The floor is what makes masking honest: below it the two windows would
+ * overlap and print more of the secret than they hide, so such a value is
+ * masked entirely rather than partially. It is expressed in the constants
+ * too — halving the credential width doubled the fraction a fixed 9/-4
+ * revealed, and a literal would have hidden that.
  */
+const HINT = API_KEY.HINT_LENGTH;
+
 function maskToken(token: string): string {
-  if (token.length < 13) return '...';
-  return `${token.slice(0, 9)}...${token.slice(-4)}`;
+  const prefix = token.startsWith(DEPLOY_TOKEN.PREFIX) ? DEPLOY_TOKEN.PREFIX : API_KEY.PREFIX;
+  const head = prefix.length + HINT;
+  if (token.length < head + HINT + 1) return '...';
+  return `${token.slice(0, head)}...${token.slice(-HINT)}`;
 }
 
 /**

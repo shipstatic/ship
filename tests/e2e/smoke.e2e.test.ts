@@ -26,6 +26,7 @@ import { ErrorType, isShipError, type ShipError } from '@shipstatic/types';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../src/node';
 import { CONTRACT, type ContractContext, expected, observe } from '../contract';
+import { apiKey } from '../fixtures/builders';
 import { E2E_API_KEY, E2E_API_URL, E2E_ENABLED, E2E_TEST_RUN_ID } from '../setup-e2e';
 
 const TEST_SITE_PATH = path.resolve(__dirname, '../fixtures/demo-site');
@@ -192,7 +193,7 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
 
     it('well-formed but unknown API key: authentication type with HTTP 401', async () => {
       const invalidShip = new Ship({
-        token: `ship-${'1234567890abcdef'.repeat(4)}`,
+        token: apiKey('a'),
         apiUrl: E2E_API_URL,
       });
       const error = await captureError(invalidShip.whoami());
