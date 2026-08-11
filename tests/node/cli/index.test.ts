@@ -218,7 +218,7 @@ describe('CLI command tree (in-process)', () => {
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
       expect(output.claim).toMatch(
-        new RegExp(`^https://my\\.shipstatic\\.com/claim/[a-f0-9]{${API_KEY.HEX_LENGTH}}$`),
+        new RegExp(`^https://my\\.shipstatic\\.com/claims/claim-[a-f0-9]{${API_KEY.HEX_LENGTH}}$`),
       );
       expect(output.expires).toBeGreaterThan(output.created);
     });

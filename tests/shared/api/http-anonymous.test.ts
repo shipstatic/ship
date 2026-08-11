@@ -39,7 +39,7 @@ describe('Anonymous deploy claim contract', () => {
     const ship = new Ship({ apiUrl: getMockServerUrl() });
     const result = await ship.deploy(site);
 
-    expect(result.claim).toMatch(/^https:\/\/my\.shipstatic\.com\/claim\//);
+    expect(result.claim).toMatch(/^https:\/\/my\.shipstatic\.com\/claims\//);
     expect(result.expires).toBeGreaterThan(result.created);
   });
 
