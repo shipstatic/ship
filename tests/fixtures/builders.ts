@@ -97,8 +97,8 @@ export const deployToken = (fill = 'b') =>
  * arrives at its own route, so the path is what names it — and shares the
  * platform's one entropy width. wire: deployment-orchestrator.ts
  */
-export const claimUrl = (code = 'c'.repeat(API_KEY.HEX_LENGTH)) =>
-  `https://my.${PLATFORM_DOMAIN}/claim/${code}`;
+export const claimUrl = (code = `claim-${'c'.repeat(API_KEY.HEX_LENGTH)}`) =>
+  `https://my.${PLATFORM_DOMAIN}/claims/${code}`;
 
 /** A platform domain label must be at least 6 chars. wire: createDomainCreateSchema */
 export const platformDomain = (label = 'staging-site') => `${label}.${PLATFORM_DOMAIN}`;
