@@ -62,7 +62,7 @@ ship ./dist --json
   "via": "cli",
   "created": 1743552000,
   "expires": 1743811200,
-  "claim": "https://my.shipstatic.com/claims/1234567890abcdef1234567890abcdef"
+  "claim": "https://my.shipstatic.com/claim/1234567890abcdef1234567890abcdef"
 }
 ```
 
