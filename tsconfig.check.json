@@ -1,5 +1,5 @@
 {
-  // Typecheck config: `src` AND `tests`.
+  // Typecheck config: `src` AND EVERY test tier.
   //
   // `tsconfig.json` stays build-shaped (rootDir: src, declaration output) and
   // is what tsup reads. This one exists because vitest transpiles via esbuild
@@ -9,12 +9,22 @@
   // `basePath` that never existed, `processFilesForNode` called with four
   // arguments. The fixtures' `satisfies` clauses were decorative until this
   // file existed.
+  //
+  // `tests-browser/**` was left out of that repair and spent the next fortnight
+  // in the exact condition the paragraph above describes, one tier over: it is
+  // not in `pnpm test` either, so the ONLY thing that could see it was a CI job
+  // running real Chromium. On 2026-08-12 the deploy-body consolidation deleted
+  // `src/browser/core/deploy-body.ts`, and the test importing it went on
+  // typechecking clean and running never — every local gate green, CI red on
+  // push. A tier outside the typecheck gate is a tier where deleting a module
+  // is silent. Every test tier is included here now; the list is "all of
+  // them", which is the only shape that cannot rot.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
     "rootDir": ".",
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/**/*", "tests/**/*", "vitest.config.ts"],
+  "include": ["src/**/*", "tests/**/*", "tests-browser/**/*", "vitest.config.ts"],
   "exclude": ["node_modules", "dist", "examples", "build-shims"]
 }

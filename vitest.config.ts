@@ -2,15 +2,22 @@ import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
 
 /**
- * Three projects, one config.
+ * Four projects, one config.
  *
  *   unit         Pure functions. No mock server, no I/O.  (`*.unit.test.ts`)
  *   integration  The SDK and CLI against the mock server. (`*.test.ts`)
  *   e2e          A REAL API.                              (`*.e2e.test.ts`)
+ *   browser      Real Chromium.                           (`tests-browser/**`)
  *
  * `pnpm test` selects unit + integration only — see the `test` script. The e2e
  * project is opt-in through `test:e2e` AND a credential gate in
- * `tests/setup-e2e.ts`, because those tests create real resources.
+ * `tests/setup-e2e.ts`, because those tests create real resources. The browser
+ * project is opt-in through `test:browser` and runs as its own CI step.
+ *
+ * Two of the four are therefore invisible to `pnpm test`, which makes
+ * `pnpm typecheck` the only local gate that sees them at all — hence
+ * `tsconfig.check.json` covering `tests/**` AND `tests-browser/**`. Read that
+ * file's header before narrowing either.
  *
  * `tests/setup.ts` (hermeticity: credential scrub + no-network guard) loads for
  * unit and integration alike; `tests/setup-server.ts` (mock-server lifecycle)
