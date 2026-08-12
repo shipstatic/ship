@@ -8,7 +8,7 @@ export async function createDeployBody(
   files: StaticFile[],
   context: DeployBodyContext = {},
 ): Promise<DeployBody> {
-  const { labels, via, password, flags, captcha } = context;
+  const { labels, via, password, ttl, flags, captcha } = context;
   const formData = new FormData();
   const checksums: string[] = [];
 
@@ -36,6 +36,11 @@ export async function createDeployBody(
   if (labels && labels.length > 0) formData.append(DEPLOY_FIELDS.LABELS, JSON.stringify(labels));
   if (via) formData.append(DEPLOY_FIELDS.VIA, via);
   if (password) formData.append(DEPLOY_FIELDS.PASSWORD, password);
+  // A multipart field is text; `ttl` is the DURATION in seconds and the API
+  // turns it into an instant against its own clock. `!== undefined` rather
+  // than truthiness — the rule already refuses 0, and a truthiness test would
+  // drop it silently instead of letting the caller hear why.
+  if (ttl !== undefined) formData.append(DEPLOY_FIELDS.TTL, String(ttl));
   if (flags?.build) formData.append(DEPLOY_FIELDS.BUILD, 'true');
   if (flags?.prerender) formData.append(DEPLOY_FIELDS.PRERENDER, 'true');
   if (flags?.spa) formData.append(DEPLOY_FIELDS.SPA, 'true');

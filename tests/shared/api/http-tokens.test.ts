@@ -48,6 +48,38 @@ describe('token operations', () => {
       expect(created.expires).toBe(NOW + 3600);
     });
 
+    it('refuses a bad ttl at the BOUNDARY, before any request', async () => {
+      // The half the ttl rule's promotion into `@shipstatic/types` was for.
+      // The envelope lived only in the API route until 2026-08-12, so this
+      // call sent whatever it was handed and a bad duration cost a round
+      // trip — and the deploy boundary beside it validated while this one
+      // did not, which is the asymmetry a shared rule exists to remove.
+      //
+      // Counting requests is the assertion that matters: the API refuses
+      // these too, so a test that only checked the throw would pass against a
+      // client that shipped the request and read the answer. The `request`
+      // event is published surface, so this observes the boundary the way a
+      // consumer would.
+      // Warm the lazy `/limits` fetch first — it is the SDK's one-shot init
+      // and would otherwise be counted as this call's request.
+      await ship.getLimits();
+      let requests = 0;
+      ship.on('request', () => {
+        requests += 1;
+      });
+
+      for (const [ttl, sentence] of [
+        [0, /between/],
+        [-60, /between/],
+        [1.5, /whole number/],
+        [31_536_001, /between/],
+      ] as const) {
+        await expect(ship.tokens.create({ ttl })).rejects.toThrow(sentence);
+      }
+
+      expect(requests).toBe(0);
+    });
+
     it('sends the labels — they come back on the token and on the list', async () => {
       const created = await ship.tokens.create({ labels: ['production', 'ci-nightly'] });
 

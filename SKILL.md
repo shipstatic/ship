@@ -43,6 +43,27 @@ Without credentials, deployments are public and expire in 3 days. **Always show 
 
 The deployment ID **is** the URL hostname. Use the full ID (e.g. `happy-cat-abc1234.shipstatic.com`) as the argument to all other commands. The site lives at `https://<deployment>`.
 
+### Deployments that clean themselves up
+
+```bash
+ship ./dist --ttl 1h      # gone in an hour
+ship ./dist --ttl 7d      # a week-long preview
+```
+
+For a preview nobody needs to keep — a draft, a diff, a one-off render. The
+platform reclaims it when the time is up, so nothing accumulates in the user's
+account and nobody has to remember to delete it. Seconds or a `<n><unit>`
+duration (`s`/`m`/`h`/`d`), up to a year.
+
+**It needs a token.** Without one the deploy is anonymous and already expires
+in 3 days on the platform's own schedule — there is no deployer to choose a
+different lifetime, and the CLI refuses before uploading anything. **It cannot
+be combined with `--domain`**, because a domain must not point at something
+about to be reclaimed.
+
+The response's `expires` is the answer, in unix seconds — read it there rather
+than computing it, since the platform stamps it against its own clock.
+
 ### Parsing output
 
 ```bash
@@ -238,6 +259,7 @@ List commands return `{"<resource>s": [...], "cursor": null}`. A non-null `curso
 ```bash
 ship ./dist                          # Deploy (shortcut)
 ship ./dist --domain <name>          # Deploy and serve it at that domain
+ship ./dist --ttl 1h                 # Expires in an hour (needs a token)
 ship deployments upload <path>       # Deploy (explicit)
 ship deployments list                # List all
 ship deployments get <deployment>    # Details
@@ -265,7 +287,7 @@ ship domains delete <name>            # Delete
 ship whoami                           # Account info
 ship ping                             # Connectivity check
 ship tokens create                    # New deploy token (shown once)
-ship tokens create --ttl 3600         # With expiry (seconds)
+ship tokens create --ttl 30d          # With expiry — 3600, 90s, 1h, 30d
 ship tokens list                      # List tokens
 ship tokens get <token>               # Details for one token
 ship tokens delete <token>            # Delete (revokes immediately)
@@ -281,6 +303,7 @@ ship tokens delete <token>            # Delete (revokes immediately)
 | `--domain <domain>` | Deploy and serve it there — creates or repoints. Needs a token |
 | `--label <label>` | Set label (repeatable, replaces all) |
 | `--password <pwd>` | Password-protect deployment (6–128 chars) |
+| `--ttl <duration>` | Expire after that long — `3600`, `90s`, `1h`, `7d`. Needs a token; not with `--domain` |
 | `--no-path-detect` | Skip build output auto-detection |
 | `--no-spa-detect` | Skip SPA rewrite auto-configuration |
 | `--no-color` | Disable colors |
@@ -295,6 +318,8 @@ ship tokens delete <token>            # Delete (revokes immediately)
 | `not found` | No such resource | Verify the ID/name |
 | `path does not exist` | Bad deploy path | Check file/directory |
 | `invalid domain name` | Not a subdomain | Use `www.example.com`, not `example.com` |
+| `--ttl sets an expiry, which needs a token` | `--ttl` without credentials | Set an API key, or drop `--ttl` |
+| `--ttl and --domain cannot be combined` | Both flags given | A domain cannot point at an expiring deployment — pick one |
 | `<resource> limit reached` | Plan caps hit (deployments, domains) | Suggest upgrading the plan; do not retry |
 | `Account has been deleted` / `Account terminated` | Account is gone | Stop; the account cannot deploy |
 | `DNS information is only available for external domains` | DNS op on internal domain | Only custom domains need DNS |

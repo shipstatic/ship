@@ -36,12 +36,22 @@ beforeEach(async () => {
   await ship.getLimits();
 
   const deployment = await ship.deployments.upload(DEMO_SITE);
+  // A second deployment that expires — the fixture the link-refusal row needs.
+  // Built here rather than by reusing the first, because that one is linked
+  // and deleted by other rows and a shared fixture would make row ORDER
+  // load-bearing.
+  const expiring = await ship.deployments.upload(DEMO_SITE, { ttl: 3600 });
   const domain = await ship.domains.set('www.contract-fixture.com');
   const token = await ship.tokens.create({});
 
   ctx = {
+    // Genuinely credential-less: `tests/setup.ts` scrubs every `SHIP_*` at
+    // load, so this client cannot pick one up from the developer's shell.
+    anonymous: new Ship({ apiUrl: getMockServerUrl() }),
+    sitePath: DEMO_SITE,
     deployment: deployment.deployment,
     missingDeployment: 'no-such-deploy-0000000.shipstatic.com',
+    expiringDeployment: expiring.deployment,
     domain: domain.domain,
     missingDomain: 'www.contract-absent.com',
     token: token.token,

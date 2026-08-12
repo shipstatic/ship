@@ -53,6 +53,7 @@ import {
   type TokenDeleteResponse,
   TokenKind,
   type TokenListResponse,
+  validateTtl,
 } from '@shipstatic/types';
 import { isCustomDomain, makeDnsRecords, makeDomain } from '../fixtures/builders';
 import type { MockState } from './state';
@@ -235,10 +236,24 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       const uploaded = (form?.getAll(DEPLOY_FIELDS.FILES) ?? [])
         .filter((entry): entry is File => entry instanceof File)
         .map((file) => file.name.replace(/^\//, ''));
+      // A requested lifetime needs a deployer: anonymity has none, and the
+      // platform owns the anonymous window as policy (the claim code is
+      // measured against it). Refused before anything is created.
+      // wire: lib/deployment-orchestrator.ts:142 — ShipError.forbidden
+      const ttlField = form?.get(DEPLOY_FIELDS.TTL);
+      const ttl = typeof ttlField === 'string' ? validateTtl(Number(ttlField)) : undefined;
+      if (ttl !== undefined && anonymous) {
+        return fail(
+          ShipError.forbidden(
+            'An expiring deployment requires a credential. Anonymous deployments already expire on the platform’s own schedule.',
+          ),
+        );
+      }
       const deployment = state.createDeployment(anonymous, {
         ...(labels !== undefined && { labels }),
         ...(typeof viaField === 'string' && viaField !== '' && { via: viaField }),
         password: typeof form?.get('password') === 'string',
+        ...(ttl !== undefined && { ttl }),
         config: uploaded.includes(DEPLOYMENT_CONFIG_FILENAME),
       });
       // Only 201s are stored — a failed attempt retries fresh.
@@ -501,12 +516,18 @@ async function upsertDomain(request: Request, name: string, state: MockState) {
   }
 
   const deployment = body.deployment as string | undefined;
-  if (deployment && !state.findDeployment(deployment)) {
-    // 422, not 404 — the deployment reference is a business-rule failure on an
-    // otherwise well-formed request. wire: lib/domains/upsert.ts:69-74
+  const target = deployment ? state.findDeployment(deployment) : undefined;
+  // One query, three conditions, one 422 — the API's `verifyDeploymentOwnership`
+  // asks `deployment = ? AND account = ? AND status = ? AND expires IS NULL`
+  // and the route turns its boolean into this refusal. The expiry clause is
+  // what keeps a domain from ever pointing at something the reaper will take.
+  // 422, not 404 — the deployment reference is a business-rule failure on an
+  // otherwise well-formed request.
+  // wire: lib/database/domains.ts:324 → lib/domains/upsert.ts:81-86
+  if (deployment && (!target || target.expires !== null)) {
     return fail(
       ShipError.business(
-        'Deployment must exist, have success status, and never expire to create domain',
+        'A domain can only point at a deployment of yours that succeeded and does not expire.',
         422,
       ),
     );

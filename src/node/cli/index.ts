@@ -41,7 +41,6 @@ import type {
   GlobalOptions,
   LabelOptions,
   ListCommandOptions,
-  TokenCreateCommandOptions,
 } from './types.js';
 import { error } from './utils.js';
 
@@ -162,8 +161,8 @@ function collect(value: string, previous: string[] = []): string[] {
 }
 
 /**
- * Argument parser for integer option values (`--ttl`, `--limit`). A mangled
- * number must fail HERE with a clear message — a bare `parseInt` once turned
+ * Argument parser for integer option values (`--limit`). A mangled number
+ * must fail HERE with a clear message — a bare `parseInt` once turned
  * `--ttl abc` into `NaN` on the wire. Range rules stay server-side (the SDK
  * is a transparent pipe); only the not-a-number corruption is a client bug.
  */
@@ -173,6 +172,43 @@ function parseInteger(value: string): number {
     throw new InvalidArgumentError('Not a number.');
   }
   return parsed;
+}
+
+/** The suffixes `--ttl` accepts, and what each is worth in seconds. */
+const TTL_UNITS: Record<string, number> = {
+  s: 1,
+  m: 60,
+  h: 60 * 60,
+  d: 24 * 60 * 60,
+};
+
+/**
+ * Argument parser for `--ttl`, on the deploy and on `tokens create` alike —
+ * **one word, one grammar, everywhere.** Bare seconds (`3600`) or a
+ * `<n><unit>` suffix (`90s`, `30m`, `1h`, `7d`). The wire stays a number of
+ * seconds; the suffix is a spelling this parser owns and nothing downstream
+ * ever sees.
+ *
+ * `tokens create --ttl` took bare integers only until 2026-08-12. It was the
+ * platform's only ttl then, so there was nothing to be consistent with —
+ * and the moment the deploy learned the same word, two spellings of one
+ * duration would have been two grammars for a user to remember.
+ *
+ * **The RANGE is not judged here.** `validateTtl` in `@shipstatic/types` owns
+ * that, and it runs at the SDK's request boundary for both commands, so the
+ * refusal reads identically whether it came from the CLI, the SDK or the API.
+ * What this parser owns is the one thing a range check cannot do: refuse a
+ * value that is not a duration at all, before `NaN` reaches the wire.
+ */
+function parseTtl(value: string): number {
+  const match = /^(\d+)([smhd])?$/.exec(value.trim().toLowerCase());
+  if (!match) {
+    throw new InvalidArgumentError('Expected seconds or a duration like 90s, 30m, 1h, 7d.');
+  }
+  // Non-null: the pattern cannot match without group 1, and group 2 is either
+  // a key of TTL_UNITS or absent (bare seconds).
+  const amount = Number.parseInt(match[1] as string, 10);
+  return amount * (match[2] ? (TTL_UNITS[match[2]] as number) : 1);
 }
 
 /**
@@ -202,6 +238,27 @@ function labelsOf(options: LabelOptions): string[] | undefined {
  */
 function passwordOf(options: DeployCommandOptions): string | undefined {
   return options.password ?? (process.env.SHIP_PASSWORD || undefined);
+}
+
+/**
+ * The requested lifetime, read from the EFFECTIVE options — for the deploy
+ * and for `tokens create` alike.
+ *
+ * The tier is what decides the source, per "one place each flag is read":
+ * `--ttl` is declared on the deploy shortcut, which IS the program, so
+ * Commander's root consumes it wherever it sits in argv and it never reaches
+ * a subcommand's own `cmdOptions`. `tokens create` declared it alone until
+ * 2026-08-12 and correctly read `cmdOptions.ttl`; the moment the deploy
+ * declared the same flag, that read went silently undefined — every
+ * `ship tokens create --ttl 1h` minting a permanent token. Reading one source
+ * for both is what makes that unrepresentable rather than remembered.
+ *
+ * **No `SHIP_TTL` env twin** — the env tier exists for values a subprocess
+ * wrapper cannot put on argv (secrets, ambient keys). A duration rides argv
+ * fine, the same reason `--domain` has no twin.
+ */
+function ttlOf(options: DeployCommandOptions): number | undefined {
+  return options.ttl;
 }
 
 /**
@@ -412,6 +469,7 @@ async function performDeploy(
     via: DeploymentViaType;
     labels?: string[];
     password?: string;
+    ttl?: number;
     idempotencyKey?: string;
     pathDetect?: boolean;
     spaDetect?: boolean;
@@ -443,6 +501,12 @@ async function performDeploy(
   // error) instead of being silently dropped.
   const password = passwordOf(options);
   if (password !== undefined) deployOptions.password = password;
+
+  // Seconds by the time it lands here — `parseTtl` owns the `1h` / `7d`
+  // spelling and the wire carries a plain number. The RANGE is the SDK's
+  // request boundary to judge, from the rule `@shipstatic/types` owns.
+  const ttl = ttlOf(options);
+  if (ttl !== undefined) deployOptions.ttl = ttl;
 
   // The detection flags, under the names Commander actually gives them —
   // `--no-x` stores the POSITIVE key, defaulted true. Read as `noPathDetect` /
@@ -722,8 +786,23 @@ export function buildProgram(): Command {
 
   /** A deploy, answering as the deployment it created. */
   const deployOnly = withErrorHandling(
-    (client: Ship, options: EffectiveOptions, deployPath: string) =>
-      performDeploy(client, deployPath, options),
+    (client: Ship, options: EffectiveOptions, deployPath: string) => {
+      // The second flag that needs a token, and for the same reason `--domain`
+      // does: both make a promise that outlives the upload. An anonymous
+      // deployment already has a lifetime the PLATFORM chose — the claim
+      // window is measured against it — so there is no deployer to grant a
+      // different one, and the API refuses this independently.
+      //
+      // Refused here so the refusal costs nothing: discovering it after the
+      // upload would have minted a public, expiring, claimable deployment as
+      // the side effect of a failed authenticated intent. Same shape as the
+      // `--domain` preflight below — statusless `Config`, asked of the
+      // credential the CLI RESOLVED, sharing the one `CREDENTIAL_HINT`.
+      if (ttlOf(options) !== undefined && !resolveCliToken(program.opts())) {
+        throw ShipError.config(`--ttl sets an expiry, which needs a token: ${CREDENTIAL_HINT}`);
+      }
+      return performDeploy(client, deployPath, options);
+    },
     { operation: 'upload', resource: 'deployment' },
   );
 
@@ -767,6 +846,20 @@ export function buildProgram(): Command {
           );
         }
 
+        // A domain is a commitment; a deadline is its opposite. The API
+        // refuses to link any deployment with a non-null `expires` — which is
+        // what keeps the reaper from tearing a live domain's target away — so
+        // this combination cannot succeed, and the only question is whether
+        // the user learns that before or after paying for an upload.
+        //
+        // Statusless `Validation`, per "What a status means": this is the
+        // CLI's own command grammar, and no API judged it.
+        if (ttlOf(options) !== undefined) {
+          throw usageError(
+            '--ttl and --domain cannot be combined: a domain cannot point at a deployment that expires.',
+          );
+        }
+
         const deployment = await performDeploy(client, deployPath, options);
 
         // Beat one, streamed: the deployment's own sentence the moment it
@@ -800,6 +893,7 @@ export function buildProgram(): Command {
       .option('--domain <domain>', 'Serve this deployment at a domain (needs a token)')
       .option('--label <label>', 'Label to add (can be repeated)', collect, [])
       .option('--password <password>', 'Password-protect this deployment')
+      .option('--ttl <duration>', 'Expire after this long — 3600, 1h, 7d (needs a token)', parseTtl)
       .option('--no-path-detect', 'Disable automatic path optimization and flattening')
       .option('--no-spa-detect', 'Disable automatic SPA detection and configuration');
 
@@ -1022,15 +1116,17 @@ export function buildProgram(): Command {
   tokensCmd
     .command('create')
     .description('Create a new deploy token')
-    .option('--ttl <seconds>', 'Time to live in seconds (default: never expires)', parseInteger)
+    .option('--ttl <duration>', 'Expire after this long — 3600, 1h, 7d', parseTtl)
     .option('--label <label>', 'Label to set (can be repeated)', collect, [])
     .action(
       withErrorHandling(
-        (client: Ship, options: EffectiveOptions, cmdOptions: TokenCreateCommandOptions) => {
-          // `--ttl` is declared only here, so it arrives on this command's own
-          // options; `--label` is also on the program, so it arrives merged.
+        (client: Ship, options: EffectiveOptions) => {
+          // Both flags are declared on the program too (the deploy shortcut
+          // owns them), so Commander's root consumes both and BOTH are read
+          // from the effective options — never from this command's own.
           const create: { ttl?: number; labels?: string[] } = {};
-          if (cmdOptions?.ttl !== undefined) create.ttl = cmdOptions.ttl;
+          const ttl = ttlOf(options);
+          if (ttl !== undefined) create.ttl = ttl;
           const labels = labelsOf(options);
           if (labels !== undefined) create.labels = labels;
           return client.tokens.create(create);

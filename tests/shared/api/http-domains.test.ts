@@ -184,7 +184,7 @@ describe('domain operations', () => {
     });
 
     it('rejects a deployment that does not exist as a 422 business rule', async () => {
-      // wire: lib/domains/upsert.ts:69-74 — 422, not 404: the request is
+      // wire: lib/domains/upsert.ts:81-86 — 422, not 404: the request is
       // well-formed, the referenced resource just cannot back a domain.
       const error = await ship.domains
         .set(CUSTOM, { deployment: 'brave-otter-9999999' })
@@ -192,7 +192,7 @@ describe('domain operations', () => {
 
       expect(error.type).toBe(ErrorType.Business);
       expect(error.status).toBe(422);
-      expect(error.message).toMatch(/Deployment must exist/);
+      expect(error.message).toMatch(/can only point at a deployment/);
     });
   });
 

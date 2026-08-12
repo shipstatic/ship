@@ -70,6 +70,15 @@ export interface DeployCommandOptions extends LabelOptions {
    */
   domain?: string;
   /**
+   * `--ttl`: expire this deployment after the given duration.
+   *
+   * A NUMBER of seconds by the time it lands here — `parseTtl` owns the
+   * `3600` / `1h` / `7d` spelling and the wire never sees a suffix. Declared
+   * on the deploy shortcut, which is the program, so it also arrives here for
+   * `tokens create`: one flag, one grammar, one read (`ttlOf`).
+   */
+  ttl?: number;
+  /**
    * `--no-path-detect` and `--no-spa-detect`, under the names COMMANDER gives
    * them: a `--no-x` flag stores the POSITIVE key, defaulted to `true`, and
    * sets it `false` when passed. There is no `noPathDetect` anywhere in a
@@ -109,13 +118,6 @@ export interface DeployCommandOptions extends LabelOptions {
  * removes everywhere else. One name, one meaning, one read path.
  */
 export interface EffectiveOptions extends GlobalOptions, DeployCommandOptions {}
-
-/**
- * Options for token create command.
- */
-export interface TokenCreateCommandOptions extends LabelOptions {
-  ttl?: number;
-}
 
 // =============================================================================
 // FORMATTER RESULT TYPES

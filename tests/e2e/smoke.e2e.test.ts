@@ -192,6 +192,11 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
       });
       deploymentsToCleanup.push(deployment.deployment);
       ctx = {
+        // Genuinely credential-less: `setup-e2e.ts` scrubs `SHIP_TOKEN` at
+        // load, so an exported one cannot make this client authenticated and
+        // turn a refusal row into a confusing pass.
+        anonymous: new Ship({ apiUrl: E2E_API_URL }),
+        sitePath: TEST_SITE_PATH,
         deployment: deployment.deployment,
         missingDeployment: 'no-such-deploy-0000000.shipstatic.com',
         missingDomain: `www.no-such-${E2E_TEST_RUN_ID}.com`,

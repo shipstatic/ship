@@ -35,6 +35,7 @@ import {
   ShipError,
   SPA_CHECK_CONSTRAINTS,
   validateIdempotencyKey,
+  validateTtl,
 } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 import { validateDeployConfig, validateLabels, validatePassword } from '../lib/validation.js';
@@ -539,6 +540,7 @@ export class ApiHttp extends SimpleEvents {
 
     // Fast-fail on definitely-invalid input before constructing a multipart body.
     validatePassword(options.password);
+    const ttl = validateTtl(options.ttl);
     const idempotencyKey = validateIdempotencyKey(options.idempotencyKey);
     const labels = validateLabels(options.labels);
     await validateDeployConfig(files);
@@ -551,6 +553,7 @@ export class ApiHttp extends SimpleEvents {
       labels,
       via: options.via ?? DEPLOY_VIA,
       password: options.password,
+      ttl,
       flags,
       captcha: options.captcha,
     });
@@ -712,9 +715,16 @@ export class ApiHttp extends SimpleEvents {
   // ===========================================================================
 
   async createToken(ttl?: number, labels?: string[]): Promise<TokenCreateResponse> {
+    // Fast-fail on definitely-invalid input, exactly as the deploy boundary
+    // does. This is the half the ttl rule's promotion into `@shipstatic/types`
+    // was FOR: the envelope lived only in the API route until 2026-08-12, so
+    // this call sent whatever it was handed and a bad duration cost a round
+    // trip. Validating here is what makes that claim true rather than a
+    // sentence in a doc.
+    const normalizedTtl = validateTtl(ttl);
     const normalized = validateLabels(labels);
     const body: { ttl?: number; labels?: string[] } = {};
-    if (ttl !== undefined) body.ttl = ttl;
+    if (normalizedTtl !== undefined) body.ttl = normalizedTtl;
     if (normalized !== undefined) body.labels = normalized;
 
     return this.request(

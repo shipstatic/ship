@@ -57,7 +57,13 @@ export interface MockState {
   findDeployment(idOrHostname: string): Deployment | undefined;
   createDeployment(
     anonymous: boolean,
-    fields?: { labels?: string[]; via?: string; password?: boolean; config?: boolean },
+    fields?: {
+      labels?: string[];
+      via?: string;
+      password?: boolean;
+      ttl?: number;
+      config?: boolean;
+    },
   ): DeploymentCreateResponse;
   createToken(body: { ttl?: number; labels?: string[] }): TokenCreateResponse;
   validateDomain(input: string): DomainValidateResponse;
@@ -100,8 +106,15 @@ export function createMockState(
         password: fields.password ?? false,
         // Derived from the uploaded files by the route, like the API's own.
         config: fields.config ?? false,
-        // Anonymous deploys land under the public account: expiring, claimable.
-        expires: anonymous ? now + PUBLIC_TTL_SECONDS : null,
+        // A requested lifetime wins over the entitlement's answer, stamped
+        // against the server's own clock — the wire carries the duration and
+        // the API owns the instant. Absent, the identity decides: anonymous
+        // deploys land under the public account (expiring, claimable),
+        // authenticated ones never expire.
+        // wire: lib/deployment-orchestrator.ts:174
+        //   `expires = ttl === undefined ? capabilities.ttl : created + ttl`
+        expires:
+          fields.ttl !== undefined ? now + fields.ttl : anonymous ? now + PUBLIC_TTL_SECONDS : null,
       });
       state.deployments.push(deployment);
       return anonymous ? { ...deployment, claim: claimUrl() } : deployment;

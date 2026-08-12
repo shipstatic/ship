@@ -65,6 +65,11 @@ export interface DeployBodyContext {
    * characters. Whitespace is preserved verbatim — significant.
    */
   password?: string;
+  /**
+   * Requested lifetime in SECONDS — a duration, never an instant, bounded by
+   * `TTL_CONSTRAINTS`. The API stamps the expiry against its own clock.
+   */
+  ttl?: number;
   /** @internal Server-side processing flags. */
   flags?: { build?: boolean; prerender?: boolean; spa?: boolean };
   /** @internal reCAPTCHA proof for the anonymous human deploy channel (/upload). */

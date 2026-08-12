@@ -48,6 +48,7 @@ const ship = new Ship({ token: 'ship-...' });
 ```bash
 ship ./dist                                        # Deploy (shortcut)
 ship ./dist --domain www.example.com               # Deploy and serve it there
+ship ./dist --ttl 1h                               # Expires in an hour
 ship ./dist --label production --label v1.0.0      # Deploy with labels
 ship deployments list
 ship deployments list --limit 20                   # Page size; a hint shows the next cursor
@@ -106,7 +107,7 @@ ship.domains.set('www.münchen.de');    // → Unicode supported
 ### Tokens
 
 ```bash
-ship tokens create --ttl 3600 --label ci
+ship tokens create --ttl 30d --label ci            # Or 3600, 90s, 1h — one grammar
 ship tokens list
 ship tokens get <token>
 ship tokens delete <token>
@@ -153,6 +154,27 @@ open https://$(ship ./dist -q)
 ship deployments list -q | xargs -I{} ship deployments delete {} -q
 ```
 
+### Ephemeral deployments
+
+```bash
+ship ./dist --ttl 1h          # gone in an hour
+ship ./dist --ttl 7d          # a week-long preview
+ship ./dist --ttl 3600        # bare seconds work too
+```
+
+The platform reclaims the deployment when the time is up. Seconds, or a
+`<n><unit>` duration (`s`/`m`/`h`/`d`) — the same grammar `ship tokens create
+--ttl` uses. Bounded at one year.
+
+Two rules, both refused before anything uploads. It **needs a token**: an
+anonymous deployment already expires on the platform's own schedule, so there
+is no deployer to choose a different one. And it **cannot be combined with
+`--domain`**: a domain is a commitment and a deadline is its opposite, so the
+API refuses to point a domain at a deployment that expires.
+
+To keep something longer, deploy it again — there is no way to extend a
+deployment's life, and no way to shorten it after the fact.
+
 `--domain` is the same two calls as one command:
 
 ```bash
@@ -192,6 +214,7 @@ Available on `ship <path>` and `ship deployments upload`:
 | `--domain <domain>` | Serve this deployment at that domain — creates or repoints it. Needs a token |
 | `--label <label>` | Add label (repeatable) |
 | `--password <password>` | Password-protect this deployment (6–128 chars) |
+| `--ttl <duration>` | Expire this deployment after that long — `3600`, `90s`, `30m`, `1h`, `7d`. Needs a token; cannot be combined with `--domain` |
 | `--no-path-detect` | Disable automatic path optimization |
 | `--no-spa-detect` | Disable automatic SPA detection |
 
@@ -255,12 +278,24 @@ own `signal` (`AbortSignal.timeout(ms)`), which is never retried past.
 ship.deploy(input, {
   labels?: string[],
   password?: string,          // Password-protect the deployment (6–128 chars)
+  ttl?: number,               // Seconds until it expires (needs a token; max 1 year)
   signal?: AbortSignal,       // Abort to cancel the deploy
   pathDetect?: boolean,       // Auto-optimize paths (default: true)
   spaDetect?: boolean,        // Auto-detect SPA (default: true)
   via?: string,               // Client identifier
 });
 ```
+
+#### Expiring deployments
+
+Pass `ttl` in **seconds** and the platform reclaims the deployment when the time is up — 1 second to one year. The wire carries the duration and the API stamps `expires` against its own clock, so the answer says when:
+
+```typescript
+const result = await ship.deploy('./dist', { ttl: 3600 });
+// result.expires → unix seconds, one hour after result.created
+```
+
+Needs a credential — an anonymous deployment already expires on the platform's own schedule. And a deployment carrying a ttl cannot be linked to a domain: the API refuses, which is what stops a domain pointing at something that is about to be reclaimed. There is no way to extend or shorten a deployment after the fact; redeploy instead.
 
 #### Password protection
 

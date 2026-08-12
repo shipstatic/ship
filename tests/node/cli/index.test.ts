@@ -387,6 +387,96 @@ describe('CLI command tree (in-process)', () => {
     });
   });
 
+  describe('deploy: --ttl', () => {
+    // Both spellings, because `withDeployOptions` declares the flag once and
+    // applies it twice — the same pattern the `--domain` suite uses, and the
+    // reason the two registrations cannot drift.
+    const SPELLINGS: Array<[string, string[]]> = [
+      ['shortcut', [DEMO_SITE]],
+      ['deployments upload', ['deployments', 'upload', DEMO_SITE]],
+    ];
+
+    it.each(SPELLINGS)('%s: the platform stamps expires from the duration', async (_f, argv) => {
+      const result = await runProgram(['--json', ...argv, '--ttl', '3600']);
+
+      expect(result.exitCode).toBe(0);
+      const output = JSON.parse(result.stdout.trim());
+      // The wire carries a DURATION and the server answers with the INSTANT.
+      expect(output.expires).toBe(output.created + 3600);
+    });
+
+    it.each([
+      ['bare seconds', '3600', 3600],
+      ['seconds suffix', '90s', 90],
+      ['minutes', '30m', 1800],
+      ['hours', '1h', 3600],
+      ['days', '7d', 604_800],
+    ])('accepts %s', async (_label, spelling, seconds) => {
+      // One grammar, and `tokens create --ttl` speaks it too. The suffix is a
+      // spelling `parseTtl` owns; the wire only ever sees a number.
+      const result = await runProgram(['--json', DEMO_SITE, '--ttl', spelling as string]);
+
+      expect(result.exitCode).toBe(0);
+      const output = JSON.parse(result.stdout.trim());
+      expect(output.expires - output.created).toBe(seconds);
+    });
+
+    it('leaves a deploy that asks for nothing forever', async () => {
+      const result = await runProgram(['--json', DEMO_SITE]);
+      expect(result.exitCode).toBe(0);
+      expect(JSON.parse(result.stdout.trim()).expires).toBeNull();
+    });
+
+    it('refuses a non-duration before any request, naming the grammar', async () => {
+      const before = mockState().deployments.length;
+      const result = await runProgram(['--json', DEMO_SITE, '--ttl', 'abc']);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr.toLowerCase()).toContain('duration');
+      expect(mockState().deployments).toHaveLength(before);
+    });
+
+    it('refuses an out-of-range duration in the shared rule’s words', async () => {
+      // `parseTtl` accepts the SPELLING and `validateTtl` judges the RANGE, so
+      // the refusal reads the same here, in the SDK and at the API.
+      const result = await runProgram(['--json', DEMO_SITE, '--ttl', '0']);
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stderr.trim()).message).toMatch(/between 1 and 31536000/);
+    });
+
+    it('refuses without a credential, before uploading', async () => {
+      // The second flag that needs a token, for the same reason `--domain`
+      // does: both promise something past the upload. Ordering is the point —
+      // a deploy that ran here would have minted a public, expiring,
+      // claimable deployment as the side effect of a failed authenticated
+      // intent.
+      const before = mockState().deployments.length;
+      const result = await runProgram(['--json', DEMO_SITE, '--ttl', '1h'], { anonymous: true });
+
+      expect(result.exitCode).toBe(1);
+      expect(mockState().deployments).toHaveLength(before);
+
+      const envelope = JSON.parse(result.stderr.trim());
+      expect(envelope.error).toBe(ErrorType.Config);
+      expect(envelope.status).toBeUndefined();
+      expect(envelope.message).toContain('--ttl');
+      expect(envelope.message).toContain('SHIP_TOKEN');
+    });
+
+    it('is refused on a command that cannot read it — the flag law, for free', async () => {
+      // `--ttl` is declared on the deploy shortcut, which IS the program, so
+      // Commander recognises it everywhere. `assertFlagsApply` is what stops
+      // it being silently dropped in front of a command that owns no such
+      // flag; this row costs nothing and proves the new flag inherited it.
+      const result = await runProgram(['--json', '--ttl', '1h', 'domains', 'list']);
+
+      expect(result.exitCode).toBe(1);
+      const envelope = JSON.parse(result.stderr.trim());
+      expect(envelope.error).toBe(ErrorType.Validation);
+      expect(envelope.message).toContain('--ttl');
+    });
+  });
+
   describe('deploy: idempotency', () => {
     // The env var is the CLI's whole surface for the SDK's `idempotencyKey`
     // (there is no flag), and the consumer it exists for is an integration
@@ -504,6 +594,33 @@ describe('CLI command tree (in-process)', () => {
       // It names the flag, because the same deploy without it works fine.
       expect(envelope.message).toContain('--domain');
       expect(envelope.message).toContain('SHIP_TOKEN');
+    });
+
+    it.each(FORMS)('%s: --ttl and --domain are refused together', async (_form, argv) => {
+      // A domain is a commitment; a deadline is its opposite, and the API
+      // refuses to link any deployment carrying an expiry. The combination
+      // therefore cannot succeed — the only question is whether the user
+      // learns that before or after paying for an upload.
+      const before = mockState().deployments.length;
+      const result = await runProgram([
+        '--json',
+        ...argv,
+        '--ttl',
+        '1h',
+        '--domain',
+        'www.conflict.com',
+      ]);
+
+      expect(result.exitCode).toBe(1);
+      expect(mockState().deployments).toHaveLength(before);
+
+      const envelope = JSON.parse(result.stderr.trim());
+      // Statusless `Validation`: this is the CLI's own grammar and no API
+      // judged it — see CLAUDE.md, "What a status means".
+      expect(envelope.error).toBe(ErrorType.Validation);
+      expect(envelope.status).toBeUndefined();
+      expect(envelope.message).toContain('--ttl');
+      expect(envelope.message).toContain('--domain');
     });
 
     it('text prints two beats: the deployment, then the domain', async () => {
@@ -797,7 +914,7 @@ describe('CLI command tree (in-process)', () => {
         'absent-otter-zzz9999',
       ]);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr.toLowerCase()).toContain('must exist');
+      expect(result.stderr.toLowerCase()).toContain('can only point at a deployment');
     });
 
     it('reservation (no deployment) creates a pending unlinked domain', async () => {
@@ -935,11 +1052,38 @@ describe('CLI command tree (in-process)', () => {
       expect(row?.expires).toBe(state.now + 3600);
     });
 
-    it('create --ttl rejects a non-number before any request (was NaN on the wire)', async () => {
+    it('create --ttl rejects a non-duration before any request (was NaN on the wire)', async () => {
       const result = await runProgram(['tokens', 'create', '--ttl', 'abc']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr.toLowerCase()).toContain('not a number');
+      // `parseTtl`'s message names the grammar rather than the failure, since
+      // a user who typed `abc` needs to know what to type instead.
+      expect(result.stderr.toLowerCase()).toContain('duration');
       expect(mockState().tokens).toHaveLength(0);
+    });
+
+    it('create --ttl speaks the same grammar as the deploy — one word everywhere', async () => {
+      // The flag took bare integers only until 2026-08-12. It was the
+      // platform's only ttl then, so there was nothing to be consistent with;
+      // the moment the deploy learned the same word, two spellings of one
+      // duration would have been two grammars to remember.
+      const result = await runProgram(['tokens', 'create', '--ttl', '1h', '--json']);
+      expect(result.exitCode).toBe(0);
+      const [created] = mockState().tokens;
+      // Observed the way a caller observes it — through `expires`, since the
+      // duration is a request and the instant is the answer.
+      expect(created?.expires).toBe((created?.created ?? 0) + 3600);
+    });
+
+    it('create --ttl reaches the wire even though the PROGRAM declares the flag', async () => {
+      // The trap this pairing exists for: `--ttl` is declared on the deploy
+      // shortcut, which IS the program, so Commander's root consumes it and it
+      // never reaches this command's own `cmdOptions`. Reading it there — as
+      // this command correctly did while it owned the flag alone — silently
+      // minted a permanent token for every `--ttl` the user typed.
+      const result = await runProgram(['tokens', 'create', '--ttl', '3600']);
+      expect(result.exitCode).toBe(0);
+      const [created] = mockState().tokens;
+      expect(created?.expires).toBe((created?.created ?? 0) + 3600);
     });
 
     it('create -q prints exactly the secret (the value you pipe forward)', async () => {
