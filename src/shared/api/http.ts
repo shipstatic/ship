@@ -37,15 +37,10 @@ import {
   validateIdempotencyKey,
   validateTtl,
 } from '@shipstatic/types';
+import { createDeployBody } from '../core/deploy-body.js';
 import { SimpleEvents } from '../events.js';
 import { validateDeployConfig, validateLabels, validatePassword } from '../lib/validation.js';
-import type {
-  ApiDeployOptions,
-  DeployBodyCreator,
-  DomainSetResult,
-  Fetch,
-  ShipClientOptions,
-} from '../types.js';
+import type { ApiDeployOptions, DomainSetResult, Fetch, ShipClientOptions } from '../types.js';
 
 // =============================================================================
 // CONSTANTS
@@ -176,13 +171,28 @@ function listQuery(options?: ListOptions): string {
 export interface ApiHttpOptions extends ShipClientOptions {
   /** Resolves the credential slot per request — async so token providers can mint/refresh. */
   getAuthHeaders: () => Record<string, string> | Promise<Record<string, string>>;
-  createDeployBody: DeployBodyCreator;
 }
 
 interface RequestResult<T> {
   data: T;
   status: number;
 }
+
+/**
+ * A request as THIS client composes one.
+ *
+ * Identical to `RequestInit` but for the headers, which are narrowed from the
+ * DOM's three-shaped `HeadersInit` to the one shape every call site here
+ * actually builds. That narrowing is load-bearing twice over: `mergeHeaders`
+ * used to reach its record through an `as` cast, and `hasIdempotencyKey` used
+ * to walk all three shapes to find a key that only ever arrives in one of
+ * them. Narrowing at RUNTIME instead would have turned an unreachable case
+ * into a SILENT no-retry — a deploy that quietly stopped replaying because
+ * someone handed the transport a `Headers`. Here that is a compile error.
+ */
+type ShipRequestInit = Omit<RequestInit, 'headers'> & {
+  headers?: Record<string, string>;
+};
 
 // =============================================================================
 // HTTP CLIENT
@@ -200,7 +210,6 @@ export class ApiHttp extends SimpleEvents {
   private readonly deployTimeout: number;
   private readonly deployBuildTimeout: number;
   private readonly fetch: Fetch;
-  private readonly createDeployBody: DeployBodyCreator;
   private readonly deployEndpoint: string;
   private globalHeaders: Record<string, string> = {};
 
@@ -221,7 +230,6 @@ export class ApiHttp extends SimpleEvents {
     // require `this === window` on `window.fetch` and throw "Illegal invocation"
     // when it's invoked as a property of any other object.
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.createDeployBody = options.createDeployBody;
     this.deployEndpoint = options.deployEndpoint || API_PATHS.DEPLOYMENTS;
   }
 
@@ -263,7 +271,7 @@ export class ApiHttp extends SimpleEvents {
    */
   private async executeRequest<T>(
     url: string,
-    options: RequestInit,
+    options: ShipRequestInit,
     operationName: string,
     timeoutMs: number = this.timeout,
   ): Promise<RequestResult<T>> {
@@ -304,7 +312,7 @@ export class ApiHttp extends SimpleEvents {
    * Two axes, and both must say yes: what went wrong, and whether the request
    * is one that may be sent twice.
    */
-  private isRetryable(error: ShipError, options: RequestInit): boolean {
+  private isRetryable(error: ShipError, options: ShipRequestInit): boolean {
     // The caller's own signal fired — theirs to decide, whatever the reason.
     // This is what keeps a caller-supplied `AbortSignal.timeout()` working as
     // an OVERALL deadline, and it is the ONLY thing that does: a deadline
@@ -348,26 +356,17 @@ export class ApiHttp extends SimpleEvents {
     return this.hasIdempotencyKey(options.headers);
   }
 
-  /** Did this request carry the header that makes a repeat safe? */
-  private hasIdempotencyKey(headers: RequestInit['headers']): boolean {
+  /**
+   * Did this request carry the header that makes a repeat safe?
+   *
+   * Case-insensitively, because HTTP field names are — the CLI's env tier and
+   * the SDK option both spell it canonically, but a caller composing headers
+   * by hand is entitled not to.
+   */
+  private hasIdempotencyKey(headers: ShipRequestInit['headers']): boolean {
     if (!headers) return false;
     const target = IDEMPOTENCY_KEY_CONSTRAINTS.HEADER.toLowerCase();
-    let found = false;
-    const check = (key: string) => {
-      if (key.toLowerCase() === target) found = true;
-    };
-
-    // Three shapes, because `HeadersInit` is three. `forEach` rather than
-    // `entries()`: the iterator is not in every lib target this package builds
-    // against, and the callback form is.
-    if (headers instanceof Headers) {
-      headers.forEach((_value, key) => {
-        check(key);
-      });
-    } else if (Array.isArray(headers)) for (const [key] of headers) check(key);
-    else for (const key of Object.keys(headers)) check(key);
-
-    return found;
+    return Object.keys(headers).some((key) => key.toLowerCase() === target);
   }
 
   /**
@@ -380,7 +379,7 @@ export class ApiHttp extends SimpleEvents {
    */
   private async attemptOnce<T>(
     url: string,
-    options: RequestInit,
+    options: ShipRequestInit,
     operationName: string,
     timeoutMs: number = this.timeout,
   ): Promise<RequestResult<T>> {
@@ -390,7 +389,7 @@ export class ApiHttp extends SimpleEvents {
       // Credential resolution runs inside the error boundary: a token
       // provider that throws or yields nothing fails the request through
       // the same typed path (and `error` event) as any transport failure.
-      const headers = await this.mergeHeaders(options.headers as Record<string, string>);
+      const headers = await this.mergeHeaders(options.headers);
       const timeout = this.createTimeoutSignal(options.signal, timeoutMs);
       cleanup = timeout.cleanup;
 
@@ -427,7 +426,7 @@ export class ApiHttp extends SimpleEvents {
    */
   private async request<T>(
     url: string,
-    options: RequestInit,
+    options: ShipRequestInit,
     operationName: string,
     timeoutMs?: number,
   ): Promise<T> {
@@ -440,7 +439,7 @@ export class ApiHttp extends SimpleEvents {
    */
   private async requestWithStatus<T>(
     url: string,
-    options: RequestInit,
+    options: ShipRequestInit,
     operationName: string,
   ): Promise<RequestResult<T>> {
     return this.executeRequest<T>(url, options, operationName);
@@ -549,7 +548,7 @@ export class ApiHttp extends SimpleEvents {
       options.build || options.prerender || options.spa
         ? { build: options.build, prerender: options.prerender, spa: options.spa }
         : undefined;
-    const body = await this.createDeployBody(files, {
+    const body = await createDeployBody(files, {
       labels,
       via: options.via ?? DEPLOY_VIA,
       password: options.password,
@@ -787,7 +786,7 @@ export class ApiHttp extends SimpleEvents {
   // PUBLIC API - SPA CHECK
   // ===========================================================================
 
-  async checkSPA(files: StaticFile[], _options: ApiDeployOptions = {}): Promise<boolean> {
+  async checkSPA(files: StaticFile[]): Promise<boolean> {
     const indexFile = files.find(
       (f) =>
         f.path === SPA_CHECK_CONSTRAINTS.INDEX_FILE ||

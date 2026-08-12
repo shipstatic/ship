@@ -12,7 +12,11 @@
  *
  * Subclasses only override what genuinely differs per environment:
  *   - `processInput()` — Node reads paths from disk; Browser handles `File[]`
- *   - `getDeployBodyCreator()` — Node streams Buffers; Browser builds Blobs
+ *
+ * That is the whole list, and it was two entries until 2026-08-12: a
+ * `getDeployBodyCreator()` sat beside it, overridden identically in both
+ * subclasses to return the one builder they now share. A seam with the same
+ * answer on both sides is not a seam.
  *
  * Everything else (the credential slot, resources, events, lazy platform-limits)
  * lives here.
@@ -38,13 +42,7 @@ import {
   createTokenResource,
   type DeployInput,
 } from './resources.js';
-import type {
-  DeployBodyCreator,
-  DeploymentOptions,
-  ShipClientOptions,
-  ShipEvents,
-  TokenProvider,
-} from './types.js';
+import type { DeploymentOptions, ShipClientOptions, ShipEvents, TokenProvider } from './types.js';
 
 /**
  * Abstract base class for Ship SDK implementations.
@@ -124,7 +122,6 @@ export abstract class Ship {
     this.http = new ApiHttp({
       ...options,
       getAuthHeaders: () => this.getAuthHeaders(),
-      createDeployBody: this.getDeployBodyCreator(),
     });
 
     const ctx = { getApi: () => this.http };
@@ -155,7 +152,6 @@ export abstract class Ship {
     input: DeployInput,
     options: DeploymentOptions,
   ): Promise<StaticFile[]>;
-  protected abstract getDeployBodyCreator(): DeployBodyCreator;
 
   /**
    * Lazy initialization — fetches platform limits (file size / count caps) once,

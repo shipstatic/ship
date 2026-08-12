@@ -4,7 +4,7 @@
  * Core types come from @shipstatic/types, while SDK-specific types are defined here.
  */
 
-import type { DeploymentUploadOptions, DeploymentViaType, StaticFile } from '@shipstatic/types';
+import type { DeploymentUploadOptions, DeploymentViaType } from '@shipstatic/types';
 
 // Re-export all types from @shipstatic/types for convenience.
 export * from '@shipstatic/types';
@@ -66,20 +66,6 @@ export interface DeployBodyContext {
   /** @internal reCAPTCHA proof for the anonymous human deploy channel (/upload). */
   captcha?: string;
 }
-
-/**
- * Builds the multipart body for a deploy.
- *
- * Returns a native `FormData` — `fetch` sets the boundary and the
- * `Content-Type`. It used to return `{ body, headers }` because the Node half
- * hand-encoded into an ArrayBuffer and had to state both itself; with one
- * builder on the runtime's own primitives there is nothing for a caller to
- * carry. One implementation, both platforms (`shared/core/deploy-body.ts`).
- */
-export type DeployBodyCreator = (
-  files: StaticFile[],
-  context?: DeployBodyContext,
-) => Promise<FormData>;
 
 // =============================================================================
 // CLIENT CONFIGURATION

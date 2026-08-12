@@ -5,8 +5,6 @@
 import { describe, expect, test, vi } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http.js';
 
-const mockCreateDeployBody = async () => new FormData();
-
 describe('ApiHttp Events', () => {
   test('should emit request event', async () => {
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
@@ -19,7 +17,6 @@ describe('ApiHttp Events', () => {
     const apiHttp = new ApiHttp({
       apiUrl: 'https://api.example.com',
       getAuthHeaders: () => ({}),
-      createDeployBody: mockCreateDeployBody,
     });
 
     const requestHandler = vi.fn();
@@ -48,7 +45,6 @@ describe('ApiHttp Events', () => {
     const apiHttp = new ApiHttp({
       apiUrl: 'https://api.example.com',
       getAuthHeaders: () => ({}),
-      createDeployBody: mockCreateDeployBody,
     });
 
     const responseHandler = vi.fn();

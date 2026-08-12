@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http';
 
 // Mock deploy body creator
-const mockCreateDeployBody = async () => new FormData();
 
 /** A real Response — see the note in `http.test.ts` on why this is not a fake. */
 function createMockResponse(data: any, status = 200) {
@@ -58,7 +57,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
     apiHttp = new ApiHttp({
       apiUrl: 'https://api.test.com',
       getAuthHeaders: () => ({ Authorization: 'Bearer test-key' }),
-      createDeployBody: mockCreateDeployBody,
       // The subject here is the CEILING, not the retry loop.
       maxRetries: 0,
       timeout: 5000,
@@ -87,7 +85,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
         const api = new ApiHttp({
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
-          createDeployBody: mockCreateDeployBody,
           // The subject here is the CEILING, not the retry loop.
           maxRetries: 0,
           timeout: 1000,
@@ -114,7 +111,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
         const api = new ApiHttp({
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
-          createDeployBody: mockCreateDeployBody,
           // The subject here is the CEILING, not the retry loop.
           maxRetries: 0,
         });
@@ -151,7 +147,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
       new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody,
         timeout: 1000,
         ...options,
       });
@@ -314,7 +309,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
       const api = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody,
         // The subject here is the CEILING, not the retry loop.
         maxRetries: 0,
         fetch: hanging as any,
@@ -338,7 +332,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
       const api = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody,
         // The subject here is the CEILING, not the retry loop.
         maxRetries: 0,
         fetch: hangingFetch() as any,
@@ -368,7 +361,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
         const api = new ApiHttp({
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
-          createDeployBody: mockCreateDeployBody,
           // The subject here is the CEILING, not the retry loop.
           maxRetries: 0,
         });
@@ -401,7 +393,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
         const api = new ApiHttp({
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
-          createDeployBody: mockCreateDeployBody,
           // The subject here is the CEILING, not the retry loop.
           maxRetries: 0,
         });
@@ -432,7 +423,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
         const api = new ApiHttp({
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
-          createDeployBody: mockCreateDeployBody,
           // The subject here is the CEILING, not the retry loop.
           maxRetries: 0,
         });
@@ -460,7 +450,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
         const api = new ApiHttp({
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
-          createDeployBody: mockCreateDeployBody,
           // The subject here is the CEILING, not the retry loop.
           maxRetries: 0,
           timeout: 1000,

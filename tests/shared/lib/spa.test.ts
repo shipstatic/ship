@@ -86,7 +86,7 @@ describe('SPA Detection (spa.ts)', () => {
 
       const result = await detectAndConfigureSPA(mockFiles, mockApiClient, options);
 
-      expect(mockApiClient.checkSPA).toHaveBeenCalledWith(mockFiles, options);
+      expect(mockApiClient.checkSPA).toHaveBeenCalledWith(mockFiles);
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual(mockFiles[0]);
       expect(result[1].path).toBe(DEPLOYMENT_CONFIG_FILENAME);
@@ -97,7 +97,7 @@ describe('SPA Detection (spa.ts)', () => {
 
       const result = await detectAndConfigureSPA(mockFiles, mockApiClient, options);
 
-      expect(mockApiClient.checkSPA).toHaveBeenCalledWith(mockFiles, options);
+      expect(mockApiClient.checkSPA).toHaveBeenCalledWith(mockFiles);
       expect(result).toEqual(mockFiles);
     });
 

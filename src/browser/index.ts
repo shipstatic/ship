@@ -8,9 +8,7 @@
 
 import { ShipError } from '@shipstatic/types';
 import { Ship as BaseShip } from '../shared/base-ship.js';
-import { createDeployBody } from '../shared/core/deploy-body.js';
 import type {
-  DeployBodyCreator,
   DeployInput,
   DeploymentCreateResponse,
   DeploymentOptions,
@@ -67,10 +65,6 @@ export class Ship extends BaseShip {
 
     const { processFilesForBrowser } = await import('./core/browser-files.js');
     return processFilesForBrowser(input, options, this.platformLimits ?? undefined);
-  }
-
-  protected getDeployBodyCreator(): DeployBodyCreator {
-    return createDeployBody;
   }
 }
 

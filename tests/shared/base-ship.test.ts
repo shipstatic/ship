@@ -12,16 +12,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import type {
-  DeployBodyCreator,
-  DeployInput,
-  DeploymentOptions,
-  Fetch,
-  StaticFile,
-} from '../../src/shared/types';
+import type { DeployInput, DeploymentOptions, Fetch, StaticFile } from '../../src/shared/types';
 import { apiKey } from '../fixtures/builders';
-
-const mockDeployBodyCreator: DeployBodyCreator = async () => new FormData();
 
 /** An API key in the platform's canonical shape, built from its constants. */
 const TEST_API_KEY = apiKey('a');
@@ -39,10 +31,6 @@ class TestShip extends Ship {
     _options: DeploymentOptions,
   ): Promise<StaticFile[]> {
     return [INDEX_HTML];
-  }
-
-  protected getDeployBodyCreator(): DeployBodyCreator {
-    return mockDeployBodyCreator;
   }
 }
 
