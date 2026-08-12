@@ -70,10 +70,7 @@ function createMockResponse(data: any, status = 200) {
   };
 }
 
-const mockCreateDeployBody = async () => ({
-  body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' },
-});
+const mockCreateDeployBody = async () => new FormData();
 
 describe('ApiHttp Browser Compatibility', () => {
   let apiHttp: ApiHttp;

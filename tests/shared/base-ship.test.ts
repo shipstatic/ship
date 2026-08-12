@@ -21,10 +21,7 @@ import type {
 } from '../../src/shared/types';
 import { apiKey } from '../fixtures/builders';
 
-const mockDeployBodyCreator: DeployBodyCreator = async (_files, _context) => ({
-  body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' },
-});
+const mockDeployBodyCreator: DeployBodyCreator = async () => new FormData();
 
 /** An API key in the platform's canonical shape, built from its constants. */
 const TEST_API_KEY = apiKey('a');

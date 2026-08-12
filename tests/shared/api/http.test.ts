@@ -29,10 +29,7 @@ function createMockResponse(data: any, status = 200) {
 // Mock deploy body creator for tests. A `vi.fn` so the deploy context it
 // receives — labels, via, password, flags — is assertable: this file is the
 // transport anchor, and that context is the wire contract at this seam.
-const mockCreateDeployBody = vi.fn(async (_files: any[], _context?: any) => ({
-  body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' },
-}));
+const mockCreateDeployBody = vi.fn(async (_files: any[], _context?: any) => new FormData());
 
 /** The deploy context handed to the body creator by the most recent deploy. */
 const lastDeployContext = () => mockCreateDeployBody.mock.calls.at(-1)?.[1];

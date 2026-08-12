@@ -3,10 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http';
 
 // Mock deploy body creator
-const mockCreateDeployBody = async () => ({
-  body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' },
-});
+const mockCreateDeployBody = async () => new FormData();
 
 /** A real Response — see the note in `http.test.ts` on why this is not a fake. */
 function createMockResponse(data: any, status = 200) {
