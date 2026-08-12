@@ -27,6 +27,25 @@
 // GATE
 // =============================================================================
 
+/**
+ * This suite's identity is `SHIP_E2E_API_KEY` and nothing else, so the SDK's
+ * OWN ambient variable is scrubbed before any client is constructed.
+ *
+ * Two reasons, and the second is why it is here rather than at a call site.
+ * A developer with `SHIP_TOKEN` exported would silently run the whole suite as
+ * whatever account that names, against a URL chosen by a different variable —
+ * the identity and the endpoint arriving from two unrelated places. And a
+ * client built to be ANONYMOUS (the contract table's credential-less fixture)
+ * would quietly authenticate, turning a refusal row into a confusing pass.
+ *
+ * Scrubbing at the process boundary is the SDK's own documented answer for
+ * hosts needing strict isolation — there is no `envFallback: false`, on
+ * purpose (`CLAUDE.md`, "Strict-isolation contract for embedded hosts").
+ */
+for (const name of ['SHIP_TOKEN', 'SHIP_API_URL']) {
+  delete process.env[name];
+}
+
 if (!process.env.SHIP_E2E_API_KEY) {
   throw new Error(
     'E2E tests require SHIP_E2E_API_KEY. These tests create and delete REAL ' +

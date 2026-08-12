@@ -885,6 +885,89 @@ absence — the CLI rides the default; add a flag the day someone asks).
 No `tests/contract.ts` rows: retry is client POLICY, not a wire fact. The API
 is not promising to fail twice.
 
+### Ephemeral deployments (`--ttl`)
+
+**The platform was already asking how long a deployment lives; the request may
+now answer it.** The API's entitlement answered from IDENTITY (anonymous → 3
+days, authenticated → forever) and the orchestrator stamped that verbatim; a
+requested `ttl` overrides only the authenticated `null`. This half of the
+feature is deliberately thin — when the wire owns the fact, the SDK mirrors it
+1:1 and the CLI declares one flag into machinery that already knows what to do
+with it.
+
+- **SDK:** `deploy(path, { ttl })` in SECONDS, validated at the request
+  boundary by `validateTtl` from `@shipstatic/types` beside `validatePassword`
+  and `validateLabels`, appended as `DEPLOY_FIELDS.TTL`. A duration, never an
+  instant: the server owns time.
+- **CLI:** `--ttl <duration>` on `withDeployOptions`, so the flag law supplies
+  both spellings, the misapplication refusal, and the completions with no
+  further code.
+- **One parser, two commands.** `parseTtl` accepts bare seconds or `<n><unit>`
+  (`s`/`m`/`h`/`d`), and `tokens create --ttl` moved onto it — one word, one
+  grammar, everywhere. The parser owns the SPELLING and nothing else;
+  `validateTtl` owns the RANGE, which is what makes the refusal identical from
+  the CLI, the SDK and the API. The wire only ever carries a number.
+- **`ttlOf` reads the EFFECTIVE options, and that is load-bearing.**
+  `tokens create` declared `--ttl` alone and correctly read `cmdOptions.ttl`
+  until 2026-08-12. The moment the deploy shortcut — which IS the program —
+  declared the same flag, Commander's root began consuming it and that read
+  went silently undefined: every `ship tokens create --ttl 1h` would have
+  minted a permanent token. One helper, one source, for both commands. See
+  "Two flag tiers".
+
+**Two preflights, both before a byte is read**, and they are the two deploy
+flags that promise something past the upload:
+
+- **No credential → statusless `Config`** carrying `CREDENTIAL_HINT`, the
+  `--domain` arm's shape verbatim. An anonymous deployment already expires on
+  the platform's schedule, and discovering the refusal after the upload would
+  have minted a public, expiring, claimable deployment as the side effect of a
+  failed authenticated intent.
+- **With `--domain` → statusless `Validation`.** A domain is a commitment and
+  a deadline is its opposite; the API refuses to link any deployment with a
+  non-null `expires`, so the combination cannot succeed and the only question
+  is whether the user pays for an upload first.
+
+**Rendering needed nothing.** `formatValue` already humanizes `expires`
+through `formatTimestamp`, so the details block shows the expiry with zero new
+code. The claim CTA's *relative* phrase ("expires in 3 days") is gated on
+`claim`, which a credentialed ttl deploy never carries — reusing it would have
+ADDED a second duration phrase rather than sharing one.
+
+**Recorded absences** (decisions, not gaps):
+
+- **No `SHIP_TTL` env var.** The CLI-only env tier exists for values a
+  subprocess wrapper cannot put on argv (secrets, ambient keys). A duration
+  rides argv fine — the `SHIP_DOMAIN` precedent.
+- **No ttl mutation.** A deployment is an immutable artifact with labels as
+  its only mutable annotation. To keep something longer, redeploy; deploys are
+  cheap and idempotent replay makes them cheaper. The claim flow remains the
+  only writer of `expires` after create.
+- **No ttl on `domains set`** — a link is not a lease.
+- **Idempotent replay returns the stored 201's original `expires`.** The
+  stored answer is the answer; a replayed request's ttl is not consulted.
+**A CLIENT is a fixture too.** The anonymous refusal has a `tests/contract.ts`
+row with a LIVE half, and getting there corrected a reading: "a runner supplies
+one client" sounded structural and was not — a credential-less `Ship` is
+exactly the kind of thing the context already guarantees, so it sits beside the
+ids. The live half is the point, since only it can catch the API dropping the
+guard, and one `if` in the orchestrator is all that holds a coherence rule the
+platform designed deliberately (the claim window is pinned to the anonymous
+lifetime). It costs one slot of the anonymous issuance budget per run, recorded
+in the row so several e2e runs in an hour read as a budget, not a contract.
+
+That fixture also hardened the suite: `tests/setup-e2e.ts` now scrubs
+`SHIP_TOKEN`, because the SDK reads it and a developer with one exported would
+have run the whole live suite as that account — and made the anonymous fixture
+quietly authenticated, turning a refusal row into a pass.
+
+**And a fence limitation worth knowing.** The docs contract asks whether a
+flag NAME is taught, not whether each command teaching is present — `--ttl`
+was already documented for `tokens create`, so the fence stayed green when the
+deploy gained it. It is not the first catch this flag was expected to be, and
+a per-command check would need the docs to name commands beside flags, which
+they do not. The deploy docs were written deliberately instead.
+
 ### The bundle boundary
 
 **What this package bundles and what it asks a consumer to install is one

@@ -75,6 +75,24 @@ export interface ContractContext {
   missingDomain: string;
   /** A token that exists. Absent on the live runner (see `live`). */
   token?: string;
+  /**
+   * A deployment carrying a non-null `expires`. Absent on the live runner,
+   * which creates no domains and so has nothing to attempt a link with.
+   */
+  expiringDeployment?: string;
+  /**
+   * A credential-less client — the anonymous population, which is a real
+   * client of this API and not an error case. Both runners guarantee it, and
+   * both guarantee it is genuinely anonymous: the SDK reads `SHIP_TOKEN` from
+   * the environment, so a suite that merely omits the option is anonymous
+   * only on a machine that happens not to export one.
+   */
+  anonymous: Ship;
+  /**
+   * A directory this runner may deploy. A fixture like any other: the two
+   * runners resolve their own, and no row hardcodes a path into this table.
+   */
+  sitePath: string;
 }
 
 export interface ContractPoint {
@@ -260,6 +278,44 @@ export const CONTRACT: readonly ContractPoint[] = [
     error: { type: ErrorType.NotFound, status: 404 },
     live: NO_DOMAINS,
     run: (s, c) => s.domains.get(c.missingDomain),
+  },
+  {
+    // A requested lifetime needs a deployer, and anonymity has none. The
+    // platform owns the anonymous window as POLICY — the claim code's TTL is
+    // pinned to `DEPLOYMENT.PUBLIC_TTL` by law — so honouring a shorter one
+    // would hand out a claim link that outlives the thing it claims. That
+    // makes this a coherence guard rather than a preference, and one `if` in
+    // the orchestrator is all that holds it.
+    //
+    // LIVE, and the live half is the whole point: the mock half can only say
+    // the mock matches this table, while removing the guard from the API is
+    // exactly the drift nothing else here would see.
+    //
+    // It costs one slot of the anonymous issuance budget per run (agent:
+    // 5/hr per IP, `WRITE_BUDGETS`), because the limiter runs before the
+    // orchestrator refuses. Recorded so the diagnosis is instant: several e2e
+    // runs inside an hour turn this row's `Forbidden` into a `RateLimit`, and
+    // that is the budget talking, not the contract.
+    // wire: lib/deployment-orchestrator.ts:142 — ShipError.forbidden
+    name: 'deployments.upload (anonymous, with ttl)',
+    error: { type: ErrorType.Forbidden, status: 403 },
+    live: true,
+    run: (_s, c) => c.anonymous.deployments.upload(c.sitePath, { ttl: 3600 }),
+  },
+  {
+    // A domain is a commitment; a deadline is its opposite. The API refuses to
+    // link any deployment carrying a non-null `expires`, which is what keeps
+    // the reaper from tearing a live domain's target away — and with the
+    // refusal at the LINK door, the reaper needs no check of its own.
+    //
+    // The guard predates requestable lifetimes (`verifyDeploymentOwnership`
+    // has always carried `AND expires IS NULL`); `--ttl` is what makes it
+    // reachable by ordinary use, which is what earns it a wire row.
+    // wire: lib/database/domains.ts:324 → lib/domains/upsert.ts (422)
+    name: 'domains.set (expiring deployment)',
+    error: { type: ErrorType.Business, status: 422 },
+    live: NO_DOMAINS,
+    run: (s, c) => s.domains.set(c.missingDomain, { deployment: c.expiringDeployment as string }),
   },
   {
     // Guard ORDER, not just the code: an unknown deployment on an otherwise
