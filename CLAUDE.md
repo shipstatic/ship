@@ -912,6 +912,33 @@ existed (`build-shims/empty.cjs` STAYS — it shims node builtins for the browse
 bundle). Nothing was wrong at runtime, which is exactly why it survived: a dead
 external is invisible until someone reads the file.
 
+**And the fence carries its own counterexample, which it runs every time.**
+The hand drill meant to prove this one planted NOTHING, twice (2026-08-12): a
+grep matched the dead external's name in a *comment* rather than the array,
+and on the second try biome collapsed the array back. Both times the suite
+stayed green and the fence was one step from being reported as proven. **A
+hand drill is evidence that evaporates** — nobody reading a green suite later
+can see it happened — so the three checks are now functions of their inputs
+(specifier list, declared dependencies, externals), and a `the checks can see
+a defect` block feeds each one a synthetic defect of its own class and asserts
+it is NAMED: an escaped specifier, a dead external spelled `cosmiconfig` and
+`cli-table3`, an unreached dependency. Each row also passes a clean input, so
+a check that "caught" everything would fail too, and a fourth row proves the
+extractor sees real bytes at all — `dist/cli.cjs` being empty is an assertion
+here, so an extractor that always returned `[]` would satisfy the fence's
+headline check and every direction under it.
+
+Synthetic rather than planted, deliberately: a plant has to survive a
+formatter, a grep and a reviewer, and this one survived none of them. This is
+the transport wave's planted-impossible-input applied to a check instead of a
+runtime — and it generalizes. `docs-contract`'s taught-ness matcher got the
+one-line version of the same treatment (`isTaught('--flag-that-cannot-exist')`
+must answer `false`), because a matcher answering `true` for everything makes
+"every flag is taught" unfailable while reading exactly as it does now. The
+file-rules table needs neither: its completeness tie is structural — the
+test's own list is asserted deep-equal to the production table, in order — so
+a second plant there would be ceremony.
+
 **Bundling carries licence obligations, so the notices ship.**
 `scripts/third-party-licenses.cjs` writes `THIRD-PARTY-LICENSES.md` at build
 time, and the list is **derived from esbuild's metafile** rather than written
