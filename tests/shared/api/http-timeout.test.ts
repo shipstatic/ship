@@ -104,7 +104,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect(settled).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(1);
-        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
+        await expect(pending).rejects.toMatchObject({ type: 'timeout_error' });
       } finally {
         vi.useRealTimers();
       }
@@ -130,7 +130,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect(settled).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(1);
-        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
+        await expect(pending).rejects.toMatchObject({ type: 'timeout_error' });
       } finally {
         vi.useRealTimers();
       }
@@ -159,7 +159,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         ...options,
       });
 
-    it("the SDK's own ceiling is a deadline: Network, and the sentence says so", async () => {
+    it("the SDK's own ceiling is a deadline: Timeout, and the sentence says so", async () => {
       vi.useFakeTimers();
       try {
         global.fetch = hangingFetch() as any;
@@ -168,7 +168,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
         await vi.advanceTimersByTimeAsync(1000);
         await expect(pending).rejects.toMatchObject({
-          type: 'network_error',
+          type: 'timeout_error',
           message: 'Ping timed out',
         });
       } finally {
@@ -177,6 +177,13 @@ describe('ApiHttp Timeout & Cancellation', () => {
     });
 
     it('and is RETRIED — the attempt failed, the caller did not say stop', async () => {
+      // This is the fence for the retry policy's reading of a deadline.
+      // `isRetryable` names no timeout type: it asks the network CATEGORY,
+      // because "nothing was exchanged" IS its criterion, and naming the
+      // member beside the guard that already holds it would be a second owner
+      // of that membership. What holds the decision instead is this test —
+      // move `Timeout` out of the category in `@shipstatic/types` and one
+      // attempt goes out here instead of three.
       vi.useFakeTimers();
       try {
         const fetchImpl = hangingFetch();
@@ -187,7 +194,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         // Three ceilings and two backoffs (capped at 2s each) is a generous
         // envelope; what matters is that a second attempt happens at all.
         await vi.advanceTimersByTimeAsync(1000 * 3 + 2000 * 2 + 10);
-        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
+        await expect(pending).rejects.toMatchObject({ type: 'timeout_error' });
         expect(fetchImpl.mock.calls.length).toBe(3);
       } finally {
         vi.useRealTimers();
@@ -379,7 +386,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
         // Still bounded, though: a hung socket must end.
         await vi.advanceTimersByTimeAsync(180_000);
-        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
+        await expect(pending).rejects.toMatchObject({ type: 'timeout_error' });
       } finally {
         vi.useRealTimers();
       }
@@ -411,7 +418,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect(settled).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(300_000);
-        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
+        await expect(pending).rejects.toMatchObject({ type: 'timeout_error' });
       } finally {
         vi.useRealTimers();
       }
@@ -441,7 +448,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect(settled).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(1);
-        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
+        await expect(pending).rejects.toMatchObject({ type: 'timeout_error' });
       } finally {
         vi.useRealTimers();
       }
@@ -470,7 +477,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect(settled).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(1);
-        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
+        await expect(pending).rejects.toMatchObject({ type: 'timeout_error' });
       } finally {
         vi.useRealTimers();
       }

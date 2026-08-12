@@ -204,12 +204,16 @@ describe('retries', () => {
       expect(Date.now() - started).toBeLessThan(250);
     });
 
-    it("does not retry past a caller's own deadline, though a deadline IS Network", async () => {
+    it("does not retry past a caller's own deadline, though a deadline IS retryable", async () => {
       // The subtle one, and the reason `isRetryable` reads the caller's signal
       // rather than only the error type: a caller's `AbortSignal.timeout()`
-      // classifies as `Network` (a deadline exchanged nothing), so on type
-      // alone it would look retryable and silently outlive the ceiling that
-      // caller set.
+      // classifies as `Timeout`, exactly like our own ceiling, and the loop
+      // retries that on purpose — so on the error alone the caller's deadline
+      // would look retryable and be silently outlived.
+      //
+      // The signal check carries that invariant ALONE. Nothing else in
+      // `isRetryable` can tell whose clock ran out, which is what makes this
+      // test the load-bearing one in this file.
       const controller = new AbortController();
       const fetchImpl = deployFetch(() => {
         controller.abort(new DOMException('Timed out', 'TimeoutError'));

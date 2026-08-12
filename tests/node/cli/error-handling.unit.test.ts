@@ -67,6 +67,43 @@ describe('CLI Error Handling', () => {
       });
     });
 
+    describe('timeouts', () => {
+      // A deadline shares the network CATEGORY, so its arm has to sit ahead of
+      // the one above and branch on the TYPE. Until 2026-08-12 there was no
+      // type to branch on: a deploy that hit its five-minute ceiling — the
+      // slowest, most expensive failure this CLI produces — told the user to
+      // check their Wi-Fi. `--json` was truthful throughout; only the human
+      // channel lied.
+      it('relays the deadline sentence instead of the connectivity advice', () => {
+        const err = ShipError.timeout('Deploy timed out');
+
+        const message = getUserMessage(err);
+
+        expect(message).toBe('Deploy timed out');
+        expect(message).not.toContain('internet connection');
+      });
+
+      it('appends no advice, because the client has already retried', () => {
+        // "try again" is the 5xx arm's, and it is half-false here: three
+        // attempts have been made by the time this sentence is composed.
+        const message = getUserMessage(ShipError.timeout('Deploy timed out'));
+
+        expect(message).not.toContain('try again');
+        expect(message).not.toContain('status.shipstatic.com');
+      });
+
+      it('is caught by TYPE, never by reading the message', () => {
+        // The platform's law is that clients branch on the type, so an error
+        // that merely SAYS "timed out" must not reach this arm — a 504 the
+        // API authored is a server fault and keeps the 5xx treatment.
+        const gateway = new ShipError(ErrorType.Api, 'Upstream timed out', 504);
+
+        expect(getUserMessage(gateway)).toBe(
+          'Upstream timed out — try again, or check https://status.shipstatic.com',
+        );
+      });
+    });
+
     describe('file errors', () => {
       it('should pass through file error message', () => {
         const err = ShipError.file('dist/index.html path does not exist', {
