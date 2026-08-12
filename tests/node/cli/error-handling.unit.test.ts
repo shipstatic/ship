@@ -44,6 +44,10 @@ describe('CLI Error Handling', () => {
         expect(message).toBe('authentication failed: invalid or expired token');
       });
 
+      // These two are also the ORDERING fence for the auth/client tie: a 401
+      // is a 4xx, so `isClientError()` claims it too, and an auth arm moved
+      // below the client arm relays the API's flat "Authentication failed"
+      // instead of naming how to authenticate. Both turn red on that reorder.
       it('should show auth required message when no token was provided', () => {
         const err = ShipError.authentication('Auth failed');
 
@@ -74,6 +78,9 @@ describe('CLI Error Handling', () => {
       // slowest, most expensive failure this CLI produces — told the user to
       // check their Wi-Fi. `--json` was truthful throughout; only the human
       // channel lied.
+      // Also the ORDERING fence for the timeout/network tie — the two share a
+      // category, so an arm moved below the network one sends someone to
+      // check their Wi-Fi about a five-minute deploy ceiling.
       it('relays the deadline sentence instead of the connectivity advice', () => {
         const err = ShipError.timeout('Deploy timed out');
 

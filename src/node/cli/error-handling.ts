@@ -66,9 +66,32 @@ export interface ErrorOptions {
  *
  * This is a pure function - given the same inputs, always returns the same output.
  * All error message logic is centralized here for easy testing and maintenance.
+ *
+ * The chain below is ORDER-SENSITIVE in exactly two places, and both are TIES
+ * — an error matching two predicates, where the first arm to claim it wins.
+ * Stated here because a tie is invisible at the arm that loses it:
+ *
+ *  - **auth before client.** `ShipError.authentication()` carries 401, and
+ *    `isClientError()` reads any 4xx — so the client arm claims it too, and
+ *    would relay the API's deliberately uninformative "Authentication failed"
+ *    instead of naming the three ways to supply a credential.
+ *  - **timeout before network.** A deadline is inside the network category by
+ *    design (nothing was exchanged either way), so only the TYPE separates
+ *    them; see that arm.
+ *
+ * Both are held by tests rather than by this comment — reorder either and
+ * `error-handling.unit.test.ts` turns red. Maintenance is deliberately NOT in
+ * this list: it matches no other predicate, so its position is clarity rather
+ * than correctness.
+ *
+ * An ordered TABLE (the `SHAPES` / `FILE_RULES` move) is the answer if this
+ * ever grows a third tie; recorded with that trigger in CLAUDE.md. It buys
+ * nothing today — those tables exist to delete a SECOND statement of one
+ * fact, and this chain has one reader.
  */
 export function getUserMessage(err: ShipError, options?: ErrorOptions): string {
-  // Auth errors - tell user what credentials to provide
+  // Auth errors - tell user what credentials to provide. FIRST, by the tie
+  // above: a 401 is also a 4xx, so the client arm would otherwise claim it.
   if (err.isAuthError()) {
     if (options?.token) {
       return 'authentication failed: invalid or expired token';

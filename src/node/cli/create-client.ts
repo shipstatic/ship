@@ -15,6 +15,7 @@
  * MCP can't inadvertently inherit the host developer's `~/.shiprc`.
  */
 
+import { validateApiUrl } from '@shipstatic/types';
 import type { ShipClientOptions } from '../../shared/types.js';
 import { readEnvConfig } from '../core/config.js';
 import { Ship } from '../index.js';
@@ -63,5 +64,27 @@ export function mergeCliConfig(
  * Synchronous all the way down — matches the SDK's sync constructor.
  */
 export function createClient(flags: CliFlags = {}): Ship {
-  return new Ship(mergeCliConfig(flags, readEnvConfig(), loadShipFile(flags.config)));
+  const resolved = mergeCliConfig(flags, readEnvConfig(), loadShipFile(flags.config));
+
+  // The API URL is judged HERE because here is where every source has become
+  // one value. The `preAction` hook validates the FLAG — earlier, and with a
+  // better moment to fail — but it can only ever see the flag, so the same
+  // value written into `.shiprc` or exported as `SHIP_API_URL` reached the
+  // wire unjudged: `https://api.example.com/v1` was refused when typed and
+  // accepted when saved, and the saved form is the one that persists. The
+  // authored sentence ("API URL must not contain a path") was reaching the
+  // source least likely to hold the mistake.
+  //
+  // One rule, one owner (`validateApiUrl` in `@shipstatic/types`), two call
+  // sites at two tiers — the same shape as validating a password in the SDK
+  // and again at the API, and not a second statement of the rule itself.
+  //
+  // CLI TIER ONLY, deliberately. The `Ship` constructor stays loose because
+  // an embedded consumer may legitimately pass an unroutable `apiUrl` — a
+  // Cloudflare service binding dispatches by binding identity, so
+  // `apiUrl: 'https://api'` is correct there. This is the CLI deciding what a
+  // person may put in a config file, which is a different question.
+  if (resolved.apiUrl) validateApiUrl(resolved.apiUrl);
+
+  return new Ship(resolved);
 }

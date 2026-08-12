@@ -670,6 +670,8 @@ and the next composition lands born-here instead of re-arguing the design.
 | **Dispatcher-owned step emission** — the handler gets an `emit` capability; channels become folds (text renders steps, `--json`/`-q` ignore them), tested once at the fold | The **second** command that announces a mid-command beat | The exported `announceStep` and its per-command channel discipline |
 | **A composition/plan shape** | The **second** composed command | Nothing yet — `deployAndLink` as a plain async function is the right altitude for one |
 | **A command table above Commander** | A consumer that needs identity or requirements to be *enumerable* — none exists; the tree already serves completions, help, both fences, and scoped usage | Nothing — the tree IS the table today |
+| **An ordered TABLE for `getUserMessage`** — (predicate, renderer) rows with a completeness tie, the `SHAPES` / `FILE_RULES` move | The **third** ordering TIE in that chain. It has two (auth-before-client, timeout-before-network), both fenced by tests that turn red on a reorder | The if/else chain and the two tie notes above it. Deliberately not built now: those tables exist to delete a SECOND statement of one fact — `SHAPES` had two chains that drifted, `FILE_RULES` one rule read three ways — and this chain has ONE reader, so a table would move code without removing a restatement |
+| **Hand-rolled ambient-config validation**, retiring `zod` from `dependencies` | Someone is paying for the dependency — a consumer install size complaint, or the third field on `CREDENTIAL_FIELDS` | zod's entire runtime footprint here: three imports over TWO fields (`apiUrl`, `token`), where `z.string().url()` is a weaker restatement of the constitution's `validateApiUrl`. Not free, though: `.strict()` is what makes `.shiprc` refuse unknown keys, and `Object.keys(CREDENTIAL_FIELDS)` is what the config wizard rebuilds the file from, so the replacement owes a key list plus a parse that reports which field failed. A change to the published dependency CONTRACT belongs in its own wave, never as a rider. (The live gap that audit surfaced was separable and is fixed — see "One rule, every source" below.) |
 
 **Considered and declined outright**, so it is not rediscovered: a cross-repo
 existence fence for `web/docs`' CLI page. The rename-drift class it would catch
@@ -1071,6 +1073,34 @@ Two mechanical points, both load-bearing:
   spelling, so telling the two apart means scanning raw argv beside the parser
   — a second parser, refused on the same grounds as a second copy of the
   command tree. The defect worth money was misapplication, and that is closed.
+
+**One rule, every source — the API URL.** `validateApiUrl` ran only in the
+`preAction` hook, which sees the FLAG and nothing else. So one value got two
+verdicts by how it arrived: `ship --api-url https://api.example.com/v1` was
+refused with the constitution's authored sentence, while the same value saved
+into `.shiprc` or exported as `SHIP_API_URL` was accepted and produced
+transport failures on every command afterwards — with nothing connecting the
+symptom to the cause. Measured against the real binary, all three sources,
+before the fix.
+
+**The sources reach one verdict where they become one value**, so the check
+sits in `createClient` after `mergeCliConfig`. The `preAction` check stays: it
+is the flag's fast-fail and a better moment to fail. Two call sites of one
+rule at two tiers is the dual-validation idiom, not a second statement — the
+rule has one owner, `@shipstatic/types`.
+
+**CLI TIER ONLY, deliberately.** The `Ship` constructor stays loose because an
+embedded consumer may legitimately pass an unroutable `apiUrl` — a Cloudflare
+service binding dispatches by binding identity, so `apiUrl: 'https://api'` is
+correct there and is documented in the README. This is the CLI deciding what a
+person may write in a config file, which is a different question.
+
+Fenced in `create-client.unit.test.ts` rather than through the CLI harness,
+for a mechanical reason worth knowing: **the harness injects
+`--api-url <mock server>` into every invocation that does not carry one**, and
+a flag beats both other sources by design — so no harness-driven test can ever
+exercise the file or env path. That is also why the gap survived a suite with
+a dedicated file for parse-time URL checks.
 
 **And one place each flag is read.** Commander's root consumes any option the
 ROOT declares, wherever it sits in argv — so a deploy flag typed *after*
