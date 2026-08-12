@@ -24,7 +24,13 @@ function createMockResponse(data: any, status = 200) {
  * the rejection was authored by the test.
  */
 function hangingFetch(): ReturnType<typeof vi.fn> {
-  const abortError = () => {
+  // The platform rejects with the signal's own REASON, verbatim — captured
+  // 2026-08-12 across Node, Bun, chromium, firefox and webkit. This fake
+  // fabricated an `AbortError` instead, which made it blind to the one
+  // property the SDK now depends on: its own timeout aborts with a
+  // `TimeoutError` reason so it can be told apart from a caller's cancel.
+  // A fake that authors the answer cannot check it.
+  const fallback = () => {
     const error = new Error('The operation was aborted');
     error.name = 'AbortError';
     return error;
@@ -38,10 +44,10 @@ function hangingFetch(): ReturnType<typeof vi.fn> {
         // `abort` event for one. Listening only for a future event made this
         // fake hang where the platform would have rejected.
         if (init.signal?.aborted) {
-          reject(abortError());
+          reject(init.signal.reason ?? fallback());
           return;
         }
-        init.signal?.addEventListener('abort', () => reject(abortError()));
+        init.signal?.addEventListener('abort', () => reject(init.signal?.reason ?? fallback()));
       }),
   );
 }
@@ -56,6 +62,8 @@ describe('ApiHttp Timeout & Cancellation', () => {
       apiUrl: 'https://api.test.com',
       getAuthHeaders: () => ({ Authorization: 'Bearer test-key' }),
       createDeployBody: mockCreateDeployBody,
+      // The subject here is the CEILING, not the retry loop.
+      maxRetries: 0,
       timeout: 5000,
     });
   });
@@ -83,6 +91,8 @@ describe('ApiHttp Timeout & Cancellation', () => {
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
           createDeployBody: mockCreateDeployBody,
+          // The subject here is the CEILING, not the retry loop.
+          maxRetries: 0,
           timeout: 1000,
         });
 
@@ -94,7 +104,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect(settled).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(1);
-        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
       } finally {
         vi.useRealTimers();
       }
@@ -108,6 +118,8 @@ describe('ApiHttp Timeout & Cancellation', () => {
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
           createDeployBody: mockCreateDeployBody,
+          // The subject here is the CEILING, not the retry loop.
+          maxRetries: 0,
         });
 
         const pending = api.ping();
@@ -118,10 +130,84 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect(settled).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(1);
-        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  /**
+   * THE PAIR. Two deadlines reach the same `fetch` through the same composed
+   * signal, and the whole of the retry policy rests on telling them apart:
+   * the SDK's own ceiling is a fault worth another attempt, a caller's cancel
+   * is an instruction.
+   *
+   * Both used to abort BARE, so both arrived as `AbortError` and both read as
+   * `Cancelled` — "you cancelled this" for a deadline nobody set by hand. The
+   * fake hid it besides, by authoring an `AbortError` of its own regardless of
+   * the reason. Nothing here is observable without a fake that relays the
+   * signal's reason the way the platform does.
+   */
+  describe('the SDK timeout and a caller cancel are told apart', () => {
+    const hangingApi = (options: Record<string, unknown> = {}) =>
+      new ApiHttp({
+        apiUrl: 'https://api.test.com',
+        getAuthHeaders: () => ({}),
+        createDeployBody: mockCreateDeployBody,
+        timeout: 1000,
+        ...options,
+      });
+
+    it("the SDK's own ceiling is a deadline: Network, and the sentence says so", async () => {
+      vi.useFakeTimers();
+      try {
+        global.fetch = hangingFetch() as any;
+        const pending = hangingApi({ maxRetries: 0 }).ping();
+        pending.catch(() => {});
+
+        await vi.advanceTimersByTimeAsync(1000);
+        await expect(pending).rejects.toMatchObject({
+          type: 'network_error',
+          message: 'Ping timed out',
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('and is RETRIED — the attempt failed, the caller did not say stop', async () => {
+      vi.useFakeTimers();
+      try {
+        const fetchImpl = hangingFetch();
+        global.fetch = fetchImpl as any;
+        const pending = hangingApi().ping();
+        pending.catch(() => {});
+
+        // Three ceilings and two backoffs (capped at 2s each) is a generous
+        // envelope; what matters is that a second attempt happens at all.
+        await vi.advanceTimersByTimeAsync(1000 * 3 + 2000 * 2 + 10);
+        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
+        expect(fetchImpl.mock.calls.length).toBe(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a caller cancel is an instruction: Cancelled, and NOT retried', async () => {
+      const controller = new AbortController();
+      const fetchImpl = hangingFetch();
+      global.fetch = fetchImpl as any;
+
+      const files = [{ path: 'a.txt', content: Buffer.from('a'), size: 1, md5: 'x' }];
+      const pending = hangingApi().deploy(files, { signal: controller.signal });
+      pending.catch(() => {});
+      controller.abort();
+
+      await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+      // The one that matters: a cancel the client retried through would be the
+      // client ignoring the caller.
+      expect(fetchImpl.mock.calls.length).toBe(1);
     });
   });
 
@@ -225,6 +311,8 @@ describe('ApiHttp Timeout & Cancellation', () => {
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
         createDeployBody: mockCreateDeployBody,
+        // The subject here is the CEILING, not the retry loop.
+        maxRetries: 0,
         fetch: hanging as any,
       });
       const userController = new AbortController();
@@ -247,6 +335,8 @@ describe('ApiHttp Timeout & Cancellation', () => {
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
         createDeployBody: mockCreateDeployBody,
+        // The subject here is the CEILING, not the retry loop.
+        maxRetries: 0,
         fetch: hangingFetch() as any,
       });
       const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
@@ -275,6 +365,8 @@ describe('ApiHttp Timeout & Cancellation', () => {
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
           createDeployBody: mockCreateDeployBody,
+          // The subject here is the CEILING, not the retry loop.
+          maxRetries: 0,
         });
 
         const pending = api.deploy(files);
@@ -287,7 +379,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
         // Still bounded, though: a hung socket must end.
         await vi.advanceTimersByTimeAsync(180_000);
-        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
       } finally {
         vi.useRealTimers();
       }
@@ -306,6 +398,8 @@ describe('ApiHttp Timeout & Cancellation', () => {
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
           createDeployBody: mockCreateDeployBody,
+          // The subject here is the CEILING, not the retry loop.
+          maxRetries: 0,
         });
 
         const pending = api.deploy(files, { build: true });
@@ -317,7 +411,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect(settled).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(300_000);
-        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
       } finally {
         vi.useRealTimers();
       }
@@ -335,6 +429,8 @@ describe('ApiHttp Timeout & Cancellation', () => {
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
           createDeployBody: mockCreateDeployBody,
+          // The subject here is the CEILING, not the retry loop.
+          maxRetries: 0,
         });
 
         const pending = api.deploy(files, { spa: true });
@@ -345,7 +441,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect(settled).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(1);
-        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
       } finally {
         vi.useRealTimers();
       }
@@ -361,6 +457,8 @@ describe('ApiHttp Timeout & Cancellation', () => {
           apiUrl: 'https://api.test.com',
           getAuthHeaders: () => ({}),
           createDeployBody: mockCreateDeployBody,
+          // The subject here is the CEILING, not the retry loop.
+          maxRetries: 0,
           timeout: 1000,
         });
 
@@ -372,7 +470,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         expect(settled).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(1);
-        await expect(pending).rejects.toMatchObject({ type: 'operation_cancelled' });
+        await expect(pending).rejects.toMatchObject({ type: 'network_error' });
       } finally {
         vi.useRealTimers();
       }

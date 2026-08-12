@@ -230,6 +230,25 @@ const ship = new Ship({ session: true });
 ship.setToken('ship-...');
 ```
 
+### Retries
+
+Failed requests are retried automatically: transport failures (including a
+timeout) and 500/502/503/504, twice by default, with full-jitter exponential
+backoff. `maxRetries` is the knob; `0` disables it.
+
+```javascript
+const ship = new Ship({ token: 'ship-...', maxRetries: 5 });
+```
+
+Deliberately never retried: a maintenance 503 (its message says when to come
+back), 429 (the rate limiter has answered), `PUT`/`DELETE` (a repeat can
+misreport a lost success as a failure), anything stopped by a `signal` you
+supplied, and any other non-`GET` without an `Idempotency-Key` — with the key,
+a deploy replays its stored result instead of creating a second one.
+
+`timeout` is the ceiling on one ATTEMPT. For a hard overall deadline pass your
+own `signal` (`AbortSignal.timeout(ms)`), which is never retried past.
+
 ### Deploy Options
 
 ```typescript

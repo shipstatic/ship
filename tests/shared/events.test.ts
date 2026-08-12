@@ -301,7 +301,27 @@ describe('Ship event delegation', () => {
 
     await expect(ship.ping()).rejects.toThrow();
 
+    // ONE PER ATTEMPT, not one per call: a transport failure is retried, and a
+    // consumer counting events must see what actually went out. Three is the
+    // default `maxRetries` of 2 plus the original attempt.
+    expect(errors).toHaveLength(3);
+    expect(new Set(errors.map((e) => e.url))).toEqual(new Set(['https://api.example.com/limits']));
+  });
+
+  it('emits nothing extra when retries are disabled', async () => {
+    // `maxRetries: 0` is the knob's whole contract, and this is the pair that
+    // proves the count above is the retry rather than a leak.
+    const ship = new Ship({
+      apiUrl: 'https://api.example.com',
+      maxRetries: 0,
+      fetch: vi.fn(async () => {
+        throw new TypeError('fetch failed');
+      }) as unknown as Fetch,
+    });
+    const errors: string[] = [];
+    ship.on('error', (error) => errors.push(error.message));
+
+    await expect(ship.ping()).rejects.toThrow();
     expect(errors).toHaveLength(1);
-    expect(errors[0].url).toBe('https://api.example.com/limits');
   });
 });

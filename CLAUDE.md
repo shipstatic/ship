@@ -789,6 +789,63 @@ key.
 
 When `ship domains set <name> [deployment]` creates a new external domain (`isCreate: true`, name contains `.`), the CLI fetches `domains.records()` and `domains.share()` in parallel, attaching results as `_dnsRecords` and `_shareHash` on the result for the formatter to display. This is CLI-only behavior; SDK resources return plain data.
 
+### Retries
+
+The CLI's own 5xx message says "try again". The client now takes its own
+advice before handing that sentence to a person. `executeRequest` is the loop
+and `attemptOnce` is one request — the same single wrap point that already
+owned headers, the timeout signal, the events and error normalization, so an
+attempt is a whole request and nothing has to be undone between two.
+
+**Retried:** transport failures (`Network` — which since the 2026-08-12
+transport table includes a deadline, since nothing was exchanged either way)
+and 500/502/503/504. Two retries by default, so three attempts, with full
+jitter — `random() * min(2s, 300ms * 2^n)`. Jitter matters more than the
+curve: it is what stops a platform hiccup from returning every client at once.
+
+**Not retried, each a decision rather than an omission:**
+
+- **A maintenance 503.** A state, not a fault: its message says when to come
+  back, and retrying it three times only delays that sentence reaching the
+  person who needs it. Same STATUS as the retryable 503, which is exactly why
+  the check reads the TYPE — and why that test is the load-bearing one.
+- **429.** The platform's rate limiter has just answered; a client that
+  auto-retries is arguing with it. Revisit only alongside honoring
+  `Retry-After`, as its own decision.
+- **`PUT` / `DELETE`.** Semantically idempotent here and excluded anyway: a
+  DELETE whose response was lost answers 404 on the retry, turning a success
+  into a reported failure.
+- **Any other non-`GET` without an `Idempotency-Key`.** With the key a deploy
+  replays its stored 201, so the repeat is safe by construction rather than by
+  assumption.
+- **Anything the CALLER's signal stopped.** The subtle one, and the reason the
+  check reads `options.signal.aborted` rather than only the error type: a
+  caller's `AbortSignal.timeout()` classifies as `Network`, so on type alone
+  it would look retryable and silently outlive the ceiling that caller set.
+
+**Which required teaching the composed signal to say which deadline fired.**
+`createTimeoutSignal` aborted bare, so the SDK's own timeout, a caller's abort
+and a caller's `AbortSignal.timeout()` all arrived as `AbortError` and all
+classified as `Cancelled` — "you cancelled this" for a deadline nobody set by
+hand. An abort REASON survives fetch's rejection verbatim (captured across
+Node, Bun and the three engines), so each keeps its identity: ours is a
+`TimeoutError` naming the ceiling, the caller's is forwarded untouched. The
+same change removes the abort listener on cleanup, which was harmless when
+there was one attempt and a leak that grows once there are three.
+
+**Events stay honest:** `request` and `error` fire per ATTEMPT, so a consumer
+counting requests sees what actually went out; `response` fires once, on the
+one that worked. Two existing tests asserted one error per call and now assert
+three — that change IS the contract, not a concession to it.
+
+**Surface:** `maxRetries` on `ShipClientOptions`, `0` disables. One knob, the
+name Stripe and OpenAI use, which by this file's own doc-placement rule is
+what earns it public README surface. No env var and **no CLI flag** (recorded
+absence — the CLI rides the default; add a flag the day someone asks).
+
+No `tests/contract.ts` rows: retry is client POLICY, not a wire fact. The API
+is not promising to fail twice.
+
 ### The bundle boundary
 
 **What this package bundles and what it asks a consumer to install is one
@@ -1083,7 +1140,7 @@ is not named here by full basename.
 
 | Module | Files | Why |
 |---|---|---|
-| `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-browser`, `http-domains`, `http-events`, `http-rate-limit`, `http-timeout`, `http-tokens` | The HTTP client is the SDK's widest surface. `http.test.ts` is the transport anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler, one resource family or one cross-cutting concern each. |
+| `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-browser`, `http-domains`, `http-events`, `http-rate-limit`, `http-retry`, `http-timeout`, `http-tokens` | The HTTP client is the SDK's widest surface. `http.test.ts` is the transport anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler, one resource family or one cross-cutting concern each. |
 | `src/shared/base-ship.ts` | `base-ship`, `base-ship-credentials`, `base-ship-lifecycle`, `base-ship-limits` | Three separable doctrines on one class: the credential slot, the init/auth lifecycle, and the one-shot `/limits` cache. |
 | `src/shared/resources.ts` | `resources-account`, `resources-deployments`, `resources-domains` | One file per resource factory; a single file would be a grab bag with no reason to read any part of it. |
 | `src/shared/types.ts` | `types-reexport` | Not a test of the module's own types but of the **freshness** of what it re-exports — a bundled-dependency fence. |
@@ -1350,7 +1407,15 @@ edits ship alone" — the same separability, one seam over).
 
 A **build or prerender** deploy is the third: it waits for work the SERVER does after the upload lands, so `DEFAULT_DEPLOY_BUILD_TIMEOUT` is **derived, not chosen** — written in code as `DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET`, so tuning either half carries. Raising that server constant must raise this one; they sit in different repos so nothing fences the pair, and the constraint is stated at both ends. `spa` does NOT qualify: it is local detection bounded by the AI tier's own 10s; only build/prerender reach the build service.
 
-**Only the DEFAULTS split by operation** — an explicit `timeout` option governs every request including deploys: a caller who names a ceiling asked for a ceiling, not for one with an exception. The correct long-term instrument is an **idle timeout** — reset on progress, the only formulation independent of payload size — blocked on upload-progress observation, which browser `fetch` cannot provide. Build it when someone wants a progress bar; the timeout falls out of that work for free.
+**Only the DEFAULTS split by operation** — an explicit `timeout` option governs every request including deploys: a caller who names a ceiling asked for a ceiling, not for one with an exception.
+
+**And since retries landed, that ceiling is per ATTEMPT.** The sentence above
+was written when one call meant one request, and it has to be reconciled
+rather than quietly contradicted: each attempt is an honest request and
+deserves the ceiling the caller named, while `maxRetries` is the lever on how
+many there may be. A caller who wants a hard WALL-CLOCK deadline passes their
+own `signal` (`AbortSignal.timeout(ms)`) — and that works precisely because
+the loop never retries past a signal the caller supplied. See "Retries" below. The correct long-term instrument is an **idle timeout** — reset on progress, the only formulation independent of payload size — blocked on upload-progress observation, which browser `fetch` cannot provide. Build it when someone wants a progress bar; the timeout falls out of that work for free.
 
 **Routes the API exposes that the SDK does not reach.** Two classes — do not
 conflate them:

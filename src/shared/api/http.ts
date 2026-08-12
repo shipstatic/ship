@@ -30,6 +30,7 @@ import {
   API_PATHS,
   CALLER,
   DEFAULT_API,
+  ErrorType,
   IDEMPOTENCY_KEY_CONSTRAINTS,
   ShipError,
   SPA_CHECK_CONSTRAINTS,
@@ -50,6 +51,57 @@ import type {
 // =============================================================================
 
 const DEFAULT_REQUEST_TIMEOUT = 30_000;
+
+/**
+ * Retries: two, so three attempts. The CLI's own 5xx message says "try again",
+ * and the client should take its own advice before handing that sentence to a
+ * person.
+ *
+ * `maxRetries` on `ShipClientOptions` is the one public knob (`0` disables) —
+ * the name Stripe and OpenAI use, which is what earns it README surface under
+ * this repo's doc-placement rule. No env var and no CLI flag: the CLI rides
+ * the default, and a flag can be added the day someone asks.
+ */
+const DEFAULT_MAX_RETRIES = 2;
+
+/** Full-jitter exponential backoff, in milliseconds. */
+const RETRY_BASE_DELAY = 300;
+const RETRY_MAX_DELAY = 2_000;
+
+/**
+ * The server faults worth trying again. 429 is deliberately absent: the
+ * platform's rate limiter has just answered, and a client that auto-retries is
+ * arguing with it. (Revisit only alongside honoring `Retry-After`, as its own
+ * decision.)
+ */
+const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
+
+/**
+ * Sleep, unless the caller's signal says otherwise — so an abort mid-backoff
+ * lands immediately instead of after the delay. Rejects with the signal's own
+ * reason, which the caller's error path then classifies like any other.
+ */
+function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    const onAbort = () => {
+      done();
+      reject(signal?.reason);
+    };
+    const timer = setTimeout(() => {
+      done();
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort);
+  });
+}
 
 /**
  * Deploys get their own ceilings, because one budget cannot fit every
@@ -143,6 +195,7 @@ export class ApiHttp extends SimpleEvents {
   private readonly session: boolean;
   private readonly caller: string | undefined;
   private readonly timeout: number;
+  private readonly maxRetries: number;
   private readonly deployTimeout: number;
   private readonly deployBuildTimeout: number;
   private readonly fetch: Fetch;
@@ -157,6 +210,7 @@ export class ApiHttp extends SimpleEvents {
     this.session = options.session ?? false;
     this.caller = options.caller;
     this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
+    this.maxRetries = Math.max(0, options.maxRetries ?? DEFAULT_MAX_RETRIES);
     // An explicit timeout is the caller's whole answer and applies to deploys
     // too — they asked for a ceiling, not for one with an exception. Only the
     // DEFAULT splits by operation.
@@ -183,9 +237,120 @@ export class ApiHttp extends SimpleEvents {
   // ===========================================================================
 
   /**
-   * Execute HTTP request with timeout, events, and error handling
+   * Execute an HTTP request, retrying the failures that are worth retrying.
+   *
+   * The loop lives here because `attemptOnce` is already the single wrap point
+   * for headers, the timeout signal, the events and error normalization — so
+   * an attempt is a whole request and nothing has to be undone between two.
+   *
+   * **Events stay honest across attempts**: `request` and `error` fire per
+   * attempt, so a consumer counting requests sees what actually went out;
+   * `response` fires once, on the one that worked.
+   *
+   * **The caller's `timeout` governs an ATTEMPT, not the wall clock.** Each
+   * attempt is an honest request and deserves the ceiling the caller named;
+   * `maxRetries` is the lever on the total. A caller who wants a hard overall
+   * deadline passes their own `signal` — see `isRetryable` for why that ends
+   * the loop even when it is a timeout.
    */
   private async executeRequest<T>(
+    url: string,
+    options: RequestInit,
+    operationName: string,
+    timeoutMs: number = this.timeout,
+  ): Promise<RequestResult<T>> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.attemptOnce<T>(url, options, operationName, timeoutMs);
+      } catch (error) {
+        // `attemptOnce` already normalized and emitted; this is a pass-through.
+        const shipError = ShipError.fromFetchError(error, operationName);
+        if (attempt >= this.maxRetries || !this.isRetryable(shipError, options)) throw shipError;
+
+        // Full jitter: `random() * min(cap, base * 2^n)`. Jitter matters more
+        // than the curve — it is what stops a platform hiccup from returning
+        // every client in lockstep.
+        const ceiling = Math.min(RETRY_MAX_DELAY, RETRY_BASE_DELAY * 2 ** attempt);
+        try {
+          await sleep(Math.random() * ceiling, options.signal);
+        } catch (aborted) {
+          // The caller stopped us mid-backoff. Their reason, their error.
+          const cancelled = ShipError.fromFetchError(aborted, operationName);
+          this.emit('error', cancelled, url);
+          throw cancelled;
+        }
+      }
+    }
+  }
+
+  /**
+   * Is this failure worth another attempt?
+   *
+   * Two axes, and both must say yes: what went wrong, and whether the request
+   * is one that may be sent twice.
+   */
+  private isRetryable(error: ShipError, options: RequestInit): boolean {
+    // The caller's own signal fired — theirs to decide, whatever the reason.
+    // This is what keeps a caller-supplied `AbortSignal.timeout()` working as
+    // an OVERALL deadline: it classifies as `Network` (a deadline exchanged
+    // nothing) and would otherwise look retryable, silently outliving the
+    // ceiling the caller set.
+    if (options.signal?.aborted) return false;
+
+    // A maintenance 503 is a STATE, not a fault. Its message says when to come
+    // back, and retrying three times with backoff only delays that sentence
+    // reaching the person who needs it.
+    if (error.isType(ErrorType.Maintenance)) return false;
+
+    // A user abort stops everything.
+    if (error.isType(ErrorType.Cancelled)) return false;
+
+    // Transport failures — which since 2026-08-12 include a deadline, since
+    // nothing was exchanged either way — and the server faults above.
+    const worthRetrying =
+      error.isNetworkError() || (error.status !== undefined && RETRYABLE_STATUS.has(error.status));
+    if (!worthRetrying) return false;
+
+    const method = (options.method ?? 'GET').toUpperCase();
+    if (method === 'GET' || method === 'HEAD') return true;
+
+    // PUT and DELETE are semantically idempotent here and still excluded: a
+    // DELETE whose response was lost answers 404 on the retry, turning a
+    // success into a reported failure. The classic hazard; stay out.
+    if (method === 'PUT' || method === 'DELETE') return false;
+
+    // Everything else needs the server's own replay guarantee. A deploy
+    // carrying `Idempotency-Key` replays its stored 201, so a retry is safe by
+    // construction rather than by assumption.
+    return this.hasIdempotencyKey(options.headers);
+  }
+
+  /** Did this request carry the header that makes a repeat safe? */
+  private hasIdempotencyKey(headers: RequestInit['headers']): boolean {
+    if (!headers) return false;
+    const target = IDEMPOTENCY_KEY_CONSTRAINTS.HEADER.toLowerCase();
+    let found = false;
+    const check = (key: string) => {
+      if (key.toLowerCase() === target) found = true;
+    };
+
+    // Three shapes, because `HeadersInit` is three. `forEach` rather than
+    // `entries()`: the iterator is not in every lib target this package builds
+    // against, and the callback form is.
+    if (headers instanceof Headers) {
+      headers.forEach((_value, key) => {
+        check(key);
+      });
+    } else if (Array.isArray(headers)) for (const [key] of headers) check(key);
+    else for (const key of Object.keys(headers)) check(key);
+
+    return found;
+  }
+
+  /**
+   * One attempt: headers, timeout signal, events, and error normalization.
+   */
+  private async attemptOnce<T>(
     url: string,
     options: RequestInit,
     operationName: string,
@@ -281,17 +446,35 @@ export class ApiHttp extends SimpleEvents {
     cleanup: () => void;
   } {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (existingSignal) {
-      const abort = () => controller.abort();
-      existingSignal.addEventListener('abort', abort);
-      if (existingSignal.aborted) controller.abort();
+    // The composed signal must say WHICH deadline fired. Both used to abort
+    // bare, so the SDK's own timeout, a caller's abort and a caller's
+    // `AbortSignal.timeout()` all arrived as `AbortError` and all classified
+    // as `Cancelled` — "you cancelled this" for a deadline nobody set by hand.
+    // An abort REASON survives fetch's rejection verbatim (captured across
+    // Node, Bun and the three engines), so each keeps its own identity: ours
+    // is a `TimeoutError` naming the ceiling, and the caller's is forwarded
+    // untouched. `executeRequest` retries the first and never the second.
+    const timeoutId = setTimeout(
+      () => controller.abort(new DOMException(`Timed out after ${timeoutMs}ms`, 'TimeoutError')),
+      timeoutMs,
+    );
+
+    const forward = existingSignal ? () => controller.abort(existingSignal.reason) : undefined;
+    if (existingSignal && forward) {
+      existingSignal.addEventListener('abort', forward);
+      if (existingSignal.aborted) controller.abort(existingSignal.reason);
     }
 
     return {
       signal: controller.signal,
-      cleanup: () => clearTimeout(timeoutId),
+      // The listener is removed, not just the timer: with retries a caller's
+      // signal outlives the attempt, and one listener per attempt on a
+      // long-lived signal is a leak that grows with every retry.
+      cleanup: () => {
+        clearTimeout(timeoutId);
+        if (existingSignal && forward) existingSignal.removeEventListener('abort', forward);
+      },
     };
   }
 

@@ -121,8 +121,31 @@ export interface ShipClientOptions {
   /**
    * Timeout in milliseconds for every API request made by this client
    * instance. Defaults to 30 seconds.
+   *
+   * With retries, this is the ceiling on an ATTEMPT rather than on the wall
+   * clock — each attempt is an honest request and deserves the ceiling you
+   * named, and {@link ShipClientOptions.maxRetries} is the lever on the total.
+   * For a hard overall deadline, pass your own `signal`
+   * (`AbortSignal.timeout(ms)`): the client never retries past a signal you
+   * supplied.
    */
   timeout?: number | undefined;
+  /**
+   * How many times to retry a failed request. Defaults to 2 (three attempts);
+   * `0` disables retrying entirely.
+   *
+   * Retried: transport failures (including a timeout — nothing was exchanged
+   * either way) and 500/502/503/504, with full-jitter exponential backoff.
+   *
+   * NOT retried, each deliberately: a maintenance 503 (a state, not a fault —
+   * its message says when to come back), 429 (the rate limiter has just
+   * answered), anything stopped by a `signal` you supplied, and any request
+   * that cannot be safely repeated — `PUT`/`DELETE` are excluded outright, and
+   * other non-`GET` methods retry only when they carry an `Idempotency-Key`,
+   * which is what lets a deploy replay its stored result instead of creating a
+   * second one.
+   */
+  maxRetries?: number | undefined;
   /**
    * When true, the client authenticates with the first-party cookie session
    * (`AuthMethod.SESSION`) — requests are sent with `credentials: 'include'`

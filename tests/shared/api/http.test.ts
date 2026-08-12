@@ -1483,7 +1483,9 @@ describe('ApiHttp', () => {
       api.on('error', onError);
 
       await expect(api.ping()).rejects.toBeInstanceOf(ShipError);
-      expect(onError).toHaveBeenCalledTimes(1);
+      // One per ATTEMPT — a transport failure is retried twice by default.
+      expect(onError).toHaveBeenCalledTimes(3);
+      expect(injected).toHaveBeenCalledTimes(3);
       expect(onError).toHaveBeenCalledWith(expect.any(ShipError), 'https://api.test.com/ping');
     });
   });
