@@ -16,10 +16,10 @@ import { defineConfig, type Options } from 'tsup';
  * `dist/cli.cjs`, so an embedded SDK consumer (the MCP, and through it the
  * vscode `.vsix`) no longer installs four packages it never executes.
  */
-const nodeExternals = ['form-data-encoder', 'formdata-node', 'junk', 'spark-md5', 'zod'];
+const nodeExternals = ['junk', 'spark-md5', 'zod'];
 
 // Dependencies to be bundled into the browser build
-const browserBundleDeps = ['spark-md5', 'form-data-encoder', 'junk', 'zod', '@shipstatic/types'];
+const browserBundleDeps = ['spark-md5', 'junk', 'zod', '@shipstatic/types'];
 
 export default defineConfig((tsupOptions: Options): Options[] => [
   // 1. SDK for Node.js (ESM and CJS, main entry)

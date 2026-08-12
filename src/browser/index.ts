@@ -8,6 +8,7 @@
 
 import { ShipError } from '@shipstatic/types';
 import { Ship as BaseShip } from '../shared/base-ship.js';
+import { createDeployBody } from '../shared/core/deploy-body.js';
 import type {
   DeployBodyCreator,
   DeployInput,
@@ -15,7 +16,6 @@ import type {
   DeploymentOptions,
   StaticFile,
 } from '../shared/types.js';
-import { createDeployBody } from './core/deploy-body.js';
 
 // Export all shared functionality
 export * from '../shared/index.js';

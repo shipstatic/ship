@@ -5,10 +5,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http.js';
 
-const mockCreateDeployBody = async () => ({
-  body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' },
-});
+const mockCreateDeployBody = async () => new FormData();
 
 describe('ApiHttp Events', () => {
   test('should emit request event', async () => {

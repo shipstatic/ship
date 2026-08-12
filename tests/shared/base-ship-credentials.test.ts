@@ -12,10 +12,7 @@ import { apiKey, deployToken } from '../fixtures/builders';
 const TEST_API_KEY = apiKey('a');
 const TEST_DEPLOY_TOKEN = deployToken('b');
 
-const mockDeployBodyCreator: DeployBodyCreator = async () => ({
-  body: new ArrayBuffer(0),
-  headers: { 'Content-Type': 'multipart/form-data' },
-});
+const mockDeployBodyCreator: DeployBodyCreator = async () => new FormData();
 
 // Concrete test implementation. The `ensureInitialized` no-op skips the
 // `GET /limits` fetch — these tests focus on the credential model and don't

@@ -549,7 +549,7 @@ export class ApiHttp extends SimpleEvents {
       options.build || options.prerender || options.spa
         ? { build: options.build, prerender: options.prerender, spa: options.spa }
         : undefined;
-    const { body, headers: bodyHeaders } = await this.createDeployBody(files, {
+    const body = await this.createDeployBody(files, {
       labels,
       via: options.via ?? DEPLOY_VIA,
       password: options.password,
@@ -558,17 +558,22 @@ export class ApiHttp extends SimpleEvents {
       captcha: options.captcha,
     });
 
-    // The key rides a header, not the body, because it must be readable
-    // before the request is parsed — the API replays a stored 201 ahead of
-    // the write budget, so a retry costs nothing.
+    // NO Content-Type here, deliberately: `fetch` derives it from the
+    // `FormData` body along with the boundary, and setting one by hand would
+    // name a boundary the body does not use. The builder used to return
+    // headers because the Node half hand-encoded the multipart itself.
+    //
+    // The idempotency key rides a header, not the body, because it must be
+    // readable before the request is parsed — the API replays a stored 201
+    // ahead of the write budget, so a retry costs nothing.
     return this.request<DeploymentCreateResponse>(
       `${this.apiUrl}${this.deployEndpoint}`,
       {
         method: 'POST',
         body,
-        headers: idempotencyKey
-          ? { ...bodyHeaders, [IDEMPOTENCY_KEY_CONSTRAINTS.HEADER]: idempotencyKey }
-          : bodyHeaders,
+        ...(idempotencyKey
+          ? { headers: { [IDEMPOTENCY_KEY_CONSTRAINTS.HEADER]: idempotencyKey } }
+          : {}),
         signal: options.signal || null,
       },
       'Deploy',

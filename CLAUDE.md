@@ -983,8 +983,9 @@ a property of the bytes and not of the config that produced them):
    catches rot;
    plus the config half: every tsup external names a declared dependency.
 
-`dependencies` is now the SDK's five — `zod`, `spark-md5`, `junk`,
-`formdata-node`, `form-data-encoder`. The CLI's four (`commander`,
+`dependencies` is now the SDK's three — `zod`, `spark-md5`, `junk`. It was
+five until 2026-08-12; see "One deploy body" below for why the multipart pair
+left. The CLI's four (`commander`,
 `columnify`, `yocto-spinner`, `yoctocolors`) are devDependencies bundled into
 `dist/cli.cjs`, so an embedded SDK consumer — the MCP, and through it the
 vscode `.vsix` — no longer installs four packages it never executes, and an
@@ -1037,10 +1038,39 @@ The spinner keeps its dynamic `import()`. Bundled, that no longer defers a
 package install, but it still defers evaluating the module on the runs that
 never show a spinner (`--json`, `-q`, non-TTY), which is most CI runs.
 
-**Out of scope, recorded so it is not folded in:** replacing
-`formdata-node`/`form-data-encoder` with Node ≥20's native `FormData` is an SDK
-behaviour change with its own compatibility questions — a separate decision,
-not a bundling detail.
+**One deploy body, and the multipart pair retired (2026-08-12).** There were
+two `deploy-body.ts` files, and everything that mattered was identical: the
+same fields appended in the same order. The Node one carried twenty extra
+lines because `formdata-node`'s objects are not the ones undici's `fetch`
+knows how to encode, so it serialized through `form-data-encoder` into an
+ArrayBuffer with a hand-computed `Content-Type` and `Content-Length`.
+
+That was a real constraint on a Node without a global `FormData`, and
+`engines.node >= 20` has had global `FormData`, `File` and a
+multipart-encoding `fetch` all along — the constraint had lapsed before the
+code was written. One shared builder in `shared/core/deploy-body.ts`, both
+platform files deleted, both packages out of `dependencies` and out of the
+tsup externals.
+
+**This section previously recorded the swap as out of scope** — "an SDK
+behaviour change with its own compatibility questions, a separate decision,
+not a bundling detail". Separate was right and it got its own wave; what the
+note did not say, and what a reader took from it, is that something GATED it.
+Nothing did.
+
+Two things earned it rather than assumed it. The behaviour was captured on
+both runtimes this SDK targets — node 22 and bun 1.3, the latter because
+`plan-ship-native-binary.md` compiles a Bun binary — and both encode a native
+`FormData` with `filename="assets/nested/index.html"` intact, which is the
+whole contract: the deploy PATH rides `File.name`. And the built artifact was
+posted at a real socket, where the paths, the index-aligned checksums and the
+metadata fields all arrive as before.
+
+The creator returns a bare `FormData` now, not `{ body, headers }`: `fetch`
+sets the boundary and the `Content-Type`, so a caller that composed headers
+was doing the runtime's job. The 400-line Node test went with it — it mocked
+both packages and asserted on `append` CALLS, where a real `FormData` can be
+READ BACK, so the one replacement asserts the artifact the API receives.
 
 ### Two flag tiers, and one place each is read
 

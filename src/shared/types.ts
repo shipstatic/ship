@@ -34,15 +34,6 @@ export interface DeploymentOptions extends DeploymentUploadOptions {
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
 
 /**
- * Prepared request body for deployment.
- * Created by platform-specific code, consumed by HTTP client.
- */
-export interface DeployBody {
-  body: FormData | ArrayBuffer;
-  headers: Record<string, string>;
-}
-
-/**
  * Context passed to the deploy body creator — everything that becomes a
  * form field alongside the files themselves.
  */
@@ -77,13 +68,18 @@ export interface DeployBodyContext {
 }
 
 /**
- * Function that creates a deploy request body from files.
- * Implemented differently for Node.js and Browser.
+ * Builds the multipart body for a deploy.
+ *
+ * Returns a native `FormData` — `fetch` sets the boundary and the
+ * `Content-Type`. It used to return `{ body, headers }` because the Node half
+ * hand-encoded into an ArrayBuffer and had to state both itself; with one
+ * builder on the runtime's own primitives there is nothing for a caller to
+ * carry. One implementation, both platforms (`shared/core/deploy-body.ts`).
  */
 export type DeployBodyCreator = (
   files: StaticFile[],
   context?: DeployBodyContext,
-) => Promise<DeployBody>;
+) => Promise<FormData>;
 
 // =============================================================================
 // CLIENT CONFIGURATION

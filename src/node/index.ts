@@ -16,6 +16,7 @@
 
 import { ShipError } from '@shipstatic/types';
 import { Ship as BaseShip } from '../shared/base-ship.js';
+import { createDeployBody } from '../shared/core/deploy-body.js';
 import { getENV } from '../shared/lib/env.js';
 import type {
   DeployBodyCreator,
@@ -26,7 +27,6 @@ import type {
   StaticFile,
 } from '../shared/types.js';
 import { readEnvConfig } from './core/config.js';
-import { createDeployBody } from './core/deploy-body.js';
 
 // Export all shared functionality
 export * from '../shared/index.js';
