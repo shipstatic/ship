@@ -309,10 +309,13 @@ is never "did we make a request?", it is **"what would the wire say?"**:
 
 - **A check that mirrors a server rule keeps the status the server would send.**
   Blocked extensions, label rules, password length, token format — the platform
-  validates these on both sides from the same imported rules (root `CLAUDE.md`,
+  validates these on both sides from the same rules (root `CLAUDE.md`,
   "Validation Architecture"), and the whole point is that the error reads the
   same wherever it was caught. `ShipError.validation(...)` with its 400 is
-  correct here.
+  correct here. **"The same rules" means imported OR delivered**: the extension
+  blocklist arrives at runtime in `PlatformLimits.blockedExtensions` rather than
+  as a constant, and mirrors the server no less for it — more so, since a
+  delivered rule cannot be stale.
 - **A fault with no server rule to mirror carries no status**, and therefore one
   of the client-only types — `Network`, `Cancelled`, `File`, `Config`, which are
   exactly the statusless factories in `@shipstatic/types`. Your shell, your
@@ -329,11 +332,11 @@ the type, no status.
 complied** — an earlier note here claimed "~25 sites violate it", which was
 wrong and is corrected. Almost every local throw in `src/shared/`,
 `src/browser/`, and `src/node/core/` *mirrors a server rule* and rightly keeps
-its 400: blocked extensions, unsafe filenames, path traversal, label rules, and
-the size/count caps all come from the same imported constants the API enforces
-(`hasUnbuiltMarker` is checked in `api/src/lib/validation.ts` too). One site was
-genuinely wrong — a failed local file read in `md5.ts`, now `ShipError.file`
-with the path in `details`.
+its 400: unsafe filenames, path traversal, label rules, and the size/count caps
+all come from the same constants the API enforces (`hasUnbuiltMarker` is checked
+in `api/src/lib/validation.ts` too), and blocked extensions come from the list
+the API *delivers*. One site was genuinely wrong — a failed local file read in
+`md5.ts`, now `ShipError.file` with the path in `details`.
 
 What remains is a third category the rule deliberately does not govern:
 **assertions** like "processFilesForNode can only be called in Node.js
@@ -1024,6 +1027,36 @@ client (AWS, Stripe, OpenAI) assume.
 
 **`getLimits()` is cached** — reuses the `PlatformLimits` fetched during initialization; no extra API call.
 
+**`/limits` is also how the platform's extension blocklist reaches the client.**
+`PlatformLimits.blockedExtensions` is the API's list (`cloudflare/api/src/lib/blocklist.ts`);
+`validateFiles` and both file pipelines read it and refuse nothing the platform
+did not name. The field is **optional and the absence is a contract**: an API
+predating it sends none, which means "no client-side check", never "an empty
+policy" — the deploy proceeds and the API refuses the file at the boundary,
+which is where refusal belongs. Never restore a compiled-in copy: `@shipstatic/types`
+is a devDependency **bundled into dist**, so a constant here is baked into every
+published tarball and a user on an old `ship` would enforce a policy the platform
+has moved on from, in both directions. Fenced by the `getLimits` row in
+`tests/contract.ts` — the live half is the only thing in this repo that can see
+the API drop the field.
+
+**One rule renders through two client surfaces, and the seam is recorded as
+the next consolidation.** The throwing renderer (`validateDeployFile`, both
+deploy pipelines) and the collecting renderer (`validateFiles`, the UI tier)
+restate the same ordered checks, and the size rule already shows the cost:
+three sentences for one rule — `File ${path} is too large. Maximum allowed
+size is ${n}MB.` (the pipelines), `File size (…) exceeds limit of …`
+(`validateFiles`), `File too large. Maximum ${n} bytes allowed` (the API) —
+against the dual-validation doctrine that an error reads the same wherever it
+is caught. The end state is one ordered table of (predicate, sentence) pairs
+over (file, limits) with two renderers, throw-on-first and collect-all — the
+`SHAPES`-table move (see "`formatOutput` Router") applied to validation — and
+the same table is what makes node/browser pipeline parity expressible as a
+fence instead of a convention. Its own wave, deliberately: it touches Stable
+internals across ship and drop and pins user-facing sentences, none of which
+belongs in a policy or delivery change (`cloudflare/api/CLAUDE.md`, "list
+edits ship alone" — the same separability, one seam over).
+
 ## Backend Integration
 
 | SDK Method | API Endpoint | Notes |
@@ -1049,7 +1082,7 @@ client (AWS, Stripe, OpenAI) assume.
 | `tokens.delete()` | `DELETE /tokens/:token` | 200 `{token}` — resolved, not discarded |
 | `account.get()` | `GET /account` | |
 | `ping()` | `GET /ping` | Resolves `PingResponse` (`{timestamp}`) — reachability is the absence of a throw, so there is no boolean to read |
-| `getLimits()` | `GET /limits` | Cached after init |
+| `getLimits()` | `GET /limits` | Cached after init. Carries the plan caps **and** `blockedExtensions` — the platform's hosting blocklist, optional (an older API sends none) |
 | (internal) | `POST /spa-check` | SPA detection during upload — optional auth, anonymous callers allowed |
 | (internal) | `POST /upload` | Only via the `@internal` `deployEndpoint` option (`web/my`, `web/www`) |
 

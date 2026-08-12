@@ -28,7 +28,7 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { processFilesForNode } from '../../../src/node/core/node-files';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
-import { FREE_PLAN_LIMITS } from '../../fixtures/builders';
+import { FREE_PLAN_LIMITS, LIMITS_WITHOUT_BLOCKLIST } from '../../fixtures/builders';
 
 let root: string;
 
@@ -474,6 +474,28 @@ describe('processFilesForNode', () => {
       await expect(processFilesForNode([at(name)], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
         'File extension not allowed',
       );
+    });
+
+    it('refuses only what the DELIVERED list names, not a compiled-in one', async () => {
+      // The blocklist is the platform's and arrives via `GET /limits`. A client
+      // that shipped its own copy would refuse this file, which is the exact
+      // failure mode the list was moved server-side to prevent: a pinned client
+      // enforcing a policy the platform has moved on from.
+      writeTree({ 'virus.exe': 'payload' });
+
+      const limits = { ...FREE_PLAN_LIMITS, blockedExtensions: ['dmg'] };
+      await expect(processFilesForNode([at('virus.exe')], {}, limits)).resolves.toHaveLength(1);
+    });
+
+    it('checks nothing when the API sent no list — fail open, never guess', async () => {
+      // An API predating `blockedExtensions` sends none. Absence means "no
+      // client-side check", never "an empty policy": the deploy proceeds and
+      // the API refuses the file at the boundary, where refusal belongs.
+      writeTree({ 'virus.exe': 'payload' });
+
+      await expect(
+        processFilesForNode([at('virus.exe')], {}, LIMITS_WITHOUT_BLOCKLIST),
+      ).resolves.toHaveLength(1);
     });
 
     it.each(['file?.txt', 'file#anchor.txt', 'file<tag>.txt'])(

@@ -242,8 +242,10 @@ export function validateFiles<T extends ValidatableFile>(
       });
     }
 
-    // Blocked extension check
-    else if (isBlockedExtension(file.name)) {
+    // Blocked extension check — the list is the platform's, delivered via
+    // `/limits`. Absent (an API predating the field) means no client-side
+    // check, never an empty policy: the boundary still refuses the file.
+    else if (isBlockedExtension(file.name, config.blockedExtensions ?? [])) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = `File extension not allowed: "${file.name}"`;
       errors.push({

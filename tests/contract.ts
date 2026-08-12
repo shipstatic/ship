@@ -97,6 +97,35 @@ const NO_TOKENS = 'e2e creates no tokens — they accumulate with no cleanup pat
 export const CONTRACT: readonly ContractPoint[] = [
   // --- reads ---------------------------------------------------------------
   { name: 'ping', status: 200, live: true, run: (s) => s.ping() },
+  {
+    // The blocklist is the API's and reaches clients ONLY here. If the field
+    // stops arriving, `validateFiles` and the deploy pipeline silently stop
+    // warning — a deploy still fails, but at the boundary after an upload
+    // rather than instantly. Nothing else in this repo can observe that, which
+    // is precisely why the point is stated on the LIVE half.
+    // No `status`, and that is a property of the call rather than an omission:
+    // `/limits` is fetched once during init and `getLimits()` answers from
+    // cache, so this call emits no `response` event — the runners even warm it
+    // deliberately so it cannot be mistaken for another row's. Its 200 is
+    // exercised by every row here, since none of them would have a client
+    // otherwise. This row exists for its `assert`.
+    name: 'getLimits',
+    live: true,
+    assert: (r) => {
+      const blocked = (r as { blockedExtensions?: unknown }).blockedExtensions;
+      if (!Array.isArray(blocked) || blocked.length === 0) {
+        throw new Error(
+          'GET /limits must carry a non-empty blockedExtensions array — ' +
+            'wire: cloudflare/api/src/lib/blocklist.ts, served by routes/limits.ts. ' +
+            'A Set serializes to {} and would arrive as an empty policy.',
+        );
+      }
+      if (blocked.some((ext) => typeof ext !== 'string' || !/^[a-z0-9]+$/.test(ext))) {
+        throw new Error('blockedExtensions must be lowercase, dotless extensions');
+      }
+    },
+    run: (s) => s.getLimits(),
+  },
   { name: 'account.get', status: 200, live: true, run: (s) => s.account.get() },
   { name: 'deployments.list', status: 200, live: true, run: (s) => s.deployments.list() },
   {
@@ -268,6 +297,17 @@ export interface Observation {
  * The LAST `response` event is the operation's own: the lazy `/limits` fetch
  * and any pre-flight (`/spa-check` on a deploy) precede it. Runners warm the
  * client first so that ordering is not load-bearing for the common case.
+ *
+ * **`assert` runs OUTSIDE the catch, and that placement is load-bearing.**
+ * Inside it, a failing assert was reported as though the WIRE had errored —
+ * and for a point declaring neither `status` nor `error`, the resulting
+ * all-`undefined` observation `toEqual`-matches the all-`undefined`
+ * expectation, because `toEqual` treats an undefined property as absent. Such
+ * a point's assert could therefore never fail the suite. Found by drilling the
+ * `getLimits` row on the day it was written, which is the whole argument for
+ * drilling one: it had been green against a mock serving no blocklist at all.
+ * An assert failure is a broken EXPECTATION, not an observation of the wire,
+ * so it now propagates with its own authored message.
  */
 export async function observe(
   ship: Ship,
@@ -278,16 +318,18 @@ export async function observe(
   const onResponse = (response: Response) => statuses.push(response.status);
   ship.on('response', onResponse);
 
+  let result: unknown;
   try {
-    const result = await point.run(ship, ctx);
-    point.assert?.(result);
-    return { status: statuses.at(-1) };
+    result = await point.run(ship, ctx);
   } catch (err) {
     const shipError = err as { type?: string; status?: number };
     return { errorType: shipError.type, errorStatus: shipError.status };
   } finally {
     ship.off('response', onResponse);
   }
+
+  point.assert?.(result);
+  return { status: statuses.at(-1) };
 }
 
 /** The expectation a point declares, in the same shape `observe` reports. */

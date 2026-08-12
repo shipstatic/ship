@@ -42,6 +42,18 @@ export const A_RECORD_IP = '15.204.149.253';
 export const PUBLIC_TTL_SECONDS = 3 * 24 * 60 * 60;
 
 /**
+ * A SAMPLE of the platform's blocklist — deliberately not a copy of it.
+ *
+ * The list is the API's (wire: `cloudflare/api/src/lib/blocklist.ts`, served by
+ * routes/limits.ts) and it evolves there; mirroring all of it here would make
+ * this file a second holder of a fact whose whole point is having one. What the
+ * suite needs is a non-empty list to prove the client honours **what it was
+ * given** — so these are the entries the tests actually exercise, and a client
+ * test asserting the platform's real policy would be testing the wrong repo.
+ */
+const BLOCKED_EXTENSIONS_SAMPLE = ['exe', 'msi', 'dll', 'bat', 'dmg'] as const;
+
+/**
  * The FREE plan's real limits — what an anonymous or free-plan caller gets
  * from `GET /limits`. wire: cloudflare/api/src/lib/config.ts
  * `ACCOUNT_LIMITS.free`, served by routes/limits.ts.
@@ -54,6 +66,20 @@ export const FREE_PLAN_LIMITS: PlatformLimits = {
   maxFileSize: 20 * 1024 * 1024, // 20 MB
   maxFilesCount: 500,
   maxTotalSize: 50 * 1024 * 1024, // 50 MB
+  blockedExtensions: BLOCKED_EXTENSIONS_SAMPLE,
+};
+
+/**
+ * Limits from an API that predates `blockedExtensions` — the fail-open case.
+ *
+ * Kept as a named fixture rather than an inline object because the behaviour
+ * it produces (the client checks no extension at all, and the API refuses the
+ * file at the boundary) is a contract, not an edge case.
+ */
+export const LIMITS_WITHOUT_BLOCKLIST: PlatformLimits = {
+  maxFileSize: 20 * 1024 * 1024,
+  maxFilesCount: 500,
+  maxTotalSize: 50 * 1024 * 1024,
 };
 
 // =============================================================================
