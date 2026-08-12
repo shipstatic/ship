@@ -11,6 +11,11 @@ build/
 /lib/
 out/
 
+# esbuild metafiles, one per bundle. Outside `dist/` on purpose: they are build
+# telemetry the licence derivation reads, not product, and `files: ["dist", …]`
+# was publishing them to every consumer.
+build-meta/
+
 # …except under tests/fixtures, where a build-shaped directory IS the fixture.
 # `tests/fixtures/nested-site/dist/` exists so path detection has a common
 # parent to lift, and `dist/` above was silently swallowing it: the suite went
