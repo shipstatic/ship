@@ -789,6 +789,51 @@ key.
 
 When `ship domains set <name> [deployment]` creates a new external domain (`isCreate: true`, name contains `.`), the CLI fetches `domains.records()` and `domains.share()` in parallel, attaching results as `_dnsRecords` and `_shareHash` on the result for the formatter to display. This is CLI-only behavior; SDK resources return plain data.
 
+### The bundle boundary
+
+**What this package bundles and what it asks a consumer to install is one
+line, and it is fenced in three directions** (`tests/package/bundle-boundary.test.ts`,
+an artifact tier — it reads the BUILT bytes, because what a bundle requires is
+a property of the bytes and not of the config that produced them):
+
+1. `dist/cli.cjs` requires **nothing beyond node builtins**;
+2. every bare specifier the SDK entries require is a declared dependency;
+3. every declared dependency is reached by some entry — the direction that
+   catches rot;
+   plus the config half: every tsup external names a declared dependency.
+
+`dependencies` is now the SDK's five — `zod`, `spark-md5`, `junk`,
+`formdata-node`, `form-data-encoder`. The CLI's four (`commander`,
+`columnify`, `yocto-spinner`, `yoctocolors`) are devDependencies bundled into
+`dist/cli.cjs`, so an embedded SDK consumer — the MCP, and through it the
+vscode `.vsix` — no longer installs four packages it never executes, and an
+`npx @shipstatic/ship` cold-run no longer downloads them.
+
+The list had rotted in BOTH directions before the fence existed: `tsup.config.ts`
+named `cosmiconfig` and `cli-table3` as externals for two majors after both
+were deleted with 2.0, and aliased a build shim for a package that no longer
+existed (`build-shims/empty.cjs` STAYS — it shims node builtins for the browser
+bundle). Nothing was wrong at runtime, which is exactly why it survived: a dead
+external is invisible until someone reads the file.
+
+**Bundling carries licence obligations, so the notices ship.**
+`scripts/third-party-licenses.cjs` writes `THIRD-PARTY-LICENSES.md` at build
+time, and the list is **derived from esbuild's metafile** rather than written
+down — transitive dependencies included, which a hand list misses on day one
+(five of the fifteen are transitive). A bundled package whose notice cannot be
+found fails the build. It does not read `require.resolve('pkg/package.json')`:
+a modern `exports` map does not expose it, which fails for exactly the packages
+most likely to be bundled.
+
+The spinner keeps its dynamic `import()`. Bundled, that no longer defers a
+package install, but it still defers evaluating the module on the runs that
+never show a spinner (`--json`, `-q`, non-TTY), which is most CI runs.
+
+**Out of scope, recorded so it is not folded in:** replacing
+`formdata-node`/`form-data-encoder` with Node ≥20's native `FormData` is an SDK
+behaviour change with its own compatibility questions — a separate decision,
+not a bundling detail.
+
 ### Two flag tiers, and one place each is read
 
 **Global flags** — `--token`, `--config`, `--api-url`, `--json`, `-q/--quiet`,
