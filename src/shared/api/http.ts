@@ -1,31 +1,19 @@
 /**
- * @file HTTP client for Ship API.
+ * @file The transport. It carries requests; it does not know what they mean.
+ *
+ * Headers, the credential, the timeout signal, the retry loop, the event
+ * vocabulary and error normalization live here — everything that is true of
+ * EVERY request this client makes. What is true of one request (its path, its
+ * verb, its body, its response type) lives with the resource that names it,
+ * in `resources.ts`.
+ *
+ * **That was two statements of one fact until 2026-08-12.** This class carried
+ * eighteen endpoint methods — `getDomain`, `listTokens`, … — and every one of
+ * them existed to be wrapped by a resource method of the same shape, because
+ * this SDK mirrors the wire 1:1 by design. Two layers that are isomorphic BY
+ * DESIGN are not two layers. The endpoints went down to the resources, and
+ * "`ApiHttp` is pure transport" stopped being an aspiration in a doc.
  */
-import type {
-  AccountGetResponse,
-  Deployment,
-  DeploymentCreateResponse,
-  DeploymentDeleteResponse,
-  DeploymentListResponse,
-  Domain,
-  DomainDeleteResponse,
-  DomainDnsResponse,
-  DomainListResponse,
-  DomainRecordsResponse,
-  DomainShareResponse,
-  DomainValidateResponse,
-  DomainVerifyResponse,
-  ListOptions,
-  PingResponse,
-  PlatformLimits,
-  SPACheckRequest,
-  SPACheckResponse,
-  StaticFile,
-  Token,
-  TokenCreateResponse,
-  TokenDeleteResponse,
-  TokenListResponse,
-} from '@shipstatic/types';
 import {
   API_PATHS,
   CALLER,
@@ -33,14 +21,9 @@ import {
   ErrorType,
   IDEMPOTENCY_KEY_CONSTRAINTS,
   ShipError,
-  SPA_CHECK_CONSTRAINTS,
-  validateIdempotencyKey,
-  validateTtl,
 } from '@shipstatic/types';
-import { createDeployBody } from '../core/deploy-body.js';
 import { SimpleEvents } from '../events.js';
-import { validateDeployConfig, validateLabels, validatePassword } from '../lib/validation.js';
-import type { ApiDeployOptions, DomainSetResult, Fetch, ShipClientOptions } from '../types.js';
+import type { Fetch, ShipClientOptions } from '../types.js';
 
 // =============================================================================
 // CONSTANTS
@@ -137,33 +120,6 @@ const BUILD_SERVICE_BUDGET = 300_000;
  */
 const DEFAULT_DEPLOY_BUILD_TIMEOUT = DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET;
 
-/**
- * This client's identity in a deployment's `via` field.
- *
- * Every surface that deploys names itself: the CLI sends `cli`, the GitHub
- * Action `git`, the MCP server `mcp`, the VS Code extension `vsc`, the web
- * apps `web`. A direct SDK call is `sdk`. Each surface owns its own string —
- * there is deliberately no central registry, since integrations outside this
- * repo mint their own.
- *
- * Applied at this one wire boundary, so `via` is populated on every deploy
- * from every platform: an absent value means an unattributed caller (raw
- * HTTP), never "probably the SDK".
- */
-const DEPLOY_VIA = 'sdk';
-
-/**
- * Serialize pagination options into a query string, or '' when there are
- * none — the paginated list endpoints accept `limit` and `cursor`.
- */
-function listQuery(options?: ListOptions): string {
-  const params = new URLSearchParams();
-  if (options?.limit !== undefined) params.set('limit', String(options.limit));
-  if (options?.cursor !== undefined) params.set('cursor', options.cursor);
-  const query = params.toString();
-  return query ? `?${query}` : '';
-}
-
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -173,9 +129,52 @@ export interface ApiHttpOptions extends ShipClientOptions {
   getAuthHeaders: () => Record<string, string> | Promise<Record<string, string>>;
 }
 
-interface RequestResult<T> {
+export interface RequestResult<T> {
   data: T;
   status: number;
+}
+
+/**
+ * The deploy's CARRIAGE — the two facts about a deploy that are transport's
+ * rather than the deployment resource's.
+ *
+ * The numbers are transport's because a budget for how long to wait on a wire
+ * is nothing else, and the endpoint is transport's because `deployEndpoint` is
+ * a client option that redirects the route. The CHOICE between the two
+ * ceilings is the resource's, because only it knows that `build`/`prerender`
+ * wait on work the server does after the upload lands.
+ */
+export interface DeployTransport {
+  /** `/deployments`, or `/upload` where the `@internal` option redirects it. */
+  readonly endpoint: string;
+  /** The ordinary deploy ceiling. */
+  readonly timeout: number;
+  /** The ceiling when the server will also build. */
+  readonly buildTimeout: number;
+}
+
+/**
+ * What a resource may ask of the transport: carry this request, and tell me
+ * what came back.
+ *
+ * This interface is the whole seam. `resources.ts` states WHICH request — the
+ * path, the verb, the body, the response type — and hands it here; nothing
+ * above this line knows the base URL, the credential, the retry policy or the
+ * event vocabulary, and nothing below knows what a domain is.
+ */
+export interface Transport {
+  request<T>(
+    path: string,
+    options: ShipRequestInit,
+    operationName: string,
+    timeoutMs?: number,
+  ): Promise<T>;
+  requestWithStatus<T>(
+    path: string,
+    options: ShipRequestInit,
+    operationName: string,
+  ): Promise<RequestResult<T>>;
+  readonly deploy: DeployTransport;
 }
 
 /**
@@ -190,7 +189,7 @@ interface RequestResult<T> {
  * into a SILENT no-retry — a deploy that quietly stopped replaying because
  * someone handed the transport a `Headers`. Here that is a compile error.
  */
-type ShipRequestInit = Omit<RequestInit, 'headers'> & {
+export type ShipRequestInit = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
 };
 
@@ -198,7 +197,7 @@ type ShipRequestInit = Omit<RequestInit, 'headers'> & {
 // HTTP CLIENT
 // =============================================================================
 
-export class ApiHttp extends SimpleEvents {
+export class ApiHttp extends SimpleEvents implements Transport {
   private readonly apiUrl: string;
   private readonly getAuthHeadersCallback: () =>
     | Record<string, string>
@@ -207,11 +206,11 @@ export class ApiHttp extends SimpleEvents {
   private readonly caller: string | undefined;
   private readonly timeout: number;
   private readonly maxRetries: number;
-  private readonly deployTimeout: number;
-  private readonly deployBuildTimeout: number;
   private readonly fetch: Fetch;
-  private readonly deployEndpoint: string;
   private globalHeaders: Record<string, string> = {};
+
+  /** @see DeployTransport — the carriage facts the deployment resource reads. */
+  readonly deploy: DeployTransport;
 
   constructor(options: ApiHttpOptions) {
     super();
@@ -221,16 +220,18 @@ export class ApiHttp extends SimpleEvents {
     this.caller = options.caller;
     this.timeout = options.timeout ?? DEFAULT_REQUEST_TIMEOUT;
     this.maxRetries = Math.max(0, options.maxRetries ?? DEFAULT_MAX_RETRIES);
-    // An explicit timeout is the caller's whole answer and applies to deploys
-    // too — they asked for a ceiling, not for one with an exception. Only the
-    // DEFAULT splits by operation.
-    this.deployTimeout = options.timeout ?? DEFAULT_DEPLOY_TIMEOUT;
-    this.deployBuildTimeout = options.timeout ?? DEFAULT_DEPLOY_BUILD_TIMEOUT;
     // Bind to globalThis when falling back to the platform `fetch` — browsers
     // require `this === window` on `window.fetch` and throw "Illegal invocation"
     // when it's invoked as a property of any other object.
     this.fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.deployEndpoint = options.deployEndpoint || API_PATHS.DEPLOYMENTS;
+    this.deploy = {
+      endpoint: options.deployEndpoint || API_PATHS.DEPLOYMENTS,
+      // An explicit timeout is the caller's whole answer and applies to deploys
+      // too — they asked for a ceiling, not for one with an exception. Only the
+      // DEFAULT splits by operation.
+      timeout: options.timeout ?? DEFAULT_DEPLOY_TIMEOUT,
+      buildTimeout: options.timeout ?? DEFAULT_DEPLOY_BUILD_TIMEOUT,
+    };
   }
 
   /**
@@ -422,27 +423,39 @@ export class ApiHttp extends SimpleEvents {
   }
 
   /**
-   * Simple request - returns data only
+   * Send it; resolve what came back.
+   *
+   * Takes a PATH, not a URL: the base is this client's and nothing above needs
+   * to know it. Twenty-two call sites wrote `${this.apiUrl}${API_PATHS.X}` by
+   * hand before the endpoints moved out, which is twenty-two chances to
+   * assemble it differently.
    */
-  private async request<T>(
-    url: string,
+  async request<T>(
+    path: string,
     options: ShipRequestInit,
     operationName: string,
     timeoutMs?: number,
   ): Promise<T> {
-    const { data } = await this.executeRequest<T>(url, options, operationName, timeoutMs);
+    const { data } = await this.executeRequest<T>(
+      `${this.apiUrl}${path}`,
+      options,
+      operationName,
+      timeoutMs,
+    );
     return data;
   }
 
   /**
-   * Request with status - returns data and HTTP status code
+   * The same, plus the HTTP status — for the one operation where the status IS
+   * the answer: a domain upsert says create-or-update in its 201/200 and
+   * nowhere else in the response.
    */
-  private async requestWithStatus<T>(
-    url: string,
+  async requestWithStatus<T>(
+    path: string,
     options: ShipRequestInit,
     operationName: string,
   ): Promise<RequestResult<T>> {
-    return this.executeRequest<T>(url, options, operationName);
+    return this.executeRequest<T>(`${this.apiUrl}${path}`, options, operationName);
   }
 
   // ===========================================================================
@@ -516,308 +529,5 @@ export class ApiHttp extends SimpleEvents {
       return undefined as T;
     }
     return response.json() as Promise<T>;
-  }
-
-  // ===========================================================================
-  // PUBLIC API - DEPLOYMENTS
-  // ===========================================================================
-
-  async deploy(
-    files: StaticFile[],
-    options: ApiDeployOptions = {},
-  ): Promise<DeploymentCreateResponse> {
-    if (!files.length) {
-      throw ShipError.business('No files to deploy');
-    }
-    for (const file of files) {
-      if (!file.md5) {
-        throw ShipError.file(`MD5 checksum missing for file: ${file.path}`, {
-          filePath: file.path,
-        });
-      }
-    }
-
-    // Fast-fail on definitely-invalid input before constructing a multipart body.
-    validatePassword(options.password);
-    const ttl = validateTtl(options.ttl);
-    const idempotencyKey = validateIdempotencyKey(options.idempotencyKey);
-    const labels = validateLabels(options.labels);
-    await validateDeployConfig(files);
-
-    const flags =
-      options.build || options.prerender || options.spa
-        ? { build: options.build, prerender: options.prerender, spa: options.spa }
-        : undefined;
-    const body = await createDeployBody(files, {
-      labels,
-      via: options.via ?? DEPLOY_VIA,
-      password: options.password,
-      ttl,
-      flags,
-      captcha: options.captcha,
-    });
-
-    // NO Content-Type here, deliberately: `fetch` derives it from the
-    // `FormData` body along with the boundary, and setting one by hand would
-    // name a boundary the body does not use. The builder used to return
-    // headers because the Node half hand-encoded the multipart itself.
-    //
-    // The idempotency key rides a header, not the body, because it must be
-    // readable before the request is parsed — the API replays a stored 201
-    // ahead of the write budget, so a retry costs nothing.
-    return this.request<DeploymentCreateResponse>(
-      `${this.apiUrl}${this.deployEndpoint}`,
-      {
-        method: 'POST',
-        body,
-        ...(idempotencyKey
-          ? { headers: { [IDEMPOTENCY_KEY_CONSTRAINTS.HEADER]: idempotencyKey } }
-          : {}),
-        signal: options.signal || null,
-      },
-      'Deploy',
-      // Only `build`/`prerender` reach the build service
-      // (`api/src/lib/upload-processing.ts:35`); `spa` is local detection
-      // bounded by the AI tier's own 10s, so it does not earn the longer
-      // ceiling.
-      options.build || options.prerender ? this.deployBuildTimeout : this.deployTimeout,
-    );
-  }
-
-  async listDeployments(options?: ListOptions): Promise<DeploymentListResponse> {
-    return this.request(
-      `${this.apiUrl}${API_PATHS.DEPLOYMENTS}${listQuery(options)}`,
-      { method: 'GET' },
-      'List deployments',
-    );
-  }
-
-  async getDeployment(id: string): Promise<Deployment> {
-    return this.request(
-      `${this.apiUrl}${API_PATHS.DEPLOYMENT(encodeURIComponent(id))}`,
-      { method: 'GET' },
-      'Get deployment',
-    );
-  }
-
-  async updateDeploymentLabels(id: string, labels: string[]): Promise<Deployment> {
-    const normalized = validateLabels(labels);
-    return this.request(
-      `${this.apiUrl}${API_PATHS.DEPLOYMENT(encodeURIComponent(id))}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ labels: normalized }),
-      },
-      'Update deployment labels',
-    );
-  }
-
-  async deleteDeployment(id: string): Promise<DeploymentDeleteResponse> {
-    return this.request<DeploymentDeleteResponse>(
-      `${this.apiUrl}${API_PATHS.DEPLOYMENT(encodeURIComponent(id))}`,
-      { method: 'DELETE' },
-      'Delete deployment',
-    );
-  }
-
-  // ===========================================================================
-  // PUBLIC API - DOMAINS
-  // ===========================================================================
-  // All domain methods accept FQDN (Fully Qualified Domain Name) as the `name` parameter.
-  // The SDK does not validate or normalize - the API handles all domain semantics.
-
-  async setDomain(name: string, deployment?: string, labels?: string[]): Promise<DomainSetResult> {
-    const normalized = validateLabels(labels);
-    const body: { deployment?: string; labels?: string[] } = {};
-    if (deployment) body.deployment = deployment;
-    if (normalized !== undefined) body.labels = normalized;
-
-    const { data, status } = await this.requestWithStatus<Domain>(
-      `${this.apiUrl}${API_PATHS.DOMAIN(encodeURIComponent(name))}`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
-      'Set domain',
-    );
-
-    return { ...data, isCreate: status === 201 };
-  }
-
-  async listDomains(options?: ListOptions): Promise<DomainListResponse> {
-    return this.request(
-      `${this.apiUrl}${API_PATHS.DOMAINS}${listQuery(options)}`,
-      { method: 'GET' },
-      'List domains',
-    );
-  }
-
-  async getDomain(name: string): Promise<Domain> {
-    return this.request(
-      `${this.apiUrl}${API_PATHS.DOMAIN(encodeURIComponent(name))}`,
-      { method: 'GET' },
-      'Get domain',
-    );
-  }
-
-  async deleteDomain(name: string): Promise<DomainDeleteResponse> {
-    return this.request<DomainDeleteResponse>(
-      `${this.apiUrl}${API_PATHS.DOMAIN(encodeURIComponent(name))}`,
-      { method: 'DELETE' },
-      'Delete domain',
-    );
-  }
-
-  async verifyDomain(name: string): Promise<DomainVerifyResponse> {
-    return this.request(
-      `${this.apiUrl}${API_PATHS.DOMAIN_VERIFY(encodeURIComponent(name))}`,
-      { method: 'POST' },
-      'Verify domain',
-    );
-  }
-
-  async getDomainDns(name: string): Promise<DomainDnsResponse> {
-    return this.request(
-      `${this.apiUrl}${API_PATHS.DOMAIN_DNS(encodeURIComponent(name))}`,
-      { method: 'GET' },
-      'Get domain DNS',
-    );
-  }
-
-  async getDomainRecords(name: string): Promise<DomainRecordsResponse> {
-    return this.request(
-      `${this.apiUrl}${API_PATHS.DOMAIN_RECORDS(encodeURIComponent(name))}`,
-      { method: 'GET' },
-      'Get domain records',
-    );
-  }
-
-  async getDomainShare(name: string): Promise<DomainShareResponse> {
-    return this.request(
-      `${this.apiUrl}${API_PATHS.DOMAIN_SHARE(encodeURIComponent(name))}`,
-      { method: 'GET' },
-      'Get domain share',
-    );
-  }
-
-  async validateDomain(name: string): Promise<DomainValidateResponse> {
-    return this.request(
-      `${this.apiUrl}${API_PATHS.DOMAINS_VALIDATE}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: name }),
-      },
-      'Validate domain',
-    );
-  }
-
-  // ===========================================================================
-  // PUBLIC API - TOKENS
-  // ===========================================================================
-
-  async createToken(ttl?: number, labels?: string[]): Promise<TokenCreateResponse> {
-    // Fast-fail on definitely-invalid input, exactly as the deploy boundary
-    // does. This is the half the ttl rule's promotion into `@shipstatic/types`
-    // was FOR: the envelope lived only in the API route until 2026-08-12, so
-    // this call sent whatever it was handed and a bad duration cost a round
-    // trip. Validating here is what makes that claim true rather than a
-    // sentence in a doc.
-    const normalizedTtl = validateTtl(ttl);
-    const normalized = validateLabels(labels);
-    const body: { ttl?: number; labels?: string[] } = {};
-    if (normalizedTtl !== undefined) body.ttl = normalizedTtl;
-    if (normalized !== undefined) body.labels = normalized;
-
-    return this.request(
-      `${this.apiUrl}${API_PATHS.TOKENS}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
-      'Create token',
-    );
-  }
-
-  async listTokens(options?: ListOptions): Promise<TokenListResponse> {
-    return this.request(
-      `${this.apiUrl}${API_PATHS.TOKENS}${listQuery(options)}`,
-      { method: 'GET' },
-      'List tokens',
-    );
-  }
-
-  async deleteToken(token: string): Promise<TokenDeleteResponse> {
-    return this.request<TokenDeleteResponse>(
-      `${this.apiUrl}${API_PATHS.TOKEN(encodeURIComponent(token))}`,
-      { method: 'DELETE' },
-      'Delete token',
-    );
-  }
-
-  async getToken(token: string): Promise<Token> {
-    return this.request<Token>(
-      `${this.apiUrl}${API_PATHS.TOKEN(encodeURIComponent(token))}`,
-      { method: 'GET' },
-      'Get token',
-    );
-  }
-
-  // ===========================================================================
-  // PUBLIC API - ACCOUNT & CONFIG
-  // ===========================================================================
-
-  async getAccount(): Promise<AccountGetResponse> {
-    return this.request(`${this.apiUrl}${API_PATHS.ACCOUNT}`, { method: 'GET' }, 'Get account');
-  }
-
-  async getLimits(): Promise<PlatformLimits> {
-    return this.request(`${this.apiUrl}${API_PATHS.LIMITS}`, { method: 'GET' }, 'Get limits');
-  }
-
-  async ping(): Promise<PingResponse> {
-    return this.request<PingResponse>(`${this.apiUrl}${API_PATHS.PING}`, { method: 'GET' }, 'Ping');
-  }
-
-  // ===========================================================================
-  // PUBLIC API - SPA CHECK
-  // ===========================================================================
-
-  async checkSPA(files: StaticFile[]): Promise<boolean> {
-    const indexFile = files.find(
-      (f) =>
-        f.path === SPA_CHECK_CONSTRAINTS.INDEX_FILE ||
-        f.path === `/${SPA_CHECK_CONSTRAINTS.INDEX_FILE}`,
-    );
-    if (!indexFile || indexFile.size > SPA_CHECK_CONSTRAINTS.MAX_INDEX_BYTES) {
-      return false;
-    }
-
-    let indexContent: string;
-    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(indexFile.content)) {
-      indexContent = indexFile.content.toString('utf-8');
-    } else if (typeof Blob !== 'undefined' && indexFile.content instanceof Blob) {
-      indexContent = await indexFile.content.text();
-    } else if (typeof File !== 'undefined' && indexFile.content instanceof File) {
-      indexContent = await indexFile.content.text();
-    } else {
-      return false;
-    }
-
-    const body: SPACheckRequest = { files: files.map((f) => f.path), index: indexContent };
-    const response = await this.request<SPACheckResponse>(
-      `${this.apiUrl}${API_PATHS.SPA_CHECK}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
-      'SPA check',
-    );
-
-    return response.isSPA;
   }
 }

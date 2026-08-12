@@ -6,14 +6,31 @@ import BrowserDefault, { Ship } from '../../src/browser/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
 import type { Fetch } from '../../src/shared/types';
 import { deployToken, FREE_PLAN_LIMITS } from '../fixtures/builders';
+import { fakeTransport } from '../mocks/transport';
 
-// Mock browser file processing
+// Mock browser file processing.
+//
+// The content was an `ArrayBuffer` — a shape `StaticFile` does not admit and no
+// pipeline emits — which went unnoticed only because the SPA pre-flight was
+// stubbed a layer above. `checkSPA` reads the index itself now, so the shape
+// has to be one it can read.
+//
+// It is a `Buffer` rather than the `Blob`/`File` the browser pipeline really
+// produces, and that is a JSDOM limitation stated rather than papered over:
+// jsdom's `Blob` has no `.text()`, so the real browser shape throws inside
+// `checkSPA` and `detectAndConfigureSPA` swallows it — the pre-flight silently
+// never happens, and this row would pass while proving nothing. The Blob and
+// File arms are certified where they can be: on real Chromium in
+// `tests-browser/`, and against Node's own `Blob` in `shared/lib/spa.test.ts`.
 vi.mock('../../src/browser/core/browser-files', () => ({
-  processFilesForBrowser: vi
-    .fn()
-    .mockResolvedValue([
-      { path: 'index.html', content: new ArrayBuffer(13), size: 13, md5: 'abc123' },
-    ]),
+  processFilesForBrowser: vi.fn().mockResolvedValue([
+    {
+      path: 'index.html',
+      content: Buffer.from('<html></html>'),
+      size: 13,
+      md5: 'a'.repeat(32),
+    },
+  ]),
 }));
 
 // A deploy token in the platform's canonical shape, built from its constants
@@ -54,10 +71,10 @@ describe('Ship - Browser Implementation', () => {
       const getLimitsSpy = vi
         .fn()
         .mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 });
-      (ship as any).http = {
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: getLimitsSpy,
-      };
+      (ship as any).http = fakeTransport({
+        Ping: { success: true, timestamp: 1_700_000_000 },
+        'Get limits': getLimitsSpy,
+      });
 
       // Asking for the limits is what fetches them. `ping()` used to, which
       // made the cheapest call in the SDK issue two requests; the subject here
@@ -80,18 +97,18 @@ describe('Ship - Browser Implementation', () => {
       });
 
       // Mock the API client
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockResolvedValue({
           id: 'dep_browser_123',
           url: 'https://dep_browser_123.shipstatic.com',
         }),
-        checkSPA: vi.fn().mockResolvedValue(false),
-        getLimits: vi.fn().mockResolvedValue({
+        'SPA check': { isSPA: false },
+        'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
           maxTotalSize: 52428800,
         }),
-      };
+      });
 
       // Create mock File objects
       const mockFiles = [
@@ -116,18 +133,18 @@ describe('Ship - Browser Implementation', () => {
       });
 
       // Mock the API client with SPA detection
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockResolvedValue({
           id: 'dep_spa_123',
           url: 'https://dep_spa_123.shipstatic.com',
         }),
-        checkSPA: vi.fn().mockResolvedValue(true), // SPA detected
-        getLimits: vi.fn().mockResolvedValue({
+        'SPA check': { isSPA: true }, // SPA detected
+        'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
           maxTotalSize: 52428800,
         }),
-      };
+      });
 
       const mockFiles = [
         new File(['<html><script src="app.js"></script></html>'], 'index.html', {
@@ -137,8 +154,8 @@ describe('Ship - Browser Implementation', () => {
 
       await ship.deploy(mockFiles, { spaDetect: true });
 
-      // The unified pipeline should have called checkSPA
-      expect((ship as any).http.checkSPA).toHaveBeenCalled();
+      // The unified pipeline asks the platform before it builds the body.
+      expect((ship as any).http.carriedFor('SPA check')).toHaveLength(1);
     });
   });
 
@@ -217,10 +234,10 @@ describe('Ship - Browser Implementation', () => {
       const getLimitsSpy = vi
         .fn()
         .mockResolvedValue({ maxFileSize: 10485760, maxFilesCount: 1000, maxTotalSize: 52428800 });
-      (ship as any).http = {
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: getLimitsSpy,
-      };
+      (ship as any).http = fakeTransport({
+        Ping: { success: true, timestamp: 1_700_000_000 },
+        'Get limits': getLimitsSpy,
+      });
 
       await ship.getLimits();
 
@@ -237,11 +254,11 @@ describe('Ship - Browser Implementation', () => {
       // where that argument is threaded.
       const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
       const ship = new Ship({ token: TEST_DEPLOY_TOKEN, apiUrl: 'https://api.example.com' });
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({ deployment: 'brave-otter-a1b2c3d' }),
-        checkSPA: vi.fn().mockResolvedValue(false),
-        getLimits: vi.fn().mockResolvedValue(FREE_PLAN_LIMITS),
-      };
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockResolvedValue({ deployment: 'brave-otter-a1b2c3d' }),
+        'SPA check': { isSPA: false },
+        'Get limits': vi.fn().mockResolvedValue(FREE_PLAN_LIMITS),
+      });
 
       await ship.deploy([new File(['x'], 'index.html')]);
 
@@ -276,18 +293,18 @@ describe('Ship - Browser Implementation', () => {
         ]);
 
       (ship as any).processInput = mockProcessInput;
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockResolvedValue({
           id: 'dep_options_123',
           url: 'https://dep_options_123.shipstatic.com',
         }),
-        checkSPA: vi.fn().mockResolvedValue(false),
-        getLimits: vi.fn().mockResolvedValue({
+        'SPA check': { isSPA: false },
+        'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
           maxTotalSize: 52428800,
         }),
-      };
+      });
 
       const mockFiles = [new File(['test'], 'test.txt')];
       const options = {
@@ -307,18 +324,18 @@ describe('Ship - Browser Implementation', () => {
         apiUrl: 'https://api.shipstatic.com',
       });
 
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockResolvedValue({
           id: 'dep_empty_123',
           url: 'https://dep_empty_123.shipstatic.com',
         }),
-        checkSPA: vi.fn().mockResolvedValue(false),
-        getLimits: vi.fn().mockResolvedValue({
+        'SPA check': { isSPA: false },
+        'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
           maxTotalSize: 52428800,
         }),
-      };
+      });
 
       const emptyFiles: File[] = [];
 
@@ -332,18 +349,18 @@ describe('Ship - Browser Implementation', () => {
         apiUrl: 'https://api.shipstatic.com',
       });
 
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockResolvedValue({
           id: 'dep_mime_123',
           url: 'https://dep_mime_123.shipstatic.com',
         }),
-        checkSPA: vi.fn().mockResolvedValue(false),
-        getLimits: vi.fn().mockResolvedValue({
+        'SPA check': { isSPA: false },
+        'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
           maxTotalSize: 52428800,
         }),
-      };
+      });
 
       const mockFiles = [
         new File(['<html></html>'], 'index.html', { type: 'text/html' }),
@@ -369,13 +386,13 @@ describe('Ship - Browser Implementation', () => {
         apiUrl: 'https://api.shipstatic.com',
       });
 
-      (ship as any).http = {
-        getLimits: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
           maxTotalSize: 52428800,
         }),
-      };
+      });
 
       await expect(ship.deploy('/path/to/file' as any)).rejects.toThrow(
         'Invalid input type for browser environment. Expected File[].',
@@ -388,13 +405,13 @@ describe('Ship - Browser Implementation', () => {
         apiUrl: 'https://api.shipstatic.com',
       });
 
-      (ship as any).http = {
-        getLimits: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
           maxTotalSize: 52428800,
         }),
-      };
+      });
 
       await expect(ship.deploy(['./file1.html', './file2.css'] as any)).rejects.toThrow(
         'Invalid input type for browser environment. Expected File[].',
@@ -407,13 +424,13 @@ describe('Ship - Browser Implementation', () => {
         apiUrl: 'https://api.shipstatic.com',
       });
 
-      (ship as any).http = {
-        getLimits: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
           maxTotalSize: 52428800,
         }),
-      };
+      });
 
       await expect(ship.deploy({ invalid: 'object' } as any)).rejects.toThrow(
         'Invalid input type for browser environment. Expected File[].',
@@ -427,15 +444,15 @@ describe('Ship - Browser Implementation', () => {
       });
 
       // Mock network timeout
-      (ship as any).http = {
-        deploy: vi.fn().mockRejectedValue(new Error('Request timeout after 30000ms')),
-        checkSPA: vi.fn().mockResolvedValue(false),
-        getLimits: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockRejectedValue(new Error('Request timeout after 30000ms')),
+        'SPA check': { isSPA: false },
+        'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
           maxTotalSize: 52428800,
         }),
-      };
+      });
 
       const mockFiles = [new File(['test'], 'test.html')];
 
@@ -449,15 +466,15 @@ describe('Ship - Browser Implementation', () => {
       });
 
       // Mock API error
-      (ship as any).http = {
-        deploy: vi.fn().mockRejectedValue(new Error('API key is invalid')),
-        checkSPA: vi.fn().mockResolvedValue(false),
-        getLimits: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockRejectedValue(new Error('API key is invalid')),
+        'SPA check': { isSPA: false },
+        'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
           maxTotalSize: 52428800,
         }),
-      };
+      });
 
       const mockFiles = [new File(['test'], 'test.html')];
 

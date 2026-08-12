@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
 import type { DeployInput, DeploymentOptions, StaticFile } from '../../src/shared/types';
 import { apiKey, deployToken } from '../fixtures/builders';
+import { fakeTransport } from '../mocks/transport';
 
 const TEST_API_KEY = apiKey('a');
 const TEST_DEPLOY_TOKEN = deployToken('b');
@@ -46,11 +47,11 @@ describe('Credential Lifecycle', () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
       // Override http with mock
-      (ship as any).http = {
-        deploy: mockApiDeploy,
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({}),
-      };
+      (ship as any).http = fakeTransport({
+        Deploy: mockApiDeploy,
+        Ping: { success: true },
+        'Get limits': {},
+      });
 
       // Anonymous first — no Authorization header.
       expect(await (ship as any).getAuthHeaders()).toEqual({});
@@ -131,11 +132,11 @@ describe('Credential Lifecycle', () => {
       });
 
       // Override http with mock
-      (ship as any).http = {
-        deploy: mockApiDeploy,
-        ping: vi.fn().mockResolvedValue(true),
-        getLimits: vi.fn().mockResolvedValue({}),
-      };
+      (ship as any).http = fakeTransport({
+        Deploy: mockApiDeploy,
+        Ping: { success: true },
+        'Get limits': {},
+      });
 
       await ship.deploy(['./test'] as any);
       expect(mockApiDeploy).toHaveBeenCalled();

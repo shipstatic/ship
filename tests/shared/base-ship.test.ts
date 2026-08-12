@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
 import type { DeployInput, DeploymentOptions, Fetch, StaticFile } from '../../src/shared/types';
 import { apiKey } from '../fixtures/builders';
+import { type FakeTransport, fakeTransport } from '../mocks/transport';
 
 /** An API key in the platform's canonical shape, built from its constants. */
 const TEST_API_KEY = apiKey('a');
@@ -43,6 +44,7 @@ const json = (body: unknown, status = 200) =>
 describe('Base Ship Class (Abstract)', () => {
   let ship: TestShip;
   let mockApiDeploy: ReturnType<typeof vi.fn>;
+  let transport: FakeTransport;
 
   beforeEach(() => {
     mockApiDeploy = vi.fn().mockResolvedValue({
@@ -52,19 +54,20 @@ describe('Base Ship Class (Abstract)', () => {
 
     ship = new TestShip({ apiUrl: 'https://test-api.com', token: TEST_API_KEY });
 
-    // Only the methods this file's subject actually reaches. An earlier
-    // revision listed `listApiKeys`/`removeApiKey`/`get` — ApiHttp methods
-    // from removed eras — which no assertion could ever have caught.
-    (ship as any).http = {
-      deploy: mockApiDeploy,
-      ping: vi.fn().mockResolvedValue(true),
-      getLimits: vi.fn().mockResolvedValue({}),
-      checkSPA: vi.fn().mockResolvedValue(false),
-      listDeployments: vi.fn().mockResolvedValue({ deployments: [], cursor: null }),
-      getDeployment: vi.fn().mockResolvedValue({ deployment: 'brave-otter-a1b2c3d' }),
-      deleteDeployment: vi.fn().mockResolvedValue(undefined),
-      getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
-    };
+    // Only the operations this file's subject actually reaches. Keying on the
+    // operation NAME rather than on endpoint methods is what keeps the double
+    // honest: an earlier revision listed `listApiKeys`/`removeApiKey`/`get` —
+    // methods from removed eras — which no assertion could ever have caught.
+    transport = fakeTransport({
+      Deploy: mockApiDeploy,
+      Ping: { success: true, timestamp: 1_700_000_000 },
+      'Get limits': {},
+      'SPA check': { isSPA: false },
+      'List deployments': { deployments: [], cursor: null },
+      'Get deployment': { deployment: 'brave-otter-a1b2c3d' },
+      'Get account': { email: 'test@example.com' },
+    });
+    (ship as any).http = transport;
   });
 
   describe('constructor', () => {
@@ -90,7 +93,7 @@ describe('Base Ship Class (Abstract)', () => {
         deployment: 'brave-otter-a1b2c3d.shipstatic.com',
         url: 'https://brave-otter-a1b2c3d.shipstatic.com',
       });
-      expect(mockApiDeploy).toHaveBeenCalled();
+      expect(transport.carriedFor('Deploy')).toHaveLength(1);
     });
   });
 
@@ -99,16 +102,16 @@ describe('Base Ship Class (Abstract)', () => {
       const result = await ship.whoami();
 
       expect(result).toEqual({ email: 'test@example.com' });
-      expect((ship as any).http.getAccount).toHaveBeenCalled();
+      expect(transport.carriedFor('Get account')).toHaveLength(1);
     });
   });
 
   describe('ping method', () => {
-    it('should call http.ping after initialization', async () => {
+    it('reaches /ping, and resolves the answer rather than a boolean', async () => {
       const result = await ship.ping();
 
-      expect(result).toBe(true);
-      expect((ship as any).http.ping).toHaveBeenCalled();
+      expect(result).toEqual({ success: true, timestamp: 1_700_000_000 });
+      expect(transport.carriedFor('Ping')).toHaveLength(1);
     });
   });
 

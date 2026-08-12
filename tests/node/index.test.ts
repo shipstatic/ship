@@ -1,15 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/node/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
+import { fakeTransport } from '../mocks/transport';
 
-// Mock the ApiHttp class to prevent real network calls
-const mockApiClient = {
-  ping: vi.fn().mockResolvedValue(true),
-  deploy: vi.fn().mockResolvedValue({ id: 'dep_123', url: 'https://dep_123.shipstatic.com' }),
-  getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
-  getLimits: vi.fn().mockResolvedValue({ maxFileSize: 10485760 }),
-  checkSPA: vi.fn().mockResolvedValue(false),
-};
+// Mock the ApiHttp class to prevent real network calls. Keyed by OPERATION,
+// because a transport has two methods since the endpoint tier folded down —
+// see `tests/mocks/transport.ts`.
+const mockApiClient = fakeTransport({
+  Ping: { success: true, timestamp: 1_700_000_000 },
+  Deploy: { deployment: 'dep_123', url: 'https://dep_123.shipstatic.com' },
+  'Get account': { email: 'test@example.com' },
+  'Get limits': { maxFileSize: 10485760 },
+  'SPA check': { isSPA: false },
+});
 
 // `function`, not an arrow: vitest 4 invokes constructor mocks with `new`,
 // and an arrow function cannot be constructed. Returning an object from a
@@ -149,14 +152,14 @@ describe('Ship - Node.js Implementation', () => {
       const ship = new Ship({ token: 'test-key' });
 
       // Mock the API client
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockResolvedValue({
           id: 'dep_123',
           url: 'https://dep_123.shipstatic.com',
         }),
-        getLimits: vi.fn().mockResolvedValue({}),
-        checkSPA: vi.fn().mockResolvedValue(false),
-      };
+        'Get limits': vi.fn().mockResolvedValue({}),
+        'SPA check': { isSPA: false },
+      });
 
       const result = await ship.deploy('./dist');
 
@@ -168,7 +171,7 @@ describe('Ship - Node.js Implementation', () => {
 
     it('should handle file arrays', async () => {
       // Update the global mock to return the expected value for this test
-      mockApiClient.deploy.mockResolvedValue({
+      mockApiClient.answer('Deploy', {
         id: 'dep_456',
         url: 'https://dep_456.shipstatic.com',
       });
@@ -215,14 +218,14 @@ describe('Ship - Node.js Implementation', () => {
         ]);
 
       (ship as any).processInput = mockProcessInput;
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockResolvedValue({
           id: 'dep_paths_123',
           url: 'https://dep_paths_123.shipstatic.com',
         }),
-        getLimits: vi.fn().mockResolvedValue({}),
-        checkSPA: vi.fn().mockResolvedValue(false),
-      };
+        'Get limits': vi.fn().mockResolvedValue({}),
+        'SPA check': { isSPA: false },
+      });
 
       await ship.deploy(['./dist/index.html', './dist/style.css']);
 
@@ -297,7 +300,7 @@ describe('Ship - Node.js Implementation', () => {
       (ship as any).processInput = mockProcessInput;
 
       // Update the global mock for this test
-      mockApiClient.deploy.mockResolvedValue({
+      mockApiClient.answer('Deploy', {
         id: 'dep_dir_123',
         url: 'https://dep_dir_123.shipstatic.com',
       });
@@ -314,16 +317,25 @@ describe('Ship - Node.js Implementation', () => {
     it('should pass deployment options correctly to processInput', async () => {
       const ship = new Ship({ token: 'test-key' });
 
-      const mockProcessInput = vi.fn().mockResolvedValue([]);
+      // One real file: the empty-deploy refusal lives in `upload` now, so an
+      // empty processInput never reaches the transport at all.
+      const mockProcessInput = vi.fn().mockResolvedValue([
+        {
+          path: 'index.html',
+          content: Buffer.from('<html></html>'),
+          size: 13,
+          md5: 'a'.repeat(32),
+        },
+      ]);
       (ship as any).processInput = mockProcessInput;
-      (ship as any).http = {
-        deploy: vi.fn().mockResolvedValue({
+      (ship as any).http = fakeTransport({
+        Deploy: vi.fn().mockResolvedValue({
           id: 'dep_opt_123',
           url: 'https://dep_opt_123.shipstatic.com',
         }),
-        getLimits: vi.fn().mockResolvedValue({}),
-        checkSPA: vi.fn().mockResolvedValue(false),
-      };
+        'Get limits': vi.fn().mockResolvedValue({}),
+        'SPA check': { isSPA: false },
+      });
 
       const options = {
         pathDetect: false,
@@ -345,10 +357,8 @@ describe('Ship - Node.js Implementation', () => {
 
       await ship.deploy(['./dist/app.js'], { labels: ['production', 'v2.1.0'] });
 
-      expect(mockApiClient.deploy).toHaveBeenCalledWith(
-        expect.any(Array),
-        expect.objectContaining({ labels: ['production', 'v2.1.0'] }),
-      );
+      const body = mockApiClient.carriedFor('Deploy').at(-1)?.init.body as FormData;
+      expect(JSON.parse(body.get('labels') as string)).toEqual(['production', 'v2.1.0']);
     });
 
     it('passes password through to the wire', async () => {
@@ -356,10 +366,8 @@ describe('Ship - Node.js Implementation', () => {
 
       await ship.deploy(['./dist/app.js'], { password: 'secret123' });
 
-      expect(mockApiClient.deploy).toHaveBeenCalledWith(
-        expect.any(Array),
-        expect.objectContaining({ password: 'secret123' }),
-      );
+      const body = mockApiClient.carriedFor('Deploy').at(-1)?.init.body as FormData;
+      expect(body.get('password')).toBe('secret123');
     });
 
     it('uploads the paths the processor returned, never a host-absolute prefix', async () => {
@@ -376,8 +384,9 @@ describe('Ship - Node.js Implementation', () => {
         pathDetect: true,
       });
 
-      const [files] = mockApiClient.deploy.mock.calls.at(-1) as [Array<{ path: string }>];
-      expect(files.map((f) => f.path)).toEqual(['file1.txt', 'nested/file2.txt']);
+      const body = mockApiClient.carriedFor('Deploy').at(-1)?.init.body as FormData;
+      const names = (body.getAll('files[]') as File[]).map((f) => f.name);
+      expect(names).toEqual(['file1.txt', 'nested/file2.txt']);
     });
   });
 
@@ -436,7 +445,9 @@ describe('Ship - Node.js Implementation', () => {
 
     it('should handle network errors consistently', async () => {
       // Set up the global mock to reject with network error
-      mockApiClient.deploy.mockRejectedValue(new Error('Request timeout after 30000ms'));
+      mockApiClient.answer('Deploy', () => {
+        throw new Error('Request timeout after 30000ms');
+      });
 
       const ship = new Ship({ token: 'test-key' });
 
@@ -445,7 +456,9 @@ describe('Ship - Node.js Implementation', () => {
 
     it('should handle API errors consistently', async () => {
       // Set up the global mock to reject with API error
-      mockApiClient.deploy.mockRejectedValue(new Error('API key is invalid'));
+      mockApiClient.answer('Deploy', () => {
+        throw new Error('API key is invalid');
+      });
 
       const ship = new Ship({ token: 'invalid-key' });
 

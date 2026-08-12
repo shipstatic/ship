@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
 import type { DeployInput, DeploymentOptions, StaticFile } from '../../src/shared/types';
 import { apiKey, deployToken } from '../fixtures/builders';
+import { fakeTransport } from '../mocks/transport';
 
 const TEST_API_KEY = apiKey('a');
 const TEST_DEPLOY_TOKEN = deployToken('b');
@@ -14,11 +15,17 @@ class TestShip extends Ship {
   protected async ensureInitialized(): Promise<void> {
     /* no platform-limits fetch in tests */
   }
+  // One real file, because the deploy's request boundary refuses an empty
+  // deploy before it composes anything — and that refusal moved INTO
+  // `upload` when the endpoint tier folded down, so an empty list no longer
+  // reaches a stubbed transport at all.
   protected async processInput(
     _input: DeployInput,
     _options: DeploymentOptions,
   ): Promise<StaticFile[]> {
-    return [];
+    return [
+      { path: 'index.html', content: Buffer.from('<html></html>'), size: 13, md5: 'a'.repeat(32) },
+    ];
   }
 }
 
@@ -34,7 +41,7 @@ describe('The credential slot', () => {
     it('deploys with no credential — the request simply carries no Authorization header', async () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
-      (ship as any).http = { deploy: mockApiDeploy };
+      (ship as any).http = fakeTransport({ Deploy: mockApiDeploy });
       await ship.deploy(['test'] as any);
 
       expect(mockApiDeploy).toHaveBeenCalled();
@@ -127,7 +134,7 @@ describe('The credential slot', () => {
 
     it('deploys with the cookie session', async () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com', session: true });
-      (ship as any).http = { deploy: mockApiDeploy };
+      (ship as any).http = fakeTransport({ Deploy: mockApiDeploy });
       await ship.deploy(['test'] as any);
       expect(mockApiDeploy).toHaveBeenCalled();
     });

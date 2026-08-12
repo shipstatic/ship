@@ -1,6 +1,10 @@
 /**
- * @file Subject: the token half of `src/shared/api/http.ts`, driven end-to-end
- * through a real `Ship` against the wire-truth handler.
+ * @file Subject: `src/shared/resources.ts` — the token resource, driven
+ * end-to-end through a real `Ship` against the wire-truth handler.
+ *
+ * Renamed from `http-tokens.test.ts` on 2026-08-12 with the endpoint tier it
+ * covers; the assertions are unchanged, because they always went through
+ * `ship.tokens.*`.
  *
  * Rewritten 2026-07-27. Every create test used to assert only that *something*
  * came back — `expect(result.token).toBeDefined()` — which held whether or not
@@ -13,9 +17,9 @@
 
 import { DEPLOY_TOKEN, ErrorType } from '@shipstatic/types';
 import { beforeEach, describe, expect, it } from 'vitest';
-import Ship from '../../../src/node';
-import { apiKey, timestamps } from '../../fixtures/builders';
-import { getMockServerUrl, resetMockServer } from '../../mocks/server';
+import Ship from '../../src/node';
+import { apiKey, timestamps } from '../fixtures/builders';
+import { getMockServerUrl, resetMockServer } from '../mocks/server';
 
 /** The mock's fixed "now", so a derived expiry is an exact expectation. */
 const NOW = timestamps.jan2024;
