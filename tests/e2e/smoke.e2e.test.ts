@@ -93,8 +93,15 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
     let deployed: Awaited<ReturnType<typeof ship.deploy>>;
 
     beforeAll(async () => {
+      // `E2E_TEST_RUN_ID` alone, not decorated. It already opens `e2e-` and
+      // already identifies the run, which is its whole job, and it is 17
+      // characters of a 25-character rule — so `e2e-smoke-${…}` was 27 and
+      // this deploy has been refused CLIENT-SIDE, before any request, for as
+      // long as labels have been validated (`LABEL_CONSTRAINTS.MAX_LENGTH`
+      // has read 25 since 2026-07-28). Nothing caught it because this tier is
+      // opt-in: an unrun suite reports nothing, including about itself.
       deployed = await ship.deploy(TEST_SITE_PATH, {
-        labels: [`e2e-smoke-${E2E_TEST_RUN_ID}`],
+        labels: [E2E_TEST_RUN_ID],
       });
       deploymentsToCleanup.push(deployed.deployment);
     }, 60000);
@@ -136,13 +143,30 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
       expect((await response.text()).length).toBeGreaterThan(0);
     });
 
-    it('deletes the deployment; a follow-up get is a typed 404', async () => {
-      await ship.deployments.delete(deployed.deployment);
-      deploymentsToCleanup.splice(deploymentsToCleanup.indexOf(deployed.deployment), 1);
+    it('deletes the deployment; the row survives the transition, marked deleting', async () => {
+      // This asserted a typed 404 on the follow-up get, and had done since
+      // before deletion became asynchronous. The platform answers 202, marks
+      // the row `deleting` and queues the cleanup — the row and the files both
+      // outlive the call by however long the queue takes (~26s measured) — so
+      // the 404 arrives eventually and never immediately. Three independent
+      // statements already said so and only this one line disagreed: the API's
+      // own handler (`getDeployment` gates on nothing but existence),
+      // `tests/contract.ts` (`deployments.delete` → 202, live), and the
+      // acknowledgement law in `@shipstatic/types`. An opt-in tier reports
+      // nothing until it is run, including about itself.
+      //
+      // The transitional state is also the contract worth pinning here, since
+      // it is what makes the CLI say "deleting — served until cleanup
+      // completes" instead of a completed past tense over a live site.
+      const acknowledgement = await ship.deployments.delete(deployed.deployment);
+      expect(acknowledgement.status).toBe('deleting');
 
-      const error = await captureError(ship.deployments.get(deployed.deployment));
-      expect(error.type).toBe(ErrorType.NotFound);
-      expect(error.status).toBe(404);
+      const during = await ship.deployments.get(deployed.deployment);
+      expect(during.deployment).toBe(deployed.deployment);
+      expect(during.status).toBe('deleting');
+
+      // Left in the cleanup list deliberately: the queue owns the removal, and
+      // the teardown's delete is idempotent against a row already going.
     });
   });
 
