@@ -74,7 +74,13 @@ describe('processFilesForBrowser in Chromium', () => {
   it('enforces platform limits on real File sizes', async () => {
     const tight: PlatformLimits = { maxFileSize: 1024, maxFilesCount: 5, maxTotalSize: 4096 };
     const oversized = fileAt('site/big.bin', 'x'.repeat(2048));
-    await expect(processFilesForBrowser([oversized], {}, tight)).rejects.toThrow(/exceeds|size/i);
+    // The sentence is the one `FILE_RULES` authors, byte for byte — the whole
+    // point of the table is that this reads the same here as it does from the
+    // Node pipeline and from `validateFiles`. A loose pattern would have let
+    // the three drift right back apart.
+    await expect(processFilesForBrowser([oversized], {}, tight)).rejects.toThrow(
+      'File "big.bin" too large. Maximum 1 KB allowed',
+    );
   });
 
   it('falls back to file.name when webkitRelativePath is empty (file-picker input)', async () => {
