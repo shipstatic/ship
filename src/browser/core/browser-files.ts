@@ -89,6 +89,10 @@ export async function processFilesForBrowser(
   const results: StaticFile[] = [];
   let totalSize = 0;
 
+  // Hoisted: the platform's blocklist is one value for the whole deploy, and
+  // `?? []` inside the loop would allocate per file.
+  const blockedExtensions = platformLimits.blockedExtensions ?? [];
+
   for (let i = 0; i < validPairs.length; i++) {
     const { file, deployPath } = validPairs[i];
 
@@ -101,7 +105,7 @@ export async function processFilesForBrowser(
     }
 
     // Filename and extension validation (shared with Node)
-    validateDeployFile(deployPath, file.name);
+    validateDeployFile(deployPath, file.name, blockedExtensions);
 
     // Validate file sizes (matches Node validation)
     if (file.size > platformLimits.maxFileSize) {

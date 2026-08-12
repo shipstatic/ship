@@ -159,6 +159,10 @@ export async function processFilesForNode(
     );
   }
 
+  // Hoisted: the platform's blocklist is one value for the whole deploy, and
+  // `?? []` inside the loop would allocate per file.
+  const blockedExtensions = platformLimits.blockedExtensions ?? [];
+
   for (let i = 0; i < validAbsPaths.length; i++) {
     const filePath = validAbsPaths[i];
     const deployPath = validDeployPaths[i];
@@ -175,7 +179,7 @@ export async function processFilesForNode(
       }
 
       // Filename and extension validation (shared with browser)
-      validateDeployFile(deployPath, filePath);
+      validateDeployFile(deployPath, filePath, blockedExtensions);
 
       // Validate file sizes
       if (stats.size > platformLimits.maxFileSize) {

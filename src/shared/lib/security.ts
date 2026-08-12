@@ -37,19 +37,32 @@ export function validateDeployPath(deployPath: string, sourceIdentifier: string)
 /**
  * Validate a deploy file's name and extension.
  * Rejects unsafe filenames (shell/URL-dangerous chars, reserved names)
- * and blocked file extensions (.exe, .msi, .dll, etc.).
+ * and file extensions the platform refuses to host.
+ *
+ * **The blocklist is the platform's, delivered — not this package's.** It
+ * arrives as `PlatformLimits.blockedExtensions` from `GET /limits`, which the
+ * client has already fetched by the time any file is processed. That is what
+ * keeps a pinned CLI from enforcing a policy the platform has moved on from,
+ * in either direction. Callers pass `[]` when the API sent no list (one that
+ * predates the field): the check then does nothing and the API refuses the
+ * file at the boundary, which is the correct place for it to be refused.
  *
  * @param deployPath - The deployment path to validate
  * @param sourceIdentifier - Human-readable identifier for error messages
- * @throws {ShipError} If the filename is unsafe or extension is blocked
+ * @param blockedExtensions - The platform's blocklist, from `/limits`
+ * @throws {ShipError} If the filename is unsafe or the extension is blocked
  */
-export function validateDeployFile(deployPath: string, sourceIdentifier: string): void {
+export function validateDeployFile(
+  deployPath: string,
+  sourceIdentifier: string,
+  blockedExtensions: readonly string[],
+): void {
   const nameCheck = validateFileName(deployPath);
   if (!nameCheck.valid) {
     throw ShipError.business(nameCheck.reason || 'Invalid file name');
   }
 
-  if (isBlockedExtension(deployPath)) {
+  if (isBlockedExtension(deployPath, blockedExtensions)) {
     throw ShipError.business(`File extension not allowed: "${sourceIdentifier}"`);
   }
 }

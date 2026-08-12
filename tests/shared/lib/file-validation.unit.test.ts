@@ -13,6 +13,17 @@ import {
   validateFiles,
 } from '../../../src/shared/lib/file-validation.js';
 
+/**
+ * The blocklist a client is GIVEN, not one it knows.
+ *
+ * `validateFiles` reads `PlatformLimits.blockedExtensions` — the platform's
+ * policy, delivered by `GET /limits` (wire:
+ * `cloudflare/api/src/lib/blocklist.ts`). These are the entries this file
+ * exercises; asserting the platform's real list here would be testing the
+ * wrong repo.
+ */
+const BLOCKED_EXTENSIONS = ['exe', 'msi', 'dll', 'bat', 'dmg'];
+
 // Mock file helper
 function createMockFile(name: string, size: number): ValidatableFile {
   return {
@@ -29,6 +40,7 @@ describe('File Validation', () => {
         maxFileSize: 5 * 1024 * 1024,
         maxTotalSize: 25 * 1024 * 1024,
         maxFilesCount: 100,
+        blockedExtensions: BLOCKED_EXTENSIONS,
       };
 
       const result = validateFiles([], config);
@@ -61,6 +73,7 @@ describe('File Validation', () => {
       maxFileSize: 5 * 1024 * 1024, // 5MB
       maxTotalSize: 25 * 1024 * 1024, // 25MB
       maxFilesCount: 100,
+      blockedExtensions: BLOCKED_EXTENSIONS,
     };
 
     it('should mark all files as valid when within limits', () => {
@@ -371,6 +384,7 @@ describe('File Validation', () => {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
+      blockedExtensions: BLOCKED_EXTENSIONS,
     };
 
     it('should reject empty file names (atomic)', () => {
@@ -418,6 +432,7 @@ describe('File Validation', () => {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
+      blockedExtensions: BLOCKED_EXTENSIONS,
     };
 
     it('should reject negative file sizes (atomic)', () => {
@@ -441,6 +456,7 @@ describe('File Validation', () => {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
+      blockedExtensions: BLOCKED_EXTENSIONS,
     };
 
     it('should accept files with no extension', () => {
@@ -515,6 +531,7 @@ describe('File Validation', () => {
       maxFileSize: 10 * 1024 * 1024,
       maxTotalSize: 50 * 1024 * 1024,
       maxFilesCount: 100,
+      blockedExtensions: BLOCKED_EXTENSIONS,
     };
 
     it('should accept font files', () => {
@@ -638,6 +655,7 @@ describe('File Validation', () => {
       maxFileSize: 5 * 1024 * 1024,
       maxTotalSize: 25 * 1024 * 1024,
       maxFilesCount: 100,
+      blockedExtensions: BLOCKED_EXTENSIONS,
     };
 
     it('should reject files with URL-breaking characters', () => {
@@ -832,6 +850,7 @@ describe('File Validation - Boundary Tests', () => {
     maxFileSize: 5 * 1024 * 1024, // 5MB
     maxTotalSize: 25 * 1024 * 1024, // 25MB
     maxFilesCount: 100,
+    blockedExtensions: BLOCKED_EXTENSIONS,
   };
 
   describe('File Size Boundaries', () => {
