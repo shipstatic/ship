@@ -14,8 +14,8 @@ import {
   FileValidationStatus as FILE_VALIDATION_STATUS,
   hasUnbuiltMarker,
   hasUnsafeChars,
-  isBlockedExtension,
 } from '@shipstatic/types';
+import { firstBrokenRule } from './file-rules.js';
 
 // Re-exported because it constrains three exported generics (validateFiles,
 // getValidFiles, allValidFilesReady) — a consumer cannot name the bound
@@ -176,11 +176,6 @@ export function validateFiles<T extends ValidatableFile>(
     let fileStatus: FileValidationStatusType = FILE_VALIDATION_STATUS.READY;
     let statusMessage = 'Ready for upload';
 
-    // Pre-compute filename validation
-    const nameValidation = file.name
-      ? validateFileName(file.name)
-      : { valid: false, reason: 'File name cannot be empty' };
-
     // Check for processing errors
     if (file.status === FILE_VALIDATION_STATUS.PROCESSING_ERROR) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
@@ -233,47 +228,31 @@ export function validateFiles<T extends ValidatableFile>(
         file: file.name,
         message: statusMessage,
       });
-    } else if (!nameValidation.valid) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = nameValidation.reason || 'Invalid file name';
-      errors.push({
-        file: file.name,
-        message: statusMessage,
-      });
     }
 
-    // Blocked extension check — the list is the platform's, delivered via
-    // `/limits`. Absent (an API predating the field) means no client-side
-    // check, never an empty policy: the boundary still refuses the file.
-    else if (isBlockedExtension(file.name, config.blockedExtensions ?? [])) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = `File extension not allowed: "${file.name}"`;
-      errors.push({
-        file: file.name,
-        message: statusMessage,
-      });
-    }
-
-    // File size validation
-    else if (file.size > config.maxFileSize) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = `File size (${formatFileSize(file.size)}) exceeds limit of ${formatFileSize(config.maxFileSize)}`;
-      errors.push({
-        file: file.name,
-        message: statusMessage,
-      });
-    }
-
-    // Total size validation
+    // THE SHARED RULES — name, extension, file size, total size — read from
+    // the one ordered table in `file-rules.ts`.
+    //
+    // This is the COLLECTING renderer: the same verdict the deploy pipelines'
+    // throwing renderer reaches, delivered as a list rather than an exception.
+    // Neither surface authors a sentence, which is what stopped one size rule
+    // reading three different ways.
     else {
-      totalSize += file.size;
-      if (totalSize > config.maxTotalSize) {
+      const input = { path: file.name, size: file.size, totalSize: totalSize + file.size };
+      const broken = firstBrokenRule(input, config);
+
+      if (broken) {
         fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-        statusMessage = `Total size would exceed limit of ${formatFileSize(config.maxTotalSize)}`;
+        statusMessage = broken.sentence(input, config);
         errors.push({
-          file: file.name,
+          // The total-size rule fails the DEPLOY, not this file, so it keeps
+          // the aggregate subject rather than blaming whichever file tipped it.
+          file: broken.name === 'totalSize' ? `(${files.length} files)` : file.name,
           message: statusMessage,
         });
+      } else {
+        // Only a file that passed everything counts toward the running total.
+        totalSize = input.totalSize;
       }
     }
 
