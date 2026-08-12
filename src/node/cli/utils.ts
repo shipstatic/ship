@@ -223,15 +223,12 @@ export const formatTable = (
     ),
   });
 
-  // Clean output: remove null bytes and ensure clean spacing
+  // columnify pads every cell to its column width, so the last column of a
+  // short row ends in spaces nobody asked for — visible the moment output is
+  // piped into anything that cares.
   return `${output
     .split('\n')
-    .map(
-      (line: string) =>
-        line
-          .replace(/\0/g, '') // Remove any null bytes
-          .replace(/\s+$/, ''), // Remove trailing spaces
-    )
+    .map((line: string) => line.replace(/\s+$/, ''))
     .join('\n')}\n`;
 };
 
@@ -264,9 +261,5 @@ export const formatDetails = (obj: object, noColor?: boolean): string => {
     },
   });
 
-  // Clean output: remove null bytes and ensure clean spacing
-  return `${output
-    .split('\n')
-    .map((line: string) => line.replace(/\0/g, '')) // Remove any null bytes
-    .join('\n')}\n`;
+  return `${output}\n`;
 };

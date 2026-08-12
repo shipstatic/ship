@@ -26,20 +26,22 @@ function createMockResponse(data: any, status = 200) {
   });
 }
 
-// Mock deploy body creator for tests. A `vi.fn` so the deploy context it
-// receives — labels, via, password, flags — is assertable: this file is the
-// transport anchor, and that context is the wire contract at this seam.
-const mockCreateDeployBody = vi.fn(async (_files: any[], _context?: any) => new FormData());
-
-/** The deploy context handed to the body creator by the most recent deploy. */
-const lastDeployContext = () => mockCreateDeployBody.mock.calls.at(-1)?.[1];
+/**
+ * The multipart body the most recent request put on the wire.
+ *
+ * The body creator used to be INJECTED here as a `vi.fn`, so these rows read
+ * the context it was handed. One builder serves both platforms now, so there
+ * is nothing left to inject — and reading the real `FormData` is the stronger
+ * assertion anyway: it observes the artifact the API receives rather than what
+ * a collaborator was told to build.
+ */
+const lastDeployBody = (): FormData => (global.fetch as any).mock.calls.at(-1)[1].body;
 
 describe('ApiHttp', () => {
   let apiHttp: ApiHttp;
   const mockOptions = {
     apiUrl: 'https://api.test.com',
     getAuthHeaders: () => ({ Authorization: 'Bearer test-api-key' }),
-    createDeployBody: mockCreateDeployBody,
   };
 
   beforeEach(() => {
@@ -57,7 +59,6 @@ describe('ApiHttp', () => {
       const api = new ApiHttp({
         apiUrl: 'https://test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody,
       });
       expect(api).toBeDefined();
     });
@@ -94,7 +95,6 @@ describe('ApiHttp', () => {
         getAuthHeaders: async () => {
           throw new Error('refresh failed');
         },
-        createDeployBody: mockCreateDeployBody,
       });
       const errors: Error[] = [];
       api.on('error', (err) => errors.push(err));
@@ -120,7 +120,6 @@ describe('ApiHttp', () => {
         getAuthHeaders: async () => {
           throw providerError;
         },
-        createDeployBody: mockCreateDeployBody,
       });
       const errors: Error[] = [];
       api.on('error', (err) => errors.push(err));
@@ -376,7 +375,7 @@ describe('ApiHttp', () => {
       expect(fetchCall[1].method).toBe('POST');
       // Every deploy carries an attribution: a direct SDK call is `sdk`, so an
       // absent `via` on the wire means an unattributed caller, never the SDK.
-      expect(lastDeployContext()?.via).toBe('sdk');
+      expect(lastDeployBody().get('via')).toBe('sdk');
     });
 
     it('should let an explicit via win over the sdk default', async () => {
@@ -389,7 +388,7 @@ describe('ApiHttp', () => {
 
       await apiHttp.deploy(mockFiles, { via: 'web' });
 
-      expect(lastDeployContext()?.via).toBe('web');
+      expect(lastDeployBody().get('via')).toBe('web');
     });
 
     it('should include custom via field when provided', async () => {
@@ -417,12 +416,12 @@ describe('ApiHttp', () => {
     it('forwards the captcha proof into the deploy body', async () => {
       // The anonymous human channel: the reCAPTCHA proof rides the deploy
       // body as a form field — the API grants the public-account identity
-      // per request. The body creator is where the field is appended.
-      const spyCreateDeployBody = vi.fn(mockCreateDeployBody);
+      // per request. This row used to assert that the proof reached the body
+      // CREATOR, which is one seam short of the claim: the field is what the
+      // API reads, so the field is what is read back here.
       const api = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: spyCreateDeployBody,
       });
       const mockFiles = [
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
@@ -437,10 +436,8 @@ describe('ApiHttp', () => {
 
       await api.deploy(mockFiles, { captcha: 'captcha-proof', via: 'web' });
 
-      expect(spyCreateDeployBody).toHaveBeenCalledWith(
-        expect.any(Array),
-        expect.objectContaining({ captcha: 'captcha-proof', via: 'web' }),
-      );
+      expect(lastDeployBody().get('captcha')).toBe('captcha-proof');
+      expect(lastDeployBody().get('via')).toBe('web');
     });
 
     it('sends X-Caller on every request when the caller option is set', async () => {
@@ -451,7 +448,6 @@ describe('ApiHttp', () => {
         apiUrl: 'https://api.test.com',
         caller: 'end-user-42',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody,
       });
       const mockFiles = [
         { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
@@ -924,7 +920,6 @@ describe('ApiHttp', () => {
         apiUrl: 'https://api.test.com',
         session: true,
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody,
       });
     });
 
@@ -951,7 +946,6 @@ describe('ApiHttp', () => {
       const apiHttpDefault = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody,
       });
       (global.fetch as any).mockResolvedValue(
         createMockResponse({ success: true, message: 'pong' }),
@@ -968,7 +962,6 @@ describe('ApiHttp', () => {
         apiUrl: 'https://api.test.com',
         session: true,
         getAuthHeaders: () => ({ Authorization: 'Bearer test-key' }),
-        createDeployBody: mockCreateDeployBody,
       });
       (global.fetch as any).mockResolvedValue(
         createMockResponse({ success: true, message: 'pong' }),
@@ -994,7 +987,6 @@ describe('ApiHttp', () => {
       const apiHttpWithToken = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({ Authorization: 'Bearer test-token' }),
-        createDeployBody: mockCreateDeployBody,
       });
       (global.fetch as any).mockResolvedValue(
         createMockResponse({ success: true, message: 'pong' }),
@@ -1357,7 +1349,6 @@ describe('ApiHttp', () => {
       const apiWithTimeout = new ApiHttp({
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
-        createDeployBody: mockCreateDeployBody,
         timeout: 5000,
       });
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));

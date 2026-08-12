@@ -24,15 +24,13 @@ import {
 } from '@shipstatic/types';
 import { Command, CommanderError, Help, InvalidArgumentError } from 'commander';
 import { bold, dim } from 'yoctocolors';
-import { readEnvConfig } from '../core/config.js';
 import type { Ship } from '../index.js';
 import { installCompletion, uninstallCompletion } from './completion.js';
 import { subcommandsOf } from './completions.js';
 import { runConfig } from './config.js';
-import { createClient, mergeCliConfig } from './create-client.js';
+import { createClient, resolveCliToken } from './create-client.js';
 import { CREDENTIAL_HINT, getUserMessage, toShipError } from './error-handling.js';
 import { announceStep, formatOutput, type OutputContext } from './formatters.js';
-import { loadShipFile } from './shiprc.js';
 import type {
   CLIResult,
   DeployCommandOptions,
@@ -411,29 +409,6 @@ function handleUnknownSubcommand(this: Command): void {
     console.log(`usage: ship ${this.name()} <${subcommands.join('|')}>\n`);
   }
   process.exitCode = 1;
-}
-
-/**
- * The credential the CLI actually resolved (flag > env > file). The error
- * path must diagnose with the same lens the client was built with — a user
- * whose `SHIP_TOKEN` or `.shiprc` token was rejected is credentialed, and
- * the anonymous-user hint would misdiagnose their failure. A config file
- * that fails to load counts as no file credential: that failure is already
- * the error being reported.
- */
-function resolveCliToken(flags: {
-  config?: string;
-  apiUrl?: string;
-  token?: string;
-}): string | undefined {
-  let file = {};
-  try {
-    file = loadShipFile(flags.config);
-  } catch {}
-  // Flags, env, and files only ever hold strings — provider functions exist
-  // solely as constructor arguments, which the CLI never passes.
-  const token = mergeCliConfig(flags, readEnvConfig(), file).token;
-  return typeof token === 'string' ? token : undefined;
 }
 
 /** Spinner instance type from yocto-spinner */

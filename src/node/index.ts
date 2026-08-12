@@ -16,10 +16,8 @@
 
 import { ShipError } from '@shipstatic/types';
 import { Ship as BaseShip } from '../shared/base-ship.js';
-import { createDeployBody } from '../shared/core/deploy-body.js';
 import { getENV } from '../shared/lib/env.js';
 import type {
-  DeployBodyCreator,
   DeployInput,
   DeploymentCreateResponse,
   DeploymentOptions,
@@ -106,10 +104,6 @@ export class Ship extends BaseShip {
 
     const { processFilesForNode } = await import('./core/node-files.js');
     return processFilesForNode(paths, options, this.platformLimits ?? undefined);
-  }
-
-  protected getDeployBodyCreator(): DeployBodyCreator {
-    return createDeployBody;
   }
 }
 

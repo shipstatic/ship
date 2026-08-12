@@ -103,24 +103,18 @@ export function createClient(flags: CliFlags = {}): Ship {
  * **It lives beside `createClient` because a second reader of the precedence
  * chain belongs in the file that owns it**, and it stays a SECOND function
  * because the two readers differ in exactly the two ways a shared helper would
- * have had to parameterize: a broken config file is SWALLOWED here rather than
- * thrown, and the merged API URL is NOT judged here. Both would otherwise
- * raise a second error while the first is being reported.
+ * have had to parameterize:
  *
- * **Neither is reachable today, and that was worth measuring rather than
- * assuming.** Every caller above runs after `createClient` has already
- * succeeded with the same `--config` argument — the preflights are inside
- * `withErrorHandling`, and the auth branch of `handleError` needs a 401, which
- * needs a client. So `loadShipFile` cannot fail here unless the file changed
- * underneath us between the two reads. Deleting the `catch {}` leaves all 1209
- * tests green; that is a statement about the call graph, not about the guard.
+ * - **A broken config file is swallowed here.** This runs inside the CLI's
+ *   error handler, where a config that cannot be read must not mask the
+ *   failure being reported — that failure is frequently the config itself.
+ *   `createClient` rightly throws.
+ * - **The API URL is not judged here.** `createClient` calls `validateApiUrl`
+ *   on the merged value; doing so from the error path would raise a second
+ *   error while rendering the first.
  *
- * It stays because the property it defends belongs to the CALL SITE, not to
- * this function: a reader invoked from an error path must not throw. Move one
- * caller ahead of `createClient` — a fourth credential source, an earlier
- * preflight — and the hazard is live again with nothing to announce it. One
- * helper taking a posture flag would put both hazards one careless argument
- * away instead.
+ * One helper taking a posture flag would be a mode parameter over a single
+ * expression, and it would put both hazards one careless argument away.
  */
 export function resolveCliToken(flags: CliFlags): string | undefined {
   let file = {};

@@ -1,18 +1,11 @@
 import type { Mock } from 'vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import type {
-  DeployBodyCreator,
-  DeployInput,
-  DeploymentOptions,
-  StaticFile,
-} from '../../src/shared/types';
+import type { DeployInput, DeploymentOptions, StaticFile } from '../../src/shared/types';
 import { apiKey, deployToken } from '../fixtures/builders';
 
 const TEST_API_KEY = apiKey('a');
 const TEST_DEPLOY_TOKEN = deployToken('b');
-
-const mockDeployBodyCreator: DeployBodyCreator = async () => new FormData();
 
 // Concrete test implementation. The `ensureInitialized` no-op skips the
 // `GET /limits` fetch so these tests can focus on the credential lifecycle
@@ -33,9 +26,6 @@ class TestShip extends Ship {
         md5: 'test-hash',
       },
     ];
-  }
-  protected getDeployBodyCreator(): DeployBodyCreator {
-    return mockDeployBodyCreator;
   }
 }
 
