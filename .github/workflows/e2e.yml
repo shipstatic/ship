@@ -6,11 +6,24 @@
 # run is what catches drift between manual alignments — including drift
 # introduced by API deploys that never touched this repo.
 #
+# It is deliberately NOT a publish gate, and that half of the 2026-08-12
+# decision still stands: the dev API is deployed by hand and may legitimately
+# lag this repo, so a red run means "these two disagree", not "this release is
+# wrong". A schedule answers the other half — "inert config rots" — by
+# construction, since a cron runs whether or not anyone remembers it.
+#
 # Opt-in by secrets, twice over: the job runs only when BOTH secrets are set.
 # Requiring the URL too is deliberate — without it the harness defaults to
 # PRODUCTION, and a scheduled run must never surprise-target prod (dev first,
 # always). Point `SHIP_E2E_API_URL` at the dev environment. Hostnames live in
 # secrets, never in this tracked file (the public-value law).
+#
+# One caveat worth knowing before hand-dispatching in a burst: the
+# anonymous-ttl row spends a slot of the dev API's anonymous issuance budget
+# per run (agent: 5/hr per IP), because the limiter runs before the
+# orchestrator refuses. The daily cadence is far inside it; several dispatches
+# inside one hour turn that row's `Forbidden` into a `RateLimit`. The row's own
+# comment in `tests/contract.ts` carries the signature.
 
 name: E2E
 
@@ -24,6 +37,12 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Read the code and nothing else. This job holds a real API credential, so
+    # its GITHUB_TOKEN is scoped to the least thing that still lets it check
+    # out — and by the one-job-one-credential law, the third-party Slack action
+    # runs in `notify` below rather than beside these secrets.
+    permissions:
+      contents: read
     env:
       SHIP_E2E_API_KEY: ${{ secrets.SHIP_E2E_API_KEY }}
       SHIP_E2E_API_URL: ${{ secrets.SHIP_E2E_API_URL }}
@@ -43,12 +62,26 @@ jobs:
         if: env.SHIP_E2E_API_KEY != '' && env.SHIP_E2E_API_URL != ''
         run: pnpm test:e2e --run
 
+      # An unconfigured run is not a broken one. It says so as a notice rather
+      # than as a green run with nothing in it, so the verdict reads
+      # "unconfigured" instead of "passed".
       - name: Note the missing secrets (not a failure)
         if: env.SHIP_E2E_API_KEY == '' || env.SHIP_E2E_API_URL == ''
-        run: echo "SHIP_E2E_API_KEY / SHIP_E2E_API_URL not configured — e2e skipped."
+        run: |
+          echo "::notice title=E2E not configured::Set the SHIP_E2E_API_KEY and SHIP_E2E_API_URL repository secrets (a dev API key and the dev API URL) to run the contract smoke. See CLAUDE.md, 'The mock server'."
 
-      - if: failure()
-        uses: slackapi/slack-github-action@v4
+  # Notification is third-party code, so it runs where no credential exists —
+  # an empty permissions map, in its own job, after the outcome is known. The
+  # e2e job's API key is not in scope here, which is the whole point of the
+  # split.
+  notify:
+    needs: e2e
+    if: always() && needs.e2e.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - uses: slackapi/slack-github-action@v4
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook

@@ -1460,12 +1460,39 @@ Rows the e2e tier must not run carry their reason as a string instead of
 `live: true` (`NO_DOMAINS`, `NO_TOKENS`), so the coverage gap is stated in the
 table rather than inferred. That gap always existed; it was simply invisible.
 
-**To have CI catch API drift too**, add `SHIP_E2E_API_KEY` and
-`SHIP_E2E_API_URL` as repository secrets and a job that runs `pnpm test:e2e`
-when they are set. It should NOT gate `publish`: the dev API is deployed by
-hand and may legitimately lag this repo, so a red contract run means "these two
-disagree", not "this release is wrong". Deliberately not wired today — inert
-config rots.
+**CI catches API drift on a schedule.** `.github/workflows/e2e.yml` runs
+`pnpm test:e2e` daily, plus `workflow_dispatch` for a hand run. It is LIVE only
+once the operator sets two repository secrets — `SHIP_E2E_API_KEY` (a
+dev-account API key) and `SHIP_E2E_API_URL` (the dev API URL). Both are
+required: without the URL the harness defaults to PRODUCTION, and a scheduled
+run must never surprise-target prod. An unconfigured run emits a `::notice` and
+passes, so its verdict reads "unconfigured" rather than "broken".
+
+**It does NOT gate `publish`, and that half of the original decision stands
+unchanged**: the dev API is deployed by hand and may legitimately lag this
+repo, so a red contract run means "these two disagree", not "this release is
+wrong". It is a separate scheduled workflow that reports, never a `needs:` of
+anything — and it lives in its own file, because `ci.yml`'s filename is half
+the npm trusted-publisher registration.
+
+**What changed was the other half.** This section read *"deliberately not wired
+today — inert config rots"* until 2026-08-12, and two things that day moved the
+balance. The wave-closing e2e run failed TWICE on the suite's own staleness — a
+27-char label against a 25-char rule, and a stale typed-404 belief about async
+deletion — which is what *an unrun suite reports nothing, including about
+itself* looks like in practice. And the ttl wave added contract rows whose live
+halves exist precisely for drift only a live run can see. A `schedule:` answers
+"inert config rots" by construction: a cron runs whether or not anyone
+remembers it.
+
+Two mechanical notes. The Slack notification sits in its own job under
+`permissions: {}`, because the e2e job carries a real API credential and
+third-party action code must never run beside one (root `CLAUDE.md`, the
+one-job-one-credential law). And a burst of hand dispatches can flip the
+anonymous-ttl row's `Forbidden` into a `RateLimit`: each run spends a slot of
+the dev API's anonymous issuance budget (agent: 5/hr per IP), since the limiter
+runs before the orchestrator refuses. The daily cadence is far inside it; that
+row's own comment in `tests/contract.ts` carries the signature.
 
 ### Testing canon
 
