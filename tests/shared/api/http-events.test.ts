@@ -4,6 +4,7 @@
 
 import { describe, expect, test, vi } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http.js';
+import { ping } from './vehicles';
 
 describe('ApiHttp Events', () => {
   test('should emit request event', async () => {
@@ -22,7 +23,7 @@ describe('ApiHttp Events', () => {
     const requestHandler = vi.fn();
     apiHttp.on('request', requestHandler);
 
-    await apiHttp.ping();
+    await ping(apiHttp);
 
     expect(requestHandler).toHaveBeenCalledWith(
       'https://api.example.com/ping',
@@ -50,7 +51,7 @@ describe('ApiHttp Events', () => {
     const responseHandler = vi.fn();
     apiHttp.on('response', responseHandler);
 
-    await apiHttp.ping();
+    await ping(apiHttp);
 
     expect(responseHandler).toHaveBeenCalledWith(
       expect.any(Response),

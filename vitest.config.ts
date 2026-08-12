@@ -71,8 +71,13 @@ export default defineConfig({
         // which is the corroboration. Deleting well-tested code is supposed to
         // look like this; a floor that punishes it is measuring the wrong
         // thing.
+        // Raised 2026-08-12 with the endpoint fold: 96.09/89.70/97.98/96.78 →
+        // 96.33/89.92/98.12/96.92. Branches moved because that is where the
+        // headroom was; the other three keep the ~1-point slack this file has
+        // always carried, and a ratchet tightened past its own margin is a
+        // flake generator rather than a fence.
         statements: 95,
-        branches: 88,
+        branches: 89,
         functions: 97,
         lines: 96,
         // The TTY-only spinner and the SIGINT handler are unreachable
@@ -92,9 +97,12 @@ export default defineConfig({
         // Browser/unknown-runtime detection arms cannot execute in a Node
         // process; the browser tier certifies that side.
         'src/shared/lib/env.ts': { statements: 70, branches: 54 },
-        // The config-file error fallthrough — tiny module, v4 counts 4
-        // statements total, so one uncovered arm halves the number.
-        'src/node/cli/create-client.ts': { statements: 50 },
+        // The config-file error fallthrough. This floor was 50 because the
+        // module held four statements and one uncovered arm halved the number;
+        // `resolveCliToken` moved in beside `createClient` on 2026-08-12 —
+        // a second reader of the credential chain belongs in the file that owns
+        // it — and the module now measures 100/90.9/100/100.
+        'src/node/cli/create-client.ts': { statements: 90 },
       },
     },
     projects: [

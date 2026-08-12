@@ -32,8 +32,7 @@ import type {
   StaticFile,
   TokenResource,
 } from '@shipstatic/types';
-import { ShipError, validateCaller, validateToken } from '@shipstatic/types';
-
+import { API_PATHS, ShipError, validateCaller, validateToken } from '@shipstatic/types';
 import { ApiHttp } from './api/http.js';
 import {
   createAccountResource,
@@ -166,7 +165,11 @@ export abstract class Ship {
 
   private async fetchPlatformLimits(): Promise<void> {
     try {
-      this.platformLimits = await this.http.getLimits();
+      this.platformLimits = await this.http.request<PlatformLimits>(
+        API_PATHS.LIMITS,
+        { method: 'GET' },
+        'Get limits',
+      );
     } catch (error) {
       // Reset so the next API call can retry initialization.
       this.initPromise = null;
@@ -188,7 +191,7 @@ export abstract class Ship {
     // No `ensureInitialized()`: a reachability check reads no platform limits,
     // and hydrating them here made the cheapest call in the product issue two
     // requests — `/limits` and then `/ping`.
-    return this.http.ping();
+    return this.http.request<PingResponse>(API_PATHS.PING, { method: 'GET' }, 'Ping');
   }
 
   /**

@@ -1,85 +1,56 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ApiHttp } from '../../src/shared/api/http';
+/**
+ * @file Subject: `src/shared/resources.ts` — the account resource.
+ *
+ * One method, one endpoint, and that is the whole of it. The file previously
+ * mocked an `ApiHttp` and asserted the delegation reached `getAccount()`; that
+ * method no longer exists, because the delegation was the layer this wave
+ * folded away. What it asserts now is the request itself.
+ *
+ * Its old mock listed `get`/`post`/`delete`/`deploy`/`ping`/`getDeployments`
+ * beside the one method the resource reaches. That is not harmless padding:
+ * `as unknown as ApiHttp` hides the whole object from the typechecker, so a
+ * phantom survives every rename — and four of those names (`getAliases`,
+ * `getAlias`, `setAlias`, `removeAlias`) were an API generation that predates
+ * domains. A fake with exactly the surface under test cannot rot that way.
+ */
+
+import { API_PATHS } from '@shipstatic/types';
+import { describe, expect, it, vi } from 'vitest';
+import type { Transport } from '../../src/shared/api/http';
 import { type AccountResource, createAccountResource } from '../../src/shared/resources';
 
+function accountOver(answer: unknown) {
+  const request = vi.fn().mockResolvedValue(answer);
+  const transport = {
+    request,
+    requestWithStatus: vi.fn(),
+    deploy: { endpoint: '/deployments', timeout: 1, buildTimeout: 2 },
+  } as unknown as Transport;
+  const account: AccountResource = createAccountResource({ getApi: () => transport });
+  return { account, request };
+}
+
 describe('AccountResource', () => {
-  let mockApi: ApiHttp;
-  let account: AccountResource;
+  it('GETs /account and resolves the wire’s answer', async () => {
+    const answer = { account: 'acc-1', email: 'user@example.com', name: 'Test User' };
+    const { account, request } = accountOver(answer);
 
-  beforeEach(() => {
-    // Mock the ApiHttp client
-    mockApi = {
-      get: vi.fn(),
-      post: vi.fn(),
-      delete: vi.fn(),
-      deploy: vi.fn(),
-      ping: vi.fn(),
-      getDeployments: vi.fn(),
-      // The account resource reaches exactly one method. Listing more is not
-      // harmless padding: `as unknown as` hides the whole object from the
-      // typechecker, so a phantom survives every rename. This carried
-      // `getAliases`/`getAlias`/`setAlias`/`removeAlias` — an API generation
-      // that predates domains — which is the failure `base-ship.test.ts`
-      // documents and no assertion here could ever have caught.
-      getAccount: vi.fn(),
-    } as unknown as ApiHttp;
+    const result = await account.get();
 
-    account = createAccountResource({ getApi: () => mockApi });
+    expect(request).toHaveBeenCalledWith(API_PATHS.ACCOUNT, { method: 'GET' }, 'Get account');
+    expect(result).toEqual(answer);
   });
 
-  describe('get', () => {
-    it('should call API getAccount and return result', async () => {
-      const mockResponse = {
-        email: 'test@example.com',
-        name: 'Test User',
-        plan: 'free',
-        created: 1234567890,
-      };
-
-      (mockApi.getAccount as any).mockResolvedValue(mockResponse);
-
-      const result = await account.get();
-
-      expect(mockApi.getAccount).toHaveBeenCalledWith();
-      expect(result).toEqual(mockResponse);
+  it('does not catch — a failed read is the caller’s to handle', async () => {
+    const { account } = accountOver(undefined);
+    const failing = createAccountResource({
+      getApi: () =>
+        ({
+          request: vi.fn().mockRejectedValue(new Error('boom')),
+        }) as unknown as Transport,
     });
+    void account;
 
-    it('should handle different account types', async () => {
-      const testCases = [
-        {
-          email: 'free@example.com',
-          name: 'Free User',
-          plan: 'free' as const,
-          created: 1234567890,
-        },
-        {
-          email: 'paid@example.com',
-          name: 'Paid User',
-          picture: 'https://example.com/avatar.jpg',
-          plan: 'active' as const,
-          created: 1234567890,
-        },
-      ];
-
-      for (const testCase of testCases) {
-        (mockApi.getAccount as any).mockResolvedValue(testCase);
-
-        const result = await account.get();
-        expect(mockApi.getAccount).toHaveBeenCalledWith();
-        expect(result.email).toBe(testCase.email);
-        expect(result.plan).toBe(testCase.plan);
-      }
-    });
-  });
-
-  describe('integration', () => {
-    it('should create account resource with API client', () => {
-      expect(account).toBeDefined();
-      expect(typeof account.get).toBe('function');
-    });
-
-    it('should return promise from get method', () => {
-      expect(account.get()).toBeInstanceOf(Promise);
-    });
+    await expect(failing.get()).rejects.toThrow('boom');
   });
 });

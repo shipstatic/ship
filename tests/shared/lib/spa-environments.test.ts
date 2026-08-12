@@ -1,6 +1,22 @@
+/**
+ * @file Subject: `src/shared/lib/spa.ts` — `checkSPA` under each runtime's own
+ * content shapes. Aspect split of `spa.test.ts`, recorded in CLAUDE.md.
+ *
+ * It was `tests/shared/api/http-browser.test.ts` until 2026-08-12, when
+ * `checkSPA` moved off the transport to the module that is its only caller.
+ * The subject moved with the code; nothing else here changed, because these
+ * rows always drove `checkSPA` and never the endpoint table around it.
+ *
+ * What it certifies that the jsdom-free rows cannot: a real `Buffer`-less
+ * global scope. The `typeof Buffer !== 'undefined'` guard exists because a
+ * browser bundle has no `Buffer` at all, and a check that reads it unguarded
+ * is a ReferenceError rather than a wrong answer.
+ */
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
+import { checkSPA } from '../../../src/shared/lib/spa';
 import type { StaticFile } from '../../../src/shared/types';
 
 // Mock fetch globally
@@ -70,7 +86,7 @@ function createMockResponse(data: any, status = 200) {
   };
 }
 
-describe('ApiHttp Browser Compatibility', () => {
+describe('checkSPA across environments', () => {
   let apiHttp: ApiHttp;
   const mockOptions = {
     apiUrl: 'https://api.test.com',
@@ -119,7 +135,7 @@ describe('ApiHttp Browser Compatibility', () => {
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
 
       // This should NOT throw "Buffer is not defined" error
-      const result = await apiHttp.checkSPA(mockFiles);
+      const result = await checkSPA(mockFiles, apiHttp);
 
       expect(result).toBe(true);
       expect(fetch).toHaveBeenCalledWith(
@@ -150,7 +166,7 @@ describe('ApiHttp Browser Compatibility', () => {
 
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: false }));
 
-      const result = await apiHttp.checkSPA(blobFiles);
+      const result = await checkSPA(blobFiles, apiHttp);
 
       expect(result).toBe(false);
       expect(fetch).toHaveBeenCalledWith(
@@ -176,7 +192,7 @@ describe('ApiHttp Browser Compatibility', () => {
       ];
 
       // Should return false without making API call
-      const result = await apiHttp.checkSPA(filesWithoutIndex);
+      const result = await checkSPA(filesWithoutIndex, apiHttp);
 
       expect(result).toBe(false);
       expect(fetch).not.toHaveBeenCalled();
@@ -193,7 +209,7 @@ describe('ApiHttp Browser Compatibility', () => {
         },
       ];
 
-      const result = await apiHttp.checkSPA(oversizedFiles);
+      const result = await checkSPA(oversizedFiles, apiHttp);
 
       expect(result).toBe(false);
       expect(fetch).not.toHaveBeenCalled();
@@ -204,7 +220,7 @@ describe('ApiHttp Browser Compatibility', () => {
         createMockResponse({ error: 'SPA check failed' }, 500),
       );
 
-      await expect(apiHttp.checkSPA(mockFiles)).rejects.toThrow('SPA check failed');
+      await expect(checkSPA(mockFiles, apiHttp)).rejects.toThrow('SPA check failed');
     });
   });
 
@@ -234,7 +250,7 @@ describe('ApiHttp Browser Compatibility', () => {
     it('should handle Buffer objects in Node.js environment', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
 
-      const result = await apiHttp.checkSPA(mockFiles);
+      const result = await checkSPA(mockFiles, apiHttp);
 
       expect(result).toBe(true);
       expect(fetch).toHaveBeenCalledWith(
@@ -259,7 +275,7 @@ describe('ApiHttp Browser Compatibility', () => {
         },
       ];
 
-      const result = await apiHttp.checkSPA(invalidFiles);
+      const result = await checkSPA(invalidFiles, apiHttp);
       expect(result).toBe(false);
     });
   });
@@ -294,13 +310,13 @@ describe('ApiHttp Browser Compatibility', () => {
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
 
       __setTestEnvironment('browser');
-      const browserResult = await apiHttp.checkSPA(browserFiles);
+      const browserResult = await checkSPA(browserFiles, apiHttp);
 
       vi.clearAllMocks();
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
 
       __setTestEnvironment('node');
-      const nodeResult = await apiHttp.checkSPA(nodeFiles);
+      const nodeResult = await checkSPA(nodeFiles, apiHttp);
 
       // Both should produce the same result
       expect(browserResult).toBe(nodeResult);
@@ -329,7 +345,7 @@ describe('ApiHttp Browser Compatibility', () => {
         (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: false }));
 
         // This should NOT throw "Buffer is not defined" error
-        const result = await apiHttp.checkSPA(mockFiles);
+        const result = await checkSPA(mockFiles, apiHttp);
         expect(result).toBe(false);
       } finally {
         // Restore Buffer for other tests
@@ -357,7 +373,7 @@ describe('ApiHttp Browser Compatibility', () => {
 
       (global.fetch as any).mockResolvedValue(createMockResponse({ isSPA: true }));
 
-      const result = await apiHttp.checkSPA(mixedFiles);
+      const result = await checkSPA(mixedFiles, apiHttp);
       expect(result).toBe(true);
     });
   });

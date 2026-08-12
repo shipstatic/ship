@@ -1,341 +1,221 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ApiHttp } from '../../src/shared/api/http';
-import { createDomainResource, type DomainResource } from '../../src/shared/resources';
+/**
+ * @file Subject: `src/shared/resources.ts` — the domain resource, driven
+ * end-to-end through a real `Ship` against the wire-truth handler.
+ *
+ * It was `http-domains.test.ts` until 2026-08-12, when the endpoint tier
+ * folded down out of `ApiHttp` and its subject moved with it. Nothing in the
+ * file changed: it always drove `ship.domains.*`, which is why it survived a
+ * refactor that deleted every method it used to reach through. The
+ * mock-delegation file that held this name — `expect(mockApi.setDomain)
+ * .toHaveBeenCalledWith(...)` over an `ApiHttp` that no longer has the method
+ * — went with the layer it was asserting.
+ *
+ * Re-pinned to the real API on 2026-07-27. Every assertion here previously
+ * described an API that does not exist:
+ *   - it authenticated with `'test-api-key'`, which `classifyToken` rejects;
+ *   - it used bare labels (`staging`, `update-test`) as domain names, which the
+ *     lookup schema refuses — it requires a dot;
+ *   - it linked `test-deployment-1`, which fails the deployment-id pattern;
+ *   - and it expected `validation_failed` / "external domains" where the API
+ *     raises `business_logic_error` / "custom domains".
+ */
 
-describe('DomainResource', () => {
-  let mockApi: ApiHttp;
-  let domains: DomainResource;
+import { ErrorType, isShipError } from '@shipstatic/types';
+import { beforeEach, describe, expect, it } from 'vitest';
+import Ship from '../../src/node';
+import { apiKey, deploymentId, platformDomain } from '../fixtures/builders';
+import { getMockServerUrl, resetMockServer } from '../mocks/server';
+
+/** The deployment the mock state is seeded with. */
+const DEPLOYMENT = deploymentId();
+/** A platform subdomain: `<label>.shipstatic.com`. */
+const PLATFORM = platformDomain('preview-site');
+/** Anything not under the platform domain is custom. */
+const CUSTOM = 'www.example.com';
+
+describe('domain operations', () => {
+  let ship: Ship;
 
   beforeEach(() => {
-    // Mock the ApiHttp client
-    mockApi = {
-      setDomain: vi.fn(),
-      getDomain: vi.fn(),
-      listDomains: vi.fn(),
-      deleteDomain: vi.fn(),
-      verifyDomain: vi.fn(),
-      deploy: vi.fn(),
-      ping: vi.fn(),
-    } as unknown as ApiHttp;
-
-    domains = createDomainResource({ getApi: () => mockApi });
+    resetMockServer();
+    ship = new Ship({ token: apiKey(), apiUrl: getMockServerUrl() });
   });
 
-  describe('set (always PUT)', () => {
-    it('should PUT with deployment', async () => {
-      const mockSetResponse = {
-        domain: 'staging',
-        deployment: 'abc123',
-        url: 'https://staging.shipstatic.com',
-        isCreate: true,
-      };
-      (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
+  describe('status on create', () => {
+    it('starts a custom domain as pending (DNS not yet verified)', async () => {
+      const domain = await ship.domains.set(CUSTOM, { deployment: DEPLOYMENT });
 
-      const result = await domains.set('staging', { deployment: 'abc123' });
-
-      expect(mockApi.setDomain).toHaveBeenCalledWith('staging', 'abc123', undefined);
-
-      expect(result).toEqual(mockSetResponse);
+      expect(domain.status).toBe('pending');
+      expect(domain.isCreate).toBe(true);
     });
 
-    it('should PUT with deployment and labels', async () => {
-      const labels = ['production', 'v1.0.0'];
-      const mockSetResponse = {
-        domain: 'prod',
-        deployment: 'xyz789',
-        url: 'https://prod.shipstatic.com',
-        labels,
-        isCreate: true,
-      };
-      (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
+    it('starts a platform domain as success (nothing to verify)', async () => {
+      const domain = await ship.domains.set(PLATFORM, { deployment: DEPLOYMENT });
 
-      const result = await domains.set('prod', { deployment: 'xyz789', labels });
-
-      expect(mockApi.setDomain).toHaveBeenCalledWith('prod', 'xyz789', labels);
-      expect(result).toEqual(mockSetResponse);
-    });
-
-    it('should PUT with labels only', async () => {
-      const labels = ['production', 'v2.0.0'];
-      const mockSetResponse = {
-        domain: 'staging',
-        deployment: 'abc123',
-        url: 'https://staging.shipstatic.com',
-        labels,
-      };
-      (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
-
-      const result = await domains.set('staging', { labels });
-
-      expect(mockApi.setDomain).toHaveBeenCalledWith('staging', undefined, labels);
-
-      expect(result).toEqual(mockSetResponse);
-    });
-
-    it('should PUT with no options (reserve)', async () => {
-      const mockSetResponse = {
-        domain: 'reserved',
-        deployment: null,
-        url: 'https://reserved.shipstatic.com',
-        isCreate: true,
-      };
-      (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
-
-      const result = await domains.set('reserved');
-
-      expect(mockApi.setDomain).toHaveBeenCalledWith('reserved', undefined, undefined);
-
-      expect(result).toEqual(mockSetResponse);
-    });
-
-    it('should PUT with empty options', async () => {
-      const mockSetResponse = {
-        domain: 'reserved',
-        deployment: null,
-        url: 'https://reserved.shipstatic.com',
-        isCreate: true,
-      };
-      (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
-
-      const result = await domains.set('reserved', {});
-
-      expect(mockApi.setDomain).toHaveBeenCalledWith('reserved', undefined, undefined);
-      expect(result).toEqual(mockSetResponse);
-    });
-
-    it('should PUT with empty labels array', async () => {
-      const mockSetResponse = {
-        domain: 'staging',
-        deployment: null,
-        url: 'https://staging.shipstatic.com',
-        labels: [],
-      };
-      (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
-
-      const result = await domains.set('staging', { labels: [] });
-
-      expect(mockApi.setDomain).toHaveBeenCalledWith('staging', undefined, []);
-      expect(result).toEqual(mockSetResponse);
-    });
-
-    it('should PUT with deployment and empty labels', async () => {
-      const mockSetResponse = {
-        domain: 'staging',
-        deployment: 'abc123',
-        url: 'https://staging.shipstatic.com',
-        labels: [],
-      };
-      (mockApi.setDomain as any).mockResolvedValue(mockSetResponse);
-
-      const result = await domains.set('staging', { deployment: 'abc123', labels: [] });
-
-      expect(mockApi.setDomain).toHaveBeenCalledWith('staging', 'abc123', []);
-      expect(result).toEqual(mockSetResponse);
+      expect(domain.status).toBe('success');
     });
   });
 
-  describe('list', () => {
-    it('should call api.listDomains and return result', async () => {
-      const mockResponse = {
-        domains: [
-          { domain: 'staging', deployment: 'abc123', url: 'https://staging.shipstatic.com' },
-          { domain: 'production', deployment: 'def456', url: 'https://production.shipstatic.com' },
-        ],
-      };
-      (mockApi.listDomains as any).mockResolvedValue(mockResponse);
-
-      const result = await domains.list();
-
-      expect(mockApi.listDomains).toHaveBeenCalled();
-      expect(result).toEqual(mockResponse);
+  describe('sub-resources are custom-domain only', () => {
+    beforeEach(async () => {
+      await ship.domains.set(CUSTOM, { deployment: DEPLOYMENT });
     });
 
-    it('forwards pagination options to the API', async () => {
-      (mockApi.listDomains as any).mockResolvedValue({ domains: [], cursor: null });
+    it('returns the DNS provider for an unverified custom domain', async () => {
+      const dns = await ship.domains.dns(CUSTOM);
 
-      await domains.list({ limit: 1, cursor: 'xyz' });
-
-      expect(mockApi.listDomains).toHaveBeenCalledWith({ limit: 1, cursor: 'xyz' });
-    });
-  });
-
-  describe('delete', () => {
-    it('should resolve the acknowledgement the wire answered with', async () => {
-      // A deletion answers with the resource it deleted. The SDK used to
-      // discard that body and resolve `void` — one operation with two
-      // contracts. It now passes the projection through unchanged.
-      const ack = { domain: 'staging.example.com' };
-      (mockApi.deleteDomain as any).mockResolvedValue(ack);
-
-      const result = await domains.delete('staging');
-
-      expect(mockApi.deleteDomain).toHaveBeenCalledWith('staging');
-      expect(result).toEqual(ack);
+      expect(dns.domain).toBe(CUSTOM);
+      expect(dns.dns?.provider?.name).toBe('Cloudflare');
     });
 
-    it('should handle different domain names', async () => {
-      (mockApi.deleteDomain as any).mockResolvedValue({ domain: 'example.com' });
+    it('returns the required records, A before CNAME', async () => {
+      const records = await ship.domains.records(CUSTOM);
 
-      const result = await domains.delete('production');
-
-      expect(mockApi.deleteDomain).toHaveBeenCalledWith('production');
-      expect(result).toEqual({ domain: 'example.com' });
+      expect(records.domain).toBe(CUSTOM);
+      expect(records.apex).toBe('example.com');
+      // A first: it is the apex redirect. CNAME second: it is the hosted
+      // endpoint. The order is the instruction the user follows.
+      expect(records.records).toEqual([
+        { type: 'A', name: '@', value: '15.204.149.253' },
+        { type: 'CNAME', name: 'www', value: 'cname.shipstatic.com' },
+      ]);
     });
-  });
 
-  describe('get', () => {
-    it('should call api.getDomain with correct parameter', async () => {
-      const mockResponse = {
-        domain: 'staging',
-        deployment: 'abc123',
-        url: 'https://staging.shipstatic.com',
-      };
-      (mockApi.getDomain as any).mockResolvedValue(mockResponse);
+    it('returns a setup share hash', async () => {
+      const share = await ship.domains.share(CUSTOM);
 
-      const result = await domains.get('staging');
+      expect(share.domain).toBe(CUSTOM);
+      expect(share.hash).toMatch(/^[a-f0-9]{32}$/);
+    });
 
-      expect(mockApi.getDomain).toHaveBeenCalledWith('staging');
-      expect(result).toEqual(mockResponse);
+    it.each([
+      ['dns', (s: Ship, d: string) => s.domains.dns(d), 'DNS information'],
+      ['records', (s: Ship, d: string) => s.domains.records(d), 'DNS information'],
+      ['share', (s: Ship, d: string) => s.domains.share(d), 'Setup sharing'],
+      ['verify', (s: Ship, d: string) => s.domains.verify(d), 'DNS verification'],
+    ])('rejects %s on a platform domain as a business rule', async (_name, call, subject) => {
+      await ship.domains.set(PLATFORM, { deployment: DEPLOYMENT });
+
+      const error = await call(ship, PLATFORM).catch((e) => e);
+
+      // wire: routes/domains.ts:103,129,152 + lib/domains/verify.ts:24 —
+      // `ShipError.business(..., 400)`, and the wording is "custom domains".
+      expect(isShipError(error)).toBe(true);
+      expect(error.type).toBe(ErrorType.Business);
+      expect(error.status).toBe(400);
+      expect(error.message).toBe(`${subject} is only available for custom domains`);
     });
   });
 
   describe('verify', () => {
-    it('should call api.verifyDomain with correct parameter', async () => {
-      const mockResponse = { message: 'DNS verification queued successfully' };
-      (mockApi.verifyDomain as any).mockResolvedValue(mockResponse);
-
-      const result = await domains.verify('example.com');
-
-      expect(mockApi.verifyDomain).toHaveBeenCalledWith('example.com');
-      expect(result).toEqual(mockResponse);
+    beforeEach(async () => {
+      await ship.domains.set(CUSTOM, { deployment: DEPLOYMENT });
     });
 
-    it('should handle different domain names for DNS verification', async () => {
-      const mockResponse = { message: 'DNS verification queued successfully' };
-      (mockApi.verifyDomain as any).mockResolvedValue(mockResponse);
+    it('queues a verification', async () => {
+      const result = await ship.domains.verify(CUSTOM);
 
-      const result = await domains.verify('api.mysite.com');
-
-      expect(mockApi.verifyDomain).toHaveBeenCalledWith('api.mysite.com');
-      expect(result).toEqual(mockResponse);
-    });
-  });
-
-  describe('validate', () => {
-    it('should call api.validateDomain and return validation result', async () => {
-      const mockValidateResponse = {
-        valid: true,
-        normalized: 'my-site.shipstatic.com',
-        available: true,
-      };
-      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
-
-      const result = await domains.validate('my-site.shipstatic.com');
-
-      expect((mockApi as any).validateDomain).toHaveBeenCalledWith('my-site.shipstatic.com');
-      expect(result).toEqual(mockValidateResponse);
+      // The acknowledgement is the canonical domain and nothing else — the
+      // 202 says "queued", so no field repeats it and no prose rides along.
+      expect(result).toEqual({ domain: CUSTOM });
     });
 
-    it('should return normalized domain and availability for valid platform domain', async () => {
-      const mockValidateResponse = {
-        valid: true,
-        normalized: 'my-site.shipstatic.com',
-        available: true,
-      };
-      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
+    it('answers a repeat request with the real 429 contract', async () => {
+      await ship.domains.verify(CUSTOM);
 
-      const result = await domains.validate('my-site.shipstatic.com');
+      const error = await ship.domains.verify(CUSTOM).catch((e) => e);
 
-      expect(result.valid).toBe(true);
-      expect(result.normalized).toBe('my-site.shipstatic.com');
-      expect(result.available).toBe(true);
+      // The whole contract, not just the status: an earlier revision let the
+      // mock send a `validation_failed` / `status: 400` BODY under a 429 head,
+      // with no `Retry-After` — so a client reading `error.type` saw a
+      // validation failure where production sends a rate limit.
+      // wire: lib/domains/verify.ts:46-49 + api/src/index.ts:140-146
+      expect(isShipError(error)).toBe(true);
+      expect(error.type).toBe(ErrorType.RateLimit);
+      expect(error.status).toBe(429);
+      expect(error.message).toMatch(/already requested recently/);
+      expect(error.details?.resetAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
 
-    it('should return normalized domain for valid custom domain', async () => {
-      const mockValidateResponse = { valid: true, normalized: 'www.example.com', available: true };
-      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
+    it('scopes the cooldown to one domain', async () => {
+      const other = 'www.other-example.com';
+      await ship.domains.set(other, { deployment: DEPLOYMENT });
+      await ship.domains.verify(CUSTOM);
 
-      const result = await domains.validate('example.com');
-
-      expect(result.valid).toBe(true);
-      expect(result.normalized).toBe('www.example.com');
-      expect(result.available).toBe(true);
-    });
-
-    it('should indicate when platform domain is taken', async () => {
-      const mockValidateResponse = {
-        valid: true,
-        normalized: 'taken-site.shipstatic.com',
-        available: false,
-      };
-      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
-
-      const result = await domains.validate('taken-site.shipstatic.com');
-
-      expect(result.valid).toBe(true);
-      expect(result.normalized).toBe('taken-site.shipstatic.com');
-      expect(result.available).toBe(false);
-    });
-
-    it('should return error for invalid domain', async () => {
-      const mockValidateResponse = {
-        valid: false,
-        reason: 'Domain must be a fully qualified domain name',
-      };
-      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
-
-      const result = await domains.validate('invalid');
-
-      expect(result.valid).toBe(false);
-      expect(result.reason).toBeDefined();
-      expect(result.available).toBeUndefined();
-    });
-
-    it('should handle uppercase normalization', async () => {
-      const mockValidateResponse = {
-        valid: true,
-        normalized: 'mysite.shipstatic.com',
-        available: true,
-      };
-      (mockApi as any).validateDomain = vi.fn().mockResolvedValue(mockValidateResponse);
-
-      const result = await domains.validate('MySite.SHIPSTATIC.DEV');
-
-      expect(result.valid).toBe(true);
-      expect(result.normalized).toBe('mysite.shipstatic.com');
-      expect(result.available).toBe(true);
+      await expect(ship.domains.verify(other)).resolves.toEqual({ domain: other });
     });
   });
 
-  describe('integration', () => {
-    it('should create domain resource with API client', () => {
-      expect(domains).toBeDefined();
-      expect(typeof domains.set).toBe('function');
-      expect(typeof domains.get).toBe('function');
-      expect(typeof domains.list).toBe('function');
-      expect(typeof domains.delete).toBe('function');
-      expect(typeof domains.verify).toBe('function');
-      expect(typeof domains.validate).toBe('function');
+  describe('set is a merge-upsert', () => {
+    it('creates with 201 and reports isCreate', async () => {
+      const created = await ship.domains.set(CUSTOM, { labels: ['env'] });
+
+      expect(created.isCreate).toBe(true);
+      expect(created.labels).toEqual(['env']);
     });
 
-    it('should return promises from all methods', () => {
-      (mockApi.setDomain as any).mockResolvedValue({});
-      (mockApi.getDomain as any).mockResolvedValue({});
-      (mockApi.listDomains as any).mockResolvedValue({});
-      (mockApi.deleteDomain as any).mockResolvedValue({});
-      (mockApi.verifyDomain as any).mockResolvedValue({});
-      (mockApi as any).validateDomain = vi.fn().mockResolvedValue({});
+    it('updates with 200 and reports isCreate false', async () => {
+      await ship.domains.set(CUSTOM, { deployment: DEPLOYMENT });
 
-      expect(domains.set('test', { deployment: 'abc123' })).toBeInstanceOf(Promise);
-      expect(domains.set('test', { deployment: 'abc123', labels: ['tag1'] })).toBeInstanceOf(
-        Promise,
-      );
-      expect(domains.set('test', { labels: ['tag1', 'tag2'] })).toBeInstanceOf(Promise);
-      expect(domains.get('test')).toBeInstanceOf(Promise);
-      expect(domains.list()).toBeInstanceOf(Promise);
-      expect(domains.delete('test')).toBeInstanceOf(Promise);
-      expect(domains.verify('test')).toBeInstanceOf(Promise);
-      expect(domains.validate('test.example.com')).toBeInstanceOf(Promise);
+      const updated = await ship.domains.set(CUSTOM, { labels: ['production'] });
+
+      expect(updated.isCreate).toBe(false);
+      expect(updated.labels).toEqual(['production']);
+    });
+
+    it('preserves the fields the update omits', async () => {
+      const created = await ship.domains.set(CUSTOM, { deployment: DEPLOYMENT });
+
+      const updated = await ship.domains.set(CUSTOM, { labels: ['updated'] });
+
+      // `created`, `links` and the deployment link belong to the ROW; a
+      // labels-only update must not regenerate them.
+      expect(updated.deployment).toBe(created.deployment);
+      expect(updated.status).toBe(created.status);
+      expect(updated.created).toBe(created.created);
+      expect(updated.links).toBe(created.links);
+    });
+
+    it('reserves a domain when no deployment is given', async () => {
+      const reserved = await ship.domains.set(CUSTOM, { labels: [] });
+
+      expect(reserved.deployment).toBeNull();
+      expect(reserved.isCreate).toBe(true);
+    });
+
+    it('clears labels with an explicit empty array', async () => {
+      await ship.domains.set(CUSTOM, { deployment: DEPLOYMENT, labels: ['initial'] });
+
+      const cleared = await ship.domains.set(CUSTOM, { deployment: DEPLOYMENT, labels: [] });
+
+      expect(cleared.labels).toEqual([]);
+    });
+
+    it('rejects a deployment that does not exist as a 422 business rule', async () => {
+      // wire: lib/domains/upsert.ts:81-86 — 422, not 404: the request is
+      // well-formed, the referenced resource just cannot back a domain.
+      const error = await ship.domains
+        .set(CUSTOM, { deployment: 'brave-otter-9999999' })
+        .catch((e) => e);
+
+      expect(error.type).toBe(ErrorType.Business);
+      expect(error.status).toBe(422);
+      expect(error.message).toMatch(/can only point at a deployment/);
+    });
+  });
+
+  describe('delete', () => {
+    it('deletes the row, so a follow-up read 404s', async () => {
+      await ship.domains.set(CUSTOM, { deployment: DEPLOYMENT });
+
+      await ship.domains.delete(CUSTOM);
+
+      // wire: routes/domains.ts:203 — 200 `{domain}` AND the row is gone. The
+      // previous mock answered 204 and kept the row, so a delete that did
+      // nothing would have passed.
+      await expect(ship.domains.get(CUSTOM)).rejects.toMatchObject({
+        type: ErrorType.NotFound,
+      });
     });
   });
 });

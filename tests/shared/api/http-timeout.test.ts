@@ -1,6 +1,7 @@
 import { ShipError } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiHttp } from '../../../src/shared/api/http';
+import { deploy, getLimits, listDeployments, listDomains, ping } from './vehicles';
 
 // Mock deploy body creator
 
@@ -71,7 +72,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
     it('should pass signal to fetch for timeout support', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
 
-      await apiHttp.ping();
+      await ping(apiHttp);
 
       const fetchCall = (fetch as any).mock.calls[0][1];
       expect(fetchCall.signal).toBeDefined();
@@ -90,7 +91,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
           timeout: 1000,
         });
 
-        const pending = api.ping();
+        const pending = ping(api);
         const settled = vi.fn();
         pending.catch(settled);
 
@@ -115,7 +116,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
           maxRetries: 0,
         });
 
-        const pending = api.ping();
+        const pending = ping(api);
         const settled = vi.fn();
         pending.catch(settled);
 
@@ -155,7 +156,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       vi.useFakeTimers();
       try {
         global.fetch = hangingFetch() as any;
-        const pending = hangingApi({ maxRetries: 0 }).ping();
+        const pending = ping(hangingApi({ maxRetries: 0 }));
         pending.catch(() => {});
 
         await vi.advanceTimersByTimeAsync(1000);
@@ -180,7 +181,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       try {
         const fetchImpl = hangingFetch();
         global.fetch = fetchImpl as any;
-        const pending = hangingApi().ping();
+        const pending = ping(hangingApi());
         pending.catch(() => {});
 
         // Three ceilings and two backoffs (capped at 2s each) is a generous
@@ -199,7 +200,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       global.fetch = fetchImpl as any;
 
       const files = [{ path: 'a.txt', content: Buffer.from('a'), size: 1, md5: 'x' }];
-      const pending = hangingApi().deploy(files, { signal: controller.signal });
+      const pending = deploy(hangingApi(), files, { signal: controller.signal });
       pending.catch(() => {});
       controller.abort();
 
@@ -218,7 +219,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       (global.fetch as any).mockRejectedValue(abortError);
 
       try {
-        await apiHttp.ping();
+        await ping(apiHttp);
         expect.fail('Should have thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(ShipError);
@@ -234,7 +235,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       (global.fetch as any).mockRejectedValue(abortError);
 
       try {
-        await apiHttp.ping();
+        await ping(apiHttp);
         expect.fail('Should have thrown');
       } catch (error) {
         expect((error as ShipError).message).toContain('Ping');
@@ -250,7 +251,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
 
       try {
-        await apiHttp.deploy(files);
+        await deploy(apiHttp, files);
         expect.fail('Should have thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(ShipError);
@@ -265,7 +266,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
       (global.fetch as any).mockRejectedValue(abortError);
 
-      await expect(apiHttp.listDeployments()).rejects.toThrow('cancelled');
+      await expect(listDeployments(apiHttp)).rejects.toThrow('cancelled');
     });
 
     it('should handle AbortError during domain operations', async () => {
@@ -274,7 +275,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
       (global.fetch as any).mockRejectedValue(abortError);
 
-      await expect(apiHttp.listDomains()).rejects.toThrow('cancelled');
+      await expect(listDomains(apiHttp)).rejects.toThrow('cancelled');
     });
   });
 
@@ -292,7 +293,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
       const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
 
-      await apiHttp.deploy(files, { signal: userController.signal });
+      await deploy(apiHttp, files, { signal: userController.signal });
 
       const fetchCall = (fetch as any).mock.calls[0][1];
       // Signal should be present (combined signal or user signal)
@@ -316,7 +317,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       const userController = new AbortController();
       const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
 
-      const pending = api.deploy(files, { signal: userController.signal });
+      const pending = deploy(api, files, { signal: userController.signal });
       const settled = vi.fn();
       pending.catch(settled);
 
@@ -338,7 +339,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       });
       const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
 
-      await expect(api.deploy(files, { signal: AbortSignal.abort() })).rejects.toMatchObject({
+      await expect(deploy(api, files, { signal: AbortSignal.abort() })).rejects.toMatchObject({
         type: 'operation_cancelled',
       });
     });
@@ -365,7 +366,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
           maxRetries: 0,
         });
 
-        const pending = api.deploy(files);
+        const pending = deploy(api, files);
         const settled = vi.fn();
         pending.catch(settled);
 
@@ -397,7 +398,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
           maxRetries: 0,
         });
 
-        const pending = api.deploy(files, { build: true });
+        const pending = deploy(api, files, { build: true });
         const settled = vi.fn();
         pending.catch(settled);
 
@@ -427,7 +428,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
           maxRetries: 0,
         });
 
-        const pending = api.deploy(files, { spa: true });
+        const pending = deploy(api, files, { spa: true });
         const settled = vi.fn();
         pending.catch(settled);
 
@@ -455,7 +456,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
           timeout: 1000,
         });
 
-        const pending = api.deploy(files);
+        const pending = deploy(api, files);
         const settled = vi.fn();
         pending.catch(settled);
 
@@ -476,7 +477,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
 
-      await apiHttp.ping();
+      await ping(apiHttp);
 
       expect(clearTimeoutSpy).toHaveBeenCalled();
       clearTimeoutSpy.mockRestore();
@@ -487,7 +488,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
       (global.fetch as any).mockRejectedValue(new Error('Network error'));
 
-      await expect(apiHttp.ping()).rejects.toThrow();
+      await expect(ping(apiHttp)).rejects.toThrow();
 
       expect(clearTimeoutSpy).toHaveBeenCalled();
       clearTimeoutSpy.mockRestore();
@@ -500,7 +501,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         createMockResponse({ error: 'internal_server_error', message: 'Server error' }, 500),
       );
 
-      await expect(apiHttp.ping()).rejects.toThrow();
+      await expect(ping(apiHttp)).rejects.toThrow();
 
       expect(clearTimeoutSpy).toHaveBeenCalled();
       clearTimeoutSpy.mockRestore();
@@ -511,7 +512,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
     it('should handle multiple concurrent requests', async () => {
       (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
 
-      const promises = [apiHttp.ping(), apiHttp.getLimits(), apiHttp.listDeployments()];
+      const promises = [ping(apiHttp), getLimits(apiHttp), listDeployments(apiHttp)];
 
       await Promise.all(promises);
 
@@ -526,7 +527,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         return Promise.resolve(createMockResponse({ success: true }));
       });
 
-      await Promise.all([apiHttp.ping(), apiHttp.getLimits()]);
+      await Promise.all([ping(apiHttp), getLimits(apiHttp)]);
 
       expect(signals).toHaveLength(2);
       // Each request should have its own signal
@@ -543,7 +544,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       abortError.name = 'AbortError';
       (global.fetch as any).mockRejectedValue(abortError);
 
-      await expect(apiHttp.ping()).rejects.toThrow();
+      await expect(ping(apiHttp)).rejects.toThrow();
 
       expect(errorHandler).toHaveBeenCalled();
     });
@@ -556,7 +557,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       abortError.name = 'AbortError';
       (global.fetch as any).mockRejectedValue(abortError);
 
-      await expect(apiHttp.ping()).rejects.toThrow();
+      await expect(ping(apiHttp)).rejects.toThrow();
 
       // Request event should have been emitted before the abort
       expect(requestHandler).toHaveBeenCalledWith(
@@ -572,7 +573,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       (global.fetch as any).mockRejectedValue(networkError);
 
       try {
-        await apiHttp.ping();
+        await ping(apiHttp);
         expect.fail('Should have thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(ShipError);
@@ -584,7 +585,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       (global.fetch as any).mockRejectedValue(new Error('Unknown error'));
 
       try {
-        await apiHttp.ping();
+        await ping(apiHttp);
         expect.fail('Should have thrown');
       } catch (error) {
         expect(error).toBeInstanceOf(ShipError);

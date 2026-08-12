@@ -11,7 +11,7 @@ Claude Code instructions for the **Ship SDK & CLI** package.
 ```
 src/
 ├── shared/              # Cross-platform code (70% of codebase)
-│   ├── api/http.ts      # HTTP client with events, timeout, auth
+│   ├── api/http.ts      # The transport: headers, retries, timeout, events
 │   ├── base-ship.ts     # Base Ship class (auth state, lazy /limits fetch, resources)
 │   ├── resources.ts     # Resource factories (deployments, domains, etc.)
 │   ├── types.ts         # Internal SDK types
@@ -62,8 +62,8 @@ pnpm build                   # Build all bundles
 
 | File | Purpose |
 |------|---------|
-| `src/shared/resources.ts` | Resource factory implementations |
-| `src/shared/api/http.ts` | HTTP client (all API calls) |
+| `src/shared/resources.ts` | Every request the SDK can make — path, verb, body, response type |
+| `src/shared/api/http.ts` | The transport. Carries requests; knows nothing about what they mean |
 | `src/shared/base-ship.ts` | Base Ship class (auth, init, top-level methods) |
 | `src/node/core/config.ts` | `readEnvConfig` — SHIP_* env-var resolution (the SDK's only ambient source) |
 | `src/node/cli/bin.ts` | The executable — `dist/cli.cjs`. The one file that runs on import |
@@ -128,18 +128,81 @@ cancellation, and a deploy is one multipart POST with nothing to parallelize.
 The vestigial four were removed for 2.0 (2026-07-27) after an audit found
 them declared but never consumed.
 
+### One layer, not two: the resources ARE the endpoints
+
+**`resources.ts` states WHICH request; `api/http.ts` carries it.** A resource
+method is its endpoint — the path, the verb, the body, the response type — and
+it hands that to a narrow `Transport` (`request`, `requestWithStatus`, plus the
+deploy's carriage). Nothing above that line knows the base URL, the credential,
+the retry policy or the event vocabulary; nothing below knows what a domain is.
+
+**It was two layers until 2026-08-12, and the second was a restatement.**
+`ApiHttp` carried eighteen endpoint methods — `getDomain`, `listTokens`, … —
+and every resource method wrapped one of them 1:1 (`get: async (name) =>
+getApi().getDomain(name)`). That is not an adapter, because the isomorphism was
+DESIGNED: this SDK mirrors the wire one method per endpoint (see "Recorded
+absences"), so the two could not diverge without one of them being wrong.
+
+The fold went **DOWN**, and the direction is the whole decision. Moving the
+resource vocabulary UP into `ApiHttp` would mix what the doctrine separates —
+the public grouping is the `*Resource` interfaces' business, and those live in
+`@shipstatic/types`. Going the other way, each layer keeps exactly what it
+already named, and **"`ApiHttp` is pure transport" stopped being an aspiration
+in this file and became literally true**: the class has no endpoint table, no
+API vocabulary, and no idea what it is carrying.
+
+Four things moved with it, each to the thing that was already its only caller:
+
+| What | Went to | Because |
+|---|---|---|
+| The 18 endpoint methods | `resources.ts` | Each was wrapped 1:1 by a resource of the same shape |
+| `deploy()` | `deployments.upload` | The deploy pipeline read across two files — collection and SPA detection here, validators and body there — for no reason a reader could see from either end. It is one function now |
+| `checkSPA()` | `lib/spa.ts` | Its single caller sat three lines below it in another file. It also leaves the package's public surface, which it never earned |
+| `ping` / `getLimits` | `base-ship.ts` | Top-level `Ship` methods, not resources; the wire call belongs with the method that is its only reader |
+
+Two consequences worth knowing:
+
+- **`request` takes a PATH, not a URL.** The base is the transport's. Twenty-two
+  call sites wrote `${this.apiUrl}${API_PATHS.X}` by hand, which is twenty-two
+  chances to assemble it differently.
+- **The deploy's carriage stayed with transport**, as `Transport['deploy']`:
+  the endpoint (a client option may redirect it to `/upload`) and the two
+  ceilings. The NUMBERS are transport's — a budget for how long to wait on a
+  wire is nothing else — while the CHOICE between them is the resource's,
+  because only it knows that `build`/`prerender` wait on work the server does
+  after the upload lands, and `spa` does not.
+
+**What did not change: the public surface.** The `*Resource` interfaces come
+from `@shipstatic/types` and did not move. `ApiHttp`'s eighteen endpoint methods
+were exported by accident of `export *` and nothing in the estate reached them;
+their removal is internals only.
+
 ### Resource Factory Pattern
 
-Resources are factory functions that receive a `ResourceContext` (`getApi`, `ensureInit`) instead of the full Ship instance. This enables functional composition: factories only depend on the callbacks they actually need. Deployment resource additionally receives `processInput`.
+Resources are factory functions that receive a `ResourceContext` (`getApi`, a
+thunk resolving the `Transport`) instead of the full Ship instance. This enables
+functional composition: factories only depend on the callbacks they actually
+need. Deployment resource additionally receives `processInput`.
 
 ### HTTP Client Architecture
 
-`ApiHttp` in `src/shared/api/http.ts` — all API calls flow through `executeRequest`, which handles header merging, timeout, event emission, and error mapping. Two public variants: `request<T>()` returns data directly; `requestWithStatus<T>()` returns `{ data, status }` for operations where HTTP status matters (e.g. 201 vs 200 on domain upsert).
+`ApiHttp` in `src/shared/api/http.ts` — every request flows through
+`executeRequest`, which handles header merging, timeout, retries, event emission
+and error mapping. Two public variants: `request<T>()` returns data directly;
+`requestWithStatus<T>()` returns `{ data, status }` for the one operation where
+HTTP status IS the answer (201 vs 200 on domain upsert).
 
 **Key patterns:**
-- All path parameters use `encodeURIComponent()`
+- All path parameters use `encodeURIComponent()` — the SDK does not validate
+  identifiers, so this is the whole client-side defence against a hostile name
+  forging a sub-route. Fenced by a row **quantified over every resource method
+  that takes one** (`resources-paths.test.ts`): one method forgetting it is the
+  entire defect class, and a hand-picked example only ever proves the method
+  someone remembered.
 - Optional arrays: use `labels !== undefined` (not `labels?.length`) — distinguishes "not provided" from "empty array"
 - `requestWithStatus()` used when HTTP status drives behavior (domain creation: 201 = `isCreate: true`)
+- Internal request options are `ShipRequestInit`, whose `headers` is narrowed to
+  a plain record — see "Retries" for why that narrowing is load-bearing
 
 **Transport injection (`fetch`):** `ShipClientOptions.fetch` overrides the function used for every outbound API call. Defaults to `globalThis.fetch` (captured at construction). Any `fetch`-compatible function works — typical uses include a Cloudflare service-binding `Fetcher` for Worker-to-Worker calls, tracing/retry wrappers, and test mocks. All downstream machinery (events, timeouts, `AbortSignal`, multipart bodies, `ShipError` normalisation) operates on standard `Request`/`Response`, so the injected fetcher inherits everything for free.
 
@@ -1349,9 +1412,10 @@ is not named here by full basename.
 
 | Module | Files | Why |
 |---|---|---|
-| `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-browser`, `http-domains`, `http-events`, `http-rate-limit`, `http-retry`, `http-timeout`, `http-tokens` | The HTTP client is the SDK's widest surface. `http.test.ts` is the transport anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler, one resource family or one cross-cutting concern each. |
+| `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-events`, `http-rate-limit`, `http-retry`, `http-timeout` | The transport's cross-cutting concerns, one file each. `http.test.ts` is the anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler. It was three files longer until 2026-08-12 — `http-domains`, `http-tokens` and `http-browser` named halves of an endpoint table that has since folded down into `resources.ts`, and they moved with their subject. |
 | `src/shared/base-ship.ts` | `base-ship`, `base-ship-credentials`, `base-ship-lifecycle`, `base-ship-limits` | Three separable doctrines on one class: the credential slot, the init/auth lifecycle, and the one-shot `/limits` cache. |
-| `src/shared/resources.ts` | `resources-account`, `resources-deployments`, `resources-domains` | One file per resource factory; a single file would be a grab bag with no reason to read any part of it. |
+| `src/shared/resources.ts` | `resources-account`, `resources-deployments`, `resources-domains`, `resources-paths`, `resources-tokens` | One file per resource factory — a single file would be a grab bag with no reason to read any part of it — plus `resources-paths`, which is not a resource but the one thing none of them can assert: the URL each builds. The four resource files drive a real `Ship` against the wire-truth handler, and a mock server that ROUTED a request has already forgiven whatever the client did to the URL on the way in, so path encoding and pagination serialization need a stubbed `fetch` and a string comparison. |
+| `src/shared/lib/spa.ts` | `spa`, `spa-environments` | SPA detection and its one wire call. `spa-environments` (ex `http-browser.test.ts`) is the runtime axis: `checkSPA` reads the index's CONTENT, whose shape differs per platform, and the guard that makes a browser bundle work is `typeof Buffer !== 'undefined'` — unfalsifiable without a scope that genuinely lacks `Buffer`. |
 | `src/shared/types.ts` | `types-reexport` | Not a test of the module's own types but of the **freshness** of what it re-exports — a bundled-dependency fence. |
 
 **Recorded feature-axis files** — no single subject module, so the mirror rule
@@ -1444,7 +1508,12 @@ citations in `tests/mocks/handler.ts` → `pnpm typecheck` guides the rest.
 
 ## Adding New Features
 
-**New SDK method:** `@shipstatic/types` (interface) → `api/http.ts` (HTTP call) → `resources.ts` (factory wrapper) → fixture → tests.
+**New SDK method:** `@shipstatic/types` (interface) → `resources.ts` (the
+endpoint: path, verb, body, response type) → fixture → tests.
+
+Three steps, not four. It was `types → api/http.ts → resources.ts → …` until
+2026-08-12, and the middle pair was one fact written twice — see "One layer,
+not two".
 
 **New CLI command:** `cli/index.ts` (command + `withErrorHandling`) → `cli/formatters.ts` (formatter if needed) → `cli/types.ts` (`CLIResult` union if needed) → tests.
 
@@ -1487,7 +1556,12 @@ asset and is left alone.
 
 All errors use `ShipError` from `@shipstatic/types`. The class provides the full factory + type-guard API and the two HTTP-context constructors (`fromHttpResponse`, `fromFetchError`). See `@shipstatic/types/CLAUDE.md` "Error Flow" for the end-to-end lifecycle.
 
-**`ApiHttp` is pure transport.** `src/shared/api/http.ts` owns no error-mapping logic. `executeRequest` calls the two helpers directly — `ShipError.fromHttpResponse(response, operationName)` for non-OK responses and `ShipError.fromFetchError(error, operationName)` for thrown causes (which passes existing `ShipError`s through unchanged).
+**`ApiHttp` is pure transport**, and since 2026-08-12 that is literally true
+rather than aspirational — see "One layer, not two". It owns no error-mapping
+logic either: `executeRequest` calls the two helpers directly —
+`ShipError.fromHttpResponse(response, operationName)` for non-OK responses and
+`ShipError.fromFetchError(error, operationName)` for thrown causes (which passes
+existing `ShipError`s through unchanged).
 
 **CLI error UX** (`src/node/cli/error-handling.ts`) — pure functions, fully unit-testable:
 - `toShipError(err)` — normalizes any thrown value to a `ShipError` (used by the CLI's global error handler for non-fetch errors like Commander parse failures).
