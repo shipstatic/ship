@@ -3,12 +3,15 @@
  * Tests all execution branches for both Node.js and Browser environments
  */
 
+import path from 'node:path';
 import type { PlatformLimits } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship as BrowserShip } from '../../src/browser/index';
 import { Ship as NodeShip } from '../../src/node/index';
 import { __setTestEnvironment } from '../../src/shared/lib/env';
 import { deployToken } from '../fixtures/builders';
+
+const DEMO_SITE = path.resolve(__dirname, '../fixtures/demo-site');
 
 // A deploy token in the platform's canonical shape, built from its constants
 const TEST_DEPLOY_TOKEN = deployToken('a');
@@ -219,6 +222,89 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         expect(configResult).toEqual(mockLimits);
         expect(pingResult).toBe(true);
         expect(whoamiResult).toEqual({ email: 'test@example.com' });
+      });
+    });
+
+    /**
+     * The limits fetch is EARNED, not automatic.
+     *
+     * `ensureInit()` used to sit at the top of all nineteen resource wrappers,
+     * so every operation hydrated `/limits` before doing its own work — and
+     * only the deploy pipeline ever reads the result (file-size, file-count
+     * and blocklist checks inside `processInput`). Measured before the fix:
+     * `domains.list()`, `tokens.list()` and even `ping()` each issued
+     * `/limits` first. Every CLI command is one process, so that was a wasted
+     * round trip on every invocation of the product.
+     *
+     * These count REQUESTS through an injected fetch, which is the only thing
+     * that can see the difference — the resolved values were always correct.
+     */
+    describe('the limits fetch is earned, not automatic', () => {
+      const jsonFetch = () => {
+        const paths: string[] = [];
+        const fetchImpl = vi.fn(async (url: string) => {
+          paths.push(new URL(url).pathname);
+          return new Response(
+            JSON.stringify({
+              ...mockLimits,
+              deployments: [],
+              domains: [],
+              tokens: [],
+              cursor: null,
+              timestamp: 1,
+              deployment: 'mock-deploy-001.shipstatic.com',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          );
+        });
+        return { paths, fetchImpl };
+      };
+
+      it.each([
+        ['domains.list()', (s: NodeShip) => s.domains.list()],
+        ['tokens.list()', (s: NodeShip) => s.tokens.list()],
+        ['deployments.list()', (s: NodeShip) => s.deployments.list()],
+        ['ping()', (s: NodeShip) => s.ping()],
+      ])('%s issues ONE request, and it is not /limits', async (_label, call) => {
+        const { paths, fetchImpl } = jsonFetch();
+        const ship = new NodeShip({
+          token: TEST_DEPLOY_TOKEN,
+          apiUrl: 'https://api.test',
+          fetch: fetchImpl as unknown as typeof fetch,
+        });
+
+        await call(ship);
+
+        expect(paths).toHaveLength(1);
+        expect(paths).not.toContain('/limits');
+      });
+
+      it('still fetches limits for a deploy, because the deploy reads them', async () => {
+        // The other half: this is not "stop fetching limits", it is "fetch
+        // them where they are consumed". A deploy validates against the
+        // plan caps and the delivered blocklist, so it pays the request.
+        const { paths, fetchImpl } = jsonFetch();
+        const ship = new NodeShip({
+          token: TEST_DEPLOY_TOKEN,
+          apiUrl: 'https://api.test',
+          fetch: fetchImpl as unknown as typeof fetch,
+        });
+
+        await ship.deploy(DEMO_SITE);
+
+        expect(paths).toContain('/limits');
+      });
+
+      it('getLimits() still fetches when asked directly', async () => {
+        const { paths, fetchImpl } = jsonFetch();
+        const ship = new NodeShip({
+          token: TEST_DEPLOY_TOKEN,
+          apiUrl: 'https://api.test',
+          fetch: fetchImpl as unknown as typeof fetch,
+        });
+
+        expect(await ship.getLimits()).toMatchObject(mockLimits);
+        expect(paths).toEqual(['/limits']);
       });
     });
 
@@ -676,7 +762,7 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
     // Note: Node.js integration test removed - too complex to mock ApiHttp constructor properly.
     // The Browser integration test below validates config reuse works across environments.
 
-    it('should reuse platform config across multiple method calls in Browser', async () => {
+    it('memoizes the limits fetch, and only the calls that read them trigger it', async () => {
       __setTestEnvironment('browser');
       const ship = new BrowserShip({
         token: TEST_DEPLOY_TOKEN,
@@ -690,17 +776,21 @@ describe('ship.getLimits() - Cross-Environment Limits Retrieval', () => {
         getAccount: vi.fn().mockResolvedValue({ email: 'test@example.com' }),
       };
 
-      // Call ping first
+      // Calls that read no limits fetch none — `ping` hydrated them until
+      // 2026-08-12, which is what made the cheapest call issue two requests.
       await ship.ping();
+      await ship.whoami();
+      expect(getLimitsSpy).not.toHaveBeenCalled();
+
+      // Asking directly fetches once...
+      await ship.getLimits();
       expect(getLimitsSpy).toHaveBeenCalledTimes(1);
 
-      // Call getLimits - should reuse already-fetched platform config
+      // ...and the memo survives every later call, which is what this test
+      // has always been about.
       await ship.getLimits();
-      expect(getLimitsSpy).toHaveBeenCalledTimes(1); // Still only 1 call
-
-      // Call whoami
       await ship.whoami();
-      expect(getLimitsSpy).toHaveBeenCalledTimes(1); // Still only 1 call
+      expect(getLimitsSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

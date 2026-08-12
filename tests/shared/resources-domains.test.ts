@@ -18,7 +18,7 @@ describe('DomainResource', () => {
       ping: vi.fn(),
     } as unknown as ApiHttp;
 
-    domains = createDomainResource({ getApi: () => mockApi, ensureInit: async () => {} });
+    domains = createDomainResource({ getApi: () => mockApi });
   });
 
   describe('set (always PUT)', () => {
