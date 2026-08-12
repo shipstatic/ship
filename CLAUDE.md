@@ -13,14 +13,14 @@ src/
 ├── shared/              # Cross-platform code (70% of codebase)
 │   ├── api/http.ts      # The transport: headers, retries, timeout, events
 │   ├── base-ship.ts     # Base Ship class (auth state, lazy /limits fetch, resources)
-│   ├── resources.ts     # Resource factories (deployments, domains, etc.)
+│   ├── resources.ts     # Resource factories — every endpoint, stated once
 │   ├── types.ts         # Internal SDK types
-│   ├── core/            # constants + the shared credential zod schema
+│   ├── core/            # constants, credential schema, the deploy body + file pipeline
 │   └── lib/             # Utilities (validation, junk filtering, MD5, SPA detection)
-├── browser/             # Browser Ship class + file handling
+├── browser/             # Browser Ship class + the `webkitRelativePath` read
 └── node/
     ├── core/config.ts       # readEnvConfig — SHIP_* env-var resolution (no filesystem)
-    ├── core/...             # node-files, deploy-body
+    ├── core/node-files.ts   # the filesystem walk (the pipeline itself is shared)
     └── cli/
         ├── bin.ts           # THE EXECUTABLE (dist/cli.cjs) — the only file with side effects
         ├── index.ts         # Commander.js command tree + withErrorHandling + performDeploy
@@ -272,16 +272,68 @@ ship.deploy([fileFromDragDrop]);
 
 `FileList` is not accepted directly — the runtime check is `Array.isArray(input) && input.every(item => item instanceof File)`. Convert with `Array.from(fileInput.files)`. Synthetic `StaticFile` objects (`{path, content, md5, size}`) are an internal pipeline shape produced by `processFilesForNode` / `processFilesForBrowser`; they are not a public input format for `deploy()`.
 
+### One deploy pipeline, two collectors
+
+**Only the FINDING is platform-shaped.** Node walks a filesystem; a browser is
+handed `File` objects. Everything after — optimize the paths, drop the junk,
+refuse what the platform's rules refuse, checksum what survives — is one
+sequence, and since 2026-08-12 it is stated once in
+`shared/core/deploy-files.ts`. `node-files.ts` and `browser-files.ts` are the
+collectors, and the browser one is now nine lines of body.
+
+The seam is `DeploySource`: a path, an ORIGIN (named in the security refusal),
+a size, and a `read()`.
+
+**`size` sits beside `read()` rather than behind it, and that is the design.**
+Node fills it from the `statSync` its directory walk already performs to tell a
+file from a directory, so the empty-file skip costs nothing and a deploy refused
+at file three never opens files four through nine hundred. It removed work
+rather than preserving it: the old loop stat'd every file a SECOND time to learn
+a number the walk had already read and thrown away.
+
+Two asymmetries are BY DESIGN — recorded, not unified:
+
+- **Only Node pre-checks `UNBUILT_PROJECT_MARKERS` on input directories.** A
+  Node user types a path and can plausibly type a repository root, where the
+  walk would then enumerate `node_modules`; a browser user picks files. The junk
+  filter refuses the same mistake one step later for paths it can see, so this
+  is about the cheapest moment, which for a large monorepo is the difference
+  between an immediate answer and a long one.
+- **Only browser callers set `build`/`prerender`** — see "Server-Processed
+  Uploads". The MODE is read from the shared options where the loop is; who sets
+  it is the asymmetry.
+
+**And a fact the merge made visible that nobody had written down:** `filterJunk`
+runs ahead of `validateDeployPath` and drops any dot-prefixed segment, so three
+of that guard's four patterns cannot be reached through this pipeline — a `..`
+segment is never refused, it is simply not deployed. The null byte is the one arm
+that gets there. True of both pipelines before the merge; it took having one of
+them to see it, and a row in `tests/shared/core/deploy-files.test.ts` pins it so
+the junk filter cannot stop covering for it silently.
+
+Fenced by 26 rows whose sources are SYNTHETIC — none of them needs a disk or a
+browser, which is itself the evidence the seam landed in the right place.
+
 ### Server-Processed Uploads (Build/Prerender/SPA)
 
 When `build`, `prerender`, or `spa` options are set on `DeploymentUploadOptions`, the SDK delegates processing to the server:
 
 - **`filterJunk`** accepts `{ allowUnbuilt: true }` — skips the unbuilt project marker check (source files have `package.json`, `node_modules`)
-- **`processFilesForBrowser`** has two modes (early return pattern in `browser-files.ts`):
-  - **Deploy** (default): full validation pipeline (security, extensions, sizes, counts)
-  - **Server-processed** (`build`/`prerender`): junk filtering + MD5 checksums only
+- **`processDeployFiles`** (`shared/core/deploy-files.ts`) applies no deploy
+  rule: the rules describe the build service's OUTPUT, and the unbuilt refusal
+  would reject exactly the input the flags exist to accept. It reads the flags
+  from the shared options, so the mode is stated once, in the one loop it
+  changes. It still filters junk, still skips empty files, still checksums.
 - **`detectAndConfigureSPA`** skips when `spa`, `build`, or `prerender` is set — the server handles SPA detection via the `/upload` endpoint
 - **`createDeployBody`** appends `build=true` / `prerender=true` / `spa=true` to the FormData
+
+**Only browser callers set them, and that asymmetry lives in the CALLERS.**
+`web/my` and `web/www` are browser apps and reach `/upload`; Node has no such
+caller, and its own unbuilt-marker precheck would refuse a project folder before
+the walk in any case. The browser processor carried a whole second copy of the
+per-file loop for this mode until 2026-08-12 — a third statement of "skip empty,
+checksum, push" — which is what the shared pipeline deleted. What did not move
+is which platform's users can set the flags.
 
 These are `@internal` flags — only used by `web/my` and `web/www` via the `/upload` endpoint. External clients (SDK, CLI, integrations) never set them. They use the `/deployments` pure pipe, where clients prepare files themselves — SPA detection runs client-side via `/spa-check`, builds happen locally before upload.
 
@@ -745,6 +797,14 @@ existence check would need ship's command tree executed from another repo's CI
 ### Table Output
 
 - **3 spaces** between columns (matches ps, kubectl, docker)
+- Trailing spaces are trimmed from table rows, because columnify pads every cell
+  to its column width. **NUL bytes are not** — both renderers scrubbed them until
+  2026-08-12 for an artifact that does not exist. Measured, not assumed: 18
+  shapes through columnify 1.6.0's real API — plain rows, ragged widths and
+  ragged KEYS, empty strings, CJK and emoji, multiline cells, ANSI-coloured
+  cells, tabs and CR, twenty columns, a 400-char cell, and the details
+  renderer's own two-column form — emit zero NUL. Two copies of a scrub for an
+  artifact that never appears is the cost with none of the benefit.
 - Headers are dimmed; property names can be remapped via `headerMap`
 - Property order matches API response exactly
 - `INTERNAL_FIELDS` list (`['isCreate', 'claim']`) is filtered from table/details output — `claim` renders through the claim CTA instead, and deliberately stays in `--json` output so scripts can read it
@@ -942,6 +1002,16 @@ Corrected on the beta channel in `2.2.0-beta.7`, two prereleases after the
 shape it replaces (`beta.5`, `beta.6`). The tests asserting three `error`
 events were pinning that shape, and were rewritten rather than relaxed.
 
+**The idempotency check is narrowed by the TYPE, not at runtime.**
+`hasIdempotencyKey` walked all three `HeadersInit` shapes to find a key that only
+ever arrives in one, while ten lines up `attemptOnce` reached the same headers
+through an `as Record<string, string>` cast — the code already knew.
+`ShipRequestInit` says it once: every internal request carries a plain record.
+Twelve lines became four and the cast is gone. Narrowing at RUNTIME instead was
+considered and refused: it turns an unreachable case into a SILENT no-retry — a
+deploy that quietly stops replaying because someone handed the transport a
+`Headers`. Same ~12 lines, opposite failure mode. Here it is a compile error.
+
 **Surface:** `maxRetries` on `ShipClientOptions`, `0` disables. One knob, the
 name Stripe and OpenAI use, which by this file's own doc-placement rule is
 what earns it public README surface. No env var and **no CLI flag** (recorded
@@ -1115,6 +1185,19 @@ code was written. One shared builder in `shared/core/deploy-body.ts`, both
 platform files deleted, both packages out of `dependencies` and out of the
 tsup externals.
 
+**And the seam it left open closed on 2026-08-12.** `getDeployBodyCreator()`
+was an abstract method on the base class feeding a `createDeployBody` slot on
+`ApiHttpOptions` — and once one builder served both platforms, the two subclass
+overrides were the same four words. A seam with the same answer on both sides is
+not a seam. The abstract method, the option, the private field and the
+`DeployBodyCreator` type are gone; `deploy` imports the builder.
+
+The tests improved by losing it. Four files injected a `FormData`-returning
+stub, and `http.test.ts` made its stub a `vi.fn` so the deploy CONTEXT was
+assertable — one seam short of the claim, since the API reads FIELDS. With
+nothing left to inject, `via` and the captcha proof are read back off the real
+`FormData` the transport handed to `fetch`.
+
 **This section previously recorded the swap as out of scope** — "an SDK
 behaviour change with its own compatibility questions, a separate decision,
 not a bundling detail". Separate was right and it got its own wave; what the
@@ -1271,14 +1354,26 @@ pnpm test:e2e --run      # REAL API; refuses to load without SHIP_E2E_API_KEY
 | `tests-browser/*.test.ts` | `browser` | No — real Chromium, pure browser primitives |
 | `*.e2e.test.ts` | `e2e` | No (a real API) |
 
-**`tests/**` is typechecked.** `pnpm typecheck` runs `tsconfig.check.json`
-over `src` and `tests` together. This is the load-bearing one: vitest
-transpiles through esbuild WITHOUT checking types, so until 2026-07-27 nothing
-checked the test tree — which is what let an `apiKey` constructor option, a
+**EVERY test tier is typechecked.** `pnpm typecheck` runs `tsconfig.check.json`
+over `src`, `tests` and `tests-browser` together. This is the load-bearing one:
+vitest transpiles through esbuild WITHOUT checking types, so until 2026-07-27
+nothing checked the test tree — which is what let an `apiKey` constructor option, a
 `flattenDirs` deploy option, a `basePath` that never existed, a
 `findCommonParent(paths, separator)` overload that never existed, and
 `processFilesForNode` called with four arguments all sit there passing. The
 fixtures' `satisfies` clauses were decorative until this gate existed.
+
+**`tests-browser/**` was left out of that repair and spent the next fortnight in
+exactly the condition it describes.** Two of the four projects — `e2e` and
+`browser` — are absent from `pnpm test`, which makes typecheck the ONLY local
+gate with any reach into them. On 2026-08-12 the deploy-body consolidation
+deleted `src/browser/core/deploy-body.ts` and left a test importing it: every
+local gate green, `pnpm test:browser` red in CI, four tests not-run rather than
+passing for a fortnight. A tier outside the typecheck gate is a tier where
+deleting a module is silent. The include list is "all of them" now, which is the
+only shape that cannot rot the same way, and both halves of that defect were
+drilled against it — the deleted module (TS2307) and the retired `{ body }`
+shape (TS2339).
 
 ### Hermeticity
 
@@ -1602,10 +1697,30 @@ first place. See "Output Conventions" above.
 |---|---|---|
 | **CLI** | `src/node/cli/shiprc.ts` | `~/.shiprc`, or the `--config` path (strict JSON) |
 | **CLI** | `src/node/cli/create-client.ts` `createClient()` | merges flag → env → file via `mergeCliConfig`, hands result to `new Ship({...})` |
+| **CLI** | `src/node/cli/create-client.ts` `resolveCliToken()` | the same chain read for its token alone — the error handler's auth branch, and the `--domain` / `--ttl` preflights |
 | **SDK (Node)** | `src/node/index.ts` constructor | `SHIP_TOKEN`, `SHIP_API_URL` (under any constructor arg) |
 | **SDK (Browser)** | `src/browser/index.ts` constructor | nothing — fully explicit |
 
 For a CLI user who has all three: `--token` flag → env → file, per value. For an embedded SDK consumer: constructor arg → env. There's no path from the SDK to the filesystem.
+
+**Two readers of that chain, one file.** `resolveCliToken` sat in `index.ts`
+until 2026-08-12 while `create-client.ts` opened by declaring itself the owner of
+the precedence contract. It stays a SECOND function rather than a shared helper
+with a posture flag, because the two differ in exactly what such a flag would
+have parameterized: a broken config file is SWALLOWED there (it runs inside the
+error handler, where a config that cannot be read must not mask the failure
+being reported), and the merged API URL is NOT judged there (that would raise a
+second error while rendering the first).
+
+**Neither hazard is reachable today, and that was measured rather than
+assumed.** Every caller runs after `createClient` has already read the same
+file — the preflights are inside `withErrorHandling`, and the auth branch needs
+a 401, which needs a client. Deleting the `catch {}` leaves the whole suite
+green. That is a statement about the call graph, not about the guard, and it is
+written at the function so the next reader loses a minute instead of an hour.
+The guard stays because the property belongs to the CALL SITE: move one caller
+ahead of `createClient` — a fourth credential source, an earlier preflight — and
+the hazard is live again with nothing to announce it.
 
 **CLI-only env vars** (read by the CLI but *not* by the SDK constructor):
 
