@@ -89,10 +89,6 @@ export async function processFilesForBrowser(
   const results: StaticFile[] = [];
   let totalSize = 0;
 
-  // Hoisted: the platform's blocklist is one value for the whole deploy, and
-  // `?? []` inside the loop would allocate per file.
-  const blockedExtensions = platformLimits.blockedExtensions ?? [];
-
   for (let i = 0; i < validPairs.length; i++) {
     const { file, deployPath } = validPairs[i];
 
@@ -104,21 +100,11 @@ export async function processFilesForBrowser(
       continue;
     }
 
-    // Filename and extension validation (shared with Node)
-    validateDeployFile(deployPath, file.name, blockedExtensions);
-
-    // Validate file sizes (matches Node validation)
-    if (file.size > platformLimits.maxFileSize) {
-      throw ShipError.business(
-        `File ${file.name} is too large. Maximum allowed size is ${platformLimits.maxFileSize / (1024 * 1024)}MB.`,
-      );
-    }
+    // Name, extension and both size caps — the SAME ordered table the Node
+    // pipeline calls. Parity is structural now rather than a comment saying
+    // "matches Node validation".
     totalSize += file.size;
-    if (totalSize > platformLimits.maxTotalSize) {
-      throw ShipError.business(
-        `Total deploy size is too large. Maximum allowed is ${platformLimits.maxTotalSize / (1024 * 1024)}MB.`,
-      );
-    }
+    validateDeployFile({ path: deployPath, size: file.size, totalSize }, platformLimits);
 
     // Calculate MD5 hash
     const { md5 } = await calculateMD5(file);

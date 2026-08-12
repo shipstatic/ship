@@ -159,10 +159,6 @@ export async function processFilesForNode(
     );
   }
 
-  // Hoisted: the platform's blocklist is one value for the whole deploy, and
-  // `?? []` inside the loop would allocate per file.
-  const blockedExtensions = platformLimits.blockedExtensions ?? [];
-
   for (let i = 0; i < validAbsPaths.length; i++) {
     const filePath = validAbsPaths[i];
     const deployPath = validDeployPaths[i];
@@ -178,21 +174,13 @@ export async function processFilesForNode(
         continue;
       }
 
-      // Filename and extension validation (shared with browser)
-      validateDeployFile(deployPath, filePath, blockedExtensions);
-
-      // Validate file sizes
-      if (stats.size > platformLimits.maxFileSize) {
-        throw ShipError.business(
-          `File ${filePath} is too large. Maximum allowed size is ${platformLimits.maxFileSize / (1024 * 1024)}MB.`,
-        );
-      }
+      // Name, extension and both size caps — ONE ordered table, shared with
+      // the browser pipeline and with the collecting renderer the UI tier
+      // uses. This is the whole of the per-file rule set; there is nothing to
+      // keep in step with the other pipeline because there is nothing here to
+      // disagree with.
       totalSize += stats.size;
-      if (totalSize > platformLimits.maxTotalSize) {
-        throw ShipError.business(
-          `Total deploy size is too large. Maximum allowed is ${platformLimits.maxTotalSize / (1024 * 1024)}MB.`,
-        );
-      }
+      validateDeployFile({ path: deployPath, size: stats.size, totalSize }, platformLimits);
 
       const content = fs.readFileSync(filePath);
       const { md5 } = await calculateMD5(content);

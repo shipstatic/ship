@@ -1356,22 +1356,50 @@ has moved on from, in both directions. Fenced by the `getLimits` row in
 `tests/contract.ts` — the live half is the only thing in this repo that can see
 the API drop the field.
 
-**One rule renders through two client surfaces, and the seam is recorded as
-the next consolidation.** The throwing renderer (`validateDeployFile`, both
-deploy pipelines) and the collecting renderer (`validateFiles`, the UI tier)
-restate the same ordered checks, and the size rule already shows the cost:
-three sentences for one rule — `File ${path} is too large. Maximum allowed
-size is ${n}MB.` (the pipelines), `File size (…) exceeds limit of …`
-(`validateFiles`), `File too large. Maximum ${n} bytes allowed` (the API) —
-against the dual-validation doctrine that an error reads the same wherever it
-is caught. The end state is one ordered table of (predicate, sentence) pairs
-over (file, limits) with two renderers, throw-on-first and collect-all — the
-`SHAPES`-table move (see "`formatOutput` Router") applied to validation — and
-the same table is what makes node/browser pipeline parity expressible as a
-fence instead of a convention. Its own wave, deliberately: it touches Stable
-internals across ship and drop and pins user-facing sentences, none of which
-belongs in a policy or delivery change (`cloudflare/api/CLAUDE.md`, "list
-edits ship alone" — the same separability, one seam over).
+**One rule, one sentence, two renderers — done 2026-08-12.**
+`src/shared/lib/file-rules.ts` is the ordered table of (predicate, sentence)
+rows over (file, limits): the `SHAPES`-table move (see "`formatOutput` Router")
+applied to validation. `firstBrokenRule` is the single evaluation, and the two
+renderers choose only how to DELIVER it — `validateDeployFile` throws the first
+broken rule (both deploy pipelines), `validateFiles` records it (the UI tier).
+Neither authors prose.
+
+It closed a real divergence: one size rule read three ways —
+`File ${path} is too large. Maximum allowed size is ${n}MB.` (the pipelines),
+`File size (…) exceeds limit of …` (`validateFiles`), and
+`File too large. Maximum ${n} bytes allowed` (the API) — against the
+dual-validation doctrine that an error reads the same wherever it is caught. It
+also made **node/browser pipeline parity structural**: both pipelines call the
+same renderer, so the comment reading "matches Node validation" has nothing
+left to be wrong about.
+
+Wording follows the API where a choice existed, so the deferred promotion has
+less to move, with two recorded deviations: sizes are FORMATTED rather than raw
+bytes (a browser UI showing `20971520 bytes` is worse for the person reading
+it, and the unit is the smaller half to reconcile), and the PATH is named (the
+API has none to name; the throwing renderer has nothing but the message). The
+total-size rule names the deploy — `(N files)` — rather than blaming whichever
+file tipped it, matching the file-count rule beside it.
+
+Scope held deliberately: `validateDeployPath` stays out (a rule about the
+deploy PATH, not the file, and pipelines-only), as do `validateFiles`' UI
+pre-checks — empty, negative, count, unbuilt marker, processing error — which
+have one holder each and no drift to close.
+
+Fenced in `tests/shared/lib/file-rules.unit.test.ts`: every sentence pinned by
+a hand-written row, with the completeness TIE asserting the test's own list
+deep-equals the production table in order (without that line the check counts
+itself — the tautology this estate has on record). Both drilled: a reworded
+sentence and a renamed row each turn it red.
+
+**Phase B is deferred with its trigger.** Promoting the table into
+`@shipstatic/types` with the API consuming it: after Phase A the sentence has
+two independent holders — ship's table and the API's copies — with silent
+drift, so by the constellation stopping rule it likely QUALIFIES. It is a
+types+api convoy with its own blast radius, and it builds when someone is
+paying for that drift. Recorded beside the other deferred mechanisms rather
+than started: beginning it here would have doubled this tier for a coherence
+win nobody is waiting on.
 
 ## Backend Integration
 

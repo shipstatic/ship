@@ -579,7 +579,7 @@ describe('processFilesForNode', () => {
 
       await expect(
         processFilesForNode([at('file1.txt'), at('file2.txt')], {}, limits),
-      ).rejects.toThrow('Total deploy size is too large');
+      ).rejects.toThrow('Total upload size too large');
     });
 
     it('accepts a cumulative size exactly at maxTotalSize', async () => {

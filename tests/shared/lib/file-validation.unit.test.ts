@@ -142,7 +142,7 @@ describe('File Validation', () => {
       // Deployment blocked due to error
       expect(result.canDeploy).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain('exceeds limit');
+      expect(result.errors[0].message).toContain('too large');
       expect(result.errors[0].file).toBe('huge.txt');
 
       // ATOMIC: All files rejected when any file exceeds size limit
@@ -171,8 +171,8 @@ describe('File Validation', () => {
       // Deployment blocked due to total size error
       expect(result.canDeploy).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain('Total size');
-      expect(result.errors[0].file).toBe('file3.txt');
+      expect(result.errors[0].message).toContain('Total upload size');
+      expect(result.errors[0].file).toBe('(3 files)');
 
       // ATOMIC: All files rejected when total size exceeded
       expect(result.validFiles).toHaveLength(0);
@@ -873,7 +873,7 @@ describe('File Validation - Boundary Tests', () => {
 
       expect(result.canDeploy).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain('exceeds limit');
+      expect(result.errors[0].message).toContain('too large');
       expect(result.validFiles).toHaveLength(0);
 
       // ATOMIC: All files marked as failed
@@ -927,9 +927,11 @@ describe('File Validation - Boundary Tests', () => {
       expect(result.canDeploy).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
       // Find total size error
-      const totalSizeError = result.errors.find((e) => e.message.includes('Total size'));
+      const totalSizeError = result.errors.find((e) => e.message.includes('Total upload size'));
       expect(totalSizeError).toBeDefined();
-      expect(totalSizeError?.file).toBe('file3.txt');
+      // An aggregate rule names the deploy, not whichever file tipped it — the
+      // same subject the file-count rule above has always used.
+      expect(totalSizeError?.file).toBe('(3 files)');
       expect(result.validFiles).toHaveLength(0);
 
       // ATOMIC: All files marked as failed
@@ -953,9 +955,11 @@ describe('File Validation - Boundary Tests', () => {
       const result = validateFiles(files, largeConfig);
 
       expect(result.canDeploy).toBe(false);
-      const totalSizeError = result.errors.find((e) => e.message.includes('Total size'));
+      const totalSizeError = result.errors.find((e) => e.message.includes('Total upload size'));
       expect(totalSizeError).toBeDefined();
-      expect(totalSizeError?.file).toBe('file3.txt');
+      // An aggregate rule names the deploy, not whichever file tipped it — the
+      // same subject the file-count rule above has always used.
+      expect(totalSizeError?.file).toBe('(3 files)');
 
       // ATOMIC: All files marked as failed (even files 1 & 2 that individually passed)
       expect(result.validFiles).toHaveLength(0);
@@ -1164,7 +1168,7 @@ describe('File Validation - Boundary Tests', () => {
       const result = validateFiles(files, config);
 
       expect(result.errors).toHaveLength(2);
-      expect(result.errors[0].message).toContain('exceeds limit');
+      expect(result.errors[0].message).toContain('too large');
       expect(result.errors[1].message).toContain('extension not allowed');
 
       // All failed atomically

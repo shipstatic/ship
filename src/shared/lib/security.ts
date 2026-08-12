@@ -2,8 +2,9 @@
  * @file Shared security validation for the deploy pipeline.
  * Used by both Node.js and browser file processing pipelines.
  */
-import { isBlockedExtension, ShipError } from '@shipstatic/types';
-import { validateFileName } from './file-validation.js';
+import type { PlatformLimits } from '@shipstatic/types';
+import { ShipError } from '@shipstatic/types';
+import { type FileRuleInput, firstBrokenRule } from './file-rules.js';
 
 /**
  * Validate a deploy path for security concerns.
@@ -35,34 +36,24 @@ export function validateDeployPath(deployPath: string, sourceIdentifier: string)
 }
 
 /**
- * Validate a deploy file's name and extension.
- * Rejects unsafe filenames (shell/URL-dangerous chars, reserved names)
- * and file extensions the platform refuses to host.
+ * The THROWING renderer of `FILE_RULES` — the deploy pipelines' shape.
  *
- * **The blocklist is the platform's, delivered — not this package's.** It
- * arrives as `PlatformLimits.blockedExtensions` from `GET /limits`, which the
- * client has already fetched by the time any file is processed. That is what
- * keeps a pinned CLI from enforcing a policy the platform has moved on from,
- * in either direction. Callers pass `[]` when the API sent no list (one that
- * predates the field): the check then does nothing and the API refuses the
- * file at the boundary, which is the correct place for it to be refused.
+ * It raises the first rule the file breaks and nothing else: the rules, their
+ * order and their sentences all live in `file-rules.ts`, so this function
+ * cannot re-order, skip or reword one. That is what makes node/browser parity
+ * structural — both pipelines call this, and this calls the one table.
  *
- * @param deployPath - The deployment path to validate
- * @param sourceIdentifier - Human-readable identifier for error messages
- * @param blockedExtensions - The platform's blocklist, from `/limits`
- * @throws {ShipError} If the filename is unsafe or the extension is blocked
+ * Its counterpart is the collecting renderer in `file-validation.ts`
+ * (`validateFiles`), which reaches the same verdict and reports it as a list
+ * instead of a throw.
+ *
+ * @param input - The file and the deploy so far (`totalSize` INCLUDES it)
+ * @param limits - The platform's limits, from `/limits`
+ * @throws {ShipError} The first broken rule's sentence
  */
-export function validateDeployFile(
-  deployPath: string,
-  sourceIdentifier: string,
-  blockedExtensions: readonly string[],
-): void {
-  const nameCheck = validateFileName(deployPath);
-  if (!nameCheck.valid) {
-    throw ShipError.business(nameCheck.reason || 'Invalid file name');
-  }
-
-  if (isBlockedExtension(deployPath, blockedExtensions)) {
-    throw ShipError.business(`File extension not allowed: "${sourceIdentifier}"`);
+export function validateDeployFile(input: FileRuleInput, limits: PlatformLimits): void {
+  const broken = firstBrokenRule(input, limits);
+  if (broken) {
+    throw ShipError.business(broken.sentence(input, limits));
   }
 }
