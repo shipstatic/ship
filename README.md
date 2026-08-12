@@ -335,9 +335,10 @@ try {
 } catch (error) {
   if (isShipError(error)) {
     error.isAuthError();        // semantic category
-    error.isNetworkError();     // semantic category
+    error.isNetworkError();     // semantic category — nothing was exchanged
     error.isClientError();      // semantic category (Business | Config | File | Validation)
     error.type === ErrorType.Validation;  // specific-type check
+    error.type === ErrorType.Timeout;     // a deadline expired — inside isNetworkError()
     error.status === 429;       // status check
   }
 }

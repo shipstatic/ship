@@ -797,11 +797,20 @@ and `attemptOnce` is one request — the same single wrap point that already
 owned headers, the timeout signal, the events and error normalization, so an
 attempt is a whole request and nothing has to be undone between two.
 
-**Retried:** transport failures (`Network` — which since the 2026-08-12
-transport table includes a deadline, since nothing was exchanged either way)
-and 500/502/503/504. Two retries by default, so three attempts, with full
+**Retried:** anything where nothing was exchanged — `Network` (a refused
+connection, a DNS failure) and `Timeout` (a deadline of ours expired) — and
+500/502/503/504. Two retries by default, so three attempts, with full
 jitter — `random() * min(2s, 300ms * 2^n)`. Jitter matters more than the
 curve: it is what stops a platform hiccup from returning every client at once.
+
+**The first two are read through `isNetworkError()`, the CATEGORY, and not
+named individually.** "Nothing was exchanged" IS the retryability criterion,
+so a future member should inherit this answer rather than wait for someone to
+remember the line — and naming `Timeout` beside a guard that already contains
+it would be a second owner of that membership, free to disagree with the
+first. `@shipstatic/types` owns it (`ERROR_CATEGORIES.network`); what holds
+the decision here is the http-timeout suite's "and is RETRIED", which turns
+red the moment a deadline leaves the category.
 
 **Not retried, each a decision rather than an omission:**
 
@@ -820,8 +829,12 @@ curve: it is what stops a platform hiccup from returning every client at once.
   assumption.
 - **Anything the CALLER's signal stopped.** The subtle one, and the reason the
   check reads `options.signal.aborted` rather than only the error type: a
-  caller's `AbortSignal.timeout()` classifies as `Network`, so on type alone
-  it would look retryable and silently outlive the ceiling that caller set.
+  caller's `AbortSignal.timeout()` classifies as `Timeout`, exactly like our
+  own ceiling, which this loop retries on purpose — so on the error alone the
+  caller's deadline would look retryable and be silently outlived. **That
+  check carries the invariant alone**; nothing else in `isRetryable` can tell
+  whose clock ran out, which is what makes "does not retry past a caller's own
+  deadline" the load-bearing test in `http-retry`.
 
 **Which required teaching the composed signal to say which deadline fired.**
 `createTimeoutSignal` aborted bare, so the SDK's own timeout, a caller's abort
@@ -1282,7 +1295,18 @@ All errors use `ShipError` from `@shipstatic/types`. The class provides the full
 
 **CLI error UX** (`src/node/cli/error-handling.ts`) — pure functions, fully unit-testable:
 - `toShipError(err)` — normalizes any thrown value to a `ShipError` (used by the CLI's global error handler for non-fetch errors like Commander parse failures).
-- `getUserMessage(err, context, options)` — maps a `ShipError` to an actionable user-facing CLI string (auth → credential hints, network → connectivity, maintenance → the operator's sentence + where to watch, client/4xx → trust the API message, 5xx → generic "try again"). **Text channel only.**
+- `getUserMessage(err, context, options)` — maps a `ShipError` to an actionable user-facing CLI string (auth → credential hints, timeout → the deadline sentence verbatim, network → connectivity, maintenance → the operator's sentence + where to watch, client/4xx → trust the API message, 5xx → generic "try again"). **Text channel only.**
+
+  The timeout arm sits AHEAD of the network one and branches on the TYPE,
+  because the two share a category — `isNetworkError()` is true for both, and
+  rightly so: nothing was exchanged either way. Until 2026-08-12 there was no
+  type to branch on and the network arm claimed it, so a deploy that hit its
+  five-minute ceiling — the slowest, most expensive failure this CLI produces
+  — told the user to check their Wi-Fi. `--json` was truthful throughout; only
+  the human channel lied. The arm relays `fromFetchError`'s own sentence and
+  appends nothing: "try again" belongs to the 5xx arm, which has nothing
+  better to say, and it is half-false here because the client has already
+  tried three times.
 
   The maintenance arm sits between network and client for a reason: a closed
   platform is neither the caller's fault nor a transport failure nor a server

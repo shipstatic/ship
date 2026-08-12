@@ -292,9 +292,10 @@ export class ApiHttp extends SimpleEvents {
   private isRetryable(error: ShipError, options: RequestInit): boolean {
     // The caller's own signal fired — theirs to decide, whatever the reason.
     // This is what keeps a caller-supplied `AbortSignal.timeout()` working as
-    // an OVERALL deadline: it classifies as `Network` (a deadline exchanged
-    // nothing) and would otherwise look retryable, silently outliving the
-    // ceiling the caller set.
+    // an OVERALL deadline, and it is the ONLY thing that does: a deadline
+    // classifies as `Timeout`, which the loop retries on purpose, so on the
+    // error alone a caller's ceiling would look exactly like ours and be
+    // silently outlived. Nothing else in this function can tell them apart.
     if (options.signal?.aborted) return false;
 
     // A maintenance 503 is a STATE, not a fault. Its message says when to come
@@ -305,8 +306,15 @@ export class ApiHttp extends SimpleEvents {
     // A user abort stops everything.
     if (error.isType(ErrorType.Cancelled)) return false;
 
-    // Transport failures — which since 2026-08-12 include a deadline, since
-    // nothing was exchanged either way — and the server faults above.
+    // Nothing was exchanged — `Network` (a refused connection, a DNS failure)
+    // or `Timeout` (a deadline of ours expired) — or one of the server faults
+    // above. Both retryable members are read through the CATEGORY rather than
+    // named here: "nothing was exchanged" IS the retryability criterion, so a
+    // future member of it should inherit this answer rather than wait for
+    // someone to remember this line. Naming `Timeout` beside the guard that
+    // already contains it would be a second owner of that membership, free to
+    // disagree with the first. `@shipstatic/types` owns it; the timeout suite
+    // pins that a deadline is retried.
     const worthRetrying =
       error.isNetworkError() || (error.status !== undefined && RETRYABLE_STATUS.has(error.status));
     if (!worthRetrying) return false;

@@ -76,6 +76,22 @@ export function getUserMessage(err: ShipError, options?: ErrorOptions): string {
     return `authentication required: ${CREDENTIAL_HINT}`;
   }
 
+  // A deadline of ours expired. It shares the network CATEGORY — nothing was
+  // exchanged either way — so this arm must sit AHEAD of that one, and it
+  // branches on the TYPE, which is the only thing that tells the two apart.
+  // Until 2026-08-12 there was no type to branch on and the arm below claimed
+  // it, so a deploy that hit its five-minute ceiling told the user to check
+  // their Wi-Fi.
+  //
+  // The sentence is `fromFetchError`'s own ("<operation> timed out"), relayed
+  // rather than rewritten: nothing was received, so the surface owns the
+  // words, and they are already authored one layer down where the operation
+  // name lives. No advice is appended — "try again" is half-false when the
+  // client has already retried three times.
+  if (err.isType(ErrorType.Timeout)) {
+    return err.message;
+  }
+
   // Network errors — the transport failed before any response existed, so
   // there is nothing of the API's to quote. (A URL-naming variant lived here
   // until 2026-07-27, reading `details.url`; nothing has ever set that field —
