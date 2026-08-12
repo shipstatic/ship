@@ -18,7 +18,7 @@
  */
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { ErrorType } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
 import { buildProgram } from '../../../src/node/cli/index';
@@ -28,6 +28,8 @@ const ANSI = /\u001b\[[0-9;]*m/g;
 
 /** Strips ANSI so an assertion reads the way the user's eye sees it. */
 const plain = (s: string) => s.replace(ANSI, '');
+
+const DEMO_SITE = resolve(__dirname, '../../fixtures/demo-site');
 
 describe('unknown commands', () => {
   describe('top level', () => {
@@ -158,6 +160,100 @@ describe('unknown commands', () => {
       expect(result.stdout).toContain('usage: ship deployments');
       expect(result.stderr).not.toContain('unknown command');
     });
+  });
+});
+
+describe('a flag parses only where it means something', () => {
+  /**
+   * The deploy shortcut IS the program, so its flags must be declared at
+   * program level — and Commander then recognises them in front of every other
+   * command, where nothing reads them. `ship --domain www.x.com domains list`
+   * parsed cleanly and dropped the domain: silent-swallow, the worst of the
+   * three possible answers, because the user believed they had linked one.
+   *
+   * `--limit`, `--cursor` and `--ttl` need no cases here: they are declared
+   * only on their own commands, so Commander refuses them elsewhere with its
+   * own unknown-option error, one row up in this file.
+   */
+  const MISAPPLIED: Array<[string, string[], string, string]> = [
+    [
+      '--domain on a read',
+      ['--domain', 'www.example.com', 'domains', 'list'],
+      '--domain',
+      'ship domains list',
+    ],
+    ['--label on ping', ['--label', 'prod', 'ping'], '--label', 'ship ping'],
+    [
+      '--password on a list',
+      ['--password', 'hunter22', 'tokens', 'list'],
+      '--password',
+      'ship tokens list',
+    ],
+    [
+      'a --no-x flag',
+      ['--no-spa-detect', 'deployments', 'list'],
+      '--no-spa-detect',
+      'ship deployments list',
+    ],
+    ['on a group', ['--domain', 'www.example.com', 'domains'], '--domain', 'ship domains'],
+  ];
+
+  it.each(MISAPPLIED)('refuses %s, naming the flag and its owner', async (_n, argv, flag, ran) => {
+    const result = await runProgram(argv);
+
+    expect(result.exitCode).toBe(1);
+    expect(plain(result.stderr)).toContain(`option '${flag}' does not apply to '${ran}'`);
+    // The owner list is READ from the tree, so it cannot go stale — and it
+    // leads with the SHORTCUT, which is the spelling every doc leads with.
+    // The program owns these flags (it is why `assertFlagsApply` exempts it),
+    // so a survey that skipped it would contradict its own caller and send the
+    // reader to the long spelling only.
+    expect(plain(result.stderr)).toContain('it belongs to ship <path>, ship deployments upload');
+  });
+
+  it('carries the statusless usage envelope in --json', async () => {
+    const result = await runProgram(['--json', '--domain', 'www.example.com', 'domains', 'list']);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stderr);
+    expect(parsed.error).toBe(ErrorType.Validation);
+    // No exchange happened, so there is no HTTP fact to report.
+    expect(parsed.status).toBeUndefined();
+  });
+
+  it('refuses BEFORE the command runs — no request, no output', async () => {
+    const result = await runProgram(['--domain', 'www.example.com', 'domains', 'list']);
+    expect(result.stdout).toBe('');
+  });
+
+  /**
+   * The other half of the law, and the one that proves it took nothing
+   * legitimate: a flag the running command declares is honoured, and a global
+   * flag means the same thing wherever it sits.
+   */
+  it('honours a command-owned flag on a command that declares it', async () => {
+    const result = await runProgram(['--json', 'tokens', 'create', '--label', 'ci-runner']);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout.trim()).labels).toEqual(['ci-runner']);
+  });
+
+  it('honours the deploy flags on the shortcut, whose command IS the program', async () => {
+    const result = await runProgram(['--json', DEMO_SITE, '--label', 'shortcut-flag']);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout.trim()).labels).toEqual(['shortcut-flag']);
+  });
+
+  it('lets a global flag follow its subcommand, which is why position is not the law', async () => {
+    // `--json` after `domains list` is taught in every doc this package ships.
+    // Enforcing flag POSITION would have to break this or hand-scan raw argv
+    // beside the parser; neither is worth it, and the misapplication above is
+    // the defect that actually cost a user something.
+    const result = await runProgram(['domains', 'list', '--json', '--limit', '1']);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout.trim()).domains).toBeInstanceOf(Array);
   });
 });
 

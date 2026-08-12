@@ -289,6 +289,78 @@ describe('the published docs describe this code', () => {
     expect(HELP_OMISSIONS.map((o) => o.path).filter((path) => !known.has(path))).toEqual([]);
   });
 
+  /**
+   * Flags the CLI has that no published doc teaches. Same shape and same
+   * doctrine as `HELP_OMISSIONS`: an omission may be legitimate, but it has to
+   * be a decision someone wrote down.
+   *
+   * Empty, and that is the interesting part — every flag this CLI declares is
+   * taught somewhere, `--api-url` included.
+   */
+  const FLAG_OMISSIONS: ReadonlyArray<{ flag: string; reason: string }> = [];
+
+  /**
+   * Commander's own options, not surface this CLI designed. Everything else on
+   * every command is quantified over.
+   */
+  const BUILT_IN_FLAGS = new Set(['--help', '--version']);
+
+  /** Every option the tree declares, with the command a reader would find it on. */
+  const declaredFlags = ((): ReadonlyArray<{ flag: string; where: string }> => {
+    const walk = (cmd: Command, path: string[]): Array<{ flag: string; where: string }> => [
+      ...cmd.options
+        .map((o) => o.long)
+        .filter((long): long is string => !!long && !BUILT_IN_FLAGS.has(long))
+        .map((flag) => ({ flag, where: ['ship', ...path].join(' ') })),
+      ...cmd.commands.flatMap((sub) => walk(sub, [...path, sub.name()])),
+    ];
+    return walk(program, []);
+  })();
+
+  /** A flag is taught where it is named as itself, not as part of a longer word. */
+  const isTaught = (flag: string) => {
+    const pattern = new RegExp(
+      `(^|[^-\\w])${flag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![-\\w])`,
+    );
+    return docs.some(({ body }) => pattern.test(body));
+  };
+
+  it('finds a non-trivial flag surface (guards the quantifier)', () => {
+    // Were the walk to return nothing, the assertion below would pass while
+    // proving nothing — the tautology this fence's own history warns about.
+    expect(declaredFlags.length).toBeGreaterThan(10);
+    expect(declaredFlags.map((f) => f.flag)).toContain('--token');
+  });
+
+  it('every flag the CLI has is taught by a published doc', () => {
+    // The direction this fence was missing until 2026-08-12. It held "every
+    // flag the docs teach exists" and BOTH directions for commands, so a new
+    // flag with no docs was silently green — which is the asymmetry that
+    // produced this fence's own origin story one noun over.
+    const excused = new Set(FLAG_OMISSIONS.map((o) => o.flag));
+    const untaught = [
+      ...new Set(
+        declaredFlags
+          .filter(({ flag }) => !excused.has(flag) && !isTaught(flag))
+          .map(({ flag, where }) => `${flag}   (on ${where})`),
+      ),
+    ];
+
+    expect(
+      untaught,
+      'The CLI declares a flag no published doc names. Teach it in README or ' +
+        'SKILL.md, or record it in FLAG_OMISSIONS with the reason it is not ' +
+        'user-facing surface.',
+    ).toEqual([]);
+  });
+
+  it('every recorded flag omission is still a real flag', () => {
+    // The other direction, so the list cannot rot into noise — the same pairing
+    // HELP_OMISSIONS gets.
+    const known = new Set(declaredFlags.map((f) => f.flag));
+    expect(FLAG_OMISSIONS.map((o) => o.flag).filter((flag) => !known.has(flag))).toEqual([]);
+  });
+
   it('every command the CLI has is taught by a published doc', () => {
     // Leaves only: a group is a namespace, not something a reader invokes.
     const leaves = (cmd: Command, path: string[] = []): string[][] =>

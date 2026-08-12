@@ -60,18 +60,55 @@ export interface LabelOptions {
  * Options for deploy commands (upload deployment, deploy shortcut).
  */
 export interface DeployCommandOptions extends LabelOptions {
-  noPathDetect?: boolean;
-  noSpaDetect?: boolean;
   password?: string;
   /**
    * `--domain`: serve this deployment at that domain, in one command.
    *
-   * The only type-level edit the composed deploy needed — it links through the
-   * same `domains.set()` the `domains set` command runs, so it introduces no
-   * response shape, no formatter and no output row of its own.
+   * The composed deploy links through the same `domains.set()` the `domains
+   * set` command runs, so it introduces no response shape, no formatter and no
+   * output row of its own.
    */
   domain?: string;
+  /**
+   * `--no-path-detect` and `--no-spa-detect`, under the names COMMANDER gives
+   * them: a `--no-x` flag stores the POSITIVE key, defaulted to `true`, and
+   * sets it `false` when passed. There is no `noPathDetect` anywhere in a
+   * parsed result.
+   *
+   * These were declared as `noPathDetect` / `noSpaDetect` until 2026-08-12 and
+   * read under those names, so both flags parsed cleanly and did NOTHING, in
+   * both deploy spellings — the exact defect the flag law exists to remove.
+   * See CLAUDE.md, "Two flag tiers".
+   */
+  pathDetect?: boolean;
+  spaDetect?: boolean;
 }
+
+/**
+ * Every flag in effect for the command being run: its own, merged with the
+ * program's by Commander (`optsWithGlobals`, parent winning) in
+ * `processOptions`.
+ *
+ * This is the one thing a handler reads. Commander's root consumes any option
+ * the ROOT declares, wherever it sits in argv — so a deploy flag typed after
+ * `deployments upload` still lands on the program, and the subcommand's own
+ * declaration (which exists to make its `--help` and completions accurate)
+ * never receives a value. Reading the merged view is what makes that a
+ * non-fact instead of a three-helper arbitration family. See CLAUDE.md,
+ * "Two flag tiers".
+ *
+ * **It is deliberately WIDER than any one command's truth**, and that is a
+ * recorded cost rather than an oversight: `domains set` receives a type
+ * carrying `domain` and `password`, which mean nothing there. It is safe at
+ * runtime — `assertFlagsApply` refuses a flag the running command cannot read
+ * before the handler exists, so such a field is not merely unset but
+ * unreachable — and narrowing per command was rejected on purpose. An
+ * annotation like `GlobalOptions & LabelOptions` at each site would be a
+ * SECOND statement of that command's flag set, with nothing checking it
+ * against the first (the `.option()` calls) — the restatement class this file
+ * removes everywhere else. One name, one meaning, one read path.
+ */
+export interface EffectiveOptions extends GlobalOptions, DeployCommandOptions {}
 
 /**
  * Options for token create command.

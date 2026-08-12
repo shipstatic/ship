@@ -71,8 +71,12 @@ export default defineConfig({
         // The TTY-only spinner and the SIGINT handler are unreachable
         // in-process by design — the smoke tier proves them through the real
         // binary. (The bin execution block used to be here too; it moved to
-        // `bin.ts` on 2026-07-29, which is why this floor rose.)
-        'src/node/cli/index.ts': { statements: 89, branches: 76 },
+        // `bin.ts` on 2026-07-29, which is why this floor rose.) Raised again
+        // 2026-08-12 with the flag law: 91.9/79.7 → 93.3/80.3, and a ratchet
+        // that is not raised when coverage rises is just a floor the gains can
+        // erode back through. The ~2-point slack is the margin this file has
+        // always carried.
+        'src/node/cli/index.ts': { statements: 91, branches: 78 },
         // `bin.ts` is the process ENTRY POINT: it runs on import, so it cannot
         // execute in-process at all and reads 0%. Recorded rather than
         // excluded — a zero that is explained is worth more than a file

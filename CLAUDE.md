@@ -618,7 +618,21 @@ with the auth message, because the device flow will change both at once.
 
 A link failure is **not** rolled back: a deployed-but-unlinked site is a valid
 platform state, and an idempotent re-run replays the deploy and simply links
-again.
+again. **"Idempotent" is a condition, not a description of the default** — it
+holds when `SHIP_IDEMPOTENCY_KEY` is set, which is the CI shape the flag exists
+for (the GitHub Action derives one per workflow run). A bare shell retry has no
+key, so it mints a SECOND deployment: valid, unlinked, and visible in the
+account. Say so when advising a retry.
+
+**The fold rule, so the next composed command inherits it rather than
+re-deriving it: on failure, `--json` stays the verbatim error envelope and
+completed steps are text-only.** The machine channel never learns the
+mid-command deployment id. That is not an oversight to fix later — it is the
+one-JSON-exit law meeting the envelope-verbatim law, and either alternative
+breaks one of them: a second document breaks the first, and a `partial` field
+beside `error` breaks the second. The convergence story is idempotent replay,
+not a richer error. Text is the channel that carries the progress, which is why
+`announceStep` is text-only by construction.
 
 **Recorded absences** (decisions, not gaps):
 
@@ -634,6 +648,24 @@ again.
   The credential preflight above is different in kind — it prevents a *wrong
   deploy*, not a wrong link.
 
+**Deferred mechanisms, each with the condition that ends the deferral.** The
+estate's stopping rule governs all four — machinery earns existence at the
+SECOND holder, not the first — so these are recorded here rather than built,
+and the next composition lands born-here instead of re-arguing the design.
+
+| Deferred mechanism | Builds when | What it replaces |
+|---|---|---|
+| **Identity as a dispatcher contract** — `withErrorHandling` accepts `OutputContext \| (input) => OutputContext`, resolves once, hands the result to the handler | The **second** command whose identity depends on its invocation | `runDeploy`'s hand-rolled dispatch and the comment defending it |
+| **Dispatcher-owned step emission** — the handler gets an `emit` capability; channels become folds (text renders steps, `--json`/`-q` ignore them), tested once at the fold | The **second** command that announces a mid-command beat | The exported `announceStep` and its per-command channel discipline |
+| **A composition/plan shape** | The **second** composed command | Nothing yet — `deployAndLink` as a plain async function is the right altitude for one |
+| **A command table above Commander** | A consumer that needs identity or requirements to be *enumerable* — none exists; the tree already serves completions, help, both fences, and scoped usage | Nothing — the tree IS the table today |
+
+**Considered and declined outright**, so it is not rediscovered: a cross-repo
+existence fence for `web/docs`' CLI page. The rename-drift class it would catch
+is already owned by the prose fence's retired-spellings list, and a true
+existence check would need ship's command tree executed from another repo's CI
+— disproportionate machinery for a covered risk.
+
 ### Table Output
 
 - **3 spaces** between columns (matches ps, kubectl, docker)
@@ -647,7 +679,11 @@ Always call `processOptions(this)` inside action handlers — not `program.opts(
 
 ### `performDeploy` Helper
 
-Shared deploy logic used by both `ship <path>` shortcut and `ship deployments upload`. Handles: path existence/type validation, option merging (labels, `--no-path-detect`, `--no-spa-detect`), AbortController for Ctrl+C, and a spinner (TTY only, suppressed in `--json` and `--no-color` modes).
+Shared deploy logic used by both `ship <path>` shortcut and `ship deployments upload`. Handles: path existence/type validation, the deploy options (labels, password, `--no-path-detect`, `--no-spa-detect`), AbortController for Ctrl+C, and a spinner (TTY only, suppressed in `--json` and `--no-color` modes).
+
+It takes `(client, deployPath, options)` and nothing else: every deploy flag
+reaches it through Commander's own merge, so there is no per-flag plumbing and
+no source to arbitrate between (see "Two flag tiers").
 
 **The two spellings register the SAME action function.** `runDeploy` is what
 `.action()` receives on both, and both take their flags from one
@@ -753,11 +789,89 @@ key.
 
 When `ship domains set <name> [deployment]` creates a new external domain (`isCreate: true`, name contains `.`), the CLI fetches `domains.records()` and `domains.share()` in parallel, attaching results as `_dnsRecords` and `_shareHash` on the result for the formatter to display. This is CLI-only behavior; SDK resources return plain data.
 
-### Commander.js Option Merging
+### Two flag tiers, and one place each is read
 
-When both parent and subcommand define `--label`, subcommand options take precedence via `mergeLabelOption(cmdOptions, program.opts())`. Required boilerplate:
-- Parent commands: `.enablePositionalOptions()`
-- Subcommands with `--label`: `.passThroughOptions()`
+**Global flags** — `--token`, `--config`, `--api-url`, `--json`, `-q/--quiet`,
+`--no-color` (plus Commander's `-h`/`-V`). Identity and channel: they mean the
+same thing on every command and parse anywhere. **Command-owned flags** —
+everything else. `GLOBAL_FLAGS` in `index.ts` is the whole statement; the
+command-owned set is its complement, so a flag joins the law by being declared
+and there is no second list to keep in step.
+
+**A flag parses only where it means something.** The deploy shortcut IS the
+program, so its flags (`--domain`, `--label`, `--password`, the two `--no-…`
+detections) must be declared at program level — and Commander then recognises
+them in front of every other command, where nothing reads them.
+`ship --domain www.x.com domains list` parsed cleanly and dropped the domain;
+the user who typed it believed they had linked one. Silent-swallow is the worst
+of the three possible answers. `assertFlagsApply` (the `preAction` hook, beside
+the token/URL validation) now refuses before any action runs: a command-owned
+flag that was actually TYPED must be declared by the command about to run. It
+names the flag and — read from the tree, never restated — the commands that own
+it. Statusless `Validation`, per "What a status means".
+
+Two mechanical points, both load-bearing:
+
+- **Presence comes from the SOURCE, not the value.** `getOptionValueSource(key)
+  === 'cli'`. `--label` defaults to `[]` and `--no-path-detect` to `true`, so a
+  truthiness test would refuse every subcommand always.
+- **POSITION is deliberately not part of the law.** `ship --label x deployments
+  upload ./dist` is honoured. Commander stores it identically to the canonical
+  spelling, so telling the two apart means scanning raw argv beside the parser
+  — a second parser, refused on the same grounds as a second copy of the
+  command tree. The defect worth money was misapplication, and that is closed.
+
+**And one place each flag is read.** Commander's root consumes any option the
+ROOT declares, wherever it sits in argv — so a deploy flag typed *after*
+`deployments upload` still lands on the program, and that subcommand's own
+declaration (which exists so its `--help` and its completions are accurate)
+never receives a value. Hence:
+
+- A flag declared ONLY on its command (`--limit`, `--cursor`, `--ttl`) arrives
+  in that action's own `cmdOptions`.
+- A flag the program declares too arrives in the EFFECTIVE options —
+  `processOptions(command)` → `optsWithGlobals()`, parent winning — which is
+  what every handler already receives as `options` (`EffectiveOptions`).
+
+Read one place per tier; never arbitrate between them. Three helpers
+(`mergeLabelOption` / `mergePasswordOption` / `mergeDomainOption`) and four
+call sites did that arbitration by hand until 2026-08-12, and they were not
+belt-and-braces — they were the ONLY thing making `ship deployments upload
+./dist --label x` work, which is why the merge cannot simply be deleted in
+favour of `cmdOptions`. What survives is `labelsOf` (the `--label ''` clearing
+rule) and `passwordOf` (the `SHIP_PASSWORD` tier), each reading one source.
+
+`EffectiveOptions` is **wider than any one command's truth** — `domains set`
+receives a type carrying `domain` and `password` — and that is recorded rather
+than fixed. It is unreachable, not merely unset: the guard refuses such a flag
+before the handler exists. Narrowing per command (`GlobalOptions &
+LabelOptions` at each site) was rejected because it would be a second statement
+of that command's flag set with nothing checking it against the `.option()`
+calls — the restatement class this file removes everywhere else.
+
+**The owner list in the refusal includes the SHORTCUT.** `ownersOf` walks from
+the command it is given, so the program is surveyed too, and `pathOf` renders
+the root from its own `registeredArguments` (`ship <path>`). Skipping it was
+the first version's defect, and a self-contradicting one: `assertFlagsApply`
+exempts the program *because* it owns these flags, while the survey ten lines
+down could not say so — sending the reader to `ship deployments upload` when
+`ship <path> --domain …` is the spelling every doc leads with.
+
+Required Commander boilerplate is unchanged: `.enablePositionalOptions()` on
+parent groups, `.passThroughOptions()` on subcommands taking a positional
+followed by flags.
+
+**The bug this law was written over.** `--no-path-detect` and `--no-spa-detect`
+were declared as `noPathDetect` / `noSpaDetect` and read under those names —
+but Commander stores the POSITIVE key for a `--no-x` flag, defaulted `true`. So
+both flags parsed cleanly and did **nothing**, in both deploy spellings, for as
+long as they have existed. The test that let it live asserted `exitCode === 0`,
+which a dead flag also produces. They are fenced now through `config` — the
+API sets it from a `ship.json` at the deploy ROOT and the mock derives it the
+same way, so `--no-spa-detect` (the SDK appends no generated config) and
+`--no-path-detect` (a nested `dist/ship.json` never reaches the root) are both
+visible through a wire field rather than through a probe. Fixtures:
+`tests/fixtures/spa-site`, `tests/fixtures/nested-site`.
 
 ## SDK-Local Types
 
