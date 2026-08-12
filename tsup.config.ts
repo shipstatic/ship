@@ -1,5 +1,61 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { defineConfig, type Options } from 'tsup';
+
+/**
+ * An esbuild plugin, named through tsup's own option type rather than by
+ * importing `esbuild` — which is tsup's dependency, not ours, and typechecking
+ * against a package this manifest does not declare is the same class of quiet
+ * lie the bundle boundary fence exists to catch.
+ */
+type EsbuildPlugin = NonNullable<Options['esbuildPlugins']>[number];
+
+/**
+ * Where each bundle's esbuild metafile is written — OUTSIDE `dist`, because a
+ * metafile is build telemetry rather than product and `files: ["dist", …]` was
+ * shipping 78 KB of them to every consumer.
+ */
+const META_DIR = 'build-meta';
+
+/**
+ * Write THIS bundle's metafile to a path nothing else writes.
+ *
+ * tsup names its own metafile `metafile-{format}.json` inside `outDir`, and the
+ * three configs below share one `outDir` — so `index` and `browser` both
+ * claimed `metafile-esm.json`, and `index` and `cli` both claimed
+ * `metafile-cjs.json`. tsup runs the configs CONCURRENTLY, so that was two
+ * writers per path with no coordination, and it behaved exactly as that
+ * predicts: measured over 24 builds, roughly one in nine under CPU load ended
+ * with a half-overwritten file that `scripts/third-party-licenses.cjs` could
+ * not parse, failing the build — and `prepack` is `build`, so a publish
+ * inherited the coin flip.
+ *
+ * The loud failure was the lucky one. The quiet outcome is a metafile that
+ * survives INTACT but describes the wrong bundle, leaving the licence list
+ * derived from a subset of what the artifact actually bundles — a legal notice
+ * that under-reports, with a green build. It was correct only because the CLI
+ * bundle happened to be a superset of the index bundle.
+ *
+ * Keyed by entry name AND format, the paths cannot collide. The coverage check
+ * in the licence script is the half that notices if one goes missing anyway.
+ */
+const writeMetafile = (name: string): EsbuildPlugin => ({
+  name: 'ship-metafile',
+  setup(build) {
+    // esbuild only populates `result.metafile` when asked; tsup's own
+    // `metafile: true` is deliberately NOT set, so nothing writes the shared
+    // `dist/metafile-{format}.json` paths any more.
+    build.initialOptions.metafile = true;
+    build.onEnd((result) => {
+      if (!result.metafile) return;
+      fs.mkdirSync(META_DIR, { recursive: true });
+      fs.writeFileSync(
+        path.join(META_DIR, `${name}-${build.initialOptions.format}.json`),
+        JSON.stringify(result.metafile),
+      );
+    });
+  },
+});
 
 /**
  * The SDK's runtime dependencies: declared in `package.json` and REQUIRED at
@@ -36,11 +92,11 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     // whose types reference a package they don't have.
     dts: { resolve: ['@shipstatic/types'] },
     sourcemap: true,
-    metafile: true,
     splitting: false,
     clean: true,
     external: nodeExternals,
     minify: !tsupOptions.watch,
+    esbuildPlugins: [writeMetafile('index')],
   },
   // 2. Browser SDK (ESM, browser entry, with polyfills/shims)
   {
@@ -53,11 +109,11 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     target: 'es2020',
     dts: { resolve: ['@shipstatic/types'] },
     sourcemap: true,
-    metafile: true,
     splitting: false,
     clean: false,
     noExternal: browserBundleDeps,
     minify: !tsupOptions.watch,
+    esbuildPlugins: [writeMetafile('browser')],
     esbuildOptions(options, _context) {
       // Build-time aliasing for Node.js modules. esbuild aliases match BARE
       // specifiers only (`node:`-prefixed ones bypass alias resolution), so
@@ -91,7 +147,6 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     platform: 'node',
     target: 'node18',
     sourcemap: true,
-    metafile: true,
     clean: false,
     // The CLI bundles EVERYTHING — no `external` at all, so `dist/cli.cjs`
     // requires nothing but node builtins and runs from a bare tarball. That is
@@ -99,6 +154,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     // fenced rather than trusted (`tests/package/bundle-boundary.test.ts`).
     noExternal: [/.*/],
     minify: !tsupOptions.watch,
+    esbuildPlugins: [writeMetafile('cli')],
     esbuildOptions(options) {
       // Bundling MIT code carries its copyright notices with it. esbuild keeps
       // `/*! … */` and `@license` blocks at the end of the file; the notices

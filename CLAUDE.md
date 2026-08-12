@@ -1167,6 +1167,38 @@ found fails the build. It does not read `require.resolve('pkg/package.json')`:
 a modern `exports` map does not expose it, which fails for exactly the packages
 most likely to be bundled.
 
+**And a derivation is only as honest as its inputs, which this one paid for
+(2026-08-12, the stable gate).** tsup names its metafile
+`metafile-{format}.json` inside `outDir`; the three build configs share one
+`outDir` and tsup runs them CONCURRENTLY — so `index` and `browser` both wrote
+`metafile-esm.json`, and `index` and `cli` both wrote `metafile-cjs.json`. Two
+writers per path. Measured over 24 builds: **about one in nine under CPU load**
+ended with a half-overwritten file that `JSON.parse` rejected, failing the
+build — and `prepack` is `build`, so a publish inherited the coin flip.
+
+**The crash was the lucky outcome.** The quiet one is a metafile that survives
+intact while describing the wrong bundle: the licence list is then derived from
+a SUBSET of what the artifact bundles, the notice under-reports, and the build
+exits 0. That never happened only because the CLI bundle is a superset of the
+index bundle — an accident of this package's shape. The index bundle's own
+metafile was discarded on **every** build for the whole life of the collision,
+and nothing noticed, because nothing was looking.
+
+Two changes, and the second is the one that generalizes:
+
+- `tsup.config.ts` writes one metafile per `(entry, format)` via a small
+  `esbuildPlugins` hook, into `build-meta/` — outside `dist`, since a metafile
+  is build telemetry rather than product and `files: ["dist", …]` had been
+  publishing 78 KB of them to every consumer.
+- `tests/package/licence-coverage.test.ts` declines to trust that. It asks
+  whether every bundle the package **ships** is described by some metafile,
+  reading the shipped set from `package.json`'s `exports` + `bin` — the
+  published artifact's own account of itself, **not** a restatement of the
+  build config that produced it. A fourth entry is covered the day it ships,
+  and the same check inside the script fails the build directly. Both drills
+  were watched failing: a missing metafile turns the fence red and names
+  `dist/index.cjs`, a corrupt one exits 1 with a message instead of a stack.
+
 The spinner keeps its dynamic `import()`. Bundled, that no longer defers a
 package install, but it still defers evaluating the module on the runs that
 never show a spinner (`--json`, `-q`, non-TTY), which is most CI runs.
@@ -1549,8 +1581,12 @@ credential/URL checks), `smoke` (the true-binary tier), and `e2e/smoke.e2e`.
 
 `commander@^14` — deliberately NOT 15: Commander 15 (2026-05) is ESM-only
 and requires Node ≥22.12, incompatible with the CJS `dist/cli.cjs` bin and
-the `engines >=20` consumer contract. Revisit when dropping Node 20 / going
-ESM-only is decided (a consumer-contract call, like the engines pin itself).
+the `engines >=20.19.0` consumer contract. Revisit when dropping Node 20 /
+going ESM-only is decided (a consumer-contract call, like the engines pin
+itself). The floor moved from `>=20.0.0` on 2026-08-12 and the conclusion here
+is unchanged — 22.12 is above both — but note the shape of what moved it: an
+ESM-only package reached by `require()` is exactly the hazard this pin avoids,
+and the SDK's own `dist/index.cjs` still has one in `junk`.
 
 **Two help scopes, one machinery.** The ROOT renders the hand-written front
 page (`helpText()` — the kept design, byte-pinned in the smoke tier): that is
