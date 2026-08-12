@@ -24,7 +24,7 @@ describe('AccountResource', () => {
       getAccount: vi.fn(),
     } as unknown as ApiHttp;
 
-    account = createAccountResource({ getApi: () => mockApi, ensureInit: async () => {} });
+    account = createAccountResource({ getApi: () => mockApi });
   });
 
   describe('get', () => {

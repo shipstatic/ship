@@ -19,7 +19,6 @@ describe('Deployment Resource (Unified Architecture)', () => {
   // Parameterized exactly as `base-ship` declares it — since types
   // 2.5.0-beta.0 the interface admits the SDK's extended options directly.
   let deploymentResource: DeploymentResource<DeploymentOptions>;
-  let mockEnsureInit: Mock;
 
   beforeEach(() => {
     // Reset all mocks
@@ -40,13 +39,9 @@ describe('Deployment Resource (Unified Architecture)', () => {
       { path: 'style.css', content: Buffer.from('body {}'), size: 7, md5: 'def456' },
     ]);
 
-    // Mock initialization
-    mockEnsureInit = vi.fn().mockResolvedValue(undefined);
-
     // Create deployment resource with mocks
     deploymentResource = createDeploymentResource({
       getApi: () => mockApiHttp,
-      ensureInit: mockEnsureInit,
       processInput: mockProcessInput,
     });
   });
@@ -61,7 +56,6 @@ describe('Deployment Resource (Unified Architecture)', () => {
       const result = await deploymentResource.upload(mockInput as any, options);
 
       // Verify the pipeline executed correctly
-      expect(mockEnsureInit).toHaveBeenCalled();
       expect(mockProcessInput).toHaveBeenCalledWith(mockInput, options);
       expect(mockApiHttp.deploy).toHaveBeenCalled();
       expect(result).toEqual(makeDeployment());
@@ -161,7 +155,6 @@ describe('Deployment Resource (Unified Architecture)', () => {
     it('should handle processInput function not provided', async () => {
       const brokenResource = createDeploymentResource({
         getApi: () => mockApiHttp,
-        ensureInit: mockEnsureInit,
         processInput: undefined as any,
       });
 
@@ -186,7 +179,6 @@ describe('Deployment Resource (Unified Architecture)', () => {
 
       const result = await deploymentResource.list();
 
-      expect(mockEnsureInit).toHaveBeenCalled();
       expect(mockApiHttp.listDeployments).toHaveBeenCalled();
       expect(result).toEqual(mockList);
     });
@@ -207,7 +199,6 @@ describe('Deployment Resource (Unified Architecture)', () => {
 
       const result = await deploymentResource.get('dep_123');
 
-      expect(mockEnsureInit).toHaveBeenCalled();
       expect(mockApiHttp.getDeployment).toHaveBeenCalledWith('dep_123');
       expect(result).toEqual(mockDeployment);
     });
@@ -219,7 +210,6 @@ describe('Deployment Resource (Unified Architecture)', () => {
 
       await deploymentResource.delete('dep_123');
 
-      expect(mockEnsureInit).toHaveBeenCalled();
       expect(mockApiHttp.deleteDeployment).toHaveBeenCalledWith('dep_123');
     });
   });

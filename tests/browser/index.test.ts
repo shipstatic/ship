@@ -59,9 +59,12 @@ describe('Ship - Browser Implementation', () => {
         getLimits: getLimitsSpy,
       };
 
-      await ship.ping(); // This triggers initialization
+      // Asking for the limits is what fetches them. `ping()` used to, which
+      // made the cheapest call in the SDK issue two requests; the subject here
+      // is that the browser has no ambient config source, not what triggers a
+      // fetch.
+      await ship.getLimits();
 
-      // Verify that platform config was fetched from API
       expect(getLimitsSpy).toHaveBeenCalled();
 
       // Browser has no ambient config source
@@ -167,7 +170,9 @@ describe('Ship - Browser Implementation', () => {
       });
 
       await expect(ship.ping()).resolves.toEqual({ success: true, timestamp: 1_700_000_000 });
-      expect(seen).toEqual(['http://localhost:13579/limits', 'http://localhost:13579/ping']);
+      // ONE request. This read `['…/limits', '…/ping']` until 2026-08-12,
+      // which is the wasted round trip written down as an expectation.
+      expect(seen).toEqual(['http://localhost:13579/ping']);
     });
   });
 
@@ -217,9 +222,10 @@ describe('Ship - Browser Implementation', () => {
         getLimits: getLimitsSpy,
       };
 
-      await ship.ping(); // This triggers initialization
+      await ship.getLimits();
 
-      // Browser initialization should only fetch platform config, not load client config files
+      // The browser reads no config file — the limits are the only thing it
+      // ever fetches to configure itself, and only when asked.
       expect(getLimitsSpy).toHaveBeenCalled();
     });
   });

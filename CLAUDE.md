@@ -1531,7 +1531,26 @@ client (AWS, Stripe, OpenAI) assume.
 >
 > The `fetch` option is the exception: it's in the public README ("Custom fetch") because transport injection is a convention every comparable SDK ships (Stripe, OpenAI, Anthropic). Rule of thumb: ShipStatic-specific levers stay internal; industry-standard SDK conventions are public.
 
-**`getLimits()` is cached** — reuses the `PlatformLimits` fetched during initialization; no extra API call.
+**`getLimits()` is cached, and the fetch is EARNED.** The one-shot `/limits`
+request runs from the two places that read its result — the deploy pipeline's
+`processInput` (file-size, file-count and blocklist checks) and `getLimits()`
+itself — and from nowhere else.
+
+It used to run from `ensureInit()` at the top of all nineteen resource
+wrappers plus `ping()`, so EVERY operation hydrated limits before doing its
+own work. Measured: `domains list`, `tokens list`, `whoami` and `ping` each
+issued `/limits` first and then their own request. A CLI command is one
+process, so that was a wasted round trip on every invocation of the product —
+and `ping`, whose whole job is "is the API reachable", was paying it twice
+over. One request each now.
+
+The concept did not move, it went where it was consumed: `ResourceContext`
+lost `ensureInit` entirely, which is what makes a nineteenth wrapper unable to
+reintroduce the cost by copying its neighbour. Fenced by request COUNTS in
+`base-ship-limits.test.ts` — the resolved values were always correct, so only
+counting requests can see the difference. Three tests elsewhere had the old
+two-request shape written into their expectations (`['…/limits', '…/ping']`),
+which is how a wasted round trip survives a suite.
 
 **`/limits` is also how the platform's extension blocklist reaches the client.**
 `PlatformLimits.blockedExtensions` is the API's list (`cloudflare/api/src/lib/blocklist.ts`);

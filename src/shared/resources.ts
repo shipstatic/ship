@@ -30,7 +30,6 @@ import type { DeploymentOptions } from './types.js';
  */
 export interface ResourceContext {
   getApi: () => ApiHttp;
-  ensureInit: () => Promise<void>;
 }
 
 /**
@@ -51,12 +50,10 @@ export interface DeploymentResourceContext extends ResourceContext {
 export function createDeploymentResource(
   ctx: DeploymentResourceContext,
 ): DeploymentResource<DeploymentOptions> {
-  const { getApi, ensureInit, processInput } = ctx;
+  const { getApi, processInput } = ctx;
 
   return {
     upload: async (input: DeployInput, options: DeploymentOptions = {}) => {
-      await ensureInit();
-
       if (!processInput) {
         throw ShipError.config('processInput function is not provided.');
       }
@@ -69,22 +66,18 @@ export function createDeploymentResource(
     },
 
     list: async (options?: ListOptions) => {
-      await ensureInit();
       return getApi().listDeployments(options);
     },
 
     get: async (id: string) => {
-      await ensureInit();
       return getApi().getDeployment(id);
     },
 
     set: async (id: string, options: { labels: string[] }) => {
-      await ensureInit();
       return getApi().updateDeploymentLabels(id, options.labels);
     },
 
     delete: async (id: string) => {
-      await ensureInit();
       return getApi().deleteDeployment(id);
     },
   };
@@ -98,7 +91,7 @@ export function createDeploymentResource(
  * The SDK does not validate or normalize domain names - the API handles all domain semantics.
  */
 export function createDomainResource(ctx: ResourceContext): DomainResource {
-  const { getApi, ensureInit } = ctx;
+  const { getApi } = ctx;
 
   return {
     // INTENTIONAL DESIGN: The API does NOT support unlinking domains (setting deployment to null).
@@ -107,47 +100,38 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
     // Not supported: unlink after linking (creates ambiguous state with no clear use case).
     // See npm/ship/CLAUDE.md "Domain Write Semantics" for full rationale.
     set: async (name: string, options: { deployment?: string; labels?: string[] } = {}) => {
-      await ensureInit();
       return getApi().setDomain(name, options.deployment, options.labels);
     },
 
     list: async (options?: ListOptions) => {
-      await ensureInit();
       return getApi().listDomains(options);
     },
 
     get: async (name: string) => {
-      await ensureInit();
       return getApi().getDomain(name);
     },
 
     delete: async (name: string) => {
-      await ensureInit();
       return getApi().deleteDomain(name);
     },
 
     verify: async (name: string) => {
-      await ensureInit();
       return getApi().verifyDomain(name);
     },
 
     validate: async (name: string) => {
-      await ensureInit();
       return getApi().validateDomain(name);
     },
 
     dns: async (name: string) => {
-      await ensureInit();
       return getApi().getDomainDns(name);
     },
 
     records: async (name: string) => {
-      await ensureInit();
       return getApi().getDomainRecords(name);
     },
 
     share: async (name: string) => {
-      await ensureInit();
       return getApi().getDomainShare(name);
     },
   };
@@ -157,11 +141,10 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
  * Create account resource (whoami functionality).
  */
 export function createAccountResource(ctx: ResourceContext): AccountResource {
-  const { getApi, ensureInit } = ctx;
+  const { getApi } = ctx;
 
   return {
     get: async () => {
-      await ensureInit();
       return getApi().getAccount();
     },
   };
@@ -171,26 +154,22 @@ export function createAccountResource(ctx: ResourceContext): AccountResource {
  * Create token resource for managing deploy tokens.
  */
 export function createTokenResource(ctx: ResourceContext): TokenResource {
-  const { getApi, ensureInit } = ctx;
+  const { getApi } = ctx;
 
   return {
     create: async (options: { ttl?: number; labels?: string[] } = {}) => {
-      await ensureInit();
       return getApi().createToken(options.ttl, options.labels);
     },
 
     list: async (options?: ListOptions) => {
-      await ensureInit();
       return getApi().listTokens(options);
     },
 
     get: async (token: string) => {
-      await ensureInit();
       return getApi().getToken(token);
     },
 
     delete: async (token: string) => {
-      await ensureInit();
       return getApi().deleteToken(token);
     },
   };

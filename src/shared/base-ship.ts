@@ -4,8 +4,11 @@
  * The constructor is fully synchronous: an `ApiHttp` instance is built immediately
  * with whatever credentials the caller supplied (and, in Node, env vars merged in
  * by the subclass before `super()`). The only deferred work is the one-shot
- * `GET /limits` fetch that hydrates platform limits — that's lazy and runs on
- * first API call via `ensureInitialized()`.
+ * `GET /limits` fetch that hydrates platform limits — lazy, memoized, and run
+ * from the two places that actually READ the result: the deploy pipeline's
+ * `processInput` and the public `getLimits()`. It ran on the first API call of
+ * any kind until 2026-08-12, which cost every other command a round trip it
+ * never used.
  *
  * Subclasses only override what genuinely differs per environment:
  *   - `processInput()` — Node reads paths from disk; Browser handles `File[]`
@@ -48,7 +51,7 @@ import type {
  */
 export abstract class Ship {
   // Resource handles, created once at construction. Each is a thin facade
-  // bound to `this.http` plus the lazy-init callback.
+  // bound to `this.http`.
   // Parameterized with the SDK's extended options (timeout, callbacks,
   // signal…) — the interface's documented extension point, so typed
   // consumers can pass them without casts.
@@ -124,14 +127,23 @@ export abstract class Ship {
       createDeployBody: this.getDeployBodyCreator(),
     });
 
-    const ctx = {
-      getApi: () => this.http,
-      ensureInit: () => this.ensureInitialized(),
-    };
+    const ctx = { getApi: () => this.http };
 
     this.deployments = createDeploymentResource({
       ...ctx,
-      processInput: (input, opts) => this.processInput(input, opts),
+      // The platform limits are fetched HERE, at the one seam that reads
+      // them, rather than by every resource method. `processInput` is the
+      // only consumer — the file-size, file-count and blocklist checks run
+      // inside it — so this is where the round trip is earned.
+      //
+      // It used to be an `ensureInit()` at the top of all nineteen wrappers,
+      // which meant `domains list`, `tokens list` and even `ping` each paid a
+      // `/limits` request they never read. Every CLI command is one process,
+      // so that was a wasted round trip on every invocation of the product.
+      processInput: async (input, opts) => {
+        await this.ensureInitialized();
+        return this.processInput(input, opts);
+      },
     });
     this.domains = createDomainResource(ctx);
     this.account = createAccountResource(ctx);
@@ -177,7 +189,9 @@ export abstract class Ship {
    * transport, so a resolved value always means the API answered.
    */
   async ping(): Promise<PingResponse> {
-    await this.ensureInitialized();
+    // No `ensureInitialized()`: a reachability check reads no platform limits,
+    // and hydrating them here made the cheapest call in the product issue two
+    // requests — `/limits` and then `/ping`.
     return this.http.ping();
   }
 

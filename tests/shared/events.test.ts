@@ -324,7 +324,7 @@ describe('Ship event delegation', () => {
       expect(retries).toHaveLength(2);
       expect(errors).toHaveLength(1);
       expect(new Set([...retries, ...errors].map((e) => e.url))).toEqual(
-        new Set(['https://api.example.com/limits']),
+        new Set(['https://api.example.com/ping']),
       );
     });
 
