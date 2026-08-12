@@ -30,12 +30,13 @@ import { installCompletion, uninstallCompletion } from './completion.js';
 import { subcommandsOf } from './completions.js';
 import { runConfig } from './config.js';
 import { createClient, mergeCliConfig } from './create-client.js';
-import { getUserMessage, toShipError } from './error-handling.js';
-import { formatOutput, type OutputContext } from './formatters.js';
+import { CREDENTIAL_HINT, getUserMessage, toShipError } from './error-handling.js';
+import { announceStep, formatOutput, type OutputContext } from './formatters.js';
 import { loadShipFile } from './shiprc.js';
 import type {
   CLIResult,
   DeployCommandOptions,
+  EnrichedDomain,
   GlobalOptions,
   LabelOptions,
   ListCommandOptions,
@@ -117,6 +118,7 @@ ${applyBold('COMMANDS')}
 ${applyBold('FLAGS')}
   --token <token>           Any ship token: API key (ship-…) or deploy token (deploy-…)
   --config <file>           Custom config file path
+  --domain <domain>         Serve this deployment at a domain (needs a token)
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
   --no-path-detect          Disable automatic path optimization and flattening
@@ -128,6 +130,7 @@ ${applyBold('FLAGS')}
 
 ${applyBold('EXAMPLES')}
   ship ./dist
+  ship ./dist --domain www.example.com
   ship domains set www.example.com happy-cat-abc1234.shipstatic.com
   ship ./dist -q | ship domains set www.example.com
 
@@ -201,6 +204,22 @@ function mergePasswordOption(
   programOpts: { password?: string } | undefined,
 ): string | undefined {
   return cmdOptions?.password ?? programOpts?.password ?? (process.env.SHIP_PASSWORD || undefined);
+}
+
+/**
+ * Merge domain options from command and program levels — the same Commander
+ * routing every deploy option is subject to, since `--domain` is declared on
+ * both the shortcut and `deployments upload`.
+ *
+ * There is deliberately no `SHIP_DOMAIN` to fall back to. The CLI-only env
+ * tier exists for values a subprocess wrapper cannot put on argv — secrets,
+ * ambient keys — and a domain rides argv fine.
+ */
+function mergeDomainOption(
+  cmdOptions: { domain?: string } | undefined,
+  programOpts: { domain?: string } | undefined,
+): string | undefined {
+  return cmdOptions?.domain ?? programOpts?.domain;
 }
 
 /**
@@ -378,6 +397,47 @@ async function performDeploy(
     process.removeListener('SIGINT', sigintHandler);
     if (spinner) spinner.stop();
   }
+}
+
+/**
+ * THE link: upsert a domain and answer with it, DNS enrichment included.
+ *
+ * This is everything `ship domains set` does once its own grammar has produced
+ * arguments — the stdin fallback and the label merge stay in that command,
+ * because they are how it reads a request, not how it links. What is left is
+ * shared with the deploy's `--domain` arm, so the two spellings link
+ * identically by construction rather than by anyone remembering to.
+ *
+ * Returns `EnrichedDomain` in both cases: its two enrichment fields are
+ * optional, so a plain `DomainSetResult` already IS one, and the caller has a
+ * single type to render.
+ */
+async function performDomainSet(
+  client: Ship,
+  name: string,
+  options: { deployment?: string; labels?: string[] },
+): Promise<EnrichedDomain> {
+  // SDK returns DomainSetResult (Domain + isCreate derived from HTTP 201/200) —
+  // the resource interface in @shipstatic/types declares this directly, no cast needed.
+  const result = await client.domains.set(name, options);
+
+  // Enrich with DNS info for new external domains (pure formatter will display it)
+  if (result.isCreate && name.includes('.')) {
+    try {
+      const [records, share] = await Promise.all([
+        client.domains.records(name),
+        client.domains.share(name),
+      ]);
+      return {
+        ...result,
+        _dnsRecords: records.records,
+        _shareHash: share.hash,
+      };
+    } catch {
+      // Graceful degradation - return without DNS info
+    }
+  }
+  return result;
 }
 
 /**
@@ -571,6 +631,114 @@ export function buildProgram(): Command {
       }),
     );
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // The deploy action — two spellings, two identities, one implementation.
+  //
+  // `ship <path>` and `ship deployments upload <path>` register the SAME
+  // action function below, so the flag set and the behaviour cannot drift
+  // between them; there is nothing to keep in step.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /** Everything both spellings share: merge the options, then deploy. */
+  const upload = (
+    client: Ship,
+    options: GlobalOptions,
+    deployPath: string,
+    cmdOptions?: DeployCommandOptions,
+  ) =>
+    performDeploy(
+      client,
+      deployPath,
+      mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
+      mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
+      cmdOptions,
+      options,
+    );
+
+  /** A deploy, answering as the deployment it created. */
+  const deployOnly = withErrorHandling(upload, { operation: 'upload', resource: 'deployment' });
+
+  /**
+   * A deploy that also serves the result at `domain` — the one-intent spelling
+   * of `ship ./dist -q | ship domains set <name>`, which stays and stays
+   * documented. The pipe is the wrong shape for CI: a workflow `run:` block is
+   * `bash -e` WITHOUT `pipefail`, so a pipeline reports the LAST command's
+   * status and a failed deploy is masked by `domains set`'s own confusion —
+   * and a CI consumer needs the deploy's full `--json`, which `-q` discards.
+   * One process, one exit code, one JSON.
+   *
+   * **The answer is the DOMAIN**, because the domain is what was asked about:
+   * "deploy this *to www.example.com*" is a question about the destination,
+   * and `domains.set()` already answers it — the `Domain` it returns carries
+   * the freshly linked deployment and its URL. So the composed command answers
+   * exactly as `ship domains set` answers, through the row that command
+   * already has: no new response shape, no new formatter, no new output row.
+   */
+  const deployAndLink = (domain: string) =>
+    withErrorHandling(
+      async (
+        client: Ship,
+        options: GlobalOptions,
+        deployPath: string,
+        cmdOptions?: DeployCommandOptions,
+      ) => {
+        // Preflight, before a single file is read. An anonymous account cannot
+        // own a domain, so `--domain` without a credential is ALWAYS a mistake
+        // — and discovering it after the upload would have minted a public,
+        // expiring, claimable deployment as the side effect of a failed
+        // AUTHENTICATED intent, which fail-closed anonymity forbids.
+        //
+        // Asked of the credential the CLI RESOLVED, not of the three sources,
+        // so a fourth source slots into `resolveCliToken` and never here.
+        //
+        // Statusless and `Config`-typed, per CLAUDE.md "What a status means":
+        // no exchange happened, so there is no HTTP status to report.
+        // `Authentication` would carry a 401 for a request never made AND hand
+        // the sentence to `getUserMessage`'s generic auth arm, losing the one
+        // thing worth saying — that it is `--domain` that needs the token,
+        // since the same deploy without it works fine.
+        if (!resolveCliToken(program.opts())) {
+          throw ShipError.config(
+            `--domain links a domain, which needs a token: ${CREDENTIAL_HINT}`,
+          );
+        }
+
+        const deployment = await upload(client, options, deployPath, cmdOptions);
+
+        // Beat one, streamed: the deployment's own sentence the moment it
+        // lands. Load-bearing rather than decorative — if the link then fails,
+        // the id the user has already paid for is on screen.
+        announceStep(deployment, { operation: 'upload', resource: 'deployment' }, options);
+
+        // Beat two, and the answer. A failure here leaves a deployed-but-
+        // unlinked site, which is a valid platform state and needs no rollback:
+        // an idempotent re-run replays the deploy and simply links again.
+        return performDomainSet(client, domain, { deployment: deployment.deployment });
+      },
+      { operation: 'set', resource: 'domain' },
+    );
+
+  /**
+   * `--domain` does not decorate the deploy; it makes it a different command.
+   * So the flag chooses which of the two runs, and identity and behaviour are
+   * chosen TOGETHER from ONE reading of it — the alternative (a static action
+   * plus a context resolved separately) branches on the same condition twice
+   * and lets the two answers disagree.
+   */
+  function runDeploy(this: Command, deployPath: string, cmdOptions?: DeployCommandOptions) {
+    const domain = mergeDomainOption(cmdOptions, program.opts() as { domain?: string });
+    return (domain ? deployAndLink(domain) : deployOnly).call(this, deployPath, cmdOptions);
+  }
+
+  /** The deploy flags, on both registrations — declared once, applied twice. */
+  const withDeployOptions = (cmd: Command) =>
+    cmd
+      .option('--domain <domain>', 'Serve this deployment at a domain (needs a token)')
+      .option('--label <label>', 'Label to add (can be repeated)', collect, [])
+      .option('--password <password>', 'Password-protect this deployment')
+      .option('--no-path-detect', 'Disable automatic path optimization and flattening')
+      .option('--no-spa-detect', 'Disable automatic SPA detection and configuration');
+
   // Deployments commands
   const deploymentsCmd = program
     .command('deployments')
@@ -591,33 +759,12 @@ export function buildProgram(): Command {
       ),
     );
 
-  deploymentsCmd
-    .command('upload <path>')
-    .description('Upload deployment from file or directory')
-    .passThroughOptions()
-    .option('--label <label>', 'Label to add (can be repeated)', collect, [])
-    .option('--password <password>', 'Password-protect this deployment')
-    .option('--no-path-detect', 'Disable automatic path optimization and flattening')
-    .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
-    .action(
-      withErrorHandling(
-        (
-          client: Ship,
-          options: GlobalOptions,
-          deployPath: string,
-          cmdOptions: DeployCommandOptions,
-        ) =>
-          performDeploy(
-            client,
-            deployPath,
-            mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
-            mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
-            cmdOptions,
-            options,
-          ),
-        { operation: 'upload', resource: 'deployment' },
-      ),
-    );
+  withDeployOptions(
+    deploymentsCmd
+      .command('upload <path>')
+      .description('Upload deployment from file or directory')
+      .passThroughOptions(),
+  ).action(runDeploy);
 
   deploymentsCmd
     .command('get <deployment>')
@@ -780,27 +927,7 @@ export function buildProgram(): Command {
           if (deployment) setOptions.deployment = deployment;
           if (labels !== undefined) setOptions.labels = labels;
 
-          // SDK returns DomainSetResult (Domain + isCreate derived from HTTP 201/200) —
-          // the resource interface in @shipstatic/types declares this directly, no cast needed.
-          const result = await client.domains.set(name, setOptions);
-
-          // Enrich with DNS info for new external domains (pure formatter will display it)
-          if (result.isCreate && name.includes('.')) {
-            try {
-              const [records, share] = await Promise.all([
-                client.domains.records(name),
-                client.domains.share(name),
-              ]);
-              return {
-                ...result,
-                _dnsRecords: records.records,
-                _shareHash: share.hash,
-              };
-            } catch {
-              // Graceful degradation - return without DNS info
-            }
-          }
-          return result;
+          return performDomainSet(client, name, setOptions);
         },
         { operation: 'set', resource: 'domain' },
       ),
@@ -948,54 +1075,40 @@ export function buildProgram(): Command {
       }
     });
 
-  // Deploy shortcut as default action. Two cases are answered BEFORE the
-  // wrapped handler, so no client is created and no config file is resolved
-  // for them: no argument (that is help, not a deploy) and an argument that
-  // is a mistyped COMMAND rather than a path — a user with a broken config
-  // file must still be told "unknown command", not handed a config error.
-  const deployShortcut = withErrorHandling(
-    (client: Ship, options: GlobalOptions, deployPath: string, cmdOptions?: DeployCommandOptions) =>
-      performDeploy(
-        client,
-        deployPath,
-        mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
-        mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
-        cmdOptions,
-        options,
-      ),
-    { operation: 'upload', resource: 'deployment' },
-  );
+  // Deploy shortcut as default action — the same `runDeploy` the explicit
+  // command registers. Two cases are answered BEFORE it, so no client is
+  // created and no config file is resolved for them: no argument (that is
+  // help, not a deploy) and an argument that is a mistyped COMMAND rather than
+  // a path — a user with a broken config file must still be told "unknown
+  // command", not handed a config error.
+  withDeployOptions(program.argument('[path]', 'Path to deploy')).action(async function (
+    this: Command,
+    deployPath?: string,
+    cmdOptions?: DeployCommandOptions,
+  ) {
+    if (!deployPath) {
+      this.outputHelp();
+      return;
+    }
 
-  program
-    .argument('[path]', 'Path to deploy')
-    .option('--label <label>', 'Label to add (can be repeated)', collect, [])
-    .option('--password <password>', 'Password-protect this deployment')
-    .option('--no-path-detect', 'Disable automatic path optimization and flattening')
-    .option('--no-spa-detect', 'Disable automatic SPA detection and configuration')
-    .action(async function (this: Command, deployPath?: string, cmdOptions?: DeployCommandOptions) {
-      if (!deployPath) {
-        this.outputHelp();
+    // A nonexistent path with no separators, extension, or `~` reads as a
+    // mistyped command ("dist", "build" and friends exist, so they still
+    // deploy). Everything else falls through to performDeploy, whose
+    // "path does not exist" error names the path.
+    if (!existsSync(deployPath)) {
+      const looksLikeCommand =
+        !deployPath.includes('/') &&
+        !deployPath.includes('\\') &&
+        !deployPath.includes('.') &&
+        !deployPath.startsWith('~');
+      if (looksLikeCommand) {
+        handleError(usageError(`unknown command '${deployPath}'`));
         return;
       }
+    }
 
-      // A nonexistent path with no separators, extension, or `~` reads as a
-      // mistyped command ("dist", "build" and friends exist, so they still
-      // deploy). Everything else falls through to performDeploy, whose
-      // "path does not exist" error names the path.
-      if (!existsSync(deployPath)) {
-        const looksLikeCommand =
-          !deployPath.includes('/') &&
-          !deployPath.includes('\\') &&
-          !deployPath.includes('.') &&
-          !deployPath.startsWith('~');
-        if (looksLikeCommand) {
-          handleError(usageError(`unknown command '${deployPath}'`));
-          return;
-        }
-      }
-
-      return deployShortcut.call(this, deployPath, cmdOptions);
-    });
+    return runDeploy.call(this, deployPath, cmdOptions);
+  });
 
   return program;
 }

@@ -23,6 +23,7 @@ import type {
 import { API_KEY } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  announceStep,
   formatDeployment,
   formatOutput,
   OUTPUTS,
@@ -624,6 +625,42 @@ describe('formatOutput router', () => {
         { operation: 'validate', resource: 'domain' },
         { quiet: true },
       );
+      expect(logs).toEqual([]);
+    });
+  });
+
+  describe('announceStep: the first of two beats', () => {
+    // `ship <path> --domain <name>` deploys, then links, and answers as the
+    // domain — but the deployment is real before the link is attempted, so its
+    // sentence is written mid-command. What makes it a BEAT and not a second
+    // answer is that it is the sentence alone, in the text channel alone.
+    const DEPLOYMENT = 'brave-otter-a1b2c3d.shipstatic.com';
+    const uploaded = { operation: 'upload', resource: 'deployment' } satisfies OutputContext;
+
+    it('writes the sentence, and no entity beneath it', () => {
+      announceStep(makeDeployment({ deployment: DEPLOYMENT }), uploaded, text);
+
+      expect(out()).toContain(`${DEPLOYMENT} deployment uploaded`);
+      // `formatDeployment`'s details block belongs to the ANSWER, and the
+      // answer is the domain the command was asked about.
+      expect(out()).not.toContain('url:');
+      expect(out()).not.toContain('status:');
+    });
+
+    it('says nothing in --json — that channel has exactly one exit', () => {
+      announceStep(makeDeployment({ deployment: DEPLOYMENT }), uploaded, { json: true });
+      expect(logs).toEqual([]);
+    });
+
+    it('says nothing under -q — that channel prints exactly one key', () => {
+      announceStep(makeDeployment({ deployment: DEPLOYMENT }), uploaded, { quiet: true });
+      expect(logs).toEqual([]);
+    });
+
+    it('says nothing for a result with no sentence to make', () => {
+      // Same rule as `announce`: a read has no verb, so there is nothing to
+      // announce — a beat cannot invent one.
+      announceStep(makeDeployment({ deployment: DEPLOYMENT }), { operation: 'get' }, text);
       expect(logs).toEqual([]);
     });
   });

@@ -47,6 +47,7 @@ const ship = new Ship({ token: 'ship-...' });
 
 ```bash
 ship ./dist                                        # Deploy (shortcut)
+ship ./dist --domain www.example.com               # Deploy and serve it there
 ship ./dist --label production --label v1.0.0      # Deploy with labels
 ship deployments list
 ship deployments list --limit 20                   # Page size; a hint shows the next cursor
@@ -152,6 +153,14 @@ open https://$(ship ./dist -q)
 ship deployments list -q | xargs -I{} ship deployments delete {} -q
 ```
 
+`--domain` is the same two calls as one command:
+
+```bash
+ship ./dist --domain www.example.com
+```
+
+Both spellings are supported and neither replaces the other. The pipe composes interactively — any two commands, wherever `-q` gives you the value the next one wants. `--domain` is one process, one exit code, and one `--json`, which is what CI needs: a `run:` block is `bash -e` **without** `pipefail`, so a pipeline reports only the last command's status and a failed deploy is masked. It answers as the domain, exactly as `ship domains set` does — DNS records and setup link included on a new external domain — and it needs a token, which it checks before uploading anything.
+
 ### Shell Completion
 
 ```bash
@@ -180,6 +189,7 @@ Available on `ship <path>` and `ship deployments upload`:
 
 | Flag | Description |
 |------|-------------|
+| `--domain <domain>` | Serve this deployment at that domain — creates or repoints it. Needs a token |
 | `--label <label>` | Add label (repeatable) |
 | `--password <password>` | Password-protect this deployment (6–128 chars) |
 | `--no-path-detect` | Disable automatic path optimization |

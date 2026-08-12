@@ -270,6 +270,19 @@ export const CONTRACT: readonly ContractPoint[] = [
     live: NO_DOMAINS,
     run: (s, c) => s.domains.set(c.missingDomain, { deployment: c.missingDeployment }),
   },
+  {
+    // Guard ORDER again, one step earlier: the CREATION-only name rules run
+    // before the deployment reference is verified, so an apex name fails as a
+    // 400 `validation_failed` (a ZodError through the global handler) and not
+    // as the 422 above. This is the failure `ship <path> --domain example.com`
+    // produces AFTER a successful deploy, which is why ship pins it: the
+    // platform has no CNAME to point an apex at (root CLAUDE.md, "Custom
+    // Domain Model"). wire: lib/domains/upsert.ts:55 → lib/validation.ts:399
+    name: 'domains.set (apex)',
+    error: { type: ErrorType.Validation, status: 400 },
+    live: NO_DOMAINS,
+    run: (s) => s.domains.set('apex-example.com'),
+  },
   // Deliberately ABSENT: "no unlinking" (an explicit `deployment: null` on the
   // upsert, which the API rejects with a 400). `setDomain` builds its body with
   // `if (deployment)`, so a falsy value is filtered out before the request

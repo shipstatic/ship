@@ -123,8 +123,8 @@ Requires an API key. Full workflow:
 # 1. Validate
 ship domains validate www.example.com
 
-# 2. Deploy + link in one pipe
-ship ./dist -q | ship domains set www.example.com
+# 2. Deploy + link in one command
+ship ./dist --domain www.example.com
 
 # 3. Show DNS records to the user
 ship domains records www.example.com
@@ -134,6 +134,8 @@ ship domains verify www.example.com
 ```
 
 Step 2 auto-prints DNS records and a setup link in text mode. With `--json`, call `domains records` separately.
+
+`--domain` answers **as the domain** — same output as `ship domains set`, with the freshly linked deployment in the `deployment` field. Prefer it over the pipe (`ship ./dist -q | ship domains set www.example.com`), which still works: one process means one exit code and one JSON document, so a failed deploy cannot be masked by the second command. It requires a token and refuses before uploading anything if there isn't one. If the link fails, the deployment still exists and is reported first — re-run to link it again.
 
 Verification is async — DNS propagation takes minutes to hours. Check status with `ship domains get <name> --json` and look for `"status": "success"`.
 
@@ -235,6 +237,7 @@ List commands return `{"<resource>s": [...], "cursor": null}`. A non-null `curso
 
 ```bash
 ship ./dist                          # Deploy (shortcut)
+ship ./dist --domain <name>          # Deploy and serve it at that domain
 ship deployments upload <path>       # Deploy (explicit)
 ship deployments list                # List all
 ship deployments get <deployment>    # Details
@@ -275,6 +278,7 @@ ship tokens delete <token>            # Delete (revokes immediately)
 | `--json` | JSON output |
 | `-q, --quiet` | Identifier only |
 | `--token <token>` | Any ship token: API key or deploy token |
+| `--domain <domain>` | Deploy and serve it there — creates or repoints. Needs a token |
 | `--label <label>` | Set label (repeatable, replaces all) |
 | `--password <pwd>` | Password-protect deployment (6–128 chars) |
 | `--no-path-detect` | Skip build output auto-detection |
