@@ -36,6 +36,7 @@ import { loadShipFile } from './shiprc.js';
 import type {
   CLIResult,
   DeployCommandOptions,
+  EffectiveOptions,
   EnrichedDomain,
   GlobalOptions,
   LabelOptions,
@@ -175,58 +176,138 @@ function parseInteger(value: string): number {
 }
 
 /**
- * Merge label options from command and program levels.
- * Commander.js sometimes routes --label to program level instead of command level.
+ * The labels a command was given, or `undefined` when it was given none.
+ *
+ * `--label ''` means "clear all labels", so an all-empty list becomes `[]`
+ * (send the clearing) while no list at all stays absent (send nothing).
  */
-function mergeLabelOption(
-  cmdOptions: LabelOptions | undefined,
-  programOpts: LabelOptions | undefined,
-): string[] | undefined {
-  const labels = cmdOptions?.label?.length ? cmdOptions.label : programOpts?.label;
+function labelsOf(options: LabelOptions): string[] | undefined {
+  const labels = options.label;
   if (!labels?.length) return undefined;
-  // Filter empty strings: --label '' means "clear all labels"
   const filtered = labels.filter((l) => l !== '');
   return filtered.length ? filtered : [];
 }
 
 /**
- * Merge password options from command and program levels.
- * Commander.js sometimes routes --password to program level instead of command level.
+ * The deploy password: the flag, else `SHIP_PASSWORD`.
  *
- * An empty `--password ''` is forwarded to the SDK validator so the user
- * sees a clear length error rather than a silent drop. An empty
- * `SHIP_PASSWORD` is coerced to undefined, matching how SHIP_TOKEN
- * and SHIP_API_URL treat empty env vars (CI/Docker
- * often sets unset vars to "" — see core/config.ts).
+ * An empty `--password ''` is forwarded to the SDK validator so the user sees
+ * a clear length error rather than a silent drop. An empty `SHIP_PASSWORD` is
+ * coerced to undefined, matching how SHIP_TOKEN and SHIP_API_URL treat empty
+ * env vars (CI/Docker often sets unset vars to "" — see core/config.ts).
+ *
+ * The env tier is a different axis from flag position: `--domain` has no
+ * `SHIP_DOMAIN` twin, because that tier exists for values a subprocess wrapper
+ * cannot put on argv — secrets, ambient keys — and a domain rides argv fine.
  */
-function mergePasswordOption(
-  cmdOptions: { password?: string } | undefined,
-  programOpts: { password?: string } | undefined,
-): string | undefined {
-  return cmdOptions?.password ?? programOpts?.password ?? (process.env.SHIP_PASSWORD || undefined);
+function passwordOf(options: DeployCommandOptions): string | undefined {
+  return options.password ?? (process.env.SHIP_PASSWORD || undefined);
 }
 
 /**
- * Merge domain options from command and program levels — the same Commander
- * routing every deploy option is subject to, since `--domain` is declared on
- * both the shortcut and `deployments upload`.
+ * The flags that mean the same thing on every command — identity and channel.
+ * Stated once, as data.
  *
- * There is deliberately no `SHIP_DOMAIN` to fall back to. The CLI-only env
- * tier exists for values a subprocess wrapper cannot put on argv — secrets,
- * ambient keys — and a domain rides argv fine.
+ * Only the GLOBAL tier is written down; command-owned is the complement, so a
+ * flag added to the deploy shortcut joins the law by being declared and there
+ * is no second list to keep in step. `-h` is Commander's own and never reaches
+ * an action; `--version` is listed because `.version()` does put it here.
  */
-function mergeDomainOption(
-  cmdOptions: { domain?: string } | undefined,
-  programOpts: { domain?: string } | undefined,
-): string | undefined {
-  return cmdOptions?.domain ?? programOpts?.domain;
+const GLOBAL_FLAGS: ReadonlySet<string> = new Set([
+  '--token',
+  '--config',
+  '--api-url',
+  '--json',
+  '--quiet',
+  '--no-color',
+  '--version',
+]);
+
+/**
+ * What a user types to reach a command — `deployments upload`.
+ *
+ * The ROOT has no name in such a path: the deploy shortcut IS the program, so
+ * what a user types there is its ARGUMENT, and `ship <path>` is what the front
+ * page and every published doc call it. Rendering that from
+ * `registeredArguments` is what lets the shortcut appear in an owner list at
+ * all — read from the tree, like every other entry.
+ */
+function pathOf(command: Command): string {
+  const parts: string[] = [];
+  for (let c: Command | null = command; c?.parent; c = c.parent) parts.unshift(c.name());
+  if (!parts.length) parts.push(...command.registeredArguments.map((a) => `<${a.name()}>`));
+  return parts.join(' ');
+}
+
+/**
+ * Every command that declares this flag — INCLUDING the one it is given, which
+ * for the top call is the program, whose entry is the deploy shortcut.
+ *
+ * That inclusion is not cosmetic. `assertFlagsApply` returns early for the
+ * program precisely BECAUSE the program owns these flags, so a survey that
+ * structurally could not name it contradicted its own caller ten lines up —
+ * and left the advice pointing only at `ship deployments upload` while
+ * `ship <path> --domain …` is the spelling the docs lead with.
+ *
+ * Read, never restated. The shortcut comes first because the program is the
+ * root, which is also the order a reader wants.
+ */
+function ownersOf(command: Command, long: string): string[] {
+  return [
+    ...(command.options.some((o) => o.long === long) ? [pathOf(command)] : []),
+    ...command.commands.flatMap((sub) => ownersOf(sub, long)),
+  ];
+}
+
+/**
+ * A flag parses only where it means something.
+ *
+ * Commander recognises a PROGRAM option anywhere in argv — the same mechanism
+ * that lets `--json` follow a subcommand, so it is not something to switch
+ * off. The consequence is that the deploy shortcut's flags, which must live on
+ * the program because the shortcut IS the program, are also accepted in front
+ * of every other command, where nothing reads them: `ship --domain www.x.com
+ * domains list` parsed cleanly and dropped the domain, and a user who typed it
+ * believed they had linked one. Silent-swallow is the worse half of the
+ * defect — worse than a refusal, and worse than an unknown-option error.
+ *
+ * So the law is enforced where it can be: before any action runs, a
+ * command-owned flag that was actually TYPED must be declared by the command
+ * about to run. Presence is read from the SOURCE, never from the value —
+ * `--label` defaults to `[]` and `--no-path-detect` to `true`, so a truthiness
+ * test would refuse every subcommand always.
+ *
+ * POSITION is deliberately not part of the law: `ship --label x deployments
+ * upload ./dist` is honoured, because Commander stores it identically to the
+ * canonical spelling and telling the two apart would mean scanning raw argv
+ * beside the parser — a second parser, which this file refuses on the same
+ * grounds it refuses a second copy of the command tree. See CLAUDE.md,
+ * "Two flag tiers".
+ */
+function assertFlagsApply(program: Command, actionCommand: Command): void {
+  // The shortcut IS the program, so the program's own flags always apply.
+  if (actionCommand === program) return;
+
+  for (const option of program.options) {
+    const long = option.long;
+    if (!long || GLOBAL_FLAGS.has(long)) continue;
+    if (program.getOptionValueSource(option.attributeName()) !== 'cli') continue;
+    if (actionCommand.options.some((o) => o.long === long)) continue;
+
+    const owners = ownersOf(program, long).map((p) => `ship ${p}`);
+    throw usageError(
+      `option '${long}' does not apply to 'ship ${pathOf(actionCommand)}'${
+        owners.length ? ` — it belongs to ${owners.join(', ')}` : ''
+      }`,
+    );
+  }
 }
 
 /**
  * Process CLI options using Commander's built-in option merging.
  * Applies CLI-specific transformations (validation is done in preAction hook).
  */
-function processOptions(command: Command): GlobalOptions {
+function processOptions(command: Command): EffectiveOptions {
   const options = command.optsWithGlobals();
 
   // Convert Commander.js --no-color flag (color: false) to our convention (noColor: true)
@@ -245,7 +326,7 @@ function processOptions(command: Command): GlobalOptions {
     }
   }
 
-  return options as GlobalOptions;
+  return options as EffectiveOptions;
 }
 
 /**
@@ -306,14 +387,15 @@ interface Spinner {
 
 /**
  * Common deploy logic used by both shortcut and explicit commands.
+ *
+ * It takes the EFFECTIVE options and nothing else — every deploy flag reaches
+ * it through Commander's own merge, so there is no per-flag plumbing and no
+ * source to arbitrate between. See CLAUDE.md, "Two flag tiers".
  */
 async function performDeploy(
   client: Ship,
   deployPath: string,
-  labels: string[] | undefined,
-  password: string | undefined,
-  cmdOptions: DeployCommandOptions | undefined,
-  globalOptions: GlobalOptions,
+  options: EffectiveOptions,
 ): Promise<Deployment> {
   if (!existsSync(deployPath)) {
     throw ShipError.file(`${deployPath} path does not exist`, { filePath: deployPath });
@@ -344,6 +426,7 @@ async function performDeploy(
   };
 
   // Handle labels
+  const labels = labelsOf(options);
   if (labels !== undefined) deployOptions.labels = labels;
 
   // `SHIP_IDEMPOTENCY_KEY` is the subprocess-wrapping consumer's half of the
@@ -358,15 +441,14 @@ async function performDeploy(
 
   // Empty password strings flow through to the SDK validator (clear length
   // error) instead of being silently dropped.
+  const password = passwordOf(options);
   if (password !== undefined) deployOptions.password = password;
 
-  // Handle detection flags
-  if (cmdOptions?.noPathDetect !== undefined) {
-    deployOptions.pathDetect = !cmdOptions.noPathDetect;
-  }
-  if (cmdOptions?.noSpaDetect !== undefined) {
-    deployOptions.spaDetect = !cmdOptions.noSpaDetect;
-  }
+  // The detection flags, under the names Commander actually gives them —
+  // `--no-x` stores the POSITIVE key, defaulted true. Read as `noPathDetect` /
+  // `noSpaDetect` until 2026-08-12, which is to say never read at all.
+  if (options.pathDetect !== undefined) deployOptions.pathDetect = options.pathDetect;
+  if (options.spaDetect !== undefined) deployOptions.spaDetect = options.spaDetect;
 
   // Cancellation support
   const abortController = new AbortController();
@@ -374,12 +456,7 @@ async function performDeploy(
 
   // Spinner (TTY only, not JSON, not --no-color)
   let spinner: Spinner | null = null;
-  if (
-    process.stdout.isTTY &&
-    !globalOptions.json &&
-    !globalOptions.quiet &&
-    !globalOptions.noColor
-  ) {
+  if (process.stdout.isTTY && !options.json && !options.quiet && !options.noColor) {
     const { default: yoctoSpinner } = await import('yocto-spinner');
     spinner = yoctoSpinner({ text: 'uploading…' }).start();
   }
@@ -403,7 +480,7 @@ async function performDeploy(
  * THE link: upsert a domain and answer with it, DNS enrichment included.
  *
  * This is everything `ship domains set` does once its own grammar has produced
- * arguments — the stdin fallback and the label merge stay in that command,
+ * arguments — the stdin fallback and the label read stay in that command,
  * because they are how it reads a request, not how it links. What is left is
  * shared with the deploy's `--domain` arm, so the two spellings link
  * identically by construction rather than by anyone remembering to.
@@ -584,10 +661,14 @@ export function buildProgram(): Command {
     .allowExcessArguments();
 
   // Validate options early - before any action is executed
-  program.hook('preAction', (thisCommand) => {
+  program.hook('preAction', (thisCommand, actionCommand) => {
     const options = processOptions(thisCommand);
 
     try {
+      // Grammar before values: an invocation that names a flag the command
+      // cannot read is malformed, whatever the flag's value turns out to be.
+      assertFlagsApply(program, actionCommand);
+
       if (options.token && typeof options.token === 'string') {
         validateToken(options.token);
       }
@@ -639,24 +720,12 @@ export function buildProgram(): Command {
   // between them; there is nothing to keep in step.
   // ───────────────────────────────────────────────────────────────────────────
 
-  /** Everything both spellings share: merge the options, then deploy. */
-  const upload = (
-    client: Ship,
-    options: GlobalOptions,
-    deployPath: string,
-    cmdOptions?: DeployCommandOptions,
-  ) =>
-    performDeploy(
-      client,
-      deployPath,
-      mergeLabelOption(cmdOptions, program.opts() as LabelOptions),
-      mergePasswordOption(cmdOptions, program.opts() as { password?: string }),
-      cmdOptions,
-      options,
-    );
-
   /** A deploy, answering as the deployment it created. */
-  const deployOnly = withErrorHandling(upload, { operation: 'upload', resource: 'deployment' });
+  const deployOnly = withErrorHandling(
+    (client: Ship, options: EffectiveOptions, deployPath: string) =>
+      performDeploy(client, deployPath, options),
+    { operation: 'upload', resource: 'deployment' },
+  );
 
   /**
    * A deploy that also serves the result at `domain` — the one-intent spelling
@@ -676,12 +745,7 @@ export function buildProgram(): Command {
    */
   const deployAndLink = (domain: string) =>
     withErrorHandling(
-      async (
-        client: Ship,
-        options: GlobalOptions,
-        deployPath: string,
-        cmdOptions?: DeployCommandOptions,
-      ) => {
+      async (client: Ship, options: EffectiveOptions, deployPath: string) => {
         // Preflight, before a single file is read. An anonymous account cannot
         // own a domain, so `--domain` without a credential is ALWAYS a mistake
         // — and discovering it after the upload would have minted a public,
@@ -703,7 +767,7 @@ export function buildProgram(): Command {
           );
         }
 
-        const deployment = await upload(client, options, deployPath, cmdOptions);
+        const deployment = await performDeploy(client, deployPath, options);
 
         // Beat one, streamed: the deployment's own sentence the moment it
         // lands. Load-bearing rather than decorative — if the link then fails,
@@ -725,9 +789,9 @@ export function buildProgram(): Command {
    * plus a context resolved separately) branches on the same condition twice
    * and lets the two answers disagree.
    */
-  function runDeploy(this: Command, deployPath: string, cmdOptions?: DeployCommandOptions) {
-    const domain = mergeDomainOption(cmdOptions, program.opts() as { domain?: string });
-    return (domain ? deployAndLink(domain) : deployOnly).call(this, deployPath, cmdOptions);
+  function runDeploy(this: Command, deployPath: string) {
+    const { domain } = processOptions(this);
+    return (domain ? deployAndLink(domain) : deployOnly).call(this, deployPath);
   }
 
   /** The deploy flags, on both registrations — declared once, applied twice. */
@@ -784,15 +848,8 @@ export function buildProgram(): Command {
     .option('--label <label>', 'Label to set (can be repeated)', collect, [])
     .action(
       withErrorHandling(
-        async (
-          client: Ship,
-          _options: GlobalOptions,
-          deployment: string,
-          cmdOptions: LabelOptions,
-        ) => {
-          const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions) || [];
-          return client.deployments.set(deployment, { labels });
-        },
+        async (client: Ship, options: EffectiveOptions, deployment: string) =>
+          client.deployments.set(deployment, { labels: labelsOf(options) || [] }),
         {
           operation: 'set',
           resource: 'deployment',
@@ -907,10 +964,9 @@ export function buildProgram(): Command {
       withErrorHandling(
         async (
           client: Ship,
-          _options: GlobalOptions,
+          options: EffectiveOptions,
           name: string,
           deployment: string | undefined,
-          cmdOptions: LabelOptions,
         ) => {
           // Read deployment from stdin when piped (e.g., ship ./dist -q | ship domains set mysite.com)
           if (!deployment && !process.stdin.isTTY) {
@@ -921,7 +977,7 @@ export function buildProgram(): Command {
             });
           }
 
-          const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
+          const labels = labelsOf(options);
 
           const setOptions: { deployment?: string; labels?: string[] } = {};
           if (deployment) setOptions.deployment = deployment;
@@ -970,12 +1026,14 @@ export function buildProgram(): Command {
     .option('--label <label>', 'Label to set (can be repeated)', collect, [])
     .action(
       withErrorHandling(
-        (client: Ship, _options: GlobalOptions, cmdOptions: TokenCreateCommandOptions) => {
-          const options: { ttl?: number; labels?: string[] } = {};
-          if (cmdOptions?.ttl !== undefined) options.ttl = cmdOptions.ttl;
-          const labels = mergeLabelOption(cmdOptions, program.opts() as LabelOptions);
-          if (labels !== undefined) options.labels = labels;
-          return client.tokens.create(options);
+        (client: Ship, options: EffectiveOptions, cmdOptions: TokenCreateCommandOptions) => {
+          // `--ttl` is declared only here, so it arrives on this command's own
+          // options; `--label` is also on the program, so it arrives merged.
+          const create: { ttl?: number; labels?: string[] } = {};
+          if (cmdOptions?.ttl !== undefined) create.ttl = cmdOptions.ttl;
+          const labels = labelsOf(options);
+          if (labels !== undefined) create.labels = labels;
+          return client.tokens.create(create);
         },
         { operation: 'create', resource: 'token' },
       ),
@@ -1084,7 +1142,6 @@ export function buildProgram(): Command {
   withDeployOptions(program.argument('[path]', 'Path to deploy')).action(async function (
     this: Command,
     deployPath?: string,
-    cmdOptions?: DeployCommandOptions,
   ) {
     if (!deployPath) {
       this.outputHelp();
@@ -1107,7 +1164,7 @@ export function buildProgram(): Command {
       }
     }
 
-    return runDeploy.call(this, deployPath, cmdOptions);
+    return runDeploy.call(this, deployPath);
   });
 
   return program;

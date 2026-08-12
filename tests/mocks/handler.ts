@@ -36,6 +36,8 @@
 
 import {
   classifyToken,
+  DEPLOY_FIELDS,
+  DEPLOYMENT_CONFIG_FILENAME,
   type DeploymentDeleteResponse,
   type DeploymentListResponse,
   type DomainDeleteResponse,
@@ -223,10 +225,21 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
         } catch {}
       }
       const viaField = form?.get('via');
+      // `config` is derived from the UPLOADED FILES, exactly as the API derives
+      // it: a `ship.json` at the deploy root, optional leading slash, no other
+      // path forgiveness. That is what makes it an observation of what the
+      // client actually sent — `--no-spa-detect` means the SDK never appends
+      // one, and `--no-path-detect` means a nested one never reaches the root.
+      // wire: lib/deployment-config.ts:162 (findDeploymentConfigFile) →
+      // lib/deployment-response.ts:56 (`config: Boolean(...)`)
+      const uploaded = (form?.getAll(DEPLOY_FIELDS.FILES) ?? [])
+        .filter((entry): entry is File => entry instanceof File)
+        .map((file) => file.name.replace(/^\//, ''));
       const deployment = state.createDeployment(anonymous, {
         ...(labels !== undefined && { labels }),
         ...(typeof viaField === 'string' && viaField !== '' && { via: viaField }),
         password: typeof form?.get('password') === 'string',
+        config: uploaded.includes(DEPLOYMENT_CONFIG_FILENAME),
       });
       // Only 201s are stored — a failed attempt retries fresh.
       if (idempotencyKey) state.idempotency.set(idempotencyKey, deployment);

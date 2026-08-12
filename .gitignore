@@ -11,6 +11,15 @@ build/
 /lib/
 out/
 
+# …except under tests/fixtures, where a build-shaped directory IS the fixture.
+# `tests/fixtures/nested-site/dist/` exists so path detection has a common
+# parent to lift, and `dist/` above was silently swallowing it: the suite went
+# green locally against files that could never reach CI. The directory must be
+# re-included before its contents can be — git cannot re-include a file whose
+# parent directory is excluded.
+!tests/fixtures/**/dist/
+!tests/fixtures/**/dist/**
+
 # Logs
 logs
 *.log

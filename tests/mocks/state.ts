@@ -57,7 +57,7 @@ export interface MockState {
   findDeployment(idOrHostname: string): Deployment | undefined;
   createDeployment(
     anonymous: boolean,
-    fields?: { labels?: string[]; via?: string; password?: boolean },
+    fields?: { labels?: string[]; via?: string; password?: boolean; config?: boolean },
   ): DeploymentCreateResponse;
   createToken(body: { ttl?: number; labels?: string[] }): TokenCreateResponse;
   validateDomain(input: string): DomainValidateResponse;
@@ -98,6 +98,8 @@ export function createMockState(
         labels: fields.labels ?? [],
         via: fields.via ?? null,
         password: fields.password ?? false,
+        // Derived from the uploaded files by the route, like the API's own.
+        config: fields.config ?? false,
         // Anonymous deploys land under the public account: expiring, claimable.
         expires: anonymous ? now + PUBLIC_TTL_SECONDS : null,
       });
