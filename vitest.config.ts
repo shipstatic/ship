@@ -132,6 +132,12 @@ export default defineConfig({
           include: ['tests/**/*.e2e.test.ts'],
           setupFiles: ['tests/setup-e2e.ts'],
           testTimeout: 60000,
+          // The suite's beforeAll performs a REAL deploy, and hookTimeout is
+          // its own default (10s) regardless of testTimeout — tight enough to
+          // pass from a fast local link and fail from a GitHub runner, which
+          // is exactly how the first scheduled-run dispatch went red
+          // (2026-08-12). A real-API tier gets real-API budgets in both.
+          hookTimeout: 60000,
         },
       },
       {
