@@ -51,6 +51,11 @@ const ARTIFACT_TIER_EXCEPTIONS: ReadonlyArray<{ file: string; reason: string }> 
     file: 'tests/package/dist-entries.test.ts',
     reason: 'built-entry smoke — loads the published dist/ bundles the way a consumer does',
   },
+  {
+    file: 'tests/package/bundle-boundary.test.ts',
+    reason:
+      'artifact tier — reads what the BUILT bundles require, which is a property of the bytes rather than of any src module',
+  },
 ];
 
 /** Directories that are not part of the in-process suite. */
