@@ -94,6 +94,7 @@ describe('the URLs the resources build', () => {
         (r: ReturnType<typeof resources>) => r.domains.records('a/../b.example.com'),
       ],
       ['domains.share', (r: ReturnType<typeof resources>) => r.domains.share('a/../b.example.com')],
+      ['domains.set', (r: ReturnType<typeof resources>) => r.domains.set('a/../b.example.com')],
       ['deployments.get', (r: ReturnType<typeof resources>) => r.deployments.get('a/../b')],
       ['deployments.delete', (r: ReturnType<typeof resources>) => r.deployments.delete('a/../b')],
       [
