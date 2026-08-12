@@ -207,17 +207,45 @@ export interface ShipClientOptions {
 // =============================================================================
 
 /**
- * Event map for Ship SDK events
- * Core events for observability: request, response, error
+ * Event map for Ship SDK events.
+ *
+ * **Every failure is visible, and the event NAME says whether it ended the
+ * call.** One call emits `retry* (error | response)` — so the stream is
+ * unambiguous at every prefix, and a consumer never has to wait to find out
+ * what it is watching.
+ *
+ * `request` counts what went out; `retry` counts what failed and will be
+ * tried again; `error` and `response` are the two terminal answers, exactly
+ * one of which arrives.
  */
 export interface ShipEvents {
-  /** Emitted before each API request */
+  /** Emitted before each API request — once per ATTEMPT, so it counts what actually went out. */
   request: [url: string, init: RequestInit];
-  /** Emitted after successful API response */
+  /** Emitted after successful API response — once, on the attempt that worked. */
   response: [response: Response, url: string];
   /**
-   * Emitted when something fails. TWO populations arrive here, which is why
-   * the type is `Error` and not `ShipError`:
+   * Emitted when an attempt failed and the client is going to try again.
+   * Carries the same normalized `ShipError` the terminal `error` would, plus
+   * `attempt` — the number of the attempt that just failed, counting from 1,
+   * which matches the arithmetic the docs use ("two retries by default, so
+   * three attempts"). Under that numbering the value reads both ways at once:
+   * attempt N failing IS retry N, so `retry 1 of ${maxRetries}` needs no
+   * adjustment.
+   *
+   * This event exists so `error` can keep meaning what it always meant. When
+   * retries landed, `error` fired per attempt — honest about what happened,
+   * but it silently redefined the event: a consumer seeing `error, error,
+   * response` could not tell "failed, retrying" from "failed, terminally" at
+   * any prefix, and counting `error`s no longer counted failed calls. Two
+   * names, two meanings, and nothing lost: every failure is still announced.
+   *
+   * A failure the loop will NOT retry is terminal and emits `error` directly,
+   * never this. So is an abort that lands mid-backoff.
+   */
+  retry: [error: Error, url: string, attempt: number];
+  /**
+   * Emitted when the CALL failed — terminally, exactly once. TWO populations
+   * arrive here, which is why the type is `Error` and not `ShipError`:
    *
    *  - a failed request — always a `ShipError` (`executeRequest` normalizes
    *    every failure through `ShipError.fromFetchError` before emitting), so

@@ -14,6 +14,7 @@
  * one event per response, request-before-response) drive a Ship.
  */
 
+import { ErrorType, isShipError, type ShipError } from '@shipstatic/types';
 import { describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/node/index';
 import { SimpleEvents } from '../../src/shared/events';
@@ -289,39 +290,105 @@ describe('Ship event delegation', () => {
     expect(auth).toEqual([`Bearer ${apiKey('a')}`]);
   });
 
-  it('emits an error event when the transport fails', async () => {
-    const ship = newShip(
+  /**
+   * The vocabulary: every failure is visible, and the event NAME says whether
+   * it ended the call. One call emits `retry* (error | response)`.
+   *
+   * The retry tier briefly made `error` fire per ATTEMPT. Honest about what
+   * happened, and it silently redefined the event — a consumer seeing
+   * `error, error, response` could not tell "failed, retrying" from "failed,
+   * terminally" at any prefix, and counting `error`s stopped counting failed
+   * calls. These tests pin the correction; the earlier ones asserting three
+   * `error` events were pinning the shape it replaces.
+   */
+  describe('the event name says what ended the call', () => {
+    const alwaysFails = () =>
       vi.fn(async () => {
         throw new TypeError('fetch failed');
-      }) as unknown as Fetch,
-    );
-    const errors: Array<{ message: string; url: string }> = [];
+      }) as unknown as Fetch;
 
-    ship.on('error', (error, url) => errors.push({ message: error.message, url }));
+    it('a retried transport failure is retry, retry, error — never three errors', async () => {
+      const ship = newShip(alwaysFails());
+      const retries: Array<{ message: string; url: string; attempt: number }> = [];
+      const errors: Array<{ message: string; url: string }> = [];
 
-    await expect(ship.ping()).rejects.toThrow();
+      ship.on('retry', (error, url, attempt) =>
+        retries.push({ message: error.message, url, attempt }),
+      );
+      ship.on('error', (error, url) => errors.push({ message: error.message, url }));
 
-    // ONE PER ATTEMPT, not one per call: a transport failure is retried, and a
-    // consumer counting events must see what actually went out. Three is the
-    // default `maxRetries` of 2 plus the original attempt.
-    expect(errors).toHaveLength(3);
-    expect(new Set(errors.map((e) => e.url))).toEqual(new Set(['https://api.example.com/limits']));
-  });
+      await expect(ship.ping()).rejects.toThrow();
 
-  it('emits nothing extra when retries are disabled', async () => {
-    // `maxRetries: 0` is the knob's whole contract, and this is the pair that
-    // proves the count above is the retry rather than a leak.
-    const ship = new Ship({
-      apiUrl: 'https://api.example.com',
-      maxRetries: 0,
-      fetch: vi.fn(async () => {
-        throw new TypeError('fetch failed');
-      }) as unknown as Fetch,
+      // Every failure is still announced — three attempts, three events — but
+      // only the last one ended the call.
+      expect(retries).toHaveLength(2);
+      expect(errors).toHaveLength(1);
+      expect(new Set([...retries, ...errors].map((e) => e.url))).toEqual(
+        new Set(['https://api.example.com/limits']),
+      );
     });
-    const errors: string[] = [];
-    ship.on('error', (error) => errors.push(error.message));
 
-    await expect(ship.ping()).rejects.toThrow();
-    expect(errors).toHaveLength(1);
+    it('numbers the attempt that failed, counting from 1', async () => {
+      const ship = newShip(alwaysFails());
+      const attempts: number[] = [];
+      ship.on('retry', (_error, _url, attempt) => attempts.push(attempt));
+
+      await expect(ship.ping()).rejects.toThrow();
+
+      // Which is also which retry it is — see `ShipEvents.retry`.
+      expect(attempts).toEqual([1, 2]);
+    });
+
+    it('carries the same normalized ShipError the terminal error would', async () => {
+      const ship = newShip(alwaysFails());
+      const seen: unknown[] = [];
+      ship.on('retry', (error) => seen.push(error));
+      ship.on('error', (error) => seen.push(error));
+
+      await expect(ship.ping()).rejects.toThrow();
+
+      // A consumer watching `retry` gets a typed error, not a lesser one:
+      // same class, same type, same sentence as the answer.
+      expect(seen).toHaveLength(3);
+      for (const error of seen) {
+        expect(isShipError(error)).toBe(true);
+        expect((error as ShipError).type).toBe(ErrorType.Network);
+      }
+    });
+
+    it('a failure the loop will not retry is terminal at once — no retry event', async () => {
+      // The stream is unambiguous at every PREFIX, which is the property the
+      // per-attempt `error` lost: a first event of `error` means the call is
+      // over, and here it is over after one attempt.
+      const ship = newShip(stubApi(() => json({ error: 'validation_failed' }, 400)));
+      const retries: unknown[] = [];
+      const errors: unknown[] = [];
+      ship.on('retry', (error) => retries.push(error));
+      ship.on('error', (error) => errors.push(error));
+
+      await expect(ship.ping()).rejects.toThrow();
+
+      expect(retries).toEqual([]);
+      expect(errors).toHaveLength(1);
+    });
+
+    it('emits nothing extra when retries are disabled', async () => {
+      // `maxRetries: 0` is the knob's whole contract, and this is the pair
+      // that proves the counts above are the retry rather than a leak.
+      const ship = new Ship({
+        apiUrl: 'https://api.example.com',
+        maxRetries: 0,
+        fetch: alwaysFails(),
+      });
+      const retries: string[] = [];
+      const errors: string[] = [];
+      ship.on('retry', (error) => retries.push(error.message));
+      ship.on('error', (error) => errors.push(error.message));
+
+      await expect(ship.ping()).rejects.toThrow();
+
+      expect(retries).toEqual([]);
+      expect(errors).toHaveLength(1);
+    });
   });
 });

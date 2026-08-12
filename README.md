@@ -295,11 +295,16 @@ const deployment = await ship.deploy([
 ### Events
 
 ```javascript
-ship.on('request', (url, init) => {});
-ship.on('response', (response, url) => {});
-ship.on('error', (error, url) => {});
+ship.on('request', (url, init) => {});          // once per attempt
+ship.on('retry', (error, url, attempt) => {});  // an attempt failed, another is coming
+ship.on('response', (response, url) => {});     // the call succeeded
+ship.on('error', (error, url) => {});           // the call failed, terminally
 ship.off('request', handler);
 ```
+
+One call emits `retry* (error | response)` — every failure is announced, and
+the event name says whether it ended the call. `attempt` counts from 1, so it
+names both the attempt that failed and which retry is happening.
 
 ### Custom fetch
 
