@@ -37,6 +37,18 @@ export function toShipError(err: unknown): ShipError {
 }
 
 /**
+ * How a CLI user supplies a credential — the remedy, stated once.
+ *
+ * Two sentences offer it: the auth failure below, and the `--domain` preflight
+ * in `index.ts`, which refuses before it uploads anything. They are different
+ * messages about the same missing thing, so the advice is one fact with one
+ * owner. It is also a fact with a recorded future — the device flow
+ * (`CLAUDE.md`, "The device-flow future") adds a spelling to this list, and
+ * this is where it will be added.
+ */
+export const CREDENTIAL_HINT = 'pass --token, set SHIP_TOKEN, or run ship config';
+
+/**
  * CLI options relevant to error message generation.
  */
 export interface ErrorOptions {
@@ -61,7 +73,7 @@ export function getUserMessage(err: ShipError, options?: ErrorOptions): string {
     if (options?.token) {
       return 'authentication failed: invalid or expired token';
     }
-    return 'authentication required: pass --token, set SHIP_TOKEN, or run ship config';
+    return `authentication required: ${CREDENTIAL_HINT}`;
   }
 
   // Network errors — the transport failed before any response existed, so

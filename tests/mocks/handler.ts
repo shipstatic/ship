@@ -502,6 +502,22 @@ async function upsertDomain(request: Request, name: string, state: MockState) {
   const labels = Array.isArray(body.labels) ? (body.labels as string[]) : undefined;
   const existing = state.domains.find((d) => d.domain === name);
 
+  // CREATION-ONLY guards run before the deployment reference is checked, and
+  // existing domains are grandfathered past them. The technical one ship can
+  // reach: apex domains have no CNAME to point at, so the platform refuses to
+  // host them (root CLAUDE.md, "Custom Domain Model"). It is a ZodError, which
+  // the global handler turns into a 400 `validation_failed` carrying the
+  // schema's own sentence. `labels.length === 2` is the same PSL proxy
+  // `state.validateDomain` uses — the real check is `isApex` over the public
+  // suffix list. wire: lib/domains/upsert.ts:55 → lib/validation.ts:399-407
+  if (!existing && isCustomDomain(name) && name.split('.').length === 2) {
+    return fail(
+      ShipError.validation(
+        `Apex domains are not allowed. Please use a subdomain like 'www.${name}' instead.`,
+      ),
+    );
+  }
+
   if (existing) {
     // Merge: omitted fields keep their current value, and `created`/`linked`/
     // `links` are properties of the ROW — an update must not regenerate them.

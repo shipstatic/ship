@@ -63,6 +63,14 @@ export interface DeployCommandOptions extends LabelOptions {
   noPathDetect?: boolean;
   noSpaDetect?: boolean;
   password?: string;
+  /**
+   * `--domain`: serve this deployment at that domain, in one command.
+   *
+   * The only type-level edit the composed deploy needed — it links through the
+   * same `domains.set()` the `domains set` command runs, so it introduces no
+   * response shape, no formatter and no output row of its own.
+   */
+  domain?: string;
 }
 
 /**

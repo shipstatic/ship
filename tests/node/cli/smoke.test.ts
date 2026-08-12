@@ -70,6 +70,7 @@ COMMANDS
 FLAGS
   --token <token>           Any ship token: API key (ship-…) or deploy token (deploy-…)
   --config <file>           Custom config file path
+  --domain <domain>         Serve this deployment at a domain (needs a token)
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
   --no-path-detect          Disable automatic path optimization and flattening
@@ -81,6 +82,7 @@ FLAGS
 
 EXAMPLES
   ship ./dist
+  ship ./dist --domain www.example.com
   ship domains set www.example.com happy-cat-abc1234.shipstatic.com
   ship ./dist -q | ship domains set www.example.com
 

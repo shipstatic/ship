@@ -384,6 +384,12 @@ prints its answer instead — `ping`, `validate`, `records`, `dns`, `share`.
 `ACKNOWLEDGING` (`delete`, `verify`) names the mutations whose response is an
 acknowledgement and therefore has no entity to render beneath the sentence.
 
+`announce` has **two occasions, one writer**: `formatOutput` calls it for the
+answer, and `announceStep` calls it mid-command for the first beat of a
+composed one (`ship <path> --domain <name>`). `announceStep` is the only export
+— `announce` itself stays private, because a second exported sentence-maker is
+how six grammars happened the first time. See "Composability".
+
 The resulting sentences:
 
 ```
@@ -545,7 +551,88 @@ became strict JSON in 2.0.0 that fence needed no structural change, only its
 
 ```bash
 ship ./dist -q | ship domains set www.example.com
+ship ./dist --domain www.example.com          # the same two calls, one command
 ```
+
+**Both spellings are product; neither replaces the other, and this paragraph
+exists so the question stays answered.** The pipe composes *interactively* —
+any two commands, wherever `-q` hands the next one the value it wants — and it
+is the documented shell idiom. `--domain` exists because a pipeline is the
+wrong shape for CI: a workflow `run:` block is `bash -e` **without**
+`pipefail`, so a pipeline reports the LAST command's status and a failed deploy
+is masked by `domains set`'s own confusion — and a CI consumer needs the
+deploy's full `--json`, which `-q` deliberately discards. One process, one exit
+code, one JSON.
+
+**With `--domain`, the answer is the DOMAIN**, because the domain is what the
+user asked about: "deploy this *to www.example.com*" is a question about the
+destination, and `domains.set()` has always carried the answer — the `Domain`
+it returns holds the freshly linked deployment and the URL. So the composed
+command renders through the `domain.set` row that already exists: **no new
+type, no new response shape, no new formatter, no new output row.** The only
+type-level edit the whole feature needed was `DeployCommandOptions.domain`.
+
+Four consequences, each falling out rather than being arranged:
+
+- `-q` prints the domain name, because the quiet channel prints the row's key
+  and the row is `domain.set`'s.
+- `--json` transmits the `DomainSetResult`, internals stripped, byte-identical
+  to `ship domains set --json`.
+- A new external domain gets the same first-link DNS enrichment, because
+  `performDomainSet` is literally the same function `domains set` calls.
+- **`ship ./dist -q` without the flag still prints the deployment id.** The
+  pipe seed is untouched, forever, with a test pinning it.
+
+**The flag chooses which command runs, not what one command does.** `runDeploy`
+reads `--domain` ONCE and picks between two `withErrorHandling` pairs —
+`deployOnly` under `{upload, deployment}` and `deployAndLink(domain)` under
+`{set, domain}`. Identity and behaviour are therefore chosen together, from one
+reading. The alternative shapes were both considered and are worse: a result
+carrying an internal `_context` override would be **the response deciding the
+output**, which is the exact thing `OUTPUTS` exists to forbid (see
+"`formatOutput` Router"); a static action plus a separately-resolved context
+branches on one condition in two places and lets the two answers disagree.
+
+Two beats in the text channel, one sentence-writer. `announceStep` (exported
+from `formatters.ts`) writes the deployment's own sentence the moment the
+upload lands — streamed like the spinner, and load-bearing rather than
+decorative: if the link then fails, the id the user has already paid for is on
+screen. A beat is the **sentence alone**, in the **text channel alone**: the
+details block belongs to the answer, and `--json` still has exactly one exit
+while `-q` still prints exactly one key. `announce` stays private — this is a
+second OCCASION for it, not a second writer.
+
+**`--domain` refuses without a credential BEFORE it reads a file.** An
+anonymous account cannot own a domain, so the invocation is unsatisfiable, and
+discovering that after the upload would have minted a public, expiring,
+claimable deployment as the side effect of a failed *authenticated* intent —
+which the fail-closed anonymity invariant forbids. It asks `resolveCliToken`,
+i.e. the credential the CLI RESOLVED, so a fourth source slots in there and
+never here. The error is statusless `Config`, per "What a status means": no
+exchange happened, so there is no HTTP status to report, and `Authentication`
+would both carry a 401 for a request never made and hand the sentence to
+`getUserMessage`'s generic auth arm — losing the one thing worth saying, which
+is that it is `--domain` that needs the token. The remedy itself
+(`CREDENTIAL_HINT` in `error-handling.ts`) is one fact with one owner, shared
+with the auth message, because the device flow will change both at once.
+
+A link failure is **not** rolled back: a deployed-but-unlinked site is a valid
+platform state, and an idempotent re-run replays the deploy and simply links
+again.
+
+**Recorded absences** (decisions, not gaps):
+
+- **No SDK `domain` deploy option.** The SDK mirrors the wire 1:1
+  (`resource.action()` per endpoint); composition is CLI grammar, exactly as
+  DNS enrichment is CLI-only. An SDK consumer composes two typed calls.
+- **No `SHIP_DOMAIN` env var.** The CLI-only env tier exists for values a
+  subprocess wrapper cannot put on argv (secrets, ambient keys). A domain rides
+  argv fine.
+- **No domain prevalidation before the upload.** Parity with the verb it
+  names: `domains set` does not prevalidate either. The API refuses at link
+  time with its own message, and the idempotent replay makes the retry cheap.
+  The credential preflight above is different in kind — it prevents a *wrong
+  deploy*, not a wrong link.
 
 ### Table Output
 
@@ -561,6 +648,19 @@ Always call `processOptions(this)` inside action handlers — not `program.opts(
 ### `performDeploy` Helper
 
 Shared deploy logic used by both `ship <path>` shortcut and `ship deployments upload`. Handles: path existence/type validation, option merging (labels, `--no-path-detect`, `--no-spa-detect`), AbortController for Ctrl+C, and a spinner (TTY only, suppressed in `--json` and `--no-color` modes).
+
+**The two spellings register the SAME action function.** `runDeploy` is what
+`.action()` receives on both, and both take their flags from one
+`withDeployOptions(cmd)`, so the flag set and the behaviour cannot drift
+between them — there is nothing to keep in step. `runDeploy` then reads
+`--domain` and dispatches to `deployOnly` or `deployAndLink(domain)`; see
+"Composability" for why the flag picks a command rather than modifying one.
+
+`performDomainSet` is its counterpart on the domain side: everything
+`ship domains set` does once its own grammar has produced arguments. The stdin
+fallback and the label merge stay in that command — they are how it reads a
+request, not how it links — and what is left is shared with the `--domain` arm,
+so both spellings link identically by construction.
 
 ### Command Handler Pattern
 
@@ -1063,6 +1163,7 @@ edits ship alone" — the same separability, one seam over).
 |------------|--------------|-------|
 | `deployments.upload()` | `POST /deployments` | Multipart upload |
 | ↳ `idempotencyKey` | header `Idempotency-Key` | Replays the original 201 within 24h instead of deploying twice. Key the ATTEMPT (run id, commit sha), never the try. |
+| ↳ CLI `--domain` | *(no endpoint)* | Composed CLIENT-side: this upload, then `domains.set()` with the fresh id. Two wire calls, no new route, no SDK option — see "Composability". |
 | `deployments.list()` | `GET /deployments` | Paginated — `{limit, cursor}` options (`--limit`/`--cursor` on the CLI; text mode prints a rerun hint while `--json` carries `cursor`) |
 | `deployments.get()` | `GET /deployments/:deployment` | |
 | `deployments.set()` | `PATCH /deployments/:deployment` | Labels only |

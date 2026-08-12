@@ -398,6 +398,164 @@ describe('CLI command tree (in-process)', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Deploy + link, one command
+  // ---------------------------------------------------------------------------
+
+  describe('deploy: --domain', () => {
+    /**
+     * BOTH spellings, every time. They register the same action function, so
+     * parity is structural — but the flag is the reason that function exists,
+     * so it is the one place worth asserting rather than assuming.
+     */
+    const FORMS: Array<[string, string[]]> = [
+      ['shortcut', [DEMO_SITE]],
+      ['deployments upload', ['deployments', 'upload', DEMO_SITE]],
+    ];
+
+    const deployTo = (form: string[], domain: string, ...flags: string[]) =>
+      runProgram([...flags, ...form, '--domain', domain]);
+
+    it.each(FORMS)('%s: answers as the domain it created', async (form, argv) => {
+      const domain = `www.${form.replace(/\s/g, '-')}-create.com`;
+      const result = await deployTo(argv, domain, '--json');
+
+      expect(result.exitCode).toBe(0);
+      const output = JSON.parse(result.stdout.trim());
+      // The DomainSetResult, exactly as `domains set --json` answers — the
+      // linked deployment is `.deployment`, per the entity.
+      expect(output.domain).toBe(domain);
+      expect(output.deployment).toMatch(/^mock-deploy-\d{3}\.shipstatic\.com$/);
+      expect(output.links).toBe(1);
+      // Internals stay internal here too: one law, not a per-command habit.
+      expect(output.isCreate).toBeUndefined();
+      expect(output._dnsRecords).toBeUndefined();
+      expect(output._shareHash).toBeUndefined();
+    });
+
+    it.each(FORMS)('%s: -q prints the domain, not the deployment', async (form, argv) => {
+      const domain = `www.${form.replace(/\s/g, '-')}-quiet.com`;
+      const result = await deployTo(argv, domain, '-q');
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe(domain);
+    });
+
+    it.each(FORMS)('%s: refuses without a credential, before uploading', async (_form, argv) => {
+      const before = mockState().deployments.length;
+      const result = await runProgram(['--json', ...argv, '--domain', 'www.keyless.com'], {
+        anonymous: true,
+      });
+
+      expect(result.exitCode).toBe(1);
+      // The ordering assertion, and the reason the preflight exists: a deploy
+      // that ran here would have minted a public, expiring, claimable
+      // deployment as the side effect of a failed authenticated intent.
+      expect(mockState().deployments).toHaveLength(before);
+
+      const envelope = JSON.parse(result.stderr.trim());
+      expect(envelope.error).toBe(ErrorType.Config);
+      // Statusless: nothing was exchanged, so there is no HTTP fact to report.
+      expect(envelope.status).toBeUndefined();
+      // It names the flag, because the same deploy without it works fine.
+      expect(envelope.message).toContain('--domain');
+      expect(envelope.message).toContain('SHIP_TOKEN');
+    });
+
+    it('text prints two beats: the deployment, then the domain', async () => {
+      const result = await runProgram([DEMO_SITE, '--domain', 'www.two-beats.com']);
+      expect(result.exitCode).toBe(0);
+
+      const deployed = result.stdout.indexOf('deployment uploaded');
+      const linked = result.stdout.indexOf('www.two-beats.com domain created');
+      expect(deployed).toBeGreaterThanOrEqual(0);
+      expect(linked).toBeGreaterThan(deployed);
+      // Beat one is the SENTENCE alone — the details block belongs to the
+      // answer, which is the domain.
+      expect(result.stdout).not.toContain('screenshot:');
+    });
+
+    it('a new external domain carries the same first-link DNS enrichment', async () => {
+      const result = await runProgram([DEMO_SITE, '--domain', 'www.enriched.com']);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain(A_RECORD_IP);
+      expect(result.stdout).toContain(CNAME_TARGET);
+      expect(result.stdout).toContain('https://setup.shipstatic.com/');
+    });
+
+    it('a second deploy to the same domain repoints it — "updated", not "created"', async () => {
+      const first = await runProgram(['--json', DEMO_SITE, '--domain', 'www.repointed.com']);
+      const second = await runProgram([DEMO_SITE, '--domain', 'www.repointed.com']);
+      expect(second.exitCode).toBe(0);
+      expect(second.stdout).toContain('www.repointed.com domain updated');
+
+      const after = await runProgram(['--json', 'domains', 'get', 'www.repointed.com']);
+      const row = JSON.parse(after.stdout.trim());
+      expect(row.links).toBe(2);
+      expect(row.deployment).not.toBe(JSON.parse(first.stdout.trim()).deployment);
+    });
+
+    it('a failed link leaves the deployment reported and exits non-zero', async () => {
+      // An apex domain: the platform hosts no apex (there is no CNAME to point
+      // at it), so the upsert's creation guard refuses. The deploy SUCCEEDED
+      // and is not rolled back — a deployed-but-unlinked site is a valid
+      // platform state, and an idempotent re-run replays and links again.
+      const before = mockState().deployments.length;
+      const result = await runProgram([DEMO_SITE, '--domain', 'apex.com']);
+
+      expect(result.exitCode).toBe(1);
+      expect(mockState().deployments).toHaveLength(before + 1);
+      // Beat one already ran, so the id the user paid for is on screen.
+      expect(result.stdout).toContain('deployment uploaded');
+      // The wire's own sentence, relayed.
+      expect(result.stderr).toContain('apex domains are not allowed');
+    });
+
+    it('--json emits the error envelope when the link fails, and nothing else', async () => {
+      const result = await runProgram(['--json', DEMO_SITE, '--domain', 'apex.com']);
+
+      expect(result.exitCode).toBe(1);
+      // One JSON exit: the deployment's beat is a text-channel sentence, so a
+      // parser sees exactly one document and it is the failure.
+      expect(result.stdout.trim()).toBe('');
+      const envelope = JSON.parse(result.stderr.trim());
+      expect(envelope.error).toBe(ErrorType.Validation);
+      expect(envelope.status).toBe(400);
+    });
+
+    it('-q emits nothing when the link fails', async () => {
+      const result = await runProgram(['-q', DEMO_SITE, '--domain', 'apex.com']);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout.trim()).toBe('');
+    });
+
+    it('without the flag, -q still prints the deployment id — the pipe seed', async () => {
+      // `ship ./dist -q | ship domains set <name>` is documented shell idiom
+      // and stays. `--domain` is the one-intent spelling of the same two calls,
+      // not its replacement, so the seed must be untouched forever.
+      const result = await runProgram(['-q', DEMO_SITE]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toMatch(/^mock-deploy-\d{3}\.shipstatic\.com$/);
+    });
+
+    it('carries the deploy flags it shares the command with', async () => {
+      const result = await runProgram([
+        '--json',
+        DEMO_SITE,
+        '--domain',
+        'www.labelled.com',
+        '--label',
+        'production',
+      ]);
+      expect(result.exitCode).toBe(0);
+      // Labels are the DEPLOYMENT's; the answer is the domain, so read them
+      // back off the deployment the domain now names.
+      const linked = JSON.parse(result.stdout.trim()).deployment;
+      const deployment = await runProgram(['--json', 'deployments', 'get', linked]);
+      expect(JSON.parse(deployment.stdout.trim()).labels).toEqual(['production']);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Deployments resource commands
   // ---------------------------------------------------------------------------
 

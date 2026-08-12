@@ -127,6 +127,35 @@ function announce(result: CLIResult, context: OutputContext): string | null {
 }
 
 /**
+ * The FIRST of two beats: a composed command's intermediate mutation gets its
+ * sentence the moment it lands, and nothing else.
+ *
+ * `ship <path> --domain <name>` deploys and then links, and its answer is the
+ * domain — but the deployment is real before the link is attempted, and if the
+ * link then fails, the id the user just paid for must already be on screen. So
+ * the sentence is written mid-command, streamed like the spinner rather than
+ * held for the end.
+ *
+ * **A beat is the sentence alone**, never an entity: the details block, the
+ * key, and the JSON belong to the ANSWER, which `formatOutput` still emits
+ * exactly once. Hence the two channels this returns from — `--json` has one
+ * exit and `-q` prints one key, and a second emission in either would be the
+ * law broken rather than a beat added.
+ *
+ * `announce` stays private: one function composes every sentence the CLI makes
+ * about a mutation, and this is a second OCCASION for it, not a second writer.
+ */
+export function announceStep(
+  result: CLIResult,
+  context: OutputContext,
+  options: FormatOptions,
+): void {
+  if (options.json || options.quiet) return;
+  const sentence = announce(result, context);
+  if (sentence) success(sentence, false, options.noColor);
+}
+
+/**
  * The CLI's verb vocabulary — every command declares one.
  *
  * A union rather than `string` because `operation` selects behaviour:
