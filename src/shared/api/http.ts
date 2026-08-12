@@ -243,9 +243,16 @@ export class ApiHttp extends SimpleEvents {
    * for headers, the timeout signal, the events and error normalization — so
    * an attempt is a whole request and nothing has to be undone between two.
    *
-   * **Events stay honest across attempts**: `request` and `error` fire per
-   * attempt, so a consumer counting requests sees what actually went out;
-   * `response` fires once, on the one that worked.
+   * **Every failure is visible, and the event NAME says whether it ended the
+   * call.** One call emits `retry* (error | response)`: `request` fires per
+   * attempt, so a consumer counting requests sees what actually went out; a
+   * failure that will be tried again is a `retry`; `error` and `response` are
+   * the two terminal answers, exactly one of which arrives.
+   *
+   * The failure events are emitted HERE rather than in `attemptOnce`, and
+   * that placement is the whole mechanism: terminality is a property of the
+   * loop — of `isRetryable` and the attempt budget — so it is knowable only
+   * at the one point that owns both. An attempt cannot name its own failure.
    *
    * **The caller's `timeout` governs an ATTEMPT, not the wall clock.** Each
    * attempt is an honest request and deserves the ceiling the caller named;
@@ -263,9 +270,15 @@ export class ApiHttp extends SimpleEvents {
       try {
         return await this.attemptOnce<T>(url, options, operationName, timeoutMs);
       } catch (error) {
-        // `attemptOnce` already normalized and emitted; this is a pass-through.
+        // `attemptOnce` already normalized; this is a pass-through.
         const shipError = ShipError.fromFetchError(error, operationName);
-        if (attempt >= this.maxRetries || !this.isRetryable(shipError, options)) throw shipError;
+        if (attempt >= this.maxRetries || !this.isRetryable(shipError, options)) {
+          this.emit('error', shipError, url);
+          throw shipError;
+        }
+        // Counting from 1: the attempt that just failed, which is also which
+        // retry is about to happen. See `ShipEvents.retry`.
+        this.emit('retry', shipError, url, attempt + 1);
 
         // Full jitter: `random() * min(cap, base * 2^n)`. Jitter matters more
         // than the curve — it is what stops a platform hiccup from returning
@@ -274,7 +287,8 @@ export class ApiHttp extends SimpleEvents {
         try {
           await sleep(Math.random() * ceiling, options.signal);
         } catch (aborted) {
-          // The caller stopped us mid-backoff. Their reason, their error.
+          // The caller stopped us mid-backoff. Their reason, their error — and
+          // terminal, so it is an `error` and not a second `retry`.
           const cancelled = ShipError.fromFetchError(aborted, operationName);
           this.emit('error', cancelled, url);
           throw cancelled;
@@ -356,7 +370,12 @@ export class ApiHttp extends SimpleEvents {
   }
 
   /**
-   * One attempt: headers, timeout signal, events, and error normalization.
+   * One attempt: headers, timeout signal, the `request`/`response` events, and
+   * error normalization.
+   *
+   * It does NOT emit a failure event. An attempt cannot know whether its own
+   * failure ended the call — that is `executeRequest`'s question — so it
+   * normalizes and throws, and the loop names what happened.
    */
   private async attemptOnce<T>(
     url: string,
@@ -398,9 +417,7 @@ export class ApiHttp extends SimpleEvents {
       // Normalize anything thrown above (credential resolution, fetch
       // failure, abort, response error) into a ShipError.
       // fromFetchError passes existing ShipErrors through unchanged.
-      const shipError = ShipError.fromFetchError(error, operationName);
-      this.emit('error', shipError, url);
-      throw shipError;
+      throw ShipError.fromFetchError(error, operationName);
     }
   }
 

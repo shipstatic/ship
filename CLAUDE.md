@@ -143,12 +143,23 @@ Resources are factory functions that receive a `ResourceContext` (`getApi`, `ens
 
 **Transport injection (`fetch`):** `ShipClientOptions.fetch` overrides the function used for every outbound API call. Defaults to `globalThis.fetch` (captured at construction). Any `fetch`-compatible function works — typical uses include a Cloudflare service-binding `Fetcher` for Worker-to-Worker calls, tracing/retry wrappers, and test mocks. All downstream machinery (events, timeouts, `AbortSignal`, multipart bodies, `ShipError` normalisation) operates on standard `Request`/`Response`, so the injected fetcher inherits everything for free.
 
-**Events:**
+**Events — every failure is visible, and the event NAME says whether it ended
+the call:**
 ```typescript
-ship.on('request', (url, init) => ...);
-ship.on('response', (response, url) => ...);
-ship.on('error', (error, url) => ...);
+ship.on('request', (url, init) => ...);          // once per ATTEMPT
+ship.on('retry', (error, url, attempt) => ...);  // that attempt failed; another is coming
+ship.on('response', (response, url) => ...);     // the call succeeded
+ship.on('error', (error, url) => ...);           // the call failed, terminally
 ```
+
+One call emits `retry* (error | response)`, so the stream is unambiguous at
+every PREFIX — a consumer never has to wait to learn what it is watching. The
+failure events are emitted by `executeRequest`, not `attemptOnce`, and that
+placement IS the mechanism: terminality is a property of the loop, so an
+attempt cannot name its own failure. `attempt` counts from 1, which makes the
+value read both ways at once — attempt N failing IS retry N.
+
+See "Retries" for why this replaced a per-attempt `error`.
 
 ### Authentication Flow
 
@@ -846,10 +857,25 @@ Node, Bun and the three engines), so each keeps its identity: ours is a
 same change removes the abort listener on cleanup, which was harmless when
 there was one attempt and a leak that grows once there are three.
 
-**Events stay honest:** `request` and `error` fire per ATTEMPT, so a consumer
-counting requests sees what actually went out; `response` fires once, on the
-one that worked. Two existing tests asserted one error per call and now assert
-three — that change IS the contract, not a concession to it.
+**Events stay honest, and `error` still means what it always meant.** The
+first cut of this tier made `request` and `error` fire per ATTEMPT. Honest
+about what happened — and it silently redefined `error`: before retries, an
+error-event count equalled failed CALLS; after, a consumer saw
+`error, error, response` and could not tell "failed, retrying" from "failed,
+terminally" at any prefix. That is a semantic change to an event every
+existing consumer already had a handler for.
+
+So the vocabulary gained a word instead. `request` stays per attempt (a
+request truly went out). A failed attempt that will be tried again emits
+**`retry`**, carrying the same normalized `ShipError`, the URL, and the
+attempt number. `error` is terminal and fires exactly once per failed call —
+including a mid-backoff abort, which ends the call. `response` fires once, on
+the attempt that worked. Nothing is hidden and nothing is ambiguous:
+`retry* (error | response)`.
+
+Corrected on the beta channel in `2.2.0-beta.7`, two prereleases after the
+shape it replaces (`beta.5`, `beta.6`). The tests asserting three `error`
+events were pinning that shape, and were rewritten rather than relaxed.
 
 **Surface:** `maxRetries` on `ShipClientOptions`, `0` disables. One knob, the
 name Stripe and OpenAI use, which by this file's own doc-placement rule is

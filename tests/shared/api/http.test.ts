@@ -1475,17 +1475,25 @@ describe('ApiHttp', () => {
       expect(onResponse).toHaveBeenCalledWith(expect.anything(), 'https://api.test.com/ping');
     });
 
-    it('should emit error event when injected fetcher throws', async () => {
+    it('should emit retry then a terminal error event when injected fetcher throws', async () => {
       const injected = vi.fn<Fetch>().mockRejectedValue(new TypeError('fetch failed'));
       const api = new ApiHttp({ ...mockOptions, fetch: injected });
 
+      const onRetry = vi.fn();
       const onError = vi.fn();
+      api.on('retry', onRetry);
       api.on('error', onError);
 
       await expect(api.ping()).rejects.toBeInstanceOf(ShipError);
-      // One per ATTEMPT — a transport failure is retried twice by default.
-      expect(onError).toHaveBeenCalledTimes(3);
+      // Three attempts, three events — but only the last one ended the call.
       expect(injected).toHaveBeenCalledTimes(3);
+      expect(onRetry).toHaveBeenCalledTimes(2);
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onRetry).toHaveBeenCalledWith(
+        expect.any(ShipError),
+        'https://api.test.com/ping',
+        expect.any(Number),
+      );
       expect(onError).toHaveBeenCalledWith(expect.any(ShipError), 'https://api.test.com/ping');
     });
   });
