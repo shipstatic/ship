@@ -330,6 +330,13 @@ describe('the published docs describe this code', () => {
     // proving nothing — the tautology this fence's own history warns about.
     expect(declaredFlags.length).toBeGreaterThan(10);
     expect(declaredFlags.map((f) => f.flag)).toContain('--token');
+
+    // And the matcher must be able to say NO. Quantifying over a real surface
+    // proves the inputs are non-empty; it does not prove the judgement is,
+    // and a matcher that answered `true` for everything would make "every
+    // flag is taught" unfailable while reading exactly as it does now.
+    expect(isTaught('--token')).toBe(true);
+    expect(isTaught('--flag-that-cannot-exist')).toBe(false);
   });
 
   it('every flag the CLI has is taught by a published doc', () => {
