@@ -23,7 +23,7 @@ import type {
   Token,
   TokenCreateResponse,
 } from '@shipstatic/types';
-import { API_KEY, DEPLOY_TOKEN } from '@shipstatic/types';
+import { API_KEY, DEPLOY_TOKEN, OAUTH_TOKEN } from '@shipstatic/types';
 
 // =============================================================================
 // PLATFORM CONSTANTS (wire truth)
@@ -106,7 +106,7 @@ export const timestamps = {
 export const deploymentId = (slug = 'brave-otter-a1b2c3d') => `${slug}.${PLATFORM_DOMAIN}`;
 
 /**
- * The two prefixed credential populations, built from their own shape
+ * The three prefixed credential populations, built from their own shape
  * constants. The widths are READ, never written: this file exists because
  * fixtures that fail the platform's real validators calibrate tests against
  * inputs no user can send, and a hand-typed length is the version of that
@@ -117,6 +117,16 @@ export const apiKey = (fill = 'a') => `${API_KEY.PREFIX}${fill.repeat(API_KEY.HE
 /** wire: types DEPLOY_TOKEN — same width as `apiKey` by the shape law. */
 export const deployToken = (fill = 'b') =>
   `${DEPLOY_TOKEN.PREFIX}${fill.repeat(DEPLOY_TOKEN.HEX_LENGTH)}`;
+
+/**
+ * wire: types OAUTH_TOKEN — the delegated population, prefixed since
+ * 2026-08-14. It reaches this SDK the same way the other two do (a bearer in
+ * the one credential slot), so the client needs no new code for it — but it
+ * needs a fixture at the real width, because a hand-written `oauth-…` string
+ * is now a malformed member of a real population rather than an opaque value.
+ */
+export const oauthToken = (fill = 'c') =>
+  `${OAUTH_TOKEN.PREFIX}${fill.repeat(OAUTH_TOKEN.HEX_LENGTH)}`;
 
 /**
  * Claim URL, on the `my.` host: the singular door, then a bare code at the
