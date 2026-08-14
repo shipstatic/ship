@@ -2,11 +2,12 @@ import type { Mock } from 'vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
 import type { DeployInput, DeploymentOptions, StaticFile } from '../../src/shared/types';
-import { apiKey, deployToken } from '../fixtures/builders';
+import { apiKey, deployToken, oauthToken } from '../fixtures/builders';
 import { fakeTransport } from '../mocks/transport';
 
 const TEST_API_KEY = apiKey('a');
 const TEST_DEPLOY_TOKEN = deployToken('b');
+const TEST_OAUTH_TOKEN = oauthToken('c');
 
 // Concrete test implementation. The `ensureInitialized` no-op skips the
 // `GET /limits` fetch — these tests focus on the credential model and don't
@@ -52,18 +53,24 @@ describe('The credential slot', () => {
   describe('static token', () => {
     it('emits any platform token verbatim as the bearer', async () => {
       // One slot, three populations: the value's shape says what it is;
-      // the server classifies — the client never has to.
-      for (const token of [TEST_API_KEY, TEST_DEPLOY_TOKEN, 'oauth-opaque-access-token']) {
+      // the server classifies — the client never has to. The third row was
+      // the literal `'oauth-opaque-access-token'` until the OAuth population
+      // got a prefix, at which point it stopped being an opaque string and
+      // became a malformed member of a real one, which the boundary refuses.
+      for (const token of [TEST_API_KEY, TEST_DEPLOY_TOKEN, TEST_OAUTH_TOKEN]) {
         const ship = new TestShip({ apiUrl: 'https://test-api.com', token });
         expect(await (ship as any).getAuthHeaders()).toEqual({ Authorization: `Bearer ${token}` });
       }
     });
 
     it('validates prefixed tokens at the boundary', () => {
-      // ship- and deploy- values carry format guarantees; a malformed one
-      // fails fast locally instead of as a confusing server 401.
+      // All three populations carry format guarantees; a malformed one fails
+      // fast locally instead of as a confusing server 401. `oauth-` joined
+      // them on 2026-08-14 — the SDK needed no code for it, because
+      // `validateToken` classifies and the constitution owns the rules.
       expect(() => new TestShip({ token: 'ship-tooshort' })).toThrow(/characters total/);
       expect(() => new TestShip({ token: 'deploy-tooshort' })).toThrow(/characters total/);
+      expect(() => new TestShip({ token: 'oauth-tooshort' })).toThrow(/characters total/);
     });
 
     it('normalizes empty string to absence (anonymous)', async () => {
