@@ -21,8 +21,7 @@ ship ./dist
 2. The terminal prints the live URL, plus a **claim link**
 3. Open the claim link to keep the site permanently, or configure a token
    (environment, config file, or `--token`) so deploys land in your account
-   from the start — that token is your API key, one credential under two
-   names
+   from the start. That token is your API key — one credential, two names.
 
 ## Command Examples
 
