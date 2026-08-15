@@ -1,0 +1,8 @@
+# The SDK bundle is COPIED from ../../dist by `pnpm copy`, which `prestart`
+# runs before every `pnpm start`. It is a build artifact, not source.
+#
+# It used to be committed, and that is exactly how this example came to ship a
+# two-major-stale bundle teaching a retired credential prefix: nothing rebuilt
+# it and nothing checked it. A generated file that is regenerated on every run
+# cannot drift; a generated file in git can only drift.
+ship.js

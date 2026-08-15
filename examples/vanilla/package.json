@@ -1,12 +1,14 @@
 {
-  "name": "browser-example",
+  "name": "vanilla-example",
   "version": "1.0.0",
+  "private": true,
   "scripts": {
+    "prestart": "pnpm run copy",
     "start": "serve .",
-    "clean": "rm -f ./ship.js",
-    "copy": "pnpm run clean && cp ../../dist/browser.js ./ship.js"
+    "copy": "cp ../../dist/browser.js ./ship.js",
+    "clean": "rm -f ./ship.js"
   },
   "devDependencies": {
-    "serve": "^14.2.0"
+    "serve": "^14.2.5"
   }
 }
