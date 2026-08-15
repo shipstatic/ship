@@ -29,7 +29,7 @@ async function deploy() {
   const directoryToDeploy = process.argv[2] || '.';
   
   const ship = new Ship({
-    // apiKey: 'ship-your-key-here'
+    // token: 'ship-your-api-key'
   });
 
   console.log('Deploying...');

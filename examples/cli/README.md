@@ -32,7 +32,7 @@ Basic deployment commands:
 ship .
 
 # Deploy with a token (your API key)
-ship ./dist --token ship-your-key
+ship ./dist --token ship-your-api-key
 
 # Deploy with labels
 ship ./dist --label production --label v1.0.0

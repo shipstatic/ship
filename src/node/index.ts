@@ -35,7 +35,7 @@ export * from '../shared/index.js';
  * @example
  * ```typescript
  * // Authenticated — explicit token (API key, deploy token, or OAuth bearer)
- * const ship = new Ship({ token: 'ship-xxxx' });
+ * const ship = new Ship({ token: 'ship-your-api-key' });
  *
  * // Authenticated — picks up SHIP_TOKEN from env
  * const ship = new Ship({});
