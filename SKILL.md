@@ -203,6 +203,8 @@ ship domains set www.example.com <dep> --json
 }
 ```
 
+Always show the user the records **from this response**, never values copied out of this document — they come from the platform and can change.
+
 ```bash
 ship domains records www.example.com --json
 ```
