@@ -40,7 +40,7 @@ ship config    # paste your API key when prompted
 ```
 
 ```javascript
-const ship = new Ship({ token: 'ship-...' });
+const ship = new Ship({ token: 'ship-your-api-key' });
 ```
 
 ### Deployments
@@ -235,10 +235,10 @@ Available on `ship <path>` and `ship deployments upload`:
 const ship = new Ship();
 
 // API key — durable, full account
-const ship = new Ship({ token: 'ship-...' });
+const ship = new Ship({ token: 'ship-your-api-key' });
 
 // Deploy token — scoped to deploys, optional TTL, revocable
-const ship = new Ship({ token: 'deploy-...' });
+const ship = new Ship({ token: 'deploy-your-token' });
 
 // OAuth access token — delegated, short-lived, sent verbatim
 const ship = new Ship({ token: accessToken });
@@ -250,7 +250,7 @@ const ship = new Ship({ token: () => mintToken() });
 const ship = new Ship({ session: true });
 
 // Set or rotate the token after construction
-ship.setToken('ship-...');
+ship.setToken('ship-your-api-key');
 ```
 
 ### Retries
@@ -260,7 +260,7 @@ timeout) and 500/502/503/504, twice by default, with full-jitter exponential
 backoff. `maxRetries` is the knob; `0` disables it.
 
 ```javascript
-const ship = new Ship({ token: 'ship-...', maxRetries: 5 });
+const ship = new Ship({ token: 'ship-your-api-key', maxRetries: 5 });
 ```
 
 Deliberately never retried: a maintenance 503 (its message says when to come
@@ -316,7 +316,7 @@ The CLI also reads `SHIP_PASSWORD` from the environment when `--password` is not
 ```javascript
 import Ship from '@shipstatic/ship';
 
-const ship = new Ship({ token: 'ship-...' });
+const ship = new Ship({ token: 'ship-your-api-key' });
 
 // From file input
 const deployment = await ship.deploy(fileInput.files);
@@ -410,7 +410,7 @@ The **SDK** (`new Ship(...)`) resolves its token in this order:
 The SDK never reads `.shiprc` or `package.json` — file resolution is a CLI feature, not an SDK feature. This keeps `new Ship({})` safe to use from embedded contexts (MCP, n8n, library wrappers) without inheriting the host developer's personal credentials.
 
 ```bash
-SHIP_TOKEN=ship-... ship deployments list
+SHIP_TOKEN=ship-your-api-key ship deployments list
 ```
 
 ## TypeScript

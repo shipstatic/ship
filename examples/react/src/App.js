@@ -13,7 +13,7 @@ function App() {
     }
 
     const ship = new Ship({
-      // deployToken: 'token-here'
+      // token: 'deploy-your-token'
     });
 
     setStatus('Deploying...');

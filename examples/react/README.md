@@ -38,7 +38,7 @@ function App() {
     }
 
     const ship = new Ship({
-      // token: 'your-token-here'
+      // token: 'deploy-your-token'
     });
 
     setStatus('Deploying...');

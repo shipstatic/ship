@@ -36,11 +36,8 @@ ship ./dist
 All examples follow the same minimal pattern:
 
 ```js
-// 1. Initialize
-const ship = new Ship({ 
-  apiKey: 'ship-your-key',      // For Node.js/CLI
-  deployToken: 'token-your-token' // For browser
-});
+// 1. Initialize — one credential slot; the prefix says which credential it is
+const ship = new Ship({ token: 'ship-your-api-key' });   // or 'deploy-your-token'
 
 // 2. Deploy
 const result = await ship.deployments.upload(input, {
@@ -53,12 +50,12 @@ console.log(`Deployed: ${result.url}`);
 
 ## 📊 Example Comparison
 
-| Example | Environment | Auth Method | Input Type |
-|---------|-------------|-------------|------------|
-| Vanilla | Browser | deployToken | FileList |
-| React | Browser | deployToken | FileList |  
-| Node.js | Server | apiKey | Directory paths |
-| CLI | Terminal | apiKey | Directory paths |
+| Example | Environment | Credential | Input Type |
+|---------|-------------|------------|------------|
+| Vanilla | Browser | deploy token | FileList |
+| React | Browser | deploy token | FileList |
+| Node.js | Server | API key | Directory paths |
+| CLI | Terminal | API key | Directory paths |
 
 ---
 
