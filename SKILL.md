@@ -1,7 +1,7 @@
 ---
 name: ship
 description: "Deploy static websites to ShipStatic. Use when the user wants to deploy a site, publish a website, upload to hosting, go live, set up a custom domain, manage deployments, or share a site URL. No account required — instant deployment. CLI (`ship`) and Node.js/browser SDK."
-compatibility: "Node.js >= 20. Run via npx (no install) or install globally: npm install -g @shipstatic/ship"
+compatibility: "Node.js >= 20.19. Run via npx (no install) or install globally: npm install -g @shipstatic/ship"
 metadata:
   openclaw:
     requires:
@@ -212,7 +212,7 @@ ship domains records www.example.com --json
   "domain": "www.example.com",
   "apex": "example.com",
   "records": [
-    {"type": "A", "name": "@", "value": "76.76.21.21"},
+    {"type": "A", "name": "@", "value": "15.204.149.253"},
     {"type": "CNAME", "name": "www", "value": "cname.shipstatic.com"}
   ]
 }
@@ -311,16 +311,34 @@ ship tokens delete <token>            # Delete (revokes immediately)
 
 ## Errors
 
-| Message | Cause | Fix |
-|---------|-------|-----|
-| `too many requests` | Rate limited | Wait, or set an API key |
-| `authentication failed` | Bad credentials | Check key/token |
-| `not found` | No such resource | Verify the ID/name |
-| `path does not exist` | Bad deploy path | Check file/directory |
-| `invalid domain name` | Not a subdomain | Use `www.example.com`, not `example.com` |
-| `--ttl sets an expiry, which needs a token` | `--ttl` without credentials | Set an API key, or drop `--ttl` |
-| `--ttl and --domain cannot be combined` | Both flags given | A domain cannot point at an expiring deployment — pick one |
-| `<resource> limit reached` | Plan caps hit (deployments, domains) | Suggest upgrading the plan; do not retry |
-| `Account has been deleted` / `Account terminated` | Account is gone | Stop; the account cannot deploy |
-| `DNS information is only available for external domains` | DNS op on internal domain | Only custom domains need DNS |
-| `DNS verification already requested recently` | Rate limited | Wait |
+Exit code is non-zero on failure, and with `--json` the error goes to **stderr** as the platform's wire shape:
+
+```json
+{
+  "error": "validation_failed",
+  "message": "File \"index.html\" too large. Maximum 20 MB allowed.",
+  "status": 400
+}
+```
+
+**Branch on `error` and `status`, never on `message`.** Messages are written for the human reading them and get reworded; the type tag and the status are the contract.
+
+| `error` | `status` | Means | Do |
+|---------|----------|-------|----|
+| `validation_failed` | 400 | Bad input — path, domain name, label, password, ttl | Read `message`, fix the input, retry |
+| `authentication_failed` | 401 | Missing or bad credential | Check `SHIP_TOKEN`; do not retry unchanged |
+| `forbidden` | 403 | Plan cap reached, account terminated, or an action this credential may never take | **Do not retry.** Suggest upgrading if it is a cap |
+| `not_found` | 404 | No such deployment or domain | Verify the identifier |
+| `rate_limit_exceeded` | 429 | Too many requests | Wait — `details.expires` is when it clears. An API key raises the limit |
+| `business_logic_error` | 400 or 422 | Valid request, refused by a state rule (e.g. unlinking a domain, suspended account) | Read `message`; the rule will not change on retry |
+| `maintenance` | 503 | Platform closed on purpose | `message` says when it reopens. Wait; do not retry in a loop |
+
+Common cases worth recognising before they happen:
+
+| Situation | What you get |
+|-----------|--------------|
+| Deploying a project root (`package.json`, `node_modules`) | `validation_failed` — build first, deploy the output |
+| `--ttl` or `--domain` with no credential | `validation_failed`, refused **before** anything uploads |
+| `--ttl` together with `--domain` | `validation_failed` — a domain must not point at something expiring |
+| DNS commands on an internal `*.shipstatic.com` domain | `validation_failed` — only custom domains have DNS |
+| `domains verify` called again too soon | `rate_limit_exceeded` — verification is already queued |
