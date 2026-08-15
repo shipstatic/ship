@@ -74,8 +74,7 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
  * apps `web`. A direct SDK call is `sdk`.
  *
  * Applied at this one boundary, so `via` is populated on every deploy from
- * every platform: an absent value means an unattributed caller (raw HTTP),
- * never "probably the SDK".
+ * every platform: a deploy through this SDK is never unattributed.
  */
 const DEPLOY_VIA = 'sdk';
 

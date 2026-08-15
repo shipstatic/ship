@@ -1804,10 +1804,10 @@ had to remember the day the types pin landed there, and a typo'd value cannot
 silently store as `NULL` — `normalizeVia` drops what the vocabulary does not
 name, and the request option refuses it at compile time. Adding a
 distribution surface is a types PR, which is exactly the ceremony a new
-surface deserves. What the `sdk` default buys is that an absent `via` on a
-stored deployment means an unattributed caller (raw HTTP), never "probably
-the SDK" — the reading Vercel's `source` and every self-identifying SDK
-client (AWS, Stripe, OpenAI) assume.
+surface deserves. What the `sdk` default buys is that a deploy through this
+SDK is never unattributed — the self-identification Vercel's `source` and
+every comparable client (AWS, Stripe, OpenAI) practise. What a request that
+names nothing is recorded as is the API's own call, not this package's.
 
 > **Doc placement note:** `SHIP_VIA` and `caller` are intentionally *not* in the public README's CLI Reference / SDK Deploy Options. They're ShipStatic-specific operational levers (analytics origin, rate-limit bucketing) that serve first-party integration code paths and stay in internal-tier surfaces (this file + JSDoc + the integrations submodules). Keep mechanisms of the same shape — platform-tier behavior shaping — in the same tier.
 >
