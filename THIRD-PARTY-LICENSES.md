@@ -5,7 +5,7 @@ Their copyright notices travel with that copy, and are reproduced here in
 full. This file is GENERATED from the build's own metafile — edit the
 bundle, not this list.
 
-## @shipstatic/types 2.9.0
+## @shipstatic/types 2.10.0
 
 License: MIT
 
