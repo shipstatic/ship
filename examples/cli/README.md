@@ -29,8 +29,8 @@ Basic deployment commands:
 # Deploy current directory
 ship .
 
-# Deploy with API key
-ship ./dist --api-key ship-your-key
+# Deploy with a token (your API key)
+ship ./dist --token ship-your-key
 
 # Deploy with labels
 ship ./dist --label production --label v1.0.0
