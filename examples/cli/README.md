@@ -17,9 +17,11 @@ ship ./dist
 
 ## Usage
 
-1. Configure your API key via environment, config file, or CLI flag
-2. Run `ship [path]` to deploy
-3. See deployment progress and URL in terminal output
+1. Run `ship [path]` to deploy — no account, no API key, nothing to configure
+2. The terminal prints the live URL, plus a **claim link**
+3. Open the claim link to keep the site permanently, or configure a token
+   (environment, config file, or `--token`) so deploys land in your account
+   from the start
 
 ## Command Examples
 
