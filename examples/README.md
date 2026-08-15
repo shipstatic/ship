@@ -1,62 +1,88 @@
 # Ship SDK Examples
 
 Minimal examples demonstrating Ship SDK usage across different environments.
+Every one runs against `@shipstatic/ship` 2.x and deploys for real without an
+account.
 
-## ✅ Test Status
-**596 tests passing** - Ship SDK is fully tested and production-ready.
+## Available Examples
 
-## 📁 Available Examples
-
-### [🌐 Vanilla JavaScript](./vanilla/)
-Deploy files directly from the browser with vanilla JavaScript. No build system - just like including jQuery from a CDN.
-```javascript
-const result = await ship.deployments.upload(files);
+### [Node.js](./node/)
+Deploy a directory from a script. Node takes paths and walks them recursively.
+```js
+const result = await ship.deployments.upload(['./dist']);
 ```
 
-### [⚛️ React](./react/)  
-Deploy files from React applications.
-```javascript
-const result = await ship.deployments.upload(files);
+### [React](./react/)
+Deploy files picked in the browser. React 19 on Vite.
+```js
+const result = await ship.deployments.upload(Array.from(files));
 ```
 
-### [⚡ Node.js](./node/)
-Deploy directories from Node.js applications and scripts.
-```javascript
-const result = await ship.deployments.upload([directory]);
+### [Vanilla JavaScript](./vanilla/)
+The same thing with no framework and no bundler — one ES module.
+```js
+const result = await ship.deployments.upload(Array.from(files));
 ```
 
-### [🚀 CLI](./cli/)
-Deploy from the command line with simple commands.
+### [CLI](./cli/)
+No code at all.
 ```bash
-ship ./dist
+npx -y @shipstatic/ship ./dist
 ```
 
-## 🎯 Quick Start
+### [Credentials](./auth/)
+How the one `token` slot works: the three populations, `setToken`, and
+`TokenProvider` for credentials that must be minted per request.
 
-All examples follow the same minimal pattern:
+## Quick Start
+
+Every example follows the same shape:
 
 ```js
-// 1. Initialize — one credential slot; the prefix says which credential it is
+import Ship from '@shipstatic/ship';
+
+// 1. Initialize. One credential slot — the prefix says which credential it is,
+//    and the server classifies it. Omit it entirely and deploys still work:
+//    they land in the public account with a claim URL and an expiry.
 const ship = new Ship({ token: 'ship-your-api-key' });   // or 'deploy-your-token'
 
-// 2. Deploy
+// 2. Deploy. Node takes paths; browsers take File[].
 const result = await ship.deployments.upload(input, {
-  onProgress: (progress) => console.log(`Deploy progress: ${progress}%`)
+  labels: ['production', 'v1.0.0'],
 });
 
-// 3. Success
+// 3. Read the answer.
 console.log(`Deployed: ${result.url}`);
+if (result.claim) console.log(`Claim: ${result.claim}`);
 ```
 
-## 📊 Example Comparison
+In Node the SDK also reads `SHIP_TOKEN`, which is how most programs keep the
+credential out of their source.
 
-| Example | Environment | Credential | Input Type |
-|---------|-------------|------------|------------|
-| Vanilla | Browser | deploy token | FileList |
-| React | Browser | deploy token | FileList |
-| Node.js | Server | API key | Directory paths |
-| CLI | Terminal | API key | Directory paths |
+## Example Comparison
+
+| Example | Environment | Credential | Deploy input |
+|---------|-------------|------------|--------------|
+| Node.js | Server | API key, usually via `SHIP_TOKEN` | `string \| string[]` (paths) |
+| React | Browser | Deploy token | `File[]` |
+| Vanilla | Browser | Deploy token | `File[]` |
+| CLI | Terminal | API key, via `~/.shiprc` or `--token` | Path argument |
+| Credentials | Server | — | — |
+
+**A browser gets a deploy token, never an API key.** An API key grants full
+account access to anyone who opens devtools; a deploy token is scoped to
+deploys, revocable, and can carry a TTL. Both ride the same `token` slot.
+
+## Two things that trip people up
+
+- **`FileList` is not `File[]`.** In the browser, pass `Array.from(input.files)`.
+  A raw `FileList` is rejected with
+  `Invalid input type for browser environment. Expected File[].`
+- **There is no upload-progress callback.** `fetch` cannot observe upload
+  progress, so the SDK does not pretend to — a deploy is one multipart POST. To
+  bound it, pass `timeout` to the constructor or your own `signal` to the
+  deploy.
 
 ---
 
-**Choose the example that matches your environment and start deploying! 🚀**
+**Choose the example that matches your environment and start deploying.**
