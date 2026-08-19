@@ -43,7 +43,20 @@ jobs:
       # Capability tier: real-browser certification of File/FormData/spark-md5
       # semantics jsdom can only approximate. Separate invocation, no coverage
       # coupling — same pattern as the backend's workerd tier.
-      - run: pnpm exec playwright install chromium --with-deps
+      #
+      # The browser binary is CACHED (keyed on the lockfile, which owns the
+      # playwright version) and installed WITHOUT `--with-deps`: the hosted
+      # ubuntu image already carries Chromium's shared libraries, and the
+      # apt-get half of `--with-deps` is exactly where this step wedged past
+      # the job's 10-minute cap, twice, on 2026-08-19. If a future runner
+      # image drops a library the browser tier fails loudly at launch —
+      # restore `--with-deps` then, not speculatively.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - run: pnpm exec playwright install chromium
 
       - run: pnpm test:browser
 
