@@ -25,8 +25,8 @@ importers:
         specifier: 2.5.5
         version: 2.5.5
       '@shipstatic/types':
-        specifier: 2.15.0-beta.1
-        version: 2.15.0-beta.1
+        specifier: 2.16.0-beta.1
+        version: 2.16.0-beta.1
       '@types/columnify':
         specifier: ^1.5.4
         version: 1.5.4
@@ -673,8 +673,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@shipstatic/types@2.15.0-beta.1':
-    resolution: {integrity: sha512-i9Ts9ndPDgUbzPDY90IPNOWGNGKu7pLNqaMChgzgkux7oWh2T8EY84WHBU5IiPOkhtMLEr1jYYixOgOjmHp2Ig==}
+  '@shipstatic/types@2.16.0-beta.1':
+    resolution: {integrity: sha512-PGXUXMIkPsYLaarZ2nevR7BtRsDofhcS+GyG8fZDCBHqtjzW6xx5ccIm6EgYB3IO4efxpl3hXZ1Fue+UJCth4w==}
     engines: {node: '>=20.19.0'}
 
   '@sindresorhus/is@4.6.0':
@@ -2218,7 +2218,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.3':
     optional: true
 
-  '@shipstatic/types@2.15.0-beta.1': {}
+  '@shipstatic/types@2.16.0-beta.1': {}
 
   '@sindresorhus/is@4.6.0': {}
 
