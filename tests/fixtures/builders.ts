@@ -230,14 +230,16 @@ export function makeAccount(overrides: Partial<AccountGetResponse> = {}): Accoun
     picture: 'https://example.com/avatar.jpg',
     plan: 'free',
     suspended: false,
-    usage: { deployments: 0, customDomains: 0 },
-    caps: { deployments: 100, customDomains: 0 },
+    usage: { deployments: 0, platformDomains: 0, customDomains: 0 },
+    caps: { deployments: 100, platformDomains: 10, customDomains: 0 },
     created: timestamps.jan2022,
     activated: null,
     hint: null,
     // Always emitted by GET /account, possibly null. wire: routes/account.ts:61
     used: null,
     pastDue: false,
+    billed: false,
+    upgrade: 'pro',
     authMethod: 'apiKey',
     ...overrides,
   } satisfies AccountGetResponse;
