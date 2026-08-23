@@ -237,7 +237,7 @@ export function makeAccount(overrides: Partial<AccountGetResponse> = {}): Accoun
     hint: null,
     // Always emitted by GET /account, possibly null. wire: routes/account.ts:61
     used: null,
-    overdue: false,
+    pastDue: false,
     authMethod: 'apiKey',
     ...overrides,
   } satisfies AccountGetResponse;
