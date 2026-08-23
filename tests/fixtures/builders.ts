@@ -244,6 +244,7 @@ export function makeAccount(overrides: Partial<AccountGetResponse> = {}): Accoun
     // pending period-end change, both null while nothing bills the account.
     interval: null,
     scheduled: null,
+    cancelAt: null,
     authMethod: 'apiKey',
     ...overrides,
   } satisfies AccountGetResponse;
