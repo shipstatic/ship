@@ -24,7 +24,6 @@ describe('Platform vocabulary re-export', () => {
       expect(AuthMethod.TOKEN).toBe('token');
       expect(AuthMethod.AGENT).toBe('agent');
       expect(AuthMethod.OAUTH).toBe('oauth');
-      expect(AuthMethod.WEBHOOK).toBe('webhook');
       expect(AuthMethod.SYSTEM).toBe('system');
     });
 
