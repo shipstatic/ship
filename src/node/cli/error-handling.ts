@@ -144,7 +144,8 @@ export function getUserMessage(err: ShipError, options?: ErrorOptions): string {
   // Server faults (5xx). The wire message is relayed like every other, because
   // the API leaves nothing to withhold: its global handler emits either a
   // deliberately authored sentence (a 503 naming what is unavailable) or a flat
-  // generic, and sends the raw failure to Slack rather than to the client. This
+  // generic, and sends the raw failure to its operator channel rather than to
+  // the client. This
   // discarded it until 2026-07-29, so a 503 that named its cause arrived as
   // "server error: please try again" — the platform authored a message for the
   // user and one surface threw it away. The CLI ADDS the one thing it knows and

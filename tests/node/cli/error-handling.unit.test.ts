@@ -164,7 +164,8 @@ describe('CLI Error Handling', () => {
     describe('server errors', () => {
       // A 5xx message is authored for the user like any other — the API emits
       // a deliberate sentence or a safe generic and sends the raw failure to
-      // Slack, so the CLI relays it and appends the one thing it knows that
+      // its operator channel, so the CLI relays it and appends the one thing it
+      // knows that
       // the server does not.
       it('relays the wire message for a server fault, adding where to look', () => {
         const err = ShipError.api('Internal server error', 500);
