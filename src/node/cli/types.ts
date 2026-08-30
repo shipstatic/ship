@@ -130,7 +130,7 @@ export interface EffectiveOptions extends GlobalOptions, DeployCommandOptions {}
  */
 export interface EnrichedDomain extends DomainSetResult {
   _dnsRecords?: DnsRecord[];
-  _shareHash?: string;
+  _shareUrl?: string;
 }
 
 /**

@@ -458,9 +458,11 @@ function domainSubResource(sub: 'dns' | 'records' | 'share', name: string, state
     const apex = name.startsWith('www.') ? name.slice(4) : name;
     return json({ domain: name, apex, records: makeDnsRecords() } satisfies DomainRecordsResponse);
   }
+  // wire: routes/domains.ts — the API answers the FINISHED link, composed
+  // server-side from its own environment dimension, domain first, hash second.
   return json({
     domain: name,
-    hash: 'abc123def456abc123def456abc123de',
+    url: `https://connect.shipstatic.com/${name}/a1b2c3d4e5f6a7b8`,
   } satisfies DomainShareResponse);
 }
 

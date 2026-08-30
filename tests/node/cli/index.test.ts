@@ -564,7 +564,7 @@ describe('CLI command tree (in-process)', () => {
       // Internals stay internal here too: one law, not a per-command habit.
       expect(output.isCreate).toBeUndefined();
       expect(output._dnsRecords).toBeUndefined();
-      expect(output._shareHash).toBeUndefined();
+      expect(output._shareUrl).toBeUndefined();
     });
 
     it.each(FORMS)('%s: -q prints the domain, not the deployment', async (form, argv) => {
@@ -641,7 +641,7 @@ describe('CLI command tree (in-process)', () => {
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain(A_RECORD_IP);
       expect(result.stdout).toContain(CNAME_TARGET);
-      expect(result.stdout).toContain('https://setup.shipstatic.com/');
+      expect(result.stdout).toContain('https://connect.shipstatic.com/');
     });
 
     it('a second deploy to the same domain repoints it — "updated", not "created"', async () => {
@@ -875,7 +875,7 @@ describe('CLI command tree (in-process)', () => {
       // A first (apex redirect), CNAME second (hosted endpoint).
       expect(result.stdout).toContain(A_RECORD_IP);
       expect(result.stdout).toContain(CNAME_TARGET);
-      expect(result.stdout).toContain('https://setup.shipstatic.com/');
+      expect(result.stdout).toContain('https://connect.shipstatic.com/');
     });
 
     it('create --json strips the CLI-only enrichment fields', async () => {
@@ -884,7 +884,7 @@ describe('CLI command tree (in-process)', () => {
       const output = JSON.parse(result.stdout.trim());
       expect(output.domain).toBe('www.json-strip.com');
       expect(output._dnsRecords).toBeUndefined();
-      expect(output._shareHash).toBeUndefined();
+      expect(output._shareUrl).toBeUndefined();
       expect(output.isCreate).toBeUndefined();
     });
 
@@ -963,7 +963,7 @@ describe('CLI command tree (in-process)', () => {
       await runProgram(['domains', 'set', 'www.share-test.com']);
       const result = await runProgram(['domains', 'share', 'www.share-test.com']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('https://setup.shipstatic.com/');
+      expect(result.stdout).toContain('https://connect.shipstatic.com/');
     });
 
     it('verify queues once, then the cooldown answers a real 429', async () => {
