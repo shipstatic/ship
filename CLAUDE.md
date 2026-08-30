@@ -600,7 +600,7 @@ README idiom, one noun over) was silent. The one deliberate exception is
 once and never again, so `ship tokens create -q >> .env` is why that channel
 exists there. It is checked before the `token` branch, since a creation
 response carries both.
-- Internal fields (`isCreate`, `_dnsRecords`, `_shareHash`) are stripped from JSON output
+- Internal fields (`isCreate`, `_dnsRecords`, `_shareUrl`) are stripped from JSON output
 - `[error]`/`[warning]`/`[info]` prefixes use inverse color backgrounds in TTY
 
 ### No repository file is ever read
@@ -923,7 +923,7 @@ key.
 
 ### DNS Enrichment on Domain Create
 
-When `ship domains set <name> [deployment]` creates a new external domain (`isCreate: true`, name contains `.`), the CLI fetches `domains.records()` and `domains.share()` in parallel, attaching results as `_dnsRecords` and `_shareHash` on the result for the formatter to display. This is CLI-only behavior; SDK resources return plain data.
+When `ship domains set <name> [deployment]` creates a new external domain (`isCreate: true`, name contains `.`), the CLI fetches `domains.records()` and `domains.share()` in parallel, attaching results as `_dnsRecords` and `_shareUrl` on the result for the formatter to display. The share URL arrives FINISHED from the API (`DomainShareResponse.url`, composed server-side from the environment's own domain, like the claim URL); the CLI never assembles one. This is CLI-only behavior; SDK resources return plain data.
 
 ### Retries
 
@@ -1366,7 +1366,7 @@ visible through a wire field rather than through a probe. Fixtures:
 
 `DomainSetResult` is the published return shape of `domains.set()` — `Domain` plus an `isCreate` flag derived from HTTP 201 vs 200. It lives in `@shipstatic/types` (alongside `Domain`) so the resource interface return type matches the SDK's actual return value.
 
-`EnrichedDomain extends DomainSetResult` — adds optional `_dnsRecords` and `_shareHash` for CLI display. `CLIResult` is the discriminated union of all possible command outputs. Both in `src/node/cli/types.ts`.
+`EnrichedDomain extends DomainSetResult` — adds optional `_dnsRecords` and `_shareUrl` for CLI display. `CLIResult` is the discriminated union of all possible command outputs. Both in `src/node/cli/types.ts`.
 
 ## Testing
 

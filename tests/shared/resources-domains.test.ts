@@ -81,11 +81,13 @@ describe('domain operations', () => {
       ]);
     });
 
-    it('returns a setup share hash', async () => {
+    it('returns the finished setup share link', async () => {
       const share = await ship.domains.share(CUSTOM);
 
       expect(share.domain).toBe(CUSTOM);
-      expect(share.hash).toMatch(/^[a-f0-9]{32}$/);
+      // The mock plants the wire's own composition: connect host, domain
+      // first, 16-hex hash second. The SDK relays it untouched.
+      expect(share.url).toBe(`https://connect.shipstatic.com/${CUSTOM}/a1b2c3d4e5f6a7b8`);
     });
 
     it.each([

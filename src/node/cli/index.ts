@@ -547,7 +547,7 @@ async function performDomainSet(
       return {
         ...result,
         _dnsRecords: records.records,
-        _shareHash: share.hash,
+        _shareUrl: share.url,
       };
     } catch {
       // Graceful degradation - return without DNS info

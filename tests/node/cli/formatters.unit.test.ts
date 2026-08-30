@@ -137,8 +137,11 @@ describe('formatOutput router', () => {
       ],
       [
         { operation: 'share', resource: 'domain' },
-        { domain: DOMAIN, hash: 'abc123' } as never,
-        'https://setup.shipstatic.com/abc123/www.example.com',
+        {
+          domain: DOMAIN,
+          url: 'https://connect.shipstatic.com/www.example.com/a1b2c3d4e5f6a7b8',
+        } as never,
+        'https://connect.shipstatic.com/www.example.com/a1b2c3d4e5f6a7b8',
       ],
       [
         { operation: 'dns', resource: 'domain' },
@@ -156,19 +159,21 @@ describe('formatOutput router', () => {
     });
 
     it('renders ONE payload two ways, according to the command', () => {
-      // The property the old router could not have at any price: this payload
-      // carries both `domain` and `hash`, so a shape-keyed chain resolved it by
-      // whichever key it happened to probe first — one answer, forever. The
-      // command is what differs, so the answer differs.
-      const payload = { domain: DOMAIN, hash: 'abc123' } as never;
+      // The property the old shape-keyed router could not have at any price:
+      // this payload fits both commands, so only the COMMAND can decide what
+      // it means. `get` renders the entity's rows and announces nothing;
+      // `delete` is an acknowledgement, so the sentence is the whole answer
+      // and no data row renders.
+      const payload = { domain: DOMAIN } as never;
 
-      formatOutput(payload, { operation: 'share', resource: 'domain' }, text);
-      expect(out()).toContain('https://setup.shipstatic.com/abc123/www.example.com');
-
-      logs.length = 0;
       formatOutput(payload, { operation: 'get', resource: 'domain' }, text);
       expect(out()).toContain('domain:');
-      expect(out()).not.toContain('setup.shipstatic.com');
+      expect(out()).not.toContain('domain deleted');
+
+      logs.length = 0;
+      formatOutput(payload, { operation: 'delete', resource: 'domain' }, text);
+      expect(out()).toContain(`${DOMAIN} domain deleted`);
+      expect(out()).not.toContain('domain:');
     });
   });
 
@@ -563,8 +568,11 @@ describe('formatOutput router', () => {
       [
         'domain.share',
         { operation: 'share', resource: 'domain' },
-        { domain: DOMAIN, hash: 'abc123' } satisfies DomainShareResponse,
-        [`https://setup.shipstatic.com/abc123/${DOMAIN}`],
+        {
+          domain: DOMAIN,
+          url: `https://connect.shipstatic.com/${DOMAIN}/a1b2c3d4e5f6a7b8`,
+        } satisfies DomainShareResponse,
+        [`https://connect.shipstatic.com/${DOMAIN}/a1b2c3d4e5f6a7b8`],
       ],
       ['domain.delete', { operation: 'delete', resource: 'domain' }, { domain: DOMAIN }, [DOMAIN]],
       [
@@ -666,13 +674,13 @@ describe('formatOutput router', () => {
   });
 
   describe('--json strips internal fields', () => {
-    it('removes _dnsRecords, _shareHash and isCreate', () => {
+    it('removes _dnsRecords, _shareUrl and isCreate', () => {
       formatOutput(
         {
           domain: 'www.example.com',
           isCreate: true,
           _dnsRecords: [{ type: 'A', name: '@', value: '1.2.3.4' }],
-          _shareHash: 'abc',
+          _shareUrl: 'https://connect.shipstatic.com/www.example.com/a1b2c3d4e5f6a7b8',
         } as never,
         { operation: 'set', resource: 'domain' },
         { json: true },
@@ -691,7 +699,7 @@ describe('formatOutput router', () => {
           url: 'https://www.example.com',
           isCreate: true,
           _dnsRecords: [{ type: 'CNAME', name: 'www', value: 'cname.shipstatic.com' }],
-          _shareHash: 'abc123',
+          _shareUrl: 'https://connect.shipstatic.com/www.example.com/a1b2c3d4e5f6a7b8',
         } as never,
         { operation: 'set', resource: 'domain' },
         text,
@@ -700,10 +708,12 @@ describe('formatOutput router', () => {
       const output = out();
       expect(output).toContain('domain created');
       expect(output).toContain('CNAME: www → cname.shipstatic.com');
-      expect(output).toContain('https://setup.shipstatic.com/abc123/www.example.com');
+      expect(output).toContain(
+        'setup instructions: https://connect.shipstatic.com/www.example.com/a1b2c3d4e5f6a7b8',
+      );
       // The enrichment fields are display-only and never rendered as data rows.
       expect(output).not.toContain('_dnsRecords');
-      expect(output).not.toContain('_shareHash');
+      expect(output).not.toContain('_shareUrl');
     });
 
     it('says "updated" when the upsert was not a create', () => {

@@ -31,7 +31,11 @@ import type { CLIResult, EnrichedDomain } from './types.js';
 // (`domains validate`'s negative verdict is not a failure; it renders.)
 import { formatDetails, formatTable, info, plainMessage, success } from './utils.js';
 
-const setupUrl = (hash: string, domain: string) => `https://setup.shipstatic.com/${hash}/${domain}`;
+// There is deliberately no setup-URL composer here: the API answers the share
+// with the FINISHED link (`DomainShareResponse.url`), composed from the one
+// environment dimension it owns, exactly as it composes the claim URL. A CLI
+// copy once spelled the host wrong and the segments swapped, and six green
+// tests enshrined it. This surface relays; it never assembles.
 
 /**
  * Read a named field off a result whose shape the caller has already decided.
@@ -261,7 +265,7 @@ export function formatDomain(result: Domain | EnrichedDomain, options: FormatOpt
   const { noColor } = options;
 
   // Destructure enrichment fields (undefined when result is plain Domain)
-  const { _dnsRecords, _shareHash, isCreate, ...displayResult } = result as EnrichedDomain;
+  const { _dnsRecords, _shareUrl, isCreate, ...displayResult } = result as EnrichedDomain;
 
   // Display pre-fetched DNS records (for new external domains)
   if (_dnsRecords && _dnsRecords.length > 0) {
@@ -273,9 +277,9 @@ export function formatDomain(result: Domain | EnrichedDomain, options: FormatOpt
   }
 
   // Display setup instructions link
-  if (_shareHash) {
+  if (_shareUrl) {
     console.log();
-    info(`Setup instructions: ${setupUrl(_shareHash, result.domain)}`, false, noColor);
+    info(`Setup instructions: ${_shareUrl}`, false, noColor);
   }
 
   console.log(formatDetails(displayResult, noColor));
@@ -384,10 +388,9 @@ export function formatDomainShare(result: DomainShareResponse, options: FormatOp
   // Rendered like `dns` beside it, rather than announced as a success: nothing
   // was mutated, so there is no acknowledgement to compose. It also stops text
   // and `-q` from being byte-identical — `-q` still emits the bare URL, which
-  // is the whole point of that channel.
-  console.log(
-    formatDetails({ domain: result.domain, setup: setupUrl(result.hash, result.domain) }, noColor),
-  );
+  // is the whole point of that channel. The response already IS the answer
+  // (domain + finished link), so the wire's own fields render untranslated.
+  console.log(formatDetails(result, noColor));
 }
 
 /**
@@ -516,7 +519,7 @@ export const OUTPUTS: Partial<Record<OutputKey, Output>> = {
     text: formatDomainDns,
   }),
   'domain.share': row<DomainShareResponse>({
-    quiet: (r) => [setupUrl(r.hash, r.domain)],
+    quiet: (r) => [r.url],
     text: formatDomainShare,
   }),
   'domain.delete': row<DomainDeleteResponse>({
@@ -588,7 +591,7 @@ export function formatOutput(
   if (json && result !== null && typeof result === 'object') {
     const payload = { ...result } as Record<string, unknown>;
     delete payload._dnsRecords;
-    delete payload._shareHash;
+    delete payload._shareUrl;
     delete payload.isCreate;
     console.log(JSON.stringify(payload, null, 2));
     console.log();
