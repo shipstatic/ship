@@ -1800,8 +1800,7 @@ the web apps, `n8n`, `gpt`), and a direct SDK call falls back to `sdk`,
 applied at the single wire boundary in `api/http.ts` so it cannot differ per
 platform. A closed enum is what makes a surface's attribution the COMPILER's
 business: the vscode extension's `via: 'vsc'` stopped being a lockstep anyone
-had to remember the day the types pin landed there (the drop widget's
-`via: 'drp'` is the same shape), and a typo'd value cannot
+had to remember the day the types pin landed there, and a typo'd value cannot
 silently store as `NULL` — `normalizeVia` drops what the vocabulary does not
 name, and the request option refuses it at compile time. Adding a
 distribution surface is a types PR, which is exactly the ceremony a new
