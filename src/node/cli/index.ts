@@ -18,6 +18,7 @@ import {
   ErrorType,
   isShipError,
   normalizeVia,
+  SHIP_VIA_ENV,
   ShipError,
   validateApiUrl,
   validateToken,
@@ -450,12 +451,13 @@ async function performDeploy(
     spaDetect?: boolean;
     signal?: AbortSignal;
   } = {
-    // `SHIP_VIA` exists so a wrapper can relabel the origin — the GitHub
-    // Action sends `git`. An unrecognized label falls back to `cli` rather
-    // than riding along: the server silently drops what it does not know, so
-    // forwarding a typo recorded NOTHING, while the honest default records
-    // the truth (this deploy did come from the CLI).
-    via: normalizeVia(process.env.SHIP_VIA) ?? DeploymentVia.CLI,
+    // `SHIP_VIA_ENV` names the slot a wrapper relabels the origin through:
+    // the GitHub Action sends `git`. The stdio MCP bin reads the same slot,
+    // which is why the name has one owner in types. An unrecognized label
+    // falls back to `cli` rather than riding along: the server silently drops
+    // what it does not know, so forwarding a typo recorded NOTHING, while the
+    // honest default records the truth (this deploy did come from the CLI).
+    via: normalizeVia(process.env[SHIP_VIA_ENV]) ?? DeploymentVia.CLI,
   };
 
   // Handle labels

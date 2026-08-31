@@ -1791,7 +1791,7 @@ the hazard is live again with nothing to announce it.
 |---|---|
 | `SHIP_PASSWORD` | Default for `--password <password>` on `ship deploy` / `ship deployments upload`. Empty string is normalized to absence (so unset CI variables don't accidentally protect a deploy). |
 | `SHIP_IDEMPOTENCY_KEY` | The SDK's `idempotencyKey` for `ship deploy` / `ship deployments upload` — a stored 201 replays instead of deploying twice (see the Backend Integration table). Empty string is normalized to absence, for the same reason `SHIP_PASSWORD` is: an unset CI variable must not collapse every deploy in a job into one replay. There is **no flag** — this is the whole CLI surface, and it exists for the integrations that wrap the CLI as a subprocess: the GitHub Action derives one key per workflow run, so re-running a job replays the original deployment rather than creating a second one. A shell user's `--idempotency-key` remains the open product call below. |
-| `SHIP_VIA` | Overrides the deploy `via` field (the CLI sends `'cli'` when unset). Used by integrations that **wrap the CLI as a subprocess** — the GitHub Action sets `SHIP_VIA=git`. In-process SDK consumers (e.g. the MCP server) set the same field as a programmatic `via` option on the SDK call (`ship.deployments.upload(..., { via: 'mcp' })`) — same destination, different mechanism. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
+| `SHIP_VIA` | Overrides the deploy `via` field (the CLI sends `'cli'` when unset). Used by integrations that **wrap a first-party executable as a subprocess**: the GitHub Action sets `SHIP_VIA=git` on the CLI, and the Gemini extension sets `SHIP_VIA=gmn` on the stdio MCP bin, which reads the same slot with `mcp` as its own default. Since the name gained that second reader, its owner is `SHIP_VIA_ENV` in `@shipstatic/types` (deliberately beside, not inside, `SHIP_ENV`: the SDK never reads it) and both executables read through the constant. In-process SDK consumers set the same field as a programmatic `via` option on the SDK call (`ship.deployments.upload(..., { via: 'mcp' })`) — same destination, different mechanism. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
 
 **Every deploy names its surface; `via` is never empty by accident.** The
 registry is `DeploymentVia` in `@shipstatic/types` — closed on purpose. Each
@@ -1800,7 +1800,8 @@ the web apps, `n8n`, `gpt`), and a direct SDK call falls back to `sdk`,
 applied at the single wire boundary in `api/http.ts` so it cannot differ per
 platform. A closed enum is what makes a surface's attribution the COMPILER's
 business: the vscode extension's `via: 'vsc'` stopped being a lockstep anyone
-had to remember the day the types pin landed there, and a typo'd value cannot
+had to remember the day the types pin landed there (the drop widget's
+`via: 'drp'` is the same shape), and a typo'd value cannot
 silently store as `NULL` — `normalizeVia` drops what the vocabulary does not
 name, and the request option refuses it at compile time. Adding a
 distribution surface is a types PR, which is exactly the ceremony a new
