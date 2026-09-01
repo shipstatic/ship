@@ -1,6 +1,6 @@
 ---
 name: ship
-description: "Deploy static websites to ShipStatic. Use when the user wants to deploy a site, publish a website, upload to hosting, go live, set up a custom domain, manage deployments, or share a site URL. No account required — instant deployment. CLI (`ship`) and Node.js/browser SDK."
+description: "Deploy static websites to ShipStatic. Use when the user wants to deploy a site, publish a website, upload to hosting, go live, set up a custom domain, manage deployments, or share a site URL. Free, no account needed. CLI (`ship`) and Node.js/browser SDK."
 compatibility: "Node.js >= 20.19. Run via npx (no install) or install globally: npm install -g @shipstatic/ship"
 metadata:
   openclaw:
