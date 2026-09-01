@@ -1,7 +1,7 @@
 {
   "name": "@shipstatic/ship",
   "version": "2.8.0",
-  "description": "SDK & CLI for ShipStatic platform",
+  "description": "CLI and SDK for ShipStatic. Deploy static websites, landing pages, and prototypes instantly from the terminal or code.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -52,23 +52,23 @@
     "THIRD-PARTY-LICENSES.md"
   ],
   "keywords": [
-    "ai",
-    "cli",
-    "custom-domain",
+    "shipstatic",
     "deploy",
-    "developer-tools",
     "hosting",
-    "jamstack",
-    "sdk",
-    "ship",
-    "static-hosting",
     "static-site",
-    "typescript",
-    "vibe-coding",
+    "static-hosting",
     "web-hosting",
-    "website"
+    "website",
+    "cli",
+    "sdk",
+    "ai",
+    "agent",
+    "jamstack",
+    "custom-domain",
+    "typescript",
+    "vibe-coding"
   ],
-  "homepage": "https://github.com/shipstatic/ship",
+  "homepage": "https://shipstatic.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/shipstatic/ship.git"

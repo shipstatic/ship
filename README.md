@@ -31,7 +31,7 @@ npm install -g @shipstatic/ship   # global CLI — drop the `npx @shipstatic/shi
 >
 > Every example in this README uses the bare `ship` command. If you haven't installed it globally, prefix any of them with `npx @shipstatic/ship` (or `npx -y @shipstatic/ship` in non-interactive environments).
 
-## All Commands — Free API Key
+## All commands — free API key
 
 For permanent deployments and full control over your sites and domains, get a free API key from [my.shipstatic.com/api-key](https://my.shipstatic.com/api-key).
 
@@ -135,7 +135,7 @@ ship.ping()                   // → { timestamp } (server clock; reachability i
 ship.getLimits()              // → platform plan limits (cached)
 ```
 
-## CLI Reference
+## CLI reference
 
 ### Composability
 
@@ -183,14 +183,14 @@ ship ./dist --domain www.example.com
 
 Both spellings are supported and neither replaces the other. The pipe composes interactively — any two commands, wherever `-q` gives you the value the next one wants. `--domain` is one process, one exit code, and one `--json`, which is what CI needs: a `run:` block is `bash -e` **without** `pipefail`, so a pipeline reports only the last command's status and a failed deploy is masked. It answers as the domain, exactly as `ship domains set` does — DNS records and setup link included on a new external domain — and it needs a token, which it checks before uploading anything.
 
-### Shell Completion
+### Shell completion
 
 ```bash
 ship completion install
 ship completion uninstall
 ```
 
-### Global Flags
+### Global flags
 
 Available on every command:
 
@@ -205,7 +205,7 @@ Available on every command:
 | `-h, --help` | Display help for command |
 | `-V, --version` | Show version information |
 
-### Deploy Flags
+### Deploy flags
 
 Available on `ship <path>` and `ship deployments upload`:
 
@@ -218,7 +218,7 @@ Available on `ship <path>` and `ship deployments upload`:
 | `--no-path-detect` | Disable automatic path optimization |
 | `--no-spa-detect` | Disable automatic SPA detection |
 
-### CLI Environment Variables
+### CLI environment variables
 
 | Var | Purpose |
 |---|---|
@@ -226,7 +226,7 @@ Available on `ship <path>` and `ship deployments upload`:
 | `SHIP_API_URL` | Default for `--api-url` |
 | `SHIP_PASSWORD` | Default for `--password` (empty string normalized to absence) |
 
-## SDK Reference
+## SDK reference
 
 ### Authentication
 
@@ -272,7 +272,7 @@ a deploy replays its stored result instead of creating a second one.
 `timeout` is the ceiling on one ATTEMPT. For a hard overall deadline pass your
 own `signal` (`AbortSignal.timeout(ms)`), which is never retried past.
 
-### Deploy Options
+### Deploy options
 
 ```typescript
 ship.deploy(input, {
@@ -311,7 +311,7 @@ await ship.deploy('./dist', { password: 'your-passphrase' });
 
 The CLI also reads `SHIP_PASSWORD` from the environment when `--password` is not given.
 
-### Browser Usage
+### Browser usage
 
 ```javascript
 import Ship from '@shipstatic/ship';
@@ -420,10 +420,22 @@ import type { ShipClientOptions, DeploymentOptions, ShipEvents } from '@shipstat
 import type { Deployment, Domain, Account, StaticFile } from '@shipstatic/types';
 ```
 
-## AI Agents
+## AI agents
 
-This package includes a [SKILL.md](./SKILL.md) file — a portable skill definition that AI agents (Claude Code, Codex, etc.) use to deploy sites with `ship` autonomously.
+This package includes a [SKILL.md](./SKILL.md) file, a portable skill definition that AI agents (Claude Code, Codex, and any other skills-aware tool) use to deploy sites with `ship` autonomously.
 
----
+## Also available
 
-Part of the [ShipStatic](https://shipstatic.com) platform.
+| Surface | Reach it |
+|---------|----------|
+| **[MCP](https://mcp.shipstatic.com)** | Drop `https://mcp.shipstatic.com` into any MCP client |
+| **[VS Code](https://marketplace.visualstudio.com/items?itemName=shipstatic.shipstatic)** | Search "ShipStatic" in the Marketplace |
+| **[Gemini CLI](https://github.com/shipstatic/plugin)** | `gemini extensions install https://github.com/shipstatic/plugin` |
+| **[n8n](https://www.npmjs.com/package/n8n-nodes-shipstatic)** | Search "ShipStatic" in n8n's node panel |
+| **[GitHub Action](https://github.com/shipstatic/action)** | `shipstatic/action@v2` |
+| **[Agent Skill](https://www.shipstatic.com/SKILL.md)** | One file, for any skills-aware tool |
+
+## License
+
+MIT
+
