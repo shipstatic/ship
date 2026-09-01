@@ -365,7 +365,7 @@ const ship = new Ship({
 });
 ```
 
-### Error Handling
+### Error handling
 
 ```javascript
 import { isShipError, ErrorType } from '@shipstatic/types';
