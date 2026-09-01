@@ -180,11 +180,11 @@ describe('CLI Error Handling', () => {
       it('relays a deliberately authored 5xx rather than flattening it', () => {
         // The case that motivated this: a 503 that names its cause must not
         // arrive as an anonymous "server error".
-        const err = new ShipError(ErrorType.Api, 'Content moderation is unavailable', 503);
+        const err = new ShipError(ErrorType.Api, 'A dependency is unavailable', 503);
 
         const message = getUserMessage(err);
 
-        expect(message).toContain('Content moderation is unavailable');
+        expect(message).toContain('A dependency is unavailable');
       });
     });
 
