@@ -44,7 +44,9 @@ import {
   type TokenDeleteResponse,
   type TokenListResponse,
   type TokenResource,
+  validateBuildCommand,
   validateIdempotencyKey,
+  validateOutputDir,
   validateTtl,
 } from '@shipstatic/types';
 
@@ -159,9 +161,20 @@ export function createDeploymentResource(
       const labels = validateLabels(options.labels);
       await validateDeployConfig(files);
 
+      // The build settings are shape-checked here for the same reason the
+      // password is: the rule is the platform's and lives in types, so the
+      // caller hears about a malformed value before a body is built.
+      const buildCommand = validateBuildCommand(options.buildCommand);
+      const outputDir = validateOutputDir(options.outputDir);
       const flags =
         options.build || options.prerender || options.spa
-          ? { build: options.build, prerender: options.prerender, spa: options.spa }
+          ? {
+              build: options.build,
+              prerender: options.prerender,
+              spa: options.spa,
+              buildCommand,
+              outputDir,
+            }
           : undefined;
       const body = await createDeployBody(files, {
         labels,

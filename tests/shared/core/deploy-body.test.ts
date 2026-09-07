@@ -102,6 +102,12 @@ describe('createDeployBody', () => {
       ['build', { flags: { build: true } }, 'true'],
       ['prerender', { flags: { prerender: true } }, 'true'],
       ['spa', { flags: { spa: true } }, 'true'],
+      [
+        'buildCommand',
+        { flags: { build: true, buildCommand: 'npm run build:site' } },
+        'npm run build:site',
+      ],
+      ['outputDir', { flags: { build: true, outputDir: 'public' } }, 'public'],
       ['captcha', { captcha: 'recaptcha-proof' }, 'recaptcha-proof'],
     ])('sends %s when it is given', async (field, context, expected) => {
       const fd = await createDeployBody([file('f.txt', Buffer.from('x'))], context);
@@ -118,6 +124,8 @@ describe('createDeployBody', () => {
       ['build', { flags: { build: false } }],
       ['prerender', { flags: { prerender: false } }],
       ['spa', { flags: { spa: false } }],
+      ['buildCommand', { flags: { build: true } }],
+      ['outputDir', { flags: { build: true } }],
       ['captcha', {}],
     ])('omits %s when it is absent or off', async (field, context) => {
       const fd = await createDeployBody([file('f.txt', Buffer.from('x'))], context);
