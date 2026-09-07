@@ -5,14 +5,14 @@ Their copyright notices travel with that copy, and are reproduced here in
 full. This file is GENERATED from the build's own metafile — edit the
 bundle, not this list.
 
-## @shipstatic/types 2.21.0
+## @shipstatic/types 2.24.0
 
 License: MIT
 
 ```
 MIT License
 
-Copyright (c) 2025 shipstatic
+Copyright (c) 2025 ShipStatic
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
