@@ -58,6 +58,12 @@
  * smoke (`cloudflare/api/smoke.mjs`), which detects a maintenance 503 and
  * verifies the gate instead of reporting it as a fault. Read the absence as a
  * decision, not as drift.
+ *
+ * **`ErrorType.Build` has no row either.** It is a per-call outcome, but of
+ * `/upload`'s `build` flag, which this client sends only through the
+ * `@internal` endpoint redirect the dashboard uses; the public contract here
+ * is `/deployments`, a pure pipe that never builds. Its round-trip is held in
+ * `@shipstatic/types`' own suite and its retry posture in `http-retry`.
  */
 
 import { ErrorType } from '@shipstatic/types';

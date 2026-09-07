@@ -108,6 +108,20 @@ describe('retries', () => {
     expect(attempts(fetchImpl)).toBe(1);
   });
 
+  it('does NOT retry a 422 build verdict: the project will not build any differently', async () => {
+    // A verdict is deterministic on the same input. Until the API answered
+    // one as a 4xx, every customer typo cost three container builds.
+    const fetchImpl = scripted([
+      () => fail(ShipError.build('package.json has no build script.', { log: '' })),
+    ]);
+
+    await expect(newShip(fetchImpl).ping()).rejects.toMatchObject({
+      type: ErrorType.Build,
+      status: 422,
+    });
+    expect(attempts(fetchImpl)).toBe(1);
+  });
+
   it('does NOT retry a 429 — the rate limiter has just answered', async () => {
     const fetchImpl = scripted([() => fail(ShipError.rateLimit())]);
 
