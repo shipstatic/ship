@@ -134,6 +134,17 @@ describe('CLI Error Handling', () => {
     });
 
     describe('business/client errors', () => {
+      it("passes a build verdict through as the client's, sentence verbatim", () => {
+        // The API answers a project that cannot be built as submitted with
+        // ErrorType.Build at 422: the client's failure, so the client arm
+        // claims it and the builder's own sentence is the whole message. The
+        // log rides in details and is a build-aware surface's to show; this
+        // CLI has no build path, so it renders none.
+        const err = ShipError.build('package.json has no build script.', { log: 'npm ERR!' });
+
+        expect(getUserMessage(err)).toBe('package.json has no build script.');
+      });
+
       it('should pass through business error message', () => {
         const err = ShipError.business('Invalid configuration');
 
