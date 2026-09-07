@@ -61,8 +61,17 @@ export interface DeployBodyContext {
    * `TTL_CONSTRAINTS`. The API stamps the expiry against its own clock.
    */
   ttl?: number;
-  /** @internal Server-side processing flags. */
-  flags?: { build?: boolean; prerender?: boolean; spa?: boolean };
+  /**
+   * @internal Server-side processing flags, and the two build settings that
+   * qualify `build` (the command to run, the folder the site lands in).
+   */
+  flags?: {
+    build?: boolean;
+    prerender?: boolean;
+    spa?: boolean;
+    buildCommand?: string;
+    outputDir?: string;
+  };
   /** @internal reCAPTCHA proof for the anonymous human deploy channel (/upload). */
   captcha?: string;
 }

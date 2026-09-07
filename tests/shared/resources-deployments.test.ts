@@ -206,6 +206,13 @@ describe('Deployment Resource', () => {
       expect(body().get('labels')).toBeNull();
     });
 
+    it('carries the build settings trimmed, beside the build flag they qualify', async () => {
+      await upload({ build: true, buildCommand: ' npm run build:site ', outputDir: 'dist/site/' });
+      expect(body().get('build')).toBe('true');
+      expect(body().get('buildCommand')).toBe('npm run build:site');
+      expect(body().get('outputDir')).toBe('dist/site');
+    });
+
     it('carries the password verbatim, whitespace included', async () => {
       await upload({ password: '  secret-123  ' });
       expect(body().get('password')).toBe('  secret-123  ');
@@ -236,6 +243,12 @@ describe('Deployment Resource', () => {
       ['a ttl outside the shared range', { ttl: 0 }, /between/i],
       ['an over-long idempotency key', { idempotencyKey: 'x'.repeat(500) }, /idempotency/i],
       ['a password below the minimum', { password: 'a' }, /password/i],
+      [
+        'an output folder outside the project',
+        { build: true, outputDir: '../etc' },
+        /inside the project/,
+      ],
+      ['a two-line build command', { build: true, buildCommand: 'a\nb' }, /single line/],
     ])('refuses %s', async (_label, options, pattern) => {
       await expect(upload(options as DeploymentOptions)).rejects.toThrow(pattern);
       expect(carried.filter((c) => c.operation === 'Deploy')).toHaveLength(0);
