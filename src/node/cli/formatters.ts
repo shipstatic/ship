@@ -24,6 +24,7 @@ import type {
   TokenListResponse,
 } from '@shipstatic/types';
 import { DeploymentStatus } from '@shipstatic/types';
+import { formatTimeRemaining } from '@shipstatic/types/time';
 import type { CLIResult, EnrichedDomain } from './types.js';
 // No `error` import, and that is a property worth keeping: a formatter renders
 // a RESULT. Every failure — including a rejected request — reaches the user
@@ -299,9 +300,11 @@ export function formatDeployment(
   // Public deployment — claim URL + CTA after details
   const claim = (result as DeploymentCreateResponse).claim;
   if (claim) {
-    const days = result.expires ? Math.round((result.expires - result.created) / 86400) : null;
+    // The time it has LEFT, read the way every surface reads a deadline, not
+    // the lifetime it was given: the two agree only at the instant of creation.
+    const remaining = result.expires ? formatTimeRemaining(result.expires) : null;
     console.log(
-      `IMPORTANT: this deployment${days ? ` expires in ${days} day${days !== 1 ? 's' : ''}` : ' will expire'}, claim it to keep permanently:\n${claim}\n`,
+      `IMPORTANT: this deployment ${remaining ? `expires in ${remaining}` : 'will expire'}, claim it to keep permanently:\n${claim}\n`,
     );
     info(
       `configure a free API key with 'ship config' to deploy to your own account`,

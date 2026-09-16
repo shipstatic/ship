@@ -65,10 +65,12 @@ describe('claim CTA', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
   it('prints the claim URL with the expiry window in text output', () => {
+    vi.useFakeTimers({ now: (NOW + 1) * 1000 });
     formatDeployment(anonymousDeployment, { noColor: true });
 
     const output = logs.join('\n');
@@ -77,6 +79,14 @@ describe('claim CTA', () => {
     // The details block never lists `claim` as a field — the CTA is its
     // one text rendering.
     expect(output).not.toMatch(/^claim:/m);
+  });
+
+  it('states the time left, not the lifetime, when shown later', () => {
+    // Two days on, a lifetime reading would still say "3 days".
+    vi.useFakeTimers({ now: (NOW + 2 * 24 * 60 * 60) * 1000 });
+    formatDeployment(anonymousDeployment, { noColor: true });
+
+    expect(logs.join('\n')).toContain('this deployment expires in 24 hours, claim it');
   });
 
   it('omits the CTA entirely for credentialed deploys', () => {
