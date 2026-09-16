@@ -23,8 +23,7 @@ import type {
   TokenDeleteResponse,
   TokenListResponse,
 } from '@shipstatic/types';
-import { DeploymentStatus } from '@shipstatic/types';
-import { formatTimeRemaining } from '@shipstatic/types/time';
+import { DeploymentStatus, formatTimeRemaining } from '@shipstatic/types';
 import type { CLIResult, EnrichedDomain } from './types.js';
 // No `error` import, and that is a property worth keeping: a formatter renders
 // a RESULT. Every failure — including a rejected request — reaches the user
