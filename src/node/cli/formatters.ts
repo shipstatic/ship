@@ -333,17 +333,10 @@ export function formatDomainValidate(result: DomainValidateResponse, options: Fo
     success(`${result.normalized ?? 'domain'} domain is valid`, false, noColor);
     console.log();
     if (result.available !== null) {
-      // An unavailable name says the PLATFORM's reason, never the CLI's own.
-      // It read "already taken" until 2026-09-17, which was the CLI inventing
-      // copy for a sentence the wire now always sends and which distinguishes
-      // a name already in this account from one registered elsewhere. The
-      // fallback covers an older API that answered `available: false` with no
-      // reason at all.
-      const availabilityText = result.available
-        ? noColor
-          ? 'available'
-          : 'available ✓'
-        : (result.reason ?? 'already taken');
+      // The reason is the platform's sentence, present exactly when the name
+      // cannot be used, and printed as it arrives.
+      const availabilityText =
+        result.reason === null ? (noColor ? 'available' : 'available ✓') : result.reason;
       console.log(`  availability: ${availabilityText}`);
     }
     console.log();

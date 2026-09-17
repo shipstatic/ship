@@ -7,7 +7,6 @@ import { describe, expect, it } from 'vitest';
 import {
   allValidFilesReady,
   FILE_VALIDATION_STATUS,
-  formatFileSize,
   getValidFiles,
   type ValidatableFile,
   validateFiles,
@@ -49,22 +48,6 @@ describe('File Validation', () => {
       expect(result.canDeploy).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].message).toContain('At least one file');
-    });
-  });
-
-  describe('formatFileSize', () => {
-    it('should format bytes correctly', () => {
-      expect(formatFileSize(0)).toBe('0 Bytes');
-      expect(formatFileSize(1024)).toBe('1 KB');
-      expect(formatFileSize(1024 * 1024 * 1.5)).toBe('1.5 MB');
-      expect(formatFileSize(500)).toBe('500 Bytes');
-      expect(formatFileSize(1024 * 1024 * 1024 * 2.5)).toBe('2.5 GB');
-    });
-
-    it('should handle decimals parameter', () => {
-      expect(formatFileSize(1024 * 1024 * 1.567, 0)).toBe('2 MB');
-      expect(formatFileSize(1024 * 1024 * 1.567, 1)).toBe('1.6 MB');
-      expect(formatFileSize(1024 * 1024 * 1.567, 3)).toBe('1.567 MB');
     });
   });
 

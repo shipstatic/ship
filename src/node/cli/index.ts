@@ -979,13 +979,11 @@ export function buildProgram(): Command {
       withErrorHandling(
         async (client: Ship, _options: GlobalOptions, name: string) => {
           const result = await client.domains.validate(name);
-          // A name that cannot be used exits NONZERO, whichever way it cannot:
-          // malformed, or already registered. It exited 0 on "already taken"
-          // until 2026-09-17, which made this pre-flight a gate that could not
-          // fail, so `ship domains validate x && ship domains set x` walked
-          // straight past a taken name. `available` is null exactly when
-          // `valid` is false, so the second clause never masks the first.
-          if (!result.valid || result.available === false) process.exitCode = 1;
+          // A name that cannot be used exits NONZERO, whichever way it cannot
+          // (malformed, or already registered): the wire carries a reason
+          // exactly then, so `ship domains validate x && ship domains set x`
+          // is a gate.
+          if (result.reason !== null) process.exitCode = 1;
           return result;
         },
         { operation: 'validate', resource: 'domain' },

@@ -147,10 +147,8 @@ export function createMockState(
       // flow reads `normalized`, so this is load-bearing, not cosmetic.
       const labels = domain.split('.');
       const normalized = isCustomDomain(domain) && labels.length === 2 ? `www.${domain}` : domain;
-      // wire: one owner lookup, and the KIND of name decides nothing. Until
-      // 2026-09-17 the route reported every custom domain available whoever
-      // owned it, and answered an unavailable platform name with no reason at
-      // all; this mock restated both, comment included.
+      // wire: one owner lookup, and the KIND of name decides nothing; a
+      // registered name carries the platform's reason.
       //
       // This world has one account, so a registered name is always the
       // caller's own: the other-account sentence

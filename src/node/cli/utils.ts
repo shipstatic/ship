@@ -1,7 +1,7 @@
 /**
  * Simple CLI utilities following "impossible simplicity" mantra
  */
-import type { ShipError } from '@shipstatic/types';
+import { formatFileSize, type ShipError } from '@shipstatic/types';
 import columnify from 'columnify';
 import { blue, dim, green, hidden, inverse, red, yellow } from 'yoctocolors';
 
@@ -151,10 +151,7 @@ const formatValue = (
   ) {
     return formatTimestamp(value, context, noColor);
   }
-  if (key === 'size' && typeof value === 'number') {
-    const mb = value / (1024 * 1024);
-    return mb >= 1 ? `${mb.toFixed(1)}Mb` : `${(value / 1024).toFixed(1)}Kb`;
-  }
+  if (key === 'size' && typeof value === 'number') return formatFileSize(value);
   // Boolean signal columns (config, password) render as yes/no in details.
   if (key === 'config' || key === 'password') {
     if (typeof value === 'boolean') return value ? 'yes' : 'no';

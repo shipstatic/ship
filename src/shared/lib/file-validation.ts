@@ -17,22 +17,14 @@ import {
 } from '@shipstatic/types';
 import { firstBrokenRule } from './file-rules.js';
 
+// The platform's one reading of a byte count, re-exported so this package's
+// consumers keep reading it from here.
+export { formatFileSize } from '@shipstatic/types';
 // Re-exported because it constrains three exported generics (validateFiles,
 // getValidFiles, allValidFilesReady) — a consumer cannot name the bound
 // otherwise, which is why the tests were inventing their own copy.
 export type { ValidatableFile };
 export { FILE_VALIDATION_STATUS };
-
-/**
- * Format file size to human-readable string
- */
-export function formatFileSize(bytes: number, decimals: number = 1): string {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / k ** i).toFixed(decimals))} ${sizes[i]}`;
-}
 
 /**
  * Validate filename for deployment safety
