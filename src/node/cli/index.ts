@@ -981,7 +981,7 @@ export function buildProgram(): Command {
           const result = await client.domains.validate(name);
           // A name that cannot be used exits NONZERO, whichever way it cannot:
           // malformed, or already registered. It exited 0 on "already taken"
-          // until 2026-09-18, which made this pre-flight a gate that could not
+          // until 2026-09-17, which made this pre-flight a gate that could not
           // fail, so `ship domains validate x && ship domains set x` walked
           // straight past a taken name. `available` is null exactly when
           // `valid` is false, so the second clause never masks the first.

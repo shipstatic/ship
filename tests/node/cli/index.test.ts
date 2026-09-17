@@ -993,7 +993,7 @@ describe('CLI command tree (in-process)', () => {
 
     /**
      * A pre-flight that cannot fail is not a gate. This exited 0 on an
-     * unavailable name until 2026-09-18, so
+     * unavailable name until 2026-09-17, so
      * `ship domains validate x && ship domains set x` walked straight past a
      * name already registered, and it printed the CLI's own words rather than
      * the platform's sentence.

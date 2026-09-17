@@ -334,7 +334,7 @@ export function formatDomainValidate(result: DomainValidateResponse, options: Fo
     console.log();
     if (result.available !== null) {
       // An unavailable name says the PLATFORM's reason, never the CLI's own.
-      // It read "already taken" until 2026-09-18, which was the CLI inventing
+      // It read "already taken" until 2026-09-17, which was the CLI inventing
       // copy for a sentence the wire now always sends and which distinguishes
       // a name already in this account from one registered elsewhere. The
       // fallback covers an older API that answered `available: false` with no

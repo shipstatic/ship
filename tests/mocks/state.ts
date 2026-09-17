@@ -148,7 +148,7 @@ export function createMockState(
       const labels = domain.split('.');
       const normalized = isCustomDomain(domain) && labels.length === 2 ? `www.${domain}` : domain;
       // wire: one owner lookup, and the KIND of name decides nothing. Until
-      // 2026-09-18 the route reported every custom domain available whoever
+      // 2026-09-17 the route reported every custom domain available whoever
       // owned it, and answered an unavailable platform name with no reason at
       // all; this mock restated both, comment included.
       //
