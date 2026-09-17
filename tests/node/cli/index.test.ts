@@ -991,6 +991,21 @@ describe('CLI command tree (in-process)', () => {
       expect(result.stdout.trim()).toBe('www.example.com');
     });
 
+    /**
+     * A pre-flight that cannot fail is not a gate. This exited 0 on an
+     * unavailable name until 2026-09-18, so
+     * `ship domains validate x && ship domains set x` walked straight past a
+     * name already registered, and it printed the CLI's own words rather than
+     * the platform's sentence.
+     */
+    it("exits 1 for a registered domain, in the platform's own words", async () => {
+      const result = await runProgram(['domains', 'validate', 'staging-site.shipstatic.com']);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toContain('This domain is already in your account');
+      expect(result.stdout).not.toContain('already taken');
+    });
+
     it('exits 1 for an invalid domain', async () => {
       const result = await runProgram(['domains', 'validate', 'not a domain']);
       expect(result.exitCode).toBe(1);

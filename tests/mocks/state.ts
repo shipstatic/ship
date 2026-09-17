@@ -147,10 +147,22 @@ export function createMockState(
       // flow reads `normalized`, so this is load-bearing, not cosmetic.
       const labels = domain.split('.');
       const normalized = isCustomDomain(domain) && labels.length === 2 ? `www.${domain}` : domain;
-      const available = isCustomDomain(normalized)
-        ? true // any custom domain you own is addable
-        : !state.domains.some((d) => d.domain === normalized);
-      return { valid: true, normalized, available, reason: null };
+      // wire: one owner lookup, and the KIND of name decides nothing. Until
+      // 2026-09-18 the route reported every custom domain available whoever
+      // owned it, and answered an unavailable platform name with no reason at
+      // all; this mock restated both, comment included.
+      //
+      // This world has one account, so a registered name is always the
+      // caller's own: the other-account sentence
+      // ('Domain is already registered to another account') has no fixture
+      // here, and the API's own suite is where that arm is covered.
+      const registered = state.domains.some((d) => d.domain === normalized);
+      return {
+        valid: true,
+        normalized,
+        available: !registered,
+        reason: registered ? 'This domain is already in your account' : null,
+      };
     },
   };
 
