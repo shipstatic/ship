@@ -134,6 +134,18 @@ export interface EnrichedDomain extends DomainSetResult {
 }
 
 /**
+ * `ship domains verify`'s answer, with the one fact the acknowledgement does
+ * not carry: what the domain serves. The verify is a 202 naming the domain
+ * and nothing else (an acknowledgement is a projection of the resource, and
+ * verification changes no field), so the command reads the domain once after
+ * queueing to learn whether anything is linked, and says the one step left
+ * when nothing is. Absent when that read failed; the verify still happened.
+ */
+export interface EnrichedDomainVerify extends DomainVerifyResponse {
+  _deployment?: string | null;
+}
+
+/**
  * Union of all possible CLI command results.
  * Used by formatOutput to route to the correct formatter.
  */
@@ -151,7 +163,7 @@ export type CLIResult =
   | Account
   | Token
   | TokenCreateResponse
-  | DomainVerifyResponse
+  | EnrichedDomainVerify
   | PingResponse
   // A deletion answers with the resource it deleted — the acknowledgement law
   // (`@shipstatic/types`, DeploymentDeleteResponse). These used to resolve

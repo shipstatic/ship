@@ -736,4 +736,70 @@ describe('formatOutput router', () => {
       expect(out()).toContain('domain updated');
     });
   });
+
+  /**
+   * A domain that points at nothing answers the platform's reserved page,
+   * and the one step left is linking a deployment. Every command that shows
+   * such a domain names that step with the command spelled out; a linked
+   * domain gets no hint. Planted literals: a copy edit dropping the hint would
+   * leave the reservation as silent as the 404 it used to end in.
+   */
+  describe('the unlinked hint', () => {
+    const HINT = 'Point it at a deployment: ship domains set www.example.com <deployment>';
+
+    it('a reservation names the step that remains', () => {
+      formatOutput(
+        makeDomain('www.example.com', { deployment: null }),
+        { operation: 'set', resource: 'domain' },
+        text,
+      );
+      expect(out()).toContain(HINT);
+    });
+
+    it('a read of a reserved domain names it too', () => {
+      formatOutput(
+        makeDomain('www.example.com', { deployment: null }),
+        { operation: 'get', resource: 'domain' },
+        text,
+      );
+      expect(out()).toContain(HINT);
+    });
+
+    it('a linked domain gets no hint', () => {
+      formatOutput(
+        makeDomain('www.example.com', { deployment: 'happy-cat-abc1234.shipstatic.com' }),
+        { operation: 'set', resource: 'domain' },
+        text,
+      );
+      expect(out()).not.toContain('Point it at a deployment');
+    });
+
+    it('a queued verify says it is queued, where to check, and the step left when nothing is linked', () => {
+      formatOutput(
+        { domain: 'www.example.com', _deployment: null } as never,
+        { operation: 'verify', resource: 'domain' },
+        text,
+      );
+      const output = out();
+      expect(output).toContain('www.example.com domain verification queued');
+      expect(output).toContain('ship domains get www.example.com');
+      expect(output).toContain(HINT);
+      expect(output).not.toContain('_deployment');
+    });
+
+    it('a queued verify of a linked domain, or one whose read failed, carries no hint', () => {
+      formatOutput(
+        { domain: 'www.example.com', _deployment: 'happy-cat-abc1234.shipstatic.com' } as never,
+        { operation: 'verify', resource: 'domain' },
+        text,
+      );
+      formatOutput(
+        { domain: 'www.example.com' } as never,
+        { operation: 'verify', resource: 'domain' },
+        text,
+      );
+      expect(out()).not.toContain('Point it at a deployment');
+      expect(out().match(/domain verification queued/g)).toHaveLength(2);
+    });
+  });
 });

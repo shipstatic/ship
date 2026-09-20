@@ -16,7 +16,6 @@ import type {
   DomainRecordsResponse,
   DomainShareResponse,
   DomainValidateResponse,
-  DomainVerifyResponse,
   PingResponse,
   Token,
   TokenCreateResponse,
@@ -24,7 +23,7 @@ import type {
   TokenListResponse,
 } from '@shipstatic/types';
 import { DeploymentStatus, formatTimeRemaining } from '@shipstatic/types';
-import type { CLIResult, EnrichedDomain } from './types.js';
+import type { CLIResult, EnrichedDomain, EnrichedDomainVerify } from './types.js';
 // No `error` import, and that is a property worth keeping: a formatter renders
 // a RESULT. Every failure — including a rejected request — reaches the user
 // through `handleError`, so there is exactly one writer of the error channel.
@@ -283,6 +282,38 @@ export function formatDomain(result: Domain | EnrichedDomain, options: FormatOpt
   }
 
   console.log(formatDetails(displayResult, noColor));
+
+  if (displayResult.deployment === null) unlinkedHint(displayResult.domain, noColor);
+}
+
+/**
+ * The one remaining step for a domain that points at nothing, printed by
+ * every command that shows such a domain: a reservation, a labels-only
+ * edit, a read, and a verify. A verified domain with no deployment answers
+ * the platform's reserved page, so the step is the whole of what the owner
+ * needs from us at that moment, and the command is spelled out because the
+ * reader is at a terminal.
+ */
+function unlinkedHint(domain: string, noColor?: boolean): void {
+  console.log();
+  info(
+    `Nothing is linked to ${domain} yet. Point it at a deployment: ship domains set ${domain} <deployment>`,
+    false,
+    noColor,
+  );
+}
+
+/**
+ * Format a queued verification. The router's own line already says
+ * "<domain> domain verification queued"; what this adds is what the
+ * acknowledgement cannot carry: the verify is asynchronous, so where to read
+ * the verdict, and the step that remains once it passes when nothing is
+ * linked yet.
+ */
+export function formatDomainVerify(result: EnrichedDomainVerify, options: FormatOptions): void {
+  const { noColor } = options;
+  info(`It runs in the background. Check with: ship domains get ${result.domain}`, false, noColor);
+  if (result._deployment === null) unlinkedHint(result.domain, noColor);
 }
 
 /**
@@ -506,9 +537,9 @@ export const OUTPUTS: Partial<Record<OutputKey, Output>> = {
     quiet: (r) => (r.valid && r.normalized ? [r.normalized] : []),
     text: formatDomainValidate,
   }),
-  'domain.verify': row<DomainVerifyResponse>({
+  'domain.verify': row<EnrichedDomainVerify>({
     quiet: (r) => [r.domain],
-    text: () => {},
+    text: formatDomainVerify,
   }),
   'domain.records': row<DomainRecordsResponse>({
     quiet: (r) => r.records.map((rec) => `${rec.type} ${rec.name} ${rec.value}`),

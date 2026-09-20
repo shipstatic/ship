@@ -883,7 +883,8 @@ it: the key `-q` pipes forward, and the formatter text renders.
 | `records` | `<type> <name> <value>` per row | `formatDomainRecords` |
 | `hash` | the setup URL | `formatDomainShare` |
 | `dns` | the provider name, if resolved | `formatDomainDns` |
-| `domain` | the name | `formatDomain` (plain `Domain` or `EnrichedDomain`) |
+| `domain` | the name | `formatDomain` (plain `Domain` or `EnrichedDomain`); a domain pointing at nothing gets the unlinked hint beneath its details |
+| `domain` (verify) | the name | `formatDomainVerify` (`EnrichedDomainVerify`): where to read the verdict, and the unlinked hint when the read after queueing found nothing linked |
 | `deployment` | the id | `formatDeployment` |
 | `secret` | the SECRET — shown once, never again | `formatToken` |
 | `token` | the id | `formatToken` |
@@ -1366,7 +1367,7 @@ visible through a wire field rather than through a probe. Fixtures:
 
 `DomainSetResult` is the published return shape of `domains.set()` — `Domain` plus an `isCreate` flag derived from HTTP 201 vs 200. It lives in `@shipstatic/types` (alongside `Domain`) so the resource interface return type matches the SDK's actual return value.
 
-`EnrichedDomain extends DomainSetResult` — adds optional `_dnsRecords` and `_shareUrl` for CLI display. `CLIResult` is the discriminated union of all possible command outputs. Both in `src/node/cli/types.ts`.
+`EnrichedDomain extends DomainSetResult` — adds optional `_dnsRecords` and `_shareUrl` for CLI display. `EnrichedDomainVerify extends DomainVerifyResponse` adds `_deployment`, the domain's linked deployment as read once after the verify was queued (null when nothing is linked, absent when that read failed), which is what lets `ship domains verify` name the one step left. `CLIResult` is the discriminated union of all possible command outputs. All in `src/node/cli/types.ts`.
 
 ## Testing
 
@@ -1907,7 +1908,7 @@ win nobody is waiting on.
 | `domains.list()` | `GET /domains` | Paginated — same `{limit, cursor}` contract |
 | `domains.get()` | `GET /domains/:name` | |
 | `domains.validate()` | `POST /domains/validate` | Pre-flight check — name rides the JSON body, not the path |
-| `domains.verify()` | `POST /domains/:domain/verify` | Wire: 202 `{domain}` — the SDK returns it; the CLI composes its own copy |
+| `domains.verify()` | `POST /domains/:domain/verify` | Wire: 202 `{domain}` — the SDK returns it; the CLI composes its own copy and reads the domain once more to say whether anything is linked |
 | `domains.dns()` | `GET /domains/:name/dns` | DNS provider information |
 | `domains.records()` | `GET /domains/:name/records` | Required DNS records |
 | `domains.share()` | `GET /domains/:name/share` | Shareable setup hash |

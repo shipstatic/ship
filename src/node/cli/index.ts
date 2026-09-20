@@ -37,6 +37,7 @@ import type {
   DeployCommandOptions,
   EffectiveOptions,
   EnrichedDomain,
+  EnrichedDomainVerify,
   GlobalOptions,
   LabelOptions,
   ListCommandOptions,
@@ -995,7 +996,25 @@ export function buildProgram(): Command {
     .description('Trigger DNS verification for external domain')
     .action(
       withErrorHandling(
-        (client: Ship, _options: GlobalOptions, name: string) => client.domains.verify(name),
+        async (
+          client: Ship,
+          _options: GlobalOptions,
+          name: string,
+        ): Promise<EnrichedDomainVerify> => {
+          const result = await client.domains.verify(name);
+          // Verification is asynchronous, so this command cannot say
+          // "verified"; it can say what remains. The acknowledgement names the
+          // domain and nothing else, so the domain is read once to learn
+          // whether a deployment is linked, and the formatter names the one
+          // step left when none is. A failed read degrades to the bare
+          // acknowledgement: the verify itself already happened.
+          try {
+            const { deployment } = await client.domains.get(name);
+            return { ...result, _deployment: deployment };
+          } catch {
+            return result;
+          }
+        },
         { operation: 'verify', resource: 'domain' },
       ),
     );
