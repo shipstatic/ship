@@ -293,8 +293,18 @@ export function formatDomain(result: Domain | EnrichedDomain, options: FormatOpt
  *
  * Keyed by `Domain.status`, so the wire's own word chooses the sentence and
  * this surface derives nothing. `Record<DomainStatusType, ...>` rather than a
- * switch on purpose: a fifth standing would fail to compile here, which is
- * the only way a next step cannot go missing at the one place that prints it.
+ * switch on purpose: a fifth standing added to the constitution fails to
+ * compile here, which is the only way a next step cannot go missing at the one
+ * place that prints it.
+ *
+ * **The `?.()` at the call site is NOT redundant with that, and this is the
+ * one reason it stays.** The compiler holds this table against the types the
+ * CLI was BUILT with; a published CLI outlives its build, and a server that
+ * has since learned a fifth word will send it to a binary whose table has no
+ * row for it. Every other surface in this estate deploys with the API and can
+ * treat the union as total; an `npx @shipstatic/ship` from a lockfile cannot.
+ * So the lookup degrades to silence rather than throwing `undefined is not a
+ * function` in front of somebody's deploy.
  *
  * `live` prints nothing, because there is nothing left to do. The commands
  * are spelled out because the reader is at a terminal, and the paused
