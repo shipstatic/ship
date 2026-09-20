@@ -442,8 +442,11 @@ function domainSubResource(sub: 'dns' | 'records' | 'share', name: string, state
   const domain = state.domains.find((d) => d.domain === name);
   if (!domain) return fail(ShipError.notFound('Domain', name));
 
-  // `records` has no verified-status guard; `dns` and `share` do.
-  if (sub !== 'records' && domain.status !== 'pending') {
+  // `records` has no verified guard; `dns` and `share` do. The API's guard is
+  // the `verified` INSTANT (routes/domains.ts:120, :177), and since types
+  // 3.0.0 put that instant on the wire this mirrors it exactly rather than
+  // standing in for it with a status word.
+  if (sub !== 'records' && domain.verified !== null) {
     return fail(ShipError.business(`${subject} is only available for unverified domains`, 400));
   }
 
@@ -473,7 +476,9 @@ function verifyDomain(name: string, state: MockState) {
   }
   const domain = state.domains.find((d) => d.domain === name);
   if (!domain) return fail(ShipError.notFound('Domain', name));
-  if (domain.status !== 'pending') {
+  // Same guard as the route: the `verified` instant, not a status word
+  // (lib/domains/verify.ts:30).
+  if (domain.verified !== null) {
     return fail(
       ShipError.business('DNS verification is only available for unverified domains', 400),
     );

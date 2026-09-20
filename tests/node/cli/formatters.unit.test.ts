@@ -305,17 +305,18 @@ describe('formatOutput router', () => {
     });
 
     it("never reads an entity's own status as a deletion state", () => {
-      // `Domain.status` is `pending`/`success` — a fact about DNS, not about
-      // this deletion. Gating on the transitional-state map rather than on the
-      // presence of a `status` is what keeps "domain pending" unsayable here.
+      // `Domain.status` is the domain's STANDING (`unverified` here) — a fact
+      // about what it needs from its owner, not about this deletion. Gating on
+      // the transitional-state map rather than on the presence of a `status`
+      // is what keeps "domain unverified" unsayable here.
       formatOutput(
-        makeDomain('www.example.com', { status: 'pending' }),
+        makeDomain('www.example.com', { status: 'unverified' }),
         { operation: 'delete', resource: 'domain' },
         text,
       );
 
       expect(out()).toContain('www.example.com domain deleted');
-      expect(out()).not.toContain('pending');
+      expect(out()).not.toContain('unverified');
     });
 
     it('says "deleted" for a hard delete, which carries no state to state', () => {
@@ -744,37 +745,64 @@ describe('formatOutput router', () => {
    * domain gets no hint. Planted literals: a copy edit dropping the hint would
    * leave the reservation as silent as the 404 it used to end in.
    */
-  describe('the unlinked hint', () => {
-    const HINT = 'Point it at a deployment: ship domains set www.example.com <deployment>';
+  describe("the standing's next step", () => {
+    const LINK = 'Point it at a deployment: ship domains set www.example.com <deployment>';
+    const DNS = 'See the records to configure: ship domains records www.example.com';
 
-    it('a reservation names the step that remains', () => {
+    // One row per standing, so a fifth word cannot arrive without a sentence.
+    // The expectations are LITERALS, never read back off DOMAIN_NEXT_STEP: a
+    // table asserted against itself proves only that it is a table.
+    it.each([
+      ['unverified', { verification: 'pending' as const }, DNS],
+      ['unlinked', { verification: 'verified' as const, verified: 1 }, LINK],
+      ['paused', { verification: 'verified' as const, verified: 1, paused: 2 }, 'is paused'],
+    ])('a %s domain names its one step', (_standing, facts, sentence) => {
       formatOutput(
-        makeDomain('www.example.com', { deployment: null }),
-        { operation: 'set', resource: 'domain' },
-        text,
-      );
-      expect(out()).toContain(HINT);
-    });
-
-    it('a read of a reserved domain names it too', () => {
-      formatOutput(
-        makeDomain('www.example.com', { deployment: null }),
+        makeDomain('www.example.com', { deployment: null, ...facts }),
         { operation: 'get', resource: 'domain' },
         text,
       );
-      expect(out()).toContain(HINT);
+      expect(out()).toContain(sentence);
     });
 
-    it('a linked domain gets no hint', () => {
+    it('a set answers with the same step a get does', () => {
       formatOutput(
-        makeDomain('www.example.com', { deployment: 'happy-cat-abc1234.shipstatic.com' }),
+        makeDomain('www.example.com', { deployment: null }),
         { operation: 'set', resource: 'domain' },
         text,
       );
-      expect(out()).not.toContain('Point it at a deployment');
+      expect(out()).toContain(DNS);
     });
 
-    it('a queued verify says it is queued, where to check, and the step left when nothing is linked', () => {
+    it('a live domain gets no step, because there is nothing left to do', () => {
+      formatOutput(
+        makeDomain('www.example.com', {
+          deployment: 'happy-cat-abc1234.shipstatic.com',
+          verification: 'verified',
+          verified: 1,
+        }),
+        { operation: 'set', resource: 'domain' },
+        text,
+      );
+      expect(out()).not.toContain('ship domains');
+    });
+
+    it('an unverified domain is told about DNS even when a deployment is linked', () => {
+      // The precedence, visible: DNS comes first, so a linked-but-unverified
+      // domain is never sent to `domains set` for a link it already has.
+      formatOutput(
+        makeDomain('www.example.com', { deployment: 'happy-cat-abc1234.shipstatic.com' }),
+        { operation: 'get', resource: 'domain' },
+        text,
+      );
+      expect(out()).toContain(DNS);
+      expect(out()).not.toContain(LINK);
+    });
+
+    it('a queued verify says it is queued, where to check, and the link step when nothing is linked', () => {
+      // NOT the standing's sentence: this read is stale by design (the check
+      // has not run), so it reports the one fact a pending verdict cannot
+      // change. See `formatDomainVerify`.
       formatOutput(
         { domain: 'www.example.com', _deployment: null } as never,
         { operation: 'verify', resource: 'domain' },
@@ -783,11 +811,12 @@ describe('formatOutput router', () => {
       const output = out();
       expect(output).toContain('www.example.com domain verification queued');
       expect(output).toContain('ship domains get www.example.com');
-      expect(output).toContain(HINT);
+      expect(output).toContain('Once it verifies, point it at a deployment');
+      expect(output).not.toContain(DNS);
       expect(output).not.toContain('_deployment');
     });
 
-    it('a queued verify of a linked domain, or one whose read failed, carries no hint', () => {
+    it('a queued verify of a linked domain, or one whose read failed, carries no step', () => {
       formatOutput(
         { domain: 'www.example.com', _deployment: 'happy-cat-abc1234.shipstatic.com' } as never,
         { operation: 'verify', resource: 'domain' },
@@ -798,7 +827,7 @@ describe('formatOutput router', () => {
         { operation: 'verify', resource: 'domain' },
         text,
       );
-      expect(out()).not.toContain('Point it at a deployment');
+      expect(out()).not.toContain('point it at a deployment');
       expect(out().match(/domain verification queued/g)).toHaveLength(2);
     });
   });

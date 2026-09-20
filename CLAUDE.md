@@ -883,8 +883,8 @@ it: the key `-q` pipes forward, and the formatter text renders.
 | `records` | `<type> <name> <value>` per row | `formatDomainRecords` |
 | `hash` | the setup URL | `formatDomainShare` |
 | `dns` | the provider name, if resolved | `formatDomainDns` |
-| `domain` | the name | `formatDomain` (plain `Domain` or `EnrichedDomain`); a domain pointing at nothing gets the unlinked hint beneath its details |
-| `domain` (verify) | the name | `formatDomainVerify` (`EnrichedDomainVerify`): where to read the verdict, and the unlinked hint when the read after queueing found nothing linked |
+| `domain` | the name | `formatDomain` (plain `Domain` or `EnrichedDomain`); the standing's next step beneath its details, per `DOMAIN_NEXT_STEP` |
+| `domain` (verify) | the name | `formatDomainVerify` (`EnrichedDomainVerify`): where to read the verdict, and the link step when the read after queueing found nothing linked. NOT the standing's step — see "One step per standing" |
 | `deployment` | the id | `formatDeployment` |
 | `secret` | the SECRET — shown once, never again | `formatToken` |
 | `token` | the id | `formatToken` |
@@ -921,6 +921,50 @@ A deletion short-circuits ahead of the table **in text mode only**, composing
 its sentence from the acknowledgement; in `--json` it falls through to the one
 JSON exit, and in `-q` the quiet branch above the table has already printed the
 key.
+
+### One step per standing
+
+Since types 3.0.0, `Domain.status` is the domain's STANDING — the one derived
+word saying what it needs from its owner (`live`, `unlinked`, `unverified`,
+`paused`) — and the DNS fact lives beside it as `verification`. The CLI reads
+that word and derives nothing.
+
+`DOMAIN_NEXT_STEP` in `formatters.ts` is the whole surface: a
+`Record<DomainStatusType, (domain) => string | null>`, so a fifth standing
+fails to compile at the one place that prints a step. `live` prints nothing.
+It replaced a lone `deployment === null` hint, which was the console's
+`unlinked` derivation done a second time in another repo — and wrong in the
+same way the console's was: a linked-but-unverified domain got no advice at
+all, while an unverified unlinked one was told to link rather than to fix DNS.
+
+**`ship domains verify` is the one domain surface that does NOT print it**,
+and the exception is the command rather than an oversight. Its read of the
+domain lands moments after the check is QUEUED and before it has run, so the
+standing it would report is `unverified` by construction. Printing that
+sentence would tell somebody who has just configured DNS and asked us to check
+it to go and configure DNS. `get` and `set` report a settled state, where the
+standing is the whole answer; `verify` reports a state that is deliberately
+stale, where the only honest thing to say is the one fact a pending verdict
+cannot change: whether anything will be served when it passes. Hence
+`_deployment` survives on `EnrichedDomainVerify`, and its sentence is written
+in the future tense ("once it verifies, point it at a deployment").
+
+**`ship domains list` gained a `status` column** in the same wave. It had none,
+and `SKILL.md` carried a sentence apologising for it; a wave whose thesis is
+one derived word a reader needs cannot ship the list that hides it. The
+deployments list keeps its own omission, because a listed deployment is nearly
+always `success` while `unverified` and `unlinked` are ordinary states of the
+domain flow.
+
+**And one instant-shaped trap the wave surfaced.** `formatValue` in `utils.ts`
+renders a unix-seconds field as a date from an ALLOWLIST of key names
+(`INSTANT_FIELDS`), because the alternative is guessing from the value and
+`links`, `files` and `size` are all plain numbers on the same objects. It is a
+restatement of the constitution's instant-named fields with one holder, so it
+is not promoted into `@shipstatic/types` (one holder is no owner) — but the
+drift is silent in the worst way: a new instant renders as `1785000000` and
+nothing fails. When the constitution gains an instant, add it there in the same
+wave. `verified` and `paused` joined on 2026-09-20.
 
 ### DNS Enrichment on Domain Create
 
@@ -1367,7 +1411,7 @@ visible through a wire field rather than through a probe. Fixtures:
 
 `DomainSetResult` is the published return shape of `domains.set()` — `Domain` plus an `isCreate` flag derived from HTTP 201 vs 200. It lives in `@shipstatic/types` (alongside `Domain`) so the resource interface return type matches the SDK's actual return value.
 
-`EnrichedDomain extends DomainSetResult` — adds optional `_dnsRecords` and `_shareUrl` for CLI display. `EnrichedDomainVerify extends DomainVerifyResponse` adds `_deployment`, the domain's linked deployment as read once after the verify was queued (null when nothing is linked, absent when that read failed), which is what lets `ship domains verify` name the one step left. `CLIResult` is the discriminated union of all possible command outputs. All in `src/node/cli/types.ts`.
+`EnrichedDomain extends DomainSetResult` — adds optional `_dnsRecords` and `_shareUrl` for CLI display. `EnrichedDomainVerify extends DomainVerifyResponse` adds `_deployment`, the domain's linked deployment as read once after the verify was queued (null when nothing is linked, absent when that read failed), which is what lets `ship domains verify` name the one step left. It carries the LINK fact rather than the domain's `status` for a reason recorded at both the type and the formatter — see "One step per standing". `CLIResult` is the discriminated union of all possible command outputs. All in `src/node/cli/types.ts`.
 
 ## Testing
 

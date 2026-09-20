@@ -917,12 +917,16 @@ describe('CLI command tree (in-process)', () => {
       expect(result.stderr.toLowerCase()).toContain('can only point at a deployment');
     });
 
-    it('reservation (no deployment) creates a pending unlinked domain', async () => {
+    it('reservation (no deployment) creates an unverified custom domain', async () => {
       const result = await runProgram(['--json', 'domains', 'set', 'www.reserved-example.com']);
       expect(result.exitCode).toBe(0);
       const output = JSON.parse(result.stdout.trim());
       expect(output.deployment).toBeNull();
-      expect(output.status).toBe('pending');
+      // DNS comes first in the precedence, so a reserved CUSTOM domain reads
+      // `unverified` rather than `unlinked`: configuring DNS is the step in
+      // front of choosing a deployment, and the standing names one step.
+      expect(output.status).toBe('unverified');
+      expect(output.verification).toBe('pending');
     });
 
     it('delete removes the row — a follow-up get is not-found', async () => {

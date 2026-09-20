@@ -15,6 +15,7 @@ import type {
   DomainListResponse,
   DomainRecordsResponse,
   DomainShareResponse,
+  DomainStatusType,
   DomainValidateResponse,
   PingResponse,
   Token,
@@ -22,7 +23,7 @@ import type {
   TokenDeleteResponse,
   TokenListResponse,
 } from '@shipstatic/types';
-import { DeploymentStatus, formatTimeRemaining } from '@shipstatic/types';
+import { DeploymentStatus, DomainStatus, formatTimeRemaining } from '@shipstatic/types';
 import type { CLIResult, EnrichedDomain, EnrichedDomainVerify } from './types.js';
 // No `error` import, and that is a property worth keeping: a formatter renders
 // a RESULT. Every failure — including a rejected request — reaches the user
@@ -251,7 +252,7 @@ export function formatDomainsList(result: DomainListResponse, options: FormatOpt
     return;
   }
 
-  const columns = ['domain', 'deployment', 'labels', 'linked', 'links', 'created'];
+  const columns = ['domain', 'status', 'deployment', 'labels', 'linked', 'links', 'created'];
   console.log(formatTable(result.domains, columns, noColor));
   printCursorHint(result.cursor, noColor);
 }
@@ -283,24 +284,40 @@ export function formatDomain(result: Domain | EnrichedDomain, options: FormatOpt
 
   console.log(formatDetails(displayResult, noColor));
 
-  if (displayResult.deployment === null) unlinkedHint(displayResult.domain, noColor);
+  nextStep(displayResult, noColor);
 }
 
 /**
- * The one remaining step for a domain that points at nothing, printed by
- * every command that shows such a domain: a reservation, a labels-only
- * edit, a read, and a verify. A verified domain with no deployment answers
- * the platform's reserved page, so the step is the whole of what the owner
- * needs from us at that moment, and the command is spelled out because the
- * reader is at a terminal.
+ * The one step a domain's standing asks of its owner, printed under every
+ * command that shows a SETTLED domain.
+ *
+ * Keyed by `Domain.status`, so the wire's own word chooses the sentence and
+ * this surface derives nothing. `Record<DomainStatusType, ...>` rather than a
+ * switch on purpose: a fifth standing would fail to compile here, which is
+ * the only way a next step cannot go missing at the one place that prints it.
+ *
+ * `live` prints nothing, because there is nothing left to do. The commands
+ * are spelled out because the reader is at a terminal, and the paused
+ * sentence deliberately names no plan: which plan sells more room is the
+ * API's to say, at the moment it refuses (`capSuggestion`), and a copy here
+ * would be a second statement of the ladder.
  */
-function unlinkedHint(domain: string, noColor?: boolean): void {
-  console.log();
-  info(
+const DOMAIN_NEXT_STEP: Record<DomainStatusType, (domain: string) => string | null> = {
+  [DomainStatus.LIVE]: () => null,
+  [DomainStatus.UNVERIFIED]: (domain) =>
+    `DNS for ${domain} is not pointing here yet. See the records to configure: ship domains records ${domain}`,
+  [DomainStatus.UNLINKED]: (domain) =>
     `Nothing is linked to ${domain} yet. Point it at a deployment: ship domains set ${domain} <deployment>`,
-    false,
-    noColor,
-  );
+  [DomainStatus.PAUSED]: (domain) =>
+    `${domain} is paused: your plan has no room for it, so it serves nothing. Delete another domain, or upgrade your plan.`,
+};
+
+/** Print the standing's next step, if it has one. */
+function nextStep(domain: Pick<Domain, 'domain' | 'status'>, noColor?: boolean): void {
+  const sentence = DOMAIN_NEXT_STEP[domain.status]?.(domain.domain);
+  if (!sentence) return;
+  console.log();
+  info(sentence, false, noColor);
 }
 
 /**
@@ -309,11 +326,29 @@ function unlinkedHint(domain: string, noColor?: boolean): void {
  * acknowledgement cannot carry: the verify is asynchronous, so where to read
  * the verdict, and the step that remains once it passes when nothing is
  * linked yet.
+ *
+ * **This is the one domain surface that does NOT print the standing's next
+ * step ({@link DOMAIN_NEXT_STEP}), and the reason is the command rather than
+ * an oversight.** The read behind `_deployment` happens moments after the
+ * check is QUEUED, before it has run, so the status it would report is
+ * `unverified` by design. Printing that standing's sentence would tell
+ * somebody who has just configured DNS and asked us to check it to go and
+ * configure DNS. `get` and `set` report a settled state, where the standing
+ * is the whole answer; `verify` reports a state that is deliberately stale,
+ * where the only thing worth saying is the one thing a pending verdict cannot
+ * change: whether anything will be served when it passes.
  */
 export function formatDomainVerify(result: EnrichedDomainVerify, options: FormatOptions): void {
   const { noColor } = options;
   info(`It runs in the background. Check with: ship domains get ${result.domain}`, false, noColor);
-  if (result._deployment === null) unlinkedHint(result.domain, noColor);
+  if (result._deployment === null) {
+    console.log();
+    info(
+      `Nothing is linked to ${result.domain} yet. Once it verifies, point it at a deployment: ship domains set ${result.domain} <deployment>`,
+      false,
+      noColor,
+    );
+  }
 }
 
 /**

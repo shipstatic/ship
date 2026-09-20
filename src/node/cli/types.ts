@@ -140,6 +140,13 @@ export interface EnrichedDomain extends DomainSetResult {
  * verification changes no field), so the command reads the domain once after
  * queueing to learn whether anything is linked, and says the one step left
  * when nothing is. Absent when that read failed; the verify still happened.
+ *
+ * **It carries the link fact and NOT the domain's `status`, deliberately.**
+ * The read lands moments after the check is queued and before it has run, so
+ * the standing would still be `unverified` whatever the customer has just
+ * configured. The link fact is the only thing about a domain that a pending
+ * DNS verdict cannot change, which is why it is the one thing this command
+ * can honestly report ahead of the result. See `formatDomainVerify`.
  */
 export interface EnrichedDomainVerify extends DomainVerifyResponse {
   _deployment?: string | null;

@@ -41,18 +41,29 @@ describe('domain operations', () => {
     ship = new Ship({ token: apiKey(), apiUrl: getMockServerUrl() });
   });
 
-  describe('status on create', () => {
-    it('starts a custom domain as pending (DNS not yet verified)', async () => {
+  describe('the standing on create', () => {
+    it('starts a linked custom domain as unverified (DNS comes first)', async () => {
       const domain = await ship.domains.set(CUSTOM, { deployment: DEPLOYMENT });
 
-      expect(domain.status).toBe('pending');
+      // Linked, and still `unverified`: the precedence puts DNS above the
+      // link, so a deployment does not make a name live until its records do.
+      expect(domain.status).toBe('unverified');
+      expect(domain.verification).toBe('pending');
       expect(domain.isCreate).toBe(true);
     });
 
-    it('starts a platform domain as success (nothing to verify)', async () => {
+    it('starts a linked platform domain as live (nothing to verify)', async () => {
       const domain = await ship.domains.set(PLATFORM, { deployment: DEPLOYMENT });
 
-      expect(domain.status).toBe('success');
+      expect(domain.status).toBe('live');
+      expect(domain.verification).toBe('verified');
+    });
+
+    it('starts a RESERVED platform domain as unlinked', async () => {
+      const domain = await ship.domains.set(PLATFORM);
+
+      expect(domain.status).toBe('unlinked');
+      expect(domain.deployment).toBeNull();
     });
   });
 

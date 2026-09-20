@@ -181,19 +181,47 @@ export function makePublicDeployment(
   } satisfies DeploymentCreateResponse;
 }
 
+/**
+ * The domain's STANDING, derived exactly as the platform derives it
+ * (`domainStatus(row)` in `cloudflare/shared/db/domains.ts`, whose docblock
+ * and the `DomainStatus` constant both state this precedence).
+ *
+ * Restated here rather than imported because this is a fixture in another
+ * repo and the owner is server-side; the copy is deliberate and small, and
+ * the CLI's contract suite is what holds it to the real API. What it must
+ * never become is a SECOND rule: if the precedence changes, it changes here
+ * in the same wave.
+ */
+function standing(row: Pick<Domain, 'paused' | 'verification' | 'deployment'>): Domain['status'] {
+  if (row.paused !== null) return 'paused';
+  if (row.verification !== 'verified') return 'unverified';
+  if (row.deployment === null) return 'unlinked';
+  return 'live';
+}
+
 export function makeDomain(domain: string, overrides: Partial<Domain> = {}): Domain {
-  return {
+  // A custom domain is born waiting on DNS; a platform name has no records to
+  // configure, so it is born verified. Everything else defaults to a bare
+  // reservation, and the standing is DERIVED from the finished row, after the
+  // overrides, so a fixture cannot state a status its own facts contradict.
+  const custom = isCustomDomain(domain);
+  const row = {
     domain,
     url: `https://${domain}`,
+    status: 'unlinked' as Domain['status'],
     deployment: null,
-    // Custom domains wait on DNS verification; platform domains are live at once.
-    status: isCustomDomain(domain) ? 'pending' : 'success',
-    labels: [],
-    created: timestamps.jan2022,
     linked: null,
     links: 0,
+    verification: custom ? 'pending' : 'verified',
+    verified: custom ? null : timestamps.jan2022,
+    verifications: 0,
+    paused: null,
+    labels: [],
+    created: timestamps.jan2022,
     ...overrides,
   } satisfies Domain;
+
+  return { ...row, status: overrides.status ?? standing(row) };
 }
 
 export function makeToken(overrides: Partial<Token> = {}): Token {

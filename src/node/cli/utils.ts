@@ -7,6 +7,23 @@ import { blue, dim, green, hidden, inverse, red, yellow } from 'yoctocolors';
 
 const INTERNAL_FIELDS = ['isCreate', 'claim'];
 
+/**
+ * Every wire field that is an INSTANT, so the renderers show a date where the
+ * wire carries unix seconds.
+ *
+ * An allowlist rather than a heuristic, because the alternative is guessing
+ * from the value and a `links` count, a `files` count and a `size` are all
+ * plain numbers on the same objects. It is a restatement of the
+ * constitution's instant-named fields with one holder (here), so it is NOT
+ * promoted into `@shipstatic/types`: one holder is no owner. What it IS owed
+ * is visibility, because the drift is silent in the worst way — a new instant
+ * renders as `1785000000` and nothing fails. The one-instant law means every
+ * member is a bare past-tense noun; when the constitution gains one, add it
+ * here in the same wave. (`verified` and `paused` joined on 2026-09-20 with
+ * the domain's standing.)
+ */
+const INSTANT_FIELDS = ['created', 'activated', 'expires', 'linked', 'verified', 'paused', 'used'];
+
 const applyColor = (colorFn: (text: string) => string, text: string, noColor?: boolean): string => {
   return noColor ? text : colorFn(text);
 };
@@ -139,16 +156,9 @@ const formatValue = (
   noColor?: boolean,
 ): string => {
   if (value === null || (Array.isArray(value) && value.length === 0)) return '-';
-  if (
-    typeof value === 'number' &&
-    (key === 'created' ||
-      key === 'activated' ||
-      key === 'expires' ||
-      key === 'linked' ||
-      // `used` is unix seconds on both Token and Account (the API key's
-      // last-use instant) — without this it renders as a raw integer.
-      key === 'used')
-  ) {
+  // `used` is unix seconds on both Token and Account (the API key's last-use
+  // instant); without the allowlist it would render as a raw integer.
+  if (typeof value === 'number' && INSTANT_FIELDS.includes(key)) {
     return formatTimestamp(value, context, noColor);
   }
   if (key === 'size' && typeof value === 'number') return formatFileSize(value);

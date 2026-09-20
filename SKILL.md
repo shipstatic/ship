@@ -158,7 +158,7 @@ Step 2 auto-prints DNS records and a setup link in text mode. With `--json`, cal
 
 `--domain` answers **as the domain** — same output as `ship domains set`, with the freshly linked deployment in the `deployment` field. Prefer it over the pipe (`ship ./dist -q | ship domains set www.example.com`), which still works: one process means one exit code and one JSON document, so a failed deploy cannot be masked by the second command. It requires a token and refuses before uploading anything if there isn't one. If the link fails, the deployment still exists and is reported first — re-run to link it again.
 
-Verification is async — DNS propagation takes minutes to hours. Check status with `ship domains get <name> --json` and look for `"status": "success"`.
+Verification is async — DNS propagation takes minutes to hours. Check with `ship domains get <name> --json` and read `status`: `unverified` means DNS is not pointing here yet, `unlinked` means DNS is right but nothing is published there, `live` means it serves.
 
 ### Domain types
 
@@ -168,6 +168,19 @@ Verification is async — DNS propagation takes minutes to hours. Check status w
 | Custom | `www.example.com` | CNAME + A | After DNS verified |
 
 **No apex domains.** Always `www.example.com`, not `example.com`. The A record only redirects apex to www.
+
+### Domain status
+
+`status` is the one word to read: what the domain needs from its owner. Read it rather than working it out from the other fields.
+
+| `status` | Means | Do |
+|----------|-------|-----|
+| `unverified` | DNS is not pointing here yet, in full or in part | `ship domains records <name>`, set those records, then `ship domains verify <name>` |
+| `unlinked` | DNS is right and nothing is published there | `ship domains set <name> <deployment>` |
+| `live` | It serves the linked deployment | Nothing |
+| `paused` | The plan has no room for it, so it serves nothing | Delete another domain, or upgrade the plan |
+
+`verification` is the DNS detail under `unverified`: `pending` (no required record points here), `partial` (some do), `verified` (all do). `verified` is when that happened, `verifications` how many attempts, `paused` when serving stopped.
 
 ### Upsert operations
 
@@ -194,12 +207,16 @@ ship domains set www.example.com <dep> --json
 {
   "domain": "www.example.com",
   "url": "https://www.example.com",
+  "status": "unverified",
   "deployment": "happy-cat-abc1234.shipstatic.com",
-  "status": "pending",
-  "labels": [],
-  "created": 1743552000,
   "linked": 1743552000,
-  "links": 1
+  "links": 1,
+  "verification": "pending",
+  "verified": null,
+  "verifications": 0,
+  "paused": null,
+  "labels": [],
+  "created": 1743552000
 }
 ```
 
@@ -252,7 +269,7 @@ Every command supports three modes:
 
 Errors go to stderr in all modes. Exit 0 = success, 1 = error.
 
-List commands return `{"<resource>s": [...], "cursor": null}`. A non-null `cursor` means more pages remain — pass it back with `--cursor` to continue, and size pages with `--limit`. There is no total; a count is an aggregate over a collection, not a property of one page. `domains list` text mode omits status — use `--json` to see `pending` vs `success`.
+List commands return `{"<resource>s": [...], "cursor": null}`. A non-null `cursor` means more pages remain — pass it back with `--cursor` to continue, and size pages with `--limit`. There is no total; a count is an aggregate over a collection, not a property of one page.
 
 ## Commands
 
