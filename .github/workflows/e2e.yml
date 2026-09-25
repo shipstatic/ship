@@ -39,8 +39,8 @@ jobs:
     timeout-minutes: 10
     # Read the code and nothing else. This job holds a real API credential, so
     # its GITHUB_TOKEN is scoped to the least thing that still lets it check
-    # out — and by the one-job-one-credential law, the third-party Slack action
-    # runs in `notify` below rather than beside these secrets.
+    # out. By the one-job-one-credential law, the alerts webhook lives in
+    # `notify` below rather than beside these secrets.
     permissions:
       contents: read
     env:
@@ -70,20 +70,21 @@ jobs:
         run: |
           echo "::notice title=E2E not configured::Set the SHIP_E2E_API_KEY and SHIP_E2E_API_URL repository secrets (a dev API key and the dev API URL) to run the contract smoke. See CLAUDE.md, 'The mock server'."
 
-  # Notification is third-party code, so it runs where no credential exists —
-  # an empty permissions map, in its own job, after the outcome is known. The
-  # e2e job's API key is not in scope here, which is the whole point of the
-  # split.
+  # A red run on a push or a schedule reaches the operator's alerts channel; a
+  # pull request's red already has a reader, its author. The webhook lives in
+  # this job alone, which runs nothing but curl, and an unset secret fails the
+  # job rather than skipping it. Root CLAUDE.md, "CI notifications".
   notify:
-    needs: e2e
-    if: always() && needs.e2e.result == 'failure'
+    needs: [e2e]
+    if: failure() && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     permissions: {}
     steps:
-      - uses: slackapi/slack-github-action@v4
-        with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
-          payload: |
-            text: "🔴 ship e2e contract smoke failed — the API may have drifted from the SDK's wire expectations"
+      - name: Post to the alerts channel
+        env:
+          ALERTS_WEBHOOK: ${{ secrets.ALERTS_WEBHOOK }}
+        run: |
+          MESSAGE="🔴 ship e2e contract smoke failed: the API may have drifted from the SDK's wire expectations"
+          [ -n "$ALERTS_WEBHOOK" ] || { echo "::error::ALERTS_WEBHOOK is not set on this repository, so this outcome reached nobody"; exit 1; }
+          curl --fail-with-body -sS --form-string "content=$MESSAGE <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID>" "$ALERTS_WEBHOOK"

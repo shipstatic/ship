@@ -1562,10 +1562,10 @@ halves exist precisely for drift only a live run can see. A `schedule:` answers
 "inert config rots" by construction: a cron runs whether or not anyone
 remembers it.
 
-Two mechanical notes. The Slack notification sits in its own job under
-`permissions: {}`, because the e2e job carries a real API credential and
-third-party action code must never run beside one (root `CLAUDE.md`, the
-one-job-one-credential law). And a burst of hand dispatches can flip the
+Two mechanical notes. The failure notice sits in its own job under
+`permissions: {}`, because the e2e job carries a real API credential and the
+alerts webhook must never sit beside it (root `CLAUDE.md`, the
+one-job-one-credential law and "CI notifications"). And a burst of hand dispatches can flip the
 anonymous-ttl row's `Forbidden` into a `RateLimit`: each run spends a slot of
 the dev API's anonymous issuance budget (agent: 5/hr per IP), since the limiter
 runs before the orchestrator refuses. The daily cadence is far inside it; that
