@@ -180,7 +180,7 @@ Verification is async — DNS propagation takes minutes to hours. Check with `sh
 | `live` | It serves the linked deployment | Nothing |
 | `paused` | The plan has no room for it, so it serves nothing | Delete another domain, or upgrade the plan |
 
-`verification` is the DNS detail under `unverified`: `pending` (no required record points here), `partial` (some do), `verified` (all do). `verified` is when that happened, `verifications` how many attempts, `paused` when serving stopped.
+`verification` is the DNS detail under `unverified`: `pending` (the CNAME does not point here, so nothing is served), `partial` (a `www` domain's CNAME does and its apex A record does not, so the site is served and `example.com` does not redirect yet), `verified` (every required record does). `verified` is when that happened, `verifications` how many attempts, `paused` when serving stopped.
 
 ### Upsert operations
 
