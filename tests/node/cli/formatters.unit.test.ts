@@ -32,7 +32,7 @@ import {
 import type { CLIResult } from '../../../src/node/cli/types';
 import {
   claimUrl,
-  makeAccountRow,
+  makeAccount,
   makeDeployment,
   makeDnsRecords,
   makeDomain,
@@ -500,7 +500,7 @@ describe('formatOutput router', () => {
     // What a test can still prove is COMPLETENESS — that every command has a
     // row, in both channels — and that is what this is.
     const records = makeDnsRecords();
-    const account = makeAccountRow();
+    const account = makeAccount();
     const created = makeTokenCreateResponse();
     const DOMAIN = 'www.example.com';
     const DEPLOYMENT = 'brave-otter-a1b2c3d';

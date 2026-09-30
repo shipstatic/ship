@@ -15,7 +15,6 @@
 
 import type {
   Account,
-  AccountGetResponse,
   Deployment,
   DeploymentCreateResponse,
   Domain,
@@ -251,8 +250,9 @@ export function makeTokenCreateResponse(
   } satisfies TokenCreateResponse;
 }
 
-export function makeAccount(overrides: Partial<AccountGetResponse> = {}): AccountGetResponse {
+export function makeAccount(overrides: Partial<Account> = {}): Account {
   return {
+    account: 'k3v9x2m7q1w8e5r4',
     email: 'test@example.com',
     name: 'Test User',
     picture: 'https://example.com/avatar.jpg',
@@ -273,15 +273,8 @@ export function makeAccount(overrides: Partial<AccountGetResponse> = {}): Accoun
     interval: null,
     scheduled: null,
     cancelAt: null,
-    authMethod: 'apiKey',
     ...overrides,
-  } satisfies AccountGetResponse;
-}
-
-/** The plain `Account` shape, for consumers that do not see `authMethod`. */
-export function makeAccountRow(overrides: Partial<Account> = {}): Account {
-  const { authMethod: _a, isAdmin: _i, impersonatedBy: _p, ...account } = makeAccount();
-  return { ...account, ...overrides } satisfies Account;
+  } satisfies Account;
 }
 
 /** wire: shared/dns.ts `domainRecords(domain, A_RECORD_IP, getCnameTarget(DOMAIN))` */

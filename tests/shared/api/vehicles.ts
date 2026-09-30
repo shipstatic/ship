@@ -17,7 +17,7 @@
  * path is the class of restatement the fold existed to remove.
  */
 
-import { type AccountGetResponse, API_PATHS, type PlatformLimits } from '@shipstatic/types';
+import { type Account, API_PATHS, type PlatformLimits } from '@shipstatic/types';
 import type { ApiHttp } from '../../../src/shared/api/http';
 import { createDeploymentResource } from '../../../src/shared/resources';
 import type { DeployInput, StaticFile } from '../../../src/shared/types';
@@ -29,7 +29,7 @@ export const getLimits = (api: ApiHttp) =>
   api.request<PlatformLimits>(API_PATHS.LIMITS, { method: 'GET' }, 'Get limits');
 
 export const getAccount = (api: ApiHttp) =>
-  api.request<AccountGetResponse>(API_PATHS.ACCOUNT, { method: 'GET' }, 'Get account');
+  api.request<Account>(API_PATHS.ACCOUNT, { method: 'GET' }, 'Get account');
 
 export const listDeployments = (api: ApiHttp) =>
   api.request(API_PATHS.DEPLOYMENTS, { method: 'GET' }, 'List deployments');

@@ -2,7 +2,7 @@
 
 Claude Code instructions for the **Ship SDK & CLI** package.
 
-**@shipstatic/ship** — universal SDK and CLI for ShipStatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Stable; semver applies — breaking changes require a major version bump.
+**@shipstatic/ship** — universal SDK and CLI for ShipStatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Stable; semver applies — breaking changes require a major version bump. **The pre-launch exception:** until the platform has external consumers, a change to a published type rides a minor under the same exception `@shipstatic/types` records beside its additive-evolution law, and the release notes name it (3.4.0: `account.get()` answers `Account`).
 
 **Branches:** `main` (production) + `development` (integration). The publish workflow runs on both — the guarded publish step publishes only when `package.json` holds a version not yet on the registry, with the dist-tag derived from the version (`-` suffix → `beta`, else `latest`). See root `CLAUDE.md` "Branch & CI Model".
 
@@ -1961,7 +1961,7 @@ win nobody is waiting on.
 | `tokens.list()` | `GET /tokens` | Paginated — same `{limit, cursor}` contract |
 | `tokens.get()` | `GET /tokens/:token` | The same row the listing carries, addressable — `ship tokens get` |
 | `tokens.delete()` | `DELETE /tokens/:token` | 200 `{token}` — resolved, not discarded |
-| `account.get()` | `GET /account` | |
+| `account.get()` | `GET /account` | Resolves `Account`, which names the account it describes (`account`). The SDK itself sends no `X-Account`: a key, a deploy token or an OAuth grant is its account, and a browser host in session mode names the account through its own `fetch` (the console does) |
 | `ping()` | `GET /ping` | Resolves `PingResponse` (`{timestamp}`) — reachability is the absence of a throw, so there is no boolean to read |
 | `getLimits()` | `GET /limits` | Cached after init. Carries the plan caps **and** `blockedExtensions` — the platform's hosting blocklist, optional (an older API sends none) |
 | (internal) | `POST /spa-check` | SPA detection during upload — optional auth, anonymous callers allowed |

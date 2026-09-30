@@ -20,7 +20,7 @@
 
 import type { AccountResource, DeployInput, StaticFile } from '@shipstatic/types';
 import {
-  type AccountGetResponse,
+  type Account,
   API_PATHS,
   type Deployment,
   type DeploymentCreateResponse,
@@ -346,8 +346,7 @@ export function createAccountResource(ctx: ResourceContext): AccountResource {
   const { getApi } = ctx;
 
   return {
-    get: async () =>
-      getApi().request<AccountGetResponse>(API_PATHS.ACCOUNT, { method: 'GET' }, 'Get account'),
+    get: async () => getApi().request<Account>(API_PATHS.ACCOUNT, { method: 'GET' }, 'Get account'),
   };
 }
 
