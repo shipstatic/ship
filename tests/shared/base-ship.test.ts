@@ -1,7 +1,7 @@
 /**
  * @file Subject: `src/shared/base-ship.ts` — the abstract Ship both platform
- * entries extend. Owns credential state, the lazy one-shot `/limits` hydration,
- * the resource factories, and the `deploy`/`whoami` shortcuts.
+ * entries extend. Owns credential state, the per-deploy `/limits` read, the
+ * resource factories, and the `deploy`/`whoami` shortcuts.
  *
  * The ordering block absorbs `mixed-core/initialization-order.test.ts`. It runs
  * the REAL `ApiHttp` against an injected `fetch` rather than reassigning
@@ -200,5 +200,68 @@ describe('Base Ship Class (Abstract)', () => {
 
       expect(paths.filter((p) => p === '/limits')).toHaveLength(3);
     });
+  });
+
+  /**
+   * Cancel stops a deploy wherever it is. A deploy is three requests (the
+   * limits it validates against, the SPA question, the upload itself), and
+   * the caller's one signal must reach each: a stop that only reached the
+   * last left the form busy while the first two ran, and a stop during the
+   * SPA question was swallowed by its fallback and read as a failure.
+   */
+  describe('cancellation reaches every request of a deploy (real transport)', () => {
+    /** Answers every path, except one it holds open until its signal aborts. */
+    function holdingFetch(held: string) {
+      const paths: string[] = [];
+      let heldSignal: AbortSignal | undefined;
+      let reached: () => void = () => {};
+      const arrived = new Promise<void>((resolve) => {
+        reached = resolve;
+      });
+      const fetch = vi.fn(async (input: any, init?: RequestInit) => {
+        const { pathname } = new URL(typeof input === 'string' ? input : input.url);
+        paths.push(pathname);
+        if (pathname === held) {
+          heldSignal = init?.signal ?? undefined;
+          reached();
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () =>
+              reject(new DOMException('The operation was aborted.', 'AbortError')),
+            );
+          });
+        }
+        if (pathname === '/limits') {
+          return json({ maxFileSize: 20971520, maxFilesCount: 500, maxTotalSize: 52428800 });
+        }
+        if (pathname === '/spa-check') return json({ isSPA: false });
+        return json({ deployment: 'brave-otter-a1b2c3d.shipstatic.com', status: 'success' });
+      }) as unknown as Fetch;
+      return { fetch, paths, arrived, heldSignal: () => heldSignal };
+    }
+
+    it.each([
+      ['/limits', ['/limits']],
+      ['/spa-check', ['/limits', '/spa-check']],
+      ['/deployments', ['/limits', '/spa-check', '/deployments']],
+    ])(
+      'a stop while %s is in flight cancels it, and sends nothing after it',
+      async (held, sent) => {
+        const { fetch, paths, arrived, heldSignal } = holdingFetch(held);
+        const client = new TestShip({
+          apiUrl: 'http://localhost:13579',
+          token: TEST_API_KEY,
+          fetch,
+        });
+        const controller = new AbortController();
+
+        const upload = client.deployments.upload(['./ignored'], { signal: controller.signal });
+        await arrived;
+        controller.abort();
+
+        await expect(upload).rejects.toMatchObject({ type: 'operation_cancelled' });
+        expect(heldSignal()?.aborted).toBe(true);
+        expect(paths).toEqual(sent);
+      },
+    );
   });
 });

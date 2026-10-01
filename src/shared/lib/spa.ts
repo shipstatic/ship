@@ -59,8 +59,13 @@ export async function createSPAConfig(): Promise<StaticFile> {
  *
  * @param files - The deploy, as it stands
  * @param transport - Carries the one request
+ * @param signal - The deploy's own signal: a stopped deploy stops its question
  */
-export async function checkSPA(files: StaticFile[], transport: Transport): Promise<boolean> {
+export async function checkSPA(
+  files: StaticFile[],
+  transport: Transport,
+  signal?: AbortSignal,
+): Promise<boolean> {
   const indexFile = files.find(
     (f) =>
       f.path === SPA_CHECK_CONSTRAINTS.INDEX_FILE ||
@@ -88,6 +93,7 @@ export async function checkSPA(files: StaticFile[], transport: Transport): Promi
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: signal ?? null,
     },
     'SPA check',
   );
@@ -121,14 +127,17 @@ export async function detectAndConfigureSPA(
   }
 
   try {
-    const isSPA = await checkSPA(files, transport);
+    const isSPA = await checkSPA(files, transport, options.signal);
 
     if (isSPA) {
       const spaConfig = await createSPAConfig();
       return [...files, spaConfig];
     }
-  } catch (_error) {
-    // SPA detection failed, continue silently without auto-config
+  } catch (error) {
+    // A failed detection is no reason to refuse the deploy, which goes on
+    // without auto-config. A cancelled one is the deploy being stopped, so
+    // the stop passes through rather than being mistaken for a failure.
+    if (options.signal?.aborted) throw error;
   }
 
   return files;

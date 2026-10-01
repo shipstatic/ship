@@ -122,8 +122,11 @@ export abstract class Ship {
       // The platform limits are read HERE, at the one seam that uses them,
       // once per deploy: the file-size, file-count and blocklist checks run
       // inside `processInput` against the limits the server states now.
-      // No other resource method reads them, so none pays the request.
-      processInput: async (input, opts) => this.processInput(input, opts, await this.getLimits()),
+      // No other resource method reads them, so none pays the request. The
+      // read carries the deploy's own signal, so a cancelled deploy stops
+      // here too, not only at its final POST.
+      processInput: async (input, opts) =>
+        this.processInput(input, opts, await this.getLimits({ signal: opts.signal })),
     });
     this.domains = createDomainResource(ctx);
     this.account = createAccountResource(ctx);
@@ -169,10 +172,15 @@ export abstract class Ship {
   /**
    * Get the platform limits the server states now (max file size, file count,
    * total size, and the blocked extensions). Asked every time and never held,
-   * since a plan move or an operator's grant changes them.
+   * since a plan move or an operator's grant changes them. A `signal` aborts
+   * the request, rejecting with the typed `Cancelled` error.
    */
-  async getLimits(): Promise<PlatformLimits> {
-    return this.http.request<PlatformLimits>(API_PATHS.LIMITS, { method: 'GET' }, 'Get limits');
+  async getLimits(options: { signal?: AbortSignal } = {}): Promise<PlatformLimits> {
+    return this.http.request<PlatformLimits>(
+      API_PATHS.LIMITS,
+      { method: 'GET', signal: options.signal ?? null },
+      'Get limits',
+    );
   }
 
   on<K extends keyof ShipEvents>(event: K, handler: (...args: ShipEvents[K]) => void): void {

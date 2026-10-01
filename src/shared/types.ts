@@ -20,8 +20,11 @@ export * from '@shipstatic/types';
 export interface DeploymentOptions extends DeploymentUploadOptions {
   /**
    * An AbortSignal to allow cancellation of the deploy operation. The one
-   * cancellation mechanism — abort the signal and the request rejects with
-   * a typed `Cancelled` error. Request timeouts are a client concern
+   * cancellation mechanism: it reaches every request the deploy makes (the
+   * limits it validates against, the SPA question and the upload itself),
+   * and aborting it rejects the deploy with a typed `Cancelled` error
+   * wherever it stands. A deploy the server had already committed stays
+   * committed. Request timeouts are a client concern
    * (`ShipClientOptions.timeout`), not a per-deploy one.
    */
   signal?: AbortSignal;
