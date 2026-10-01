@@ -165,7 +165,7 @@ describe('Base Ship Class (Abstract)', () => {
       return { fetch, paths, urls };
     }
 
-    it('hydrates limits before the SPA pre-flight, and both before the deploy', async () => {
+    it('reads limits before the SPA pre-flight, and both before the deploy', async () => {
       // Why the order is load-bearing: `/spa-check` and the deploy body are
       // both size-validated against the limits, so a deploy that raced ahead
       // of `/limits` would validate against nothing.
@@ -190,7 +190,7 @@ describe('Base Ship Class (Abstract)', () => {
       }
     });
 
-    it('fetches limits exactly once across many calls', async () => {
+    it('reads limits once per call that uses them, and holds none between calls', async () => {
       const { fetch, paths } = recordingFetch();
       const client = new TestShip({ apiUrl: 'http://localhost:13579', token: TEST_API_KEY, fetch });
 
@@ -198,7 +198,7 @@ describe('Base Ship Class (Abstract)', () => {
       await client.getLimits();
       await client.deployments.upload(['./ignored']);
 
-      expect(paths.filter((p) => p === '/limits')).toHaveLength(1);
+      expect(paths.filter((p) => p === '/limits')).toHaveLength(3);
     });
   });
 });

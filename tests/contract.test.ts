@@ -32,8 +32,6 @@ let ctx: ContractContext;
 // deletes its fixture cannot disturb the next.
 beforeEach(async () => {
   ship = new Ship({ apiUrl: getMockServerUrl(), token: API_KEY });
-  // Warm the lazy `/limits` fetch so it cannot be the last response event.
-  await ship.getLimits();
 
   const deployment = await ship.deployments.upload(DEMO_SITE);
   // A second deployment that expires — the fixture the link-refusal row needs.

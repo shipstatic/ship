@@ -6,7 +6,7 @@
  * (or, for first-party browser apps, the cookie session via `session: true`).
  */
 
-import { ShipError } from '@shipstatic/types';
+import { type PlatformLimits, ShipError } from '@shipstatic/types';
 import { Ship as BaseShip } from '../shared/base-ship.js';
 import type {
   DeployInput,
@@ -54,6 +54,7 @@ export class Ship extends BaseShip {
   protected async processInput(
     input: DeployInput,
     options: DeploymentOptions,
+    limits: PlatformLimits,
   ): Promise<StaticFile[]> {
     if (!Array.isArray(input) || !input.every((item) => item instanceof File)) {
       throw ShipError.business('Invalid input type for browser environment. Expected File[].');
@@ -64,7 +65,7 @@ export class Ship extends BaseShip {
     }
 
     const { processFilesForBrowser } = await import('./core/browser-files.js');
-    return processFilesForBrowser(input, options, this.platformLimits ?? undefined);
+    return processFilesForBrowser(input, options, limits);
   }
 }
 

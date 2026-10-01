@@ -3,12 +3,14 @@
  *
  * The constructor is fully synchronous: an `ApiHttp` instance is built immediately
  * with whatever credentials the caller supplied (and, in Node, env vars merged in
- * by the subclass before `super()`). The only deferred work is the one-shot
- * `GET /limits` fetch that hydrates platform limits — lazy, memoized, and run
- * from the two places that actually READ the result: the deploy pipeline's
- * `processInput` and the public `getLimits()`. It ran on the first API call of
- * any kind until 2026-08-12, which cost every other command a round trip it
- * never used.
+ * by the subclass before `super()`).
+ *
+ * Platform limits are the account's policy, and the server may change them at
+ * any time (a plan move, an operator's grant), so the client never holds them:
+ * `getLimits()` asks every time, and each deploy reads them once, at its start,
+ * for its own validation. A client that lives as long as a browser tab would
+ * otherwise validate today's upload against the limits of the morning, and the
+ * only calls that pay the request are the two that read the answer.
  *
  * Subclasses only override what genuinely differs per environment:
  *   - `processInput()` — Node reads paths from disk; Browser handles `File[]`
@@ -62,16 +64,6 @@ export abstract class Ship {
   // reaching into these fields. Tests bypass via `(ship as any).http = ...`.
   private readonly http: ApiHttp;
   private readonly clientOptions: ShipClientOptions;
-
-  // Lazy-init plumbing for the one-shot `GET /limits` fetch.
-  // `platformLimits` is INSTANCE state (not a module-level singleton): two
-  // Ships against different `apiUrl`s — staging + prod, multi-tenant
-  // orchestrators, n8n with multiple credentials — must not clobber each
-  // other's limits. Each instance owns its hydrated copy.
-  // `protected` so subclasses' `processInput` can pass it down to the
-  // platform-specific file-validation utilities.
-  private initPromise: Promise<void> | null = null;
-  protected platformLimits: PlatformLimits | null = null;
 
   // The credential slot — one platform token (any population) or a provider
   // that supplies one per request. Read dynamically on every request through
@@ -127,55 +119,24 @@ export abstract class Ship {
 
     this.deployments = createDeploymentResource({
       ...ctx,
-      // The platform limits are fetched HERE, at the one seam that reads
-      // them, rather than by every resource method. `processInput` is the
-      // only consumer — the file-size, file-count and blocklist checks run
-      // inside it — so this is where the round trip is earned.
-      //
-      // It used to be an `ensureInit()` at the top of all nineteen wrappers,
-      // which meant `domains list`, `tokens list` and even `ping` each paid a
-      // `/limits` request they never read. Every CLI command is one process,
-      // so that was a wasted round trip on every invocation of the product.
-      processInput: async (input, opts) => {
-        await this.ensureInitialized();
-        return this.processInput(input, opts);
-      },
+      // The platform limits are read HERE, at the one seam that uses them,
+      // once per deploy: the file-size, file-count and blocklist checks run
+      // inside `processInput` against the limits the server states now.
+      // No other resource method reads them, so none pays the request.
+      processInput: async (input, opts) => this.processInput(input, opts, await this.getLimits()),
     });
     this.domains = createDomainResource(ctx);
     this.account = createAccountResource(ctx);
     this.tokens = createTokenResource(ctx);
   }
 
-  // Environment-specific behavior.
+  // Environment-specific behavior: collect and validate the files, against
+  // the limits this deploy read.
   protected abstract processInput(
     input: DeployInput,
     options: DeploymentOptions,
+    limits: PlatformLimits,
   ): Promise<StaticFile[]>;
-
-  /**
-   * Lazy initialization — fetches platform limits (file size / count caps) once,
-   * on the first API call. Subsequent calls reuse the resolved promise.
-   */
-  protected async ensureInitialized(): Promise<void> {
-    if (!this.initPromise) {
-      this.initPromise = this.fetchPlatformLimits();
-    }
-    return this.initPromise;
-  }
-
-  private async fetchPlatformLimits(): Promise<void> {
-    try {
-      this.platformLimits = await this.http.request<PlatformLimits>(
-        API_PATHS.LIMITS,
-        { method: 'GET' },
-        'Get limits',
-      );
-    } catch (error) {
-      // Reset so the next API call can retry initialization.
-      this.initPromise = null;
-      throw error;
-    }
-  }
 
   /**
    * Ping the API server, resolving its answer: `{ success, timestamp }`, where
@@ -188,9 +149,6 @@ export abstract class Ship {
    * transport, so a resolved value always means the API answered.
    */
   async ping(): Promise<PingResponse> {
-    // No `ensureInitialized()`: a reachability check reads no platform limits,
-    // and hydrating them here made the cheapest call in the product issue two
-    // requests — `/limits` and then `/ping`.
     return this.http.request<PingResponse>(API_PATHS.PING, { method: 'GET' }, 'Ping');
   }
 
@@ -209,15 +167,12 @@ export abstract class Ship {
   }
 
   /**
-   * Get platform limits (max file size, file count, total size).
-   * Reuses the response fetched during initialization. Per-instance state —
-   * does not leak between concurrent Ships against different API URLs.
+   * Get the platform limits the server states now (max file size, file count,
+   * total size, and the blocked extensions). Asked every time and never held,
+   * since a plan move or an operator's grant changes them.
    */
   async getLimits(): Promise<PlatformLimits> {
-    if (this.platformLimits) return this.platformLimits;
-    await this.ensureInitialized();
-    // biome-ignore lint/style/noNonNullAssertion: ensureInitialized() hydrates platformLimits or throws
-    return this.platformLimits!;
+    return this.http.request<PlatformLimits>(API_PATHS.LIMITS, { method: 'GET' }, 'Get limits');
   }
 
   on<K extends keyof ShipEvents>(event: K, handler: (...args: ShipEvents[K]) => void): void {

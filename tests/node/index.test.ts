@@ -229,9 +229,11 @@ describe('Ship - Node.js Implementation', () => {
 
       await ship.deploy(['./dist/index.html', './dist/style.css']);
 
+      // The third argument is the limits this deploy read from the server.
       expect(mockProcessInput).toHaveBeenCalledWith(
         ['./dist/index.html', './dist/style.css'],
         expect.any(Object),
+        {},
       );
     });
 
@@ -307,7 +309,9 @@ describe('Ship - Node.js Implementation', () => {
 
       const result = await ship.deploy('./dist');
 
-      expect(mockProcessInput).toHaveBeenCalledWith('./dist', expect.any(Object));
+      expect(mockProcessInput).toHaveBeenCalledWith('./dist', expect.any(Object), {
+        maxFileSize: 10485760,
+      });
       expect(result).toEqual({
         id: 'dep_dir_123',
         url: 'https://dep_dir_123.shipstatic.com',
@@ -347,6 +351,7 @@ describe('Ship - Node.js Implementation', () => {
       expect(mockProcessInput).toHaveBeenCalledWith(
         ['./src/index.html'],
         expect.objectContaining(options),
+        {},
       );
     });
   });

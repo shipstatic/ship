@@ -14,7 +14,7 @@
  * developer's personal credentials.
  */
 
-import { ShipError } from '@shipstatic/types';
+import { type PlatformLimits, ShipError } from '@shipstatic/types';
 import { Ship as BaseShip } from '../shared/base-ship.js';
 import { getENV } from '../shared/lib/env.js';
 import type {
@@ -88,6 +88,7 @@ export class Ship extends BaseShip {
   protected async processInput(
     input: DeployInput,
     options: DeploymentOptions,
+    limits: PlatformLimits,
   ): Promise<StaticFile[]> {
     // Normalize string to string[] and validate.
     const paths = typeof input === 'string' ? [input] : input;
@@ -103,7 +104,7 @@ export class Ship extends BaseShip {
     }
 
     const { processFilesForNode } = await import('./core/node-files.js');
-    return processFilesForNode(paths, options, this.platformLimits ?? undefined);
+    return processFilesForNode(paths, options, limits);
   }
 }
 

@@ -132,7 +132,7 @@ ship ping
 ```typescript
 ship.account.get()            // → whoami
 ship.ping()                   // → { timestamp } (server clock; reachability is the absence of a throw)
-ship.getLimits()              // → platform plan limits (cached)
+ship.getLimits()              // → the account's platform limits, read now
 ```
 
 ## CLI reference

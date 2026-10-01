@@ -50,9 +50,8 @@ export interface DeploySource {
  * @param sources - What the platform found, in the platform's own order
  * @param options - Deploy options; `pathDetect` and the server-processed flags
  *   are the two this pipeline reads
- * @param platformLimits - The caps and the delivered blocklist from
- *   `GET /limits`. Per-instance rather than a module global, so two Ships
- *   against different API URLs cannot clobber each other's rules.
+ * @param platformLimits - The caps and the delivered blocklist the deploy read
+ *   from `GET /limits` at its start, passed in and never held.
  */
 export async function processDeployFiles(
   sources: DeploySource[],

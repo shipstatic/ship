@@ -127,13 +127,8 @@ export const CONTRACT: readonly ContractPoint[] = [
     // warning — a deploy still fails, but at the boundary after an upload
     // rather than instantly. Nothing else in this repo can observe that, which
     // is precisely why the point is stated on the LIVE half.
-    // No `status`, and that is a property of the call rather than an omission:
-    // `/limits` is fetched once during init and `getLimits()` answers from
-    // cache, so this call emits no `response` event — the runners even warm it
-    // deliberately so it cannot be mistaken for another row's. Its 200 is
-    // exercised by every row here, since none of them would have a client
-    // otherwise. This row exists for its `assert`.
     name: 'getLimits',
+    status: 200,
     live: true,
     assert: (r) => {
       const blocked = (r as { blockedExtensions?: unknown }).blockedExtensions;
@@ -369,9 +364,8 @@ export interface Observation {
 /**
  * Run one point and report what the wire said.
  *
- * The LAST `response` event is the operation's own: the lazy `/limits` fetch
- * and any pre-flight (`/spa-check` on a deploy) precede it. Runners warm the
- * client first so that ordering is not load-bearing for the common case.
+ * The LAST `response` event is the operation's own: a deploy's `/limits` read
+ * and its pre-flight (`/spa-check`) precede it.
  *
  * **`assert` runs OUTSIDE the catch, and that placement is load-bearing.**
  * Inside it, a failing assert was reported as though the WIRE had errored —

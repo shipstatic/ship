@@ -228,7 +228,7 @@ See "Retries" for why this replaced a per-attempt `error`.
 
 ### Authentication Flow
 
-The constructor is fully synchronous: the credential and the HTTP client are formed at construction time from constructor args, with `SHIP_TOKEN` / `SHIP_API_URL` filling any gaps in Node. The only deferred work is the one-shot `GET /limits` fetch that hydrates platform limits — that runs lazily on the first API call via `ensureInitialized()`.
+The constructor is fully synchronous: the credential and the HTTP client are formed at construction time from constructor args, with `SHIP_TOKEN` / `SHIP_API_URL` filling any gaps in Node. Nothing is deferred and nothing is held: platform limits are read when they are used (below).
 
 **One credential slot.** `token` carries any platform token — `ship-` API key, `deploy-` deploy token, `oauth-` OAuth access token — sent verbatim as `Authorization: Bearer <value>`. The value's shape says what it is: the server classifies with the same `classifyToken` (`@shipstatic/types`) the SDK uses for boundary validation, so client and server can never disagree on dispatch. **The OAuth population gained its prefix on 2026-08-14** and the SDK needed no source change for it — one slot, one dispatcher, the rules owned by the constitution — which is the clearest evidence that slot is the right shape. A bearer carrying no known prefix still rides the slot and is still forwarded verbatim; the server refuses it, because the platform mints nothing unprefixed any more. A `TokenProvider` function in the same slot supplies the token per request — minting and refresh live with the caller, the SDK just asks. `session: true` is the cookie-session identity for first-party browser apps. `token` + `session` together is a config error. **There is no credential precedence anywhere in the SDK** — one slot means multiplicity is inexpressible.
 
@@ -1860,26 +1860,22 @@ names nothing is recorded as is the API's own call, not this package's.
 >
 > The `fetch` option is the exception: it's in the public README ("Custom fetch") because transport injection is a convention every comparable SDK ships (Stripe, OpenAI, Anthropic). Rule of thumb: ShipStatic-specific levers stay internal; industry-standard SDK conventions are public.
 
-**`getLimits()` is cached, and the fetch is EARNED.** The one-shot `/limits`
-request runs from the two places that read its result — the deploy pipeline's
-`processInput` (file-size, file-count and blocklist checks) and `getLimits()`
-itself — and from nowhere else.
+**`getLimits()` asks the server every time, and the request is EARNED.**
+Limits are the account's policy and the server may change them at any time (a
+plan move, an operator's grant), so the client never holds them. `getLimits()`
+issues `GET /limits` on every call, and a deploy reads them once, at its start,
+and hands them to `processInput` (file-size, file-count and blocklist checks).
+Nothing else requests them: `domains list`, `tokens list`, `whoami` and `ping`
+issue their own request and no other.
 
-It used to run from `ensureInit()` at the top of all nineteen resource
-wrappers plus `ping()`, so EVERY operation hydrated limits before doing its
-own work. Measured: `domains list`, `tokens list`, `whoami` and `ping` each
-issued `/limits` first and then their own request. A CLI command is one
-process, so that was a wasted round trip on every invocation of the product —
-and `ping`, whose whole job is "is the API reachable", was paying it twice
-over. One request each now.
-
-The concept did not move, it went where it was consumed: `ResourceContext`
-lost `ensureInit` entirely, which is what makes a nineteenth wrapper unable to
-reintroduce the cost by copying its neighbour. Fenced by request COUNTS in
-`base-ship-limits.test.ts` — the resolved values were always correct, so only
-counting requests can see the difference. Three tests elsewhere had the old
-two-request shape written into their expectations (`['…/limits', '…/ping']`),
-which is how a wasted round trip survives a suite.
+Holding them is refused, measured on the console: a client lives as long as a
+browser tab, so a memo validated today's upload against the morning's limits,
+and a caller's own cache (the console's TanStack query, `@shipstatic/drop`)
+could refresh nothing beneath it. A CLI command and the hosted MCP make one
+client per operation, so for them the two contracts cost the same one request.
+Fenced by request COUNTS and by a server that changes its answer between calls
+in `base-ship-limits.test.ts`, since the resolved values alone cannot tell a
+fresh read from a stale one.
 
 **`/limits` is also how the platform's extension blocklist reaches the client.**
 `PlatformLimits.blockedExtensions` is the API's list (`cloudflare/api/src/lib/blocklist.ts`);

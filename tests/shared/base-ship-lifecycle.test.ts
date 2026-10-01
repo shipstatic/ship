@@ -8,13 +8,9 @@ import { fakeTransport } from '../mocks/transport';
 const TEST_API_KEY = apiKey('a');
 const TEST_DEPLOY_TOKEN = deployToken('b');
 
-// Concrete test implementation. The `ensureInitialized` no-op skips the
-// `GET /limits` fetch so these tests can focus on the credential lifecycle
-// without needing to mock platform-limits wiring.
+// Concrete test implementation: `processInput` answers a fixed file, so these
+// tests focus on the credential lifecycle rather than on file collection.
 class TestShip extends Ship {
-  protected async ensureInitialized(): Promise<void> {
-    /* no platform-limits fetch in tests */
-  }
   protected async processInput(
     _input: DeployInput,
     _options: DeploymentOptions,

@@ -315,7 +315,11 @@ describe('Ship - Browser Implementation', () => {
       await ship.deploy(mockFiles, options);
 
       // Verify options were passed to processInput
-      expect(mockProcessInput).toHaveBeenCalledWith(mockFiles, expect.objectContaining(options));
+      expect(mockProcessInput).toHaveBeenCalledWith(mockFiles, expect.objectContaining(options), {
+        maxFileSize: 10485760,
+        maxFilesCount: 1000,
+        maxTotalSize: 52428800,
+      });
     });
 
     it('should handle empty File[]', async () => {

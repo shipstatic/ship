@@ -27,10 +27,9 @@ import type { DeploymentOptions, StaticFile } from '../../shared/types.js';
  *
  * @param browserFiles - File[] to process for deploy.
  * @param options - Processing options including pathDetect for automatic path optimization.
- * @param platformLimits - Per-instance platform limits (file-size / count / total-size caps)
- *   from the originating Ship's `GET /limits` fetch. Passed in rather than read from a
- *   module global so concurrent Ships against different API URLs cannot clobber each
- *   other's caps.
+ * @param platformLimits - The platform limits (file-size / count / total-size caps and
+ *   the blocked extensions) the deploy read from `GET /limits` at its start. Passed in,
+ *   never held, so a validation always meets the limits the server states now.
  * @returns Promise resolving to an array of StaticFile objects.
  * @throws {ShipError} If called outside a browser or with invalid input.
  */
