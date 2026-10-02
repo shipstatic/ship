@@ -28,7 +28,7 @@ import { getMockServerUrl, resetMockServer } from '../mocks/server';
 
 /** The deployment the mock state is seeded with. */
 const DEPLOYMENT = deploymentId();
-/** A platform subdomain: `<label>.shipstatic.com`. */
+/** A platform domain: `<label>.shipstatic.com`. */
 const PLATFORM = platformDomain('preview-site');
 /** Anything not under the platform domain is custom. */
 const CUSTOM = 'www.example.com';
