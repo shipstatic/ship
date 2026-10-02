@@ -246,8 +246,9 @@ const ship = new Ship({ token: accessToken });
 // Token provider — invoked per request; refresh lives with you
 const ship = new Ship({ token: () => mintToken() });
 
-// Cookie session — first-party browser apps
+// Cookie session: the platform's own apps, where every account request names its account
 const ship = new Ship({ session: true });
+ship.setHeaders({ 'X-Account': account });
 
 // Set or rotate the token after construction
 ship.setToken('ship-your-api-key');
