@@ -116,7 +116,7 @@ Visitors get an unlock page until they enter the password. Length: 6–128 chara
 
 ### Client-side routing
 
-A deployment whose only page is `index.html` serves it for every missing path, so a React, Vue, Svelte or Angular build works on its routes with nothing to configure. An app that ships other HTML files beside its shell declares the route itself: a `ship.json` rewrite from `/(.*)` to `/index.html`, the one the ship.json docs show. Your own rewrites run ahead of either. A root `404.html` of your own turns the automatic route off and is served for a missing path your rewrites do not claim. Every deployment states the answer as `fallback`: the page a missing path opens, or `null` for a 404, so check it on the deploy response and add the rewrite when an app reads `null`.
+A deployment whose only page is `index.html` serves it for every missing path, so a React, Vue, Svelte or Angular build works on its routes with nothing to configure. An app that ships other HTML files beside its shell declares the route itself: a `ship.json` rewrite from `/(.*)` to `/index.html`, the one the ship.json docs show. Your own rewrites run ahead of either. A root `404.html` of your own turns the automatic route off and is served for a missing path your rewrites do not claim. Every deployment states its default as `fallback`: the page declared for a missing path, or `null` when none is declared, so check it on the deploy response and add the rewrite when an app reads `null`.
 
 ## Authentication
 

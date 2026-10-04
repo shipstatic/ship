@@ -155,9 +155,9 @@ const formatValue = (
   context: 'table' | 'details' = 'details',
   noColor?: boolean,
 ): string => {
-  // What a missing path serves: the page, or the plain fact of a 404, so an
-  // app shipped with a page beside its shell reads its own deep links here.
-  if (key === 'fallback' && value === null) return '404';
+  // The default page declared for a missing path, or none: an app shipped
+  // with a page beside its shell reads its own deep links here.
+  if (key === 'fallback' && value === null) return 'none';
   if (value === null || (Array.isArray(value) && value.length === 0)) return '-';
   // `used` is unix seconds on both Token and Account (the API key's last-use
   // instant); without the allowlist it would render as a raw integer.
