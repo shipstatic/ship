@@ -66,6 +66,13 @@ export const FREE_PLAN_LIMITS: PlatformLimits = {
   maxFilesCount: 500,
   maxTotalSize: 50 * 1024 * 1024, // 50 MB
   blockedExtensions: BLOCKED_EXTENSIONS_SAMPLE,
+  // wire: routes/limits.ts — the way forward past each limit, written by the
+  // API's own `limitSuggestion` for the caller's plan; a free caller reads Pro.
+  suggestions: {
+    maxFileSize: 'Upgrade to Pro for more.',
+    maxFilesCount: 'Upgrade to Pro for more.',
+    maxTotalSize: 'Upgrade to Pro for more.',
+  },
 };
 
 /**

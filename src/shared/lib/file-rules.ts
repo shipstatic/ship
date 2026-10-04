@@ -18,7 +18,9 @@
  * limit, and reads without a prefix. The family is subject first: `File
  * "<path>" <verdict>. Maximum <limit> allowed.`, and `File name "<path>" …`
  * where the name is the subject. The total-size rule's subject is the set of
- * files, which is why it names no path.
+ * files, which is why it names no path. A limit's sentence ends with the way
+ * forward the API delivered for it (`withWayForward`), so the whole reads
+ * `File "x" is too large. Maximum 20 MB allowed. Upgrade to Pro for more.`
  *
  * **Wording follows the API where a choice existed**, so the deferred Phase B
  * (promoting this table to `@shipstatic/types` with the API consuming it) has
@@ -38,9 +40,26 @@
  * word their sentences by the same family.
  */
 
-import type { PlatformLimits } from '@shipstatic/types';
+import type { PlatformLimitKey, PlatformLimits } from '@shipstatic/types';
 import { isBlockedExtension } from '@shipstatic/types';
 import { formatFileSize, validateFileName } from './file-validation.js';
+
+/**
+ * A limit's sentence, followed by the way forward past that limit as the API
+ * delivered it (`PlatformLimits.suggestions`), verbatim. The API writes that
+ * sentence with the function its own refusals end with, so a refusal made
+ * here and one made at the boundary end in the same words, and this package
+ * never learns what a plan is. An older API delivers none, and nothing is
+ * appended.
+ */
+export function withWayForward(
+  sentence: string,
+  limits: PlatformLimits,
+  key: PlatformLimitKey,
+): string {
+  const suggestion = limits.suggestions?.[key];
+  return suggestion ? `${sentence} ${suggestion}` : sentence;
+}
 
 /** What a rule is asked about: one file, and the deploy so far. */
 export interface FileRuleInput {
@@ -88,13 +107,21 @@ export const FILE_RULES: readonly FileRule[] = [
     name: 'fileSize',
     broken: ({ size }, limits) => size > limits.maxFileSize,
     sentence: ({ path }, limits) =>
-      `File "${path}" is too large. Maximum ${formatFileSize(limits.maxFileSize)} allowed.`,
+      withWayForward(
+        `File "${path}" is too large. Maximum ${formatFileSize(limits.maxFileSize)} allowed.`,
+        limits,
+        'maxFileSize',
+      ),
   },
   {
     name: 'totalSize',
     broken: ({ totalSize }, limits) => totalSize > limits.maxTotalSize,
     sentence: ({ totalSize }, limits) =>
-      `Files add up to ${formatFileSize(totalSize)}. Maximum ${formatFileSize(limits.maxTotalSize)} allowed.`,
+      withWayForward(
+        `Files add up to ${formatFileSize(totalSize)}. Maximum ${formatFileSize(limits.maxTotalSize)} allowed.`,
+        limits,
+        'maxTotalSize',
+      ),
   },
 ];
 

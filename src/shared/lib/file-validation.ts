@@ -15,7 +15,7 @@ import {
   hasUnbuiltMarker,
   hasUnsafeChars,
 } from '@shipstatic/types';
-import { firstBrokenRule } from './file-rules.js';
+import { firstBrokenRule, withWayForward } from './file-rules.js';
 
 // The platform's one reading of a byte count, re-exported so this package's
 // consumers keep reading it from here.
@@ -150,7 +150,11 @@ export function validateFiles<T extends ValidatableFile>(
   if (files.length > config.maxFilesCount) {
     const issue: ValidationIssue = {
       file: `(${files.length} files)`,
-      message: `Too many files (${files.length}). Maximum ${config.maxFilesCount} files allowed.`,
+      message: withWayForward(
+        `Too many files (${files.length}). Maximum ${config.maxFilesCount} files allowed.`,
+        config,
+        'maxFilesCount',
+      ),
     };
     errors.push(issue);
 

@@ -1193,6 +1193,24 @@ describe('File Validation - Boundary Tests', () => {
       expect(issue.message.split(`"${issue.file}"`).length - 1).toBe(1);
     });
 
+    it('ends the count\u2019s sentence with the delivered way forward, and with nothing when none came', () => {
+      const many = Array.from({ length: 101 }, (_, i) => createMockFile(`f${i}.txt`, 1));
+      const way: PlatformLimits = {
+        ...config,
+        suggestions: {
+          maxFileSize: 'Upgrade to Pro for more.',
+          maxFilesCount: 'Upgrade to Pro for more.',
+          maxTotalSize: 'Upgrade to Pro for more.',
+        },
+      };
+      expect(validateFiles(many, way).errors[0].message).toBe(
+        'Too many files (101). Maximum 100 files allowed. Upgrade to Pro for more.',
+      );
+      expect(validateFiles(many, config).errors[0].message).toBe(
+        'Too many files (101). Maximum 100 files allowed.',
+      );
+    });
+
     it('the issues about the SET name no file', () => {
       // Too many, and too much in total: the subject is the deploy, so the
       // sentence states the count or the sum and blames no single file.

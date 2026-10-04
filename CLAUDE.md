@@ -1923,15 +1923,28 @@ error) word their sentences by the same family. A consumer that prefixed the
 path produced `big.txt: File "big.txt" too large`, which is the defect the
 rule closes.
 
+**A limit's sentence ends with the way forward, and the API wrote it.**
+`/limits` delivers `PlatformLimits.suggestions`, one sentence per limit
+("Upgrade to Pro for more.", or support where no sold plan allows more),
+computed by the API for the caller's plan, grant and open doors with the
+function its own upload refusal ends with. `withWayForward` (`file-rules.ts`)
+appends the delivered sentence verbatim to the size, total and count
+sentences, in the table, so both renderers carry it: `File "x" is too large.
+Maximum 20 MB allowed. Upgrade to Pro for more.` A refusal made here and one
+made at the boundary therefore end in the same words by construction, and
+this package never learns what a plan is. An older API delivers no field and
+nothing is appended, as with `blockedExtensions`; `tests/contract.ts`'s
+`getLimits` row holds the field on the wire. The CLI's `plainMessage` leaves
+the appended sentence intact (it lowercases only the opening word and strips
+only the final period), and the MCPs relay the message unchanged.
+
 Wording follows the API where a choice existed, so the deferred promotion has
 less to move, with two recorded deviations: sizes are FORMATTED rather than raw
 bytes (a browser UI showing `20971520 bytes` is worse for the person reading
 it, and the unit is the smaller half to reconcile), and the PATH is named (the
 API has none to name; the throwing renderer has nothing but the message). The
 API's own copies of these sentences (`cloudflare/api/src/lib/validation.ts`)
-still read in the older wording and carry the upgrade suggestion the SDK
-cannot yet write; they converge on the convoy recorded in root `backlog.md`
-("The limit-refusal upsell reaches almost nobody").
+still read in the older wording; Phase B below is where they converge.
 
 Scope held deliberately: `validateDeployPath` stays out (a rule about the
 deploy PATH, not the file, and pipelines-only).

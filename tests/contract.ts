@@ -142,6 +142,18 @@ export const CONTRACT: readonly ContractPoint[] = [
       if (blocked.some((ext) => typeof ext !== 'string' || !/^[a-z0-9]+$/.test(ext))) {
         throw new Error('blockedExtensions must be lowercase, dotless extensions');
       }
+      // The way forward past each limit, one sentence per limit, which the
+      // SDK appends to its own refusal verbatim. Without it a refusal made
+      // here states a number and stops, which is the silence this field ends.
+      const suggestions = (r as { suggestions?: Record<string, unknown> }).suggestions;
+      for (const key of ['maxFileSize', 'maxFilesCount', 'maxTotalSize']) {
+        if (typeof suggestions?.[key] !== 'string' || !suggestions[key]) {
+          throw new Error(
+            `GET /limits must carry suggestions.${key}, a sentence — ` +
+              'wire: cloudflare/api/src/lib/entitlements.ts limitSuggestions, served by routes/limits.ts.',
+          );
+        }
+      }
     },
     run: (s) => s.getLimits(),
   },

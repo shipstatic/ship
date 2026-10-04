@@ -104,6 +104,53 @@ describe('the file-rule table', () => {
   });
 });
 
+describe('the way forward', () => {
+  // The API delivers, per limit, the sentence its own refusal ends with; the
+  // table appends it verbatim, so a refusal made here and one made at the
+  // boundary end in the same words and this package never names a plan.
+  const WAY: PlatformLimits = {
+    ...LIMITS,
+    suggestions: {
+      maxFileSize: 'Upgrade to Pro for more.',
+      maxFilesCount: 'Upgrade to Pro for more.',
+      maxTotalSize: 'Please contact support if you need more.',
+    },
+  };
+  const big = { ...clean, path: 'huge.bin', size: 6 * 1024 * 1024, totalSize: 6 * 1024 * 1024 };
+  const heavy = { ...clean, path: 'last.bin', size: 1024, totalSize: 26 * 1024 * 1024 };
+
+  it('ends a limit\u2019s sentence with the delivered one, each limit its own', () => {
+    expect(firstBrokenRule(big, WAY)?.sentence(big, WAY)).toBe(
+      'File "huge.bin" is too large. Maximum 5 MB allowed. Upgrade to Pro for more.',
+    );
+    expect(firstBrokenRule(heavy, WAY)?.sentence(heavy, WAY)).toBe(
+      'Files add up to 26 MB. Maximum 25 MB allowed. Please contact support if you need more.',
+    );
+  });
+
+  it('appends nothing to a rule that is not a limit', () => {
+    const named = { ...clean, path: 'installer.exe' };
+    expect(firstBrokenRule(named, WAY)?.sentence(named, WAY)).toBe(
+      'File "installer.exe" has an extension that is not allowed.',
+    );
+  });
+
+  it('appends nothing when the API delivered none (an older API), and says so nowhere', () => {
+    // Fail open, as the blocklist does: the sentence is the one above, ending
+    // at the limit, and no plan is guessed at.
+    const { suggestions: _absent, ...older } = WAY;
+    expect(firstBrokenRule(big, older)?.sentence(big, older)).toBe(
+      'File "huge.bin" is too large. Maximum 5 MB allowed.',
+    );
+  });
+
+  it('reaches the throwing renderer unchanged', () => {
+    expect(() => validateDeployFile(big, WAY)).toThrow(
+      'File "huge.bin" is too large. Maximum 5 MB allowed. Upgrade to Pro for more.',
+    );
+  });
+});
+
 describe('the two renderers reach the same verdict', () => {
   it('the throwing renderer raises the table sentence verbatim', () => {
     // A renderer chooses how to DELIVER; it never authors prose. If this

@@ -335,7 +335,7 @@ Exit code is non-zero on failure, and with `--json` the error goes to **stderr**
 ```json
 {
   "error": "validation_failed",
-  "message": "File \"index.html\" is too large. Maximum 20 MB allowed.",
+  "message": "File \"setup.exe\" has an extension that is not allowed.",
   "status": 400
 }
 ```
