@@ -15,8 +15,8 @@
 
 import type { PlatformLimits } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
-import { FILE_RULES, firstBrokenRule } from '../../../src/shared/lib/file-rules';
-import { validateDeployFile } from '../../../src/shared/lib/security';
+import { COUNT_RULE, FILE_RULES, firstBrokenRule } from '../../../src/shared/lib/file-rules';
+import { validateDeployCount, validateDeployFile } from '../../../src/shared/lib/security';
 
 const LIMITS: PlatformLimits = {
   maxFileSize: 5 * 1024 * 1024,
@@ -104,7 +104,24 @@ describe('the file-rule table', () => {
   });
 });
 
-describe('the way forward', () => {
+describe('the count rule, asked of the deploy as a whole', () => {
+  it('produces its one sentence, naming the count and no file', () => {
+    expect(COUNT_RULE.broken(101, LIMITS)).toBe(true);
+    expect(COUNT_RULE.broken(100, LIMITS)).toBe(false);
+    expect(COUNT_RULE.sentence(101, LIMITS)).toBe(
+      'Too many files (101). Maximum 100 files allowed.',
+    );
+  });
+
+  it('reaches the throwing renderer unchanged', () => {
+    expect(() => validateDeployCount(101, LIMITS)).toThrow(
+      'Too many files (101). Maximum 100 files allowed.',
+    );
+    expect(() => validateDeployCount(100, LIMITS)).not.toThrow();
+  });
+});
+
+describe('the suggestion', () => {
   // The API delivers, per limit, the sentence its own refusal ends with; the
   // table appends it verbatim, so a refusal made here and one made at the
   // boundary end in the same words and this package never names a plan.
@@ -125,6 +142,9 @@ describe('the way forward', () => {
     );
     expect(firstBrokenRule(heavy, WAY)?.sentence(heavy, WAY)).toBe(
       'Files add up to 26 MB. Maximum 25 MB allowed. Please contact support if you need more.',
+    );
+    expect(COUNT_RULE.sentence(101, WAY)).toBe(
+      'Too many files (101). Maximum 100 files allowed. Upgrade to Pro for more.',
     );
   });
 

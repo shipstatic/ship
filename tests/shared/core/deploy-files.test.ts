@@ -236,7 +236,7 @@ describe('processDeployFiles', () => {
           {},
           limitsWith({ maxFilesCount: 2 }),
         ),
-      ).rejects.toThrow('Too many files to deploy. Maximum allowed is 2 files.');
+      ).rejects.toThrow('Too many files (3). Maximum 2 files allowed. Upgrade to Pro for more.');
     });
 
     it('refuses to validate against rules it was not given', async () => {

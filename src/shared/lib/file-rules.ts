@@ -17,27 +17,25 @@
  * and add nothing, so a sentence names its file exactly once and states the
  * limit, and reads without a prefix. The family is subject first: `File
  * "<path>" <verdict>. Maximum <limit> allowed.`, and `File name "<path>" …`
- * where the name is the subject. The total-size rule's subject is the set of
- * files, which is why it names no path. A limit's sentence ends with the way
- * forward the API delivered for it (`withWayForward`), so the whole reads
- * `File "x" is too large. Maximum 20 MB allowed. Upgrade to Pro for more.`
+ * where the name is the subject. The two rules about the SET, the count and
+ * the total, name no path. A limit's sentence ends with the suggestion the
+ * API delivered for it (`withSuggestion`), so the whole reads `File "x" is
+ * too large. Maximum 20 MB allowed. Upgrade to Pro for more.`
  *
- * **Wording follows the API where a choice existed**, so the deferred Phase B
- * (promoting this table to `@shipstatic/types` with the API consuming it) has
- * less to move. Two deliberate deviations, recorded rather than silent:
- *
- * - **Sizes are formatted, not raw bytes.** The API says `20971520 bytes`;
- *   a browser upload UI showing that is worse for the person reading it, and
- *   the unit is the smaller half of the sentence to reconcile later.
- * - **The path is named.** The API has no path to name; the throwing renderer
- *   has nothing BUT the message, so dropping it would leave a CLI user asking
- *   which file.
+ * **The API words the same rules the same way, in the same order**
+ * (`cloudflare/api/src/lib/validation.ts`), so a refusal reads alike whether
+ * the SDK made it before uploading or the boundary made it after. Sizes are
+ * formatted on both sides, and the path is named on both. That is a
+ * restatement, and it is fenced from the API's side: a test there imports
+ * this package's `validateFiles` and compares every shared rule's sentence to
+ * `validateUpload`'s. The fence dies the day the table is promoted to
+ * `@shipstatic/types` and the API imports it (Phase B, `CLAUDE.md`).
  *
  * Out of scope, and left where they are: `validateDeployPath` (a rule about
  * the deploy PATH rather than the file, and pipelines-only), and
- * `validateFiles`' UI-tier pre-checks (empty, negative, count, unbuilt
- * marker, processing error), which have one holder each and no drift, and
- * word their sentences by the same family.
+ * `validateFiles`' UI-tier pre-checks (empty, negative, unbuilt marker,
+ * processing error), which have one holder each and no drift, and word their
+ * sentences by the same family.
  */
 
 import type { PlatformLimitKey, PlatformLimits } from '@shipstatic/types';
@@ -45,14 +43,13 @@ import { isBlockedExtension } from '@shipstatic/types';
 import { formatFileSize, validateFileName } from './file-validation.js';
 
 /**
- * A limit's sentence, followed by the way forward past that limit as the API
- * delivered it (`PlatformLimits.suggestions`), verbatim. The API writes that
- * sentence with the function its own refusals end with, so a refusal made
- * here and one made at the boundary end in the same words, and this package
- * never learns what a plan is. An older API delivers none, and nothing is
- * appended.
+ * A limit's sentence, followed by the suggestion the API delivered for that
+ * limit (`PlatformLimits.suggestions`), verbatim. The API writes it with the
+ * function its own refusals end with, so a refusal made here and one made at
+ * the boundary end in the same words, and this package never learns what a
+ * plan is. An older API delivers none, and nothing is appended.
  */
-export function withWayForward(
+export function withSuggestion(
   sentence: string,
   limits: PlatformLimits,
   key: PlatformLimitKey,
@@ -72,12 +69,15 @@ export interface FileRuleInput {
 }
 
 /** A rule: what makes it broken, and the one sentence that says so. */
-export interface FileRule {
+export interface Rule<Input> {
   /** Stable identity, for the fence and for reading a failure in a test. */
   readonly name: string;
-  readonly broken: (input: FileRuleInput, limits: PlatformLimits) => boolean;
-  readonly sentence: (input: FileRuleInput, limits: PlatformLimits) => string;
+  readonly broken: (input: Input, limits: PlatformLimits) => boolean;
+  readonly sentence: (input: Input, limits: PlatformLimits) => string;
 }
+
+/** A rule asked of one file. */
+export type FileRule = Rule<FileRuleInput>;
 
 /**
  * EVERY rule both client surfaces apply, in the order they apply them.
@@ -107,7 +107,7 @@ export const FILE_RULES: readonly FileRule[] = [
     name: 'fileSize',
     broken: ({ size }, limits) => size > limits.maxFileSize,
     sentence: ({ path }, limits) =>
-      withWayForward(
+      withSuggestion(
         `File "${path}" is too large. Maximum ${formatFileSize(limits.maxFileSize)} allowed.`,
         limits,
         'maxFileSize',
@@ -117,13 +117,31 @@ export const FILE_RULES: readonly FileRule[] = [
     name: 'totalSize',
     broken: ({ totalSize }, limits) => totalSize > limits.maxTotalSize,
     sentence: ({ totalSize }, limits) =>
-      withWayForward(
+      withSuggestion(
         `Files add up to ${formatFileSize(totalSize)}. Maximum ${formatFileSize(limits.maxTotalSize)} allowed.`,
         limits,
         'maxTotalSize',
       ),
   },
 ];
+
+/**
+ * The rule asked of the deploy as a whole: how many files it carries. Its
+ * input is the count, which each renderer takes over what it will send:
+ * `validateFiles` over the files it was handed, the pipelines over the files
+ * that survived the walk, since a deploy is not over the cap for files it
+ * will not send. The sentence is authored here once, like every other.
+ */
+export const COUNT_RULE: Rule<number> = {
+  name: 'filesCount',
+  broken: (count, limits) => count > limits.maxFilesCount,
+  sentence: (count, limits) =>
+    withSuggestion(
+      `Too many files (${count}). Maximum ${limits.maxFilesCount} files allowed.`,
+      limits,
+      'maxFilesCount',
+    ),
+};
 
 /**
  * The first rule this file breaks, or `undefined`.

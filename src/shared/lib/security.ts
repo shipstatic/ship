@@ -4,7 +4,7 @@
  */
 import type { PlatformLimits } from '@shipstatic/types';
 import { ShipError } from '@shipstatic/types';
-import { type FileRuleInput, firstBrokenRule } from './file-rules.js';
+import { COUNT_RULE, type FileRuleInput, firstBrokenRule } from './file-rules.js';
 
 /**
  * Validate a deploy path for security concerns.
@@ -55,5 +55,19 @@ export function validateDeployFile(input: FileRuleInput, limits: PlatformLimits)
   const broken = firstBrokenRule(input, limits);
   if (broken) {
     throw ShipError.business(broken.sentence(input, limits));
+  }
+}
+
+/**
+ * The throwing renderer of `COUNT_RULE`: the deploy's file count, judged over
+ * the files the pipeline will send.
+ *
+ * @param count - How many files the deploy carries
+ * @param limits - The platform's limits, from `/limits`
+ * @throws {ShipError} The count rule's sentence
+ */
+export function validateDeployCount(count: number, limits: PlatformLimits): void {
+  if (COUNT_RULE.broken(count, limits)) {
+    throw ShipError.business(COUNT_RULE.sentence(count, limits));
   }
 }

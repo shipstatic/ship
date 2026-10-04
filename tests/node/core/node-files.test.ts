@@ -600,7 +600,7 @@ describe('processFilesForNode', () => {
           {},
           { ...limits, maxTotalSize: 10_000 },
         ),
-      ).rejects.toThrow('Too many files to deploy. Maximum allowed is 5 files.');
+      ).rejects.toThrow('Too many files (6). Maximum 5 files allowed.');
     });
 
     it('accepts exactly maxFilesCount results, with empty files not counting', async () => {

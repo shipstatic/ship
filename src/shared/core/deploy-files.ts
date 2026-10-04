@@ -21,7 +21,7 @@ import { ShipError } from '@shipstatic/types';
 import { optimizeDeployPaths } from '../lib/deploy-paths.js';
 import { filterJunk } from '../lib/junk.js';
 import { calculateMD5 } from '../lib/md5.js';
-import { validateDeployFile, validateDeployPath } from '../lib/security.js';
+import { validateDeployCount, validateDeployFile, validateDeployPath } from '../lib/security.js';
 import type { DeploymentOptions } from '../types.js';
 
 /**
@@ -115,11 +115,7 @@ export async function processDeployFiles(
 
   // Counted over RESULTS, not over candidates: empty files were skipped above
   // and a deploy is not over the cap for files it will not send.
-  if (rules && files.length > rules.maxFilesCount) {
-    throw ShipError.business(
-      `Too many files to deploy. Maximum allowed is ${rules.maxFilesCount} files.`,
-    );
-  }
+  if (rules) validateDeployCount(files.length, rules);
 
   return files;
 }

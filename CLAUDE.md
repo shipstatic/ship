@@ -1923,11 +1923,19 @@ error) word their sentences by the same family. A consumer that prefixed the
 path produced `big.txt: File "big.txt" too large`, which is the defect the
 rule closes.
 
-**A limit's sentence ends with the way forward, and the API wrote it.**
+**The count is a rule of the table too, asked of the deploy as a whole.**
+`COUNT_RULE` takes the count rather than a file, and each renderer hands it
+the count it is about to send: `validateFiles` the files it was given,
+`validateDeployCount` (the pipelines' renderer, beside `validateDeployFile`)
+the files that survived the walk, since a deploy is not over the cap for
+files it will not send. One sentence, `Too many files (501). Maximum 500
+files allowed.`, filed under `(N files)` by the collecting renderer.
+
+**A limit's sentence ends with the suggestion, and the API wrote it.**
 `/limits` delivers `PlatformLimits.suggestions`, one sentence per limit
 ("Upgrade to Pro for more.", or support where no sold plan allows more),
 computed by the API for the caller's plan, grant and open doors with the
-function its own upload refusal ends with. `withWayForward` (`file-rules.ts`)
+function its own upload refusal ends with. `withSuggestion` (`file-rules.ts`)
 appends the delivered sentence verbatim to the size, total and count
 sentences, in the table, so both renderers carry it: `File "x" is too large.
 Maximum 20 MB allowed. Upgrade to Pro for more.` A refusal made here and one
@@ -1938,13 +1946,14 @@ nothing is appended, as with `blockedExtensions`; `tests/contract.ts`'s
 the appended sentence intact (it lowercases only the opening word and strips
 only the final period), and the MCPs relay the message unchanged.
 
-Wording follows the API where a choice existed, so the deferred promotion has
-less to move, with two recorded deviations: sizes are FORMATTED rather than raw
-bytes (a browser UI showing `20971520 bytes` is worse for the person reading
-it, and the unit is the smaller half to reconcile), and the PATH is named (the
-API has none to name; the throwing renderer has nothing but the message). The
-API's own copies of these sentences (`cloudflare/api/src/lib/validation.ts`)
-still read in the older wording; Phase B below is where they converge.
+**The API words the same rules the same way, in the same order**
+(`cloudflare/api/src/lib/validation.ts`): sizes formatted, the path named,
+the name rules, the extension, the size, the count and the total each one
+sentence on both sides, so an error reads the same wherever it was caught.
+That is a restatement, and it is fenced where it can break: a test in
+`cloudflare` imports this package's `validateFiles` and compares every shared
+rule's sentence to `validateUpload`'s, row by row. The fence names its own
+death, which is Phase B below.
 
 Scope held deliberately: `validateDeployPath` stays out (a rule about the
 deploy PATH, not the file, and pipelines-only).
@@ -1958,14 +1967,14 @@ holds the same count over every per-file sentence `validateFiles` writes, the
 pre-checks included. All drilled: a reworded sentence, a renamed row, and a
 sentence that names its file twice or not at all each turn it red.
 
-**Phase B is deferred with its trigger.** Promoting the table into
-`@shipstatic/types` with the API consuming it: after Phase A the sentence has
-two independent holders — ship's table and the API's copies — with silent
-drift, so by the constellation stopping rule it likely QUALIFIES. It is a
-types+api convoy with its own blast radius, and it builds when someone is
-paying for that drift. Recorded beside the other deferred mechanisms rather
-than started: beginning it here would have doubled this tier for a coherence
-win nobody is waiting on.
+**Phase B is deferred, and its trigger has fired.** Promoting the table into
+`@shipstatic/types` with the API consuming it: the sentence has two holders,
+this table and the API's copies, held in step by the cross-repo fence above
+rather than by an import. The drift it guards was paid for once (the sentences
+were rewritten here and the API's copies followed a wave later), which is the
+stopping rule's condition met. It is a types+api convoy with its own blast
+radius, so it is its own wave; the fence is what makes waiting honest, and the
+commit that lands the import deletes it.
 
 ## Backend Integration
 
