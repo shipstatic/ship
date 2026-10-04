@@ -303,5 +303,10 @@ describe('CLI Pure Functions', () => {
 
       expect(result).toContain('a,b');
     });
+
+    it('states what a missing path serves: the page, or 404 where the wire says null', () => {
+      expect(formatDetails({ fallback: '/index.html' }, true)).toContain('/index.html');
+      expect(formatDetails({ fallback: null }, true)).toContain('404');
+    });
   });
 });

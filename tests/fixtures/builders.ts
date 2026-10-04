@@ -163,6 +163,7 @@ export function makeDeployment(overrides: Partial<Deployment> = {}): Deployment 
     status: 'success',
     config: false,
     password: false,
+    fallback: '/index.html',
     labels: [],
     via: null,
     created: timestamps.jan2022,

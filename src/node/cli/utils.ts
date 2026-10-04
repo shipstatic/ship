@@ -167,6 +167,9 @@ const formatValue = (
     if (typeof value === 'boolean') return value ? 'yes' : 'no';
     if (typeof value === 'number') return value === 1 ? 'yes' : 'no';
   }
+  // What a missing path serves: the page, or the plain fact of a 404, so an
+  // app shipped with a page beside its shell reads its own deep links here.
+  if (key === 'fallback' && value === null) return '404';
   // Table and details are flat key-value surfaces, so a nested object
   // flattens to inline `k=v` pairs rather than nesting a second layout
   // inside a cell. Structural, not per-key: values recurse through
