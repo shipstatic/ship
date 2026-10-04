@@ -188,7 +188,7 @@ describe('processDeployFiles', () => {
 
     it('refuses an extension the DELIVERED list names', async () => {
       await expect(processDeployFiles([src('virus.exe')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        'File extension not allowed: "virus.exe"',
+        'File "virus.exe" has an extension that is not allowed.',
       );
     });
 
@@ -201,7 +201,7 @@ describe('processDeployFiles', () => {
     it('refuses a file over maxFileSize', async () => {
       await expect(
         processDeployFiles([src('big.txt', 'aaaa')], {}, limitsWith({ maxFileSize: 3 })),
-      ).rejects.toThrow('File "big.txt" too large.');
+      ).rejects.toThrow('File "big.txt" is too large.');
     });
 
     it('refuses a cumulative size over maxTotalSize, accumulating across files', async () => {
@@ -214,7 +214,7 @@ describe('processDeployFiles', () => {
           {},
           limitsWith({ maxTotalSize: 3 }),
         ),
-      ).rejects.toThrow('Total upload size too large.');
+      ).rejects.toThrow('Files add up to');
     });
 
     it('counts the file cap over RESULTS, not candidates', async () => {

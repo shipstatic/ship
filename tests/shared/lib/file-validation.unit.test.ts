@@ -82,7 +82,7 @@ describe('File Validation', () => {
       expect(result.validFiles).toHaveLength(0);
       expect(result.canDeploy).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain('exceeds limit');
+      expect(result.errors[0].message).toContain('Too many files');
       result.files.forEach((f) => {
         expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       });
@@ -102,8 +102,7 @@ describe('File Validation', () => {
       expect(result.warnings[0]).toMatchObject({
         file: 'empty.txt',
       });
-      expect(result.warnings[0].message).toContain('empty');
-      expect(result.warnings[0].message).toContain('0 bytes');
+      expect(result.warnings[0].message).toBe('File "empty.txt" is empty, so it is excluded.');
 
       // Only valid file in validFiles
       expect(result.validFiles).toHaveLength(1);
@@ -154,7 +153,7 @@ describe('File Validation', () => {
       // Deployment blocked due to total size error
       expect(result.canDeploy).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain('Total upload size');
+      expect(result.errors[0].message).toContain('add up to');
       expect(result.errors[0].file).toBe('(3 files)');
 
       // ATOMIC: All files rejected when total size exceeded
@@ -211,7 +210,7 @@ describe('File Validation', () => {
 
         // ATOMIC: All files rejected if any has blocked extension
         expect(result.canDeploy).toBe(false);
-        expect(result.errors[0].message).toContain('extension not allowed');
+        expect(result.errors[0].message).toContain('extension that is not allowed');
         expect(result.validFiles).toHaveLength(0);
         expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
         expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
@@ -264,7 +263,7 @@ describe('File Validation', () => {
 
         // Verify both errors are in the errors array
         expect(result.errors).toHaveLength(2);
-        expect(result.errors[0].message).toContain('extension not allowed');
+        expect(result.errors[0].message).toContain('extension that is not allowed');
         expect(result.errors[0].file).toBe('bad1.exe');
         expect(result.errors[1].file).toBe('bad2.msi');
 
@@ -427,7 +426,7 @@ describe('File Validation', () => {
       const result = validateFiles(files, config);
 
       expect(result.canDeploy).toBe(false);
-      expect(result.errors[0].message).toContain('File size must be positive');
+      expect(result.errors[0].message).toContain('negative size');
       expect(result.validFiles).toHaveLength(0);
       expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
@@ -910,7 +909,7 @@ describe('File Validation - Boundary Tests', () => {
       expect(result.canDeploy).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
       // Find total size error
-      const totalSizeError = result.errors.find((e) => e.message.includes('Total upload size'));
+      const totalSizeError = result.errors.find((e) => e.message.includes('add up to'));
       expect(totalSizeError).toBeDefined();
       // An aggregate rule names the deploy, not whichever file tipped it — the
       // same subject the file-count rule above has always used.
@@ -938,7 +937,7 @@ describe('File Validation - Boundary Tests', () => {
       const result = validateFiles(files, largeConfig);
 
       expect(result.canDeploy).toBe(false);
-      const totalSizeError = result.errors.find((e) => e.message.includes('Total upload size'));
+      const totalSizeError = result.errors.find((e) => e.message.includes('add up to'));
       expect(totalSizeError).toBeDefined();
       // An aggregate rule names the deploy, not whichever file tipped it — the
       // same subject the file-count rule above has always used.
@@ -972,7 +971,7 @@ describe('File Validation - Boundary Tests', () => {
 
       expect(result.canDeploy).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain('File count');
+      expect(result.errors[0].message).toContain('Too many files');
       expect(result.errors[0].message).toContain(`${config.maxFilesCount + 1}`);
       expect(result.validFiles).toHaveLength(0);
 
@@ -989,7 +988,7 @@ describe('File Validation - Boundary Tests', () => {
       const result = validateFiles(files, config);
 
       expect(result.canDeploy).toBe(false);
-      expect(result.errors[0].message).toContain('extension not allowed');
+      expect(result.errors[0].message).toContain('extension that is not allowed');
     });
 
     it('should accept unknown extensions (not blocked)', () => {
@@ -1058,7 +1057,7 @@ describe('File Validation - Boundary Tests', () => {
 
       expect(result.canDeploy).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain('must be positive');
+      expect(result.errors[0].message).toContain('negative size');
     });
 
     it('should reject file with very large negative size', () => {
@@ -1152,10 +1151,63 @@ describe('File Validation - Boundary Tests', () => {
 
       expect(result.errors).toHaveLength(2);
       expect(result.errors[0].message).toContain('too large');
-      expect(result.errors[1].message).toContain('extension not allowed');
+      expect(result.errors[1].message).toContain('extension that is not allowed');
 
       // All failed atomically
       expect(result.validFiles).toHaveLength(0);
+    });
+  });
+
+  describe('every issue is a complete sentence', () => {
+    const config: PlatformLimits = {
+      maxFileSize: 1024,
+      maxTotalSize: 2048,
+      maxFilesCount: 100,
+      blockedExtensions: BLOCKED_EXTENSIONS,
+    };
+
+    /**
+     * One input per sentence `validateFiles` writes about a FILE, the
+     * pre-checks and the shared table alike. A consumer shows the sentence
+     * verbatim (drop, the console, the CLI, the MCPs), so each must name its
+     * file exactly once: twice is the defect of a consumer prefixing a path
+     * the sentence already carries, zero leaves a reader asking which file.
+     */
+    const PER_FILE: Array<[string, ValidatableFile[]]> = [
+      [
+        'processing error',
+        [{ name: 'broken.txt', size: 1, status: FILE_VALIDATION_STATUS.PROCESSING_ERROR }],
+      ],
+      ['empty file', [createMockFile('empty.txt', 0)]],
+      ['negative size', [createMockFile('negative.txt', -1)]],
+      ['null byte', [createMockFile('nul\0.txt', 1)]],
+      ['unsafe name', [createMockFile('bad<name>.html', 1)]],
+      ['blocked extension', [createMockFile('installer.exe', 1)]],
+      ['file too large', [createMockFile('huge.bin', 2000)]],
+    ];
+
+    it.each(PER_FILE)('%s names its file exactly once', (_kind, files) => {
+      const result = validateFiles(files, config);
+      const [issue] = [...result.errors, ...result.warnings];
+      expect(issue).toBeDefined();
+      expect(issue.message.split(`"${issue.file}"`).length - 1).toBe(1);
+    });
+
+    it('the issues about the SET name no file', () => {
+      // Too many, and too much in total: the subject is the deploy, so the
+      // sentence states the count or the sum and blames no single file.
+      const many = Array.from({ length: 101 }, (_, i) => createMockFile(`f${i}.txt`, 1));
+      expect(validateFiles(many, config).errors[0].message).toBe(
+        'Too many files (101). Maximum 100 files allowed.',
+      );
+      const heavy = [
+        createMockFile('a.bin', 1024),
+        createMockFile('b.bin', 1024),
+        createMockFile('c.bin', 1024),
+      ];
+      expect(validateFiles(heavy, config).errors[0].message).toBe(
+        'Files add up to 3 KB. Maximum 2 KB allowed.',
+      );
     });
   });
 });

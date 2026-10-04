@@ -35,21 +35,25 @@ describe('the file-rule table', () => {
    * agree with the table by construction and prove nothing.
    */
   const CASES: Array<[string, { path: string; size: number; totalSize: number }, string]> = [
-    ['name', { ...clean, path: 'bad<name>.html' }, 'File name contains unsafe characters'],
+    [
+      'name',
+      { ...clean, path: 'bad<name>.html' },
+      'File name "bad<name>.html" contains unsafe characters.',
+    ],
     [
       'extension',
       { ...clean, path: 'installer.exe' },
-      'File extension not allowed: "installer.exe"',
+      'File "installer.exe" has an extension that is not allowed.',
     ],
     [
       'fileSize',
       { ...clean, path: 'huge.bin', size: 6 * 1024 * 1024, totalSize: 6 * 1024 * 1024 },
-      'File "huge.bin" too large. Maximum 5 MB allowed',
+      'File "huge.bin" is too large. Maximum 5 MB allowed.',
     ],
     [
       'totalSize',
       { ...clean, path: 'last.bin', size: 1024, totalSize: 26 * 1024 * 1024 },
-      'Total upload size too large. 26 MB exceeds maximum of 25 MB',
+      'Files add up to 26 MB. Maximum 25 MB allowed.',
     ],
   ];
 
@@ -58,6 +62,20 @@ describe('the file-rule table', () => {
     expect(broken?.name).toBe(name);
     expect(broken?.sentence(input, LIMITS)).toBe(sentence);
   });
+
+  it.each(CASES)(
+    '%s names its file exactly once, so no surface has to prefix it',
+    (name, input) => {
+      // The sentence is shown verbatim by every consumer (drop, the console, the
+      // CLI, the MCPs), so it must carry its own subject. Twice is the defect this
+      // guards against: a consumer prefixing the path a sentence already names.
+      // The total-size rule's subject is the set, so it is the one row that names
+      // no path.
+      const sentence = firstBrokenRule(input, LIMITS)?.sentence(input, LIMITS) ?? '';
+      const mentions = sentence.split(`"${input.path}"`).length - 1;
+      expect(mentions).toBe(name === 'totalSize' ? 0 : 1);
+    },
+  );
 
   it('covers every rule in the table', () => {
     // The completeness TIE. Without it this file counts its own array and the
@@ -92,7 +110,7 @@ describe('the two renderers reach the same verdict', () => {
     // string were composed at the throw site, this is where it would show.
     const input = { path: 'huge.bin', size: 6 * 1024 * 1024, totalSize: 6 * 1024 * 1024 };
     expect(() => validateDeployFile(input, LIMITS)).toThrow(
-      'File "huge.bin" too large. Maximum 5 MB allowed',
+      'File "huge.bin" is too large. Maximum 5 MB allowed.',
     );
   });
 
@@ -105,11 +123,15 @@ describe('the two renderers reach the same verdict', () => {
     // node and browser pipelines both call `validateDeployFile`, so proving
     // the renderer follows the table proves both pipelines do.
     for (const [name, input, sentence] of [
-      ['name', { ...clean, path: 'bad<name>.html' }, 'File name contains unsafe characters'],
+      [
+        'name',
+        { ...clean, path: 'bad<name>.html' },
+        'File name "bad<name>.html" contains unsafe characters.',
+      ],
       [
         'extension',
         { ...clean, path: 'installer.exe' },
-        'File extension not allowed: "installer.exe"',
+        'File "installer.exe" has an extension that is not allowed.',
       ],
     ] as const) {
       expect(() => validateDeployFile(input, LIMITS), name).toThrow(sentence);

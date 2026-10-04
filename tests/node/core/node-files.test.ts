@@ -472,7 +472,7 @@ describe('processFilesForNode', () => {
       writeTree({ [name]: 'payload' });
 
       await expect(processFilesForNode([at(name)], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        'File extension not allowed',
+        'has an extension that is not allowed',
       );
     });
 
@@ -579,7 +579,7 @@ describe('processFilesForNode', () => {
 
       await expect(
         processFilesForNode([at('file1.txt'), at('file2.txt')], {}, limits),
-      ).rejects.toThrow('Total upload size too large');
+      ).rejects.toThrow('Files add up to');
     });
 
     it('accepts a cumulative size exactly at maxTotalSize', async () => {

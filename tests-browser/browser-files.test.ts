@@ -79,7 +79,7 @@ describe('processFilesForBrowser in Chromium', () => {
     // Node pipeline and from `validateFiles`. A loose pattern would have let
     // the three drift right back apart.
     await expect(processFilesForBrowser([oversized], {}, tight)).rejects.toThrow(
-      'File "big.bin" too large. Maximum 1 KB allowed',
+      'File "big.bin" is too large. Maximum 1 KB allowed.',
     );
   });
 

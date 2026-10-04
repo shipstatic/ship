@@ -1907,24 +1907,43 @@ also made **node/browser pipeline parity structural**: both pipelines call the
 same renderer, so the comment reading "matches Node validation" has nothing
 left to be wrong about.
 
+**The SDK is where a refusal is worded, and every sentence is complete on its
+own.** Drop, the console, the CLI and the MCPs show the sentence verbatim and
+add nothing (the console's "the wire message is the displayed message", one
+layer down), so a sentence names its file exactly once, states the limit, and
+reads without a prefix. The family is subject first: `File "<path>" is too
+large. Maximum 20 MB allowed.`, `File "<path>" has an extension that is not
+allowed.`, `File name "<path>" contains unsafe characters.` (the name rule's
+sentence is `validateFileName`'s own, which names the file itself). The two
+issues about the SET name no file, because the subject is the deploy: `Too
+many files (150). Maximum 100 files allowed.` and `Files add up to 26 MB.
+Maximum 25 MB allowed.`; the collecting renderer files them under `(N files)`.
+`validateFiles`' UI pre-checks (empty, negative, unbuilt marker, processing
+error) word their sentences by the same family. A consumer that prefixed the
+path produced `big.txt: File "big.txt" too large`, which is the defect the
+rule closes.
+
 Wording follows the API where a choice existed, so the deferred promotion has
 less to move, with two recorded deviations: sizes are FORMATTED rather than raw
 bytes (a browser UI showing `20971520 bytes` is worse for the person reading
 it, and the unit is the smaller half to reconcile), and the PATH is named (the
 API has none to name; the throwing renderer has nothing but the message). The
-total-size rule names the deploy — `(N files)` — rather than blaming whichever
-file tipped it, matching the file-count rule beside it.
+API's own copies of these sentences (`cloudflare/api/src/lib/validation.ts`)
+still read in the older wording and carry the upgrade suggestion the SDK
+cannot yet write; they converge on the convoy recorded in root `backlog.md`
+("The limit-refusal upsell reaches almost nobody").
 
 Scope held deliberately: `validateDeployPath` stays out (a rule about the
-deploy PATH, not the file, and pipelines-only), as do `validateFiles`' UI
-pre-checks — empty, negative, count, unbuilt marker, processing error — which
-have one holder each and no drift to close.
+deploy PATH, not the file, and pipelines-only).
 
 Fenced in `tests/shared/lib/file-rules.unit.test.ts`: every sentence pinned by
 a hand-written row, with the completeness TIE asserting the test's own list
 deep-equals the production table in order (without that line the check counts
-itself — the tautology this estate has on record). Both drilled: a reworded
-sentence and a renamed row each turn it red.
+itself — the tautology this estate has on record), plus a row per rule that
+counts the path's mentions and requires exactly one. `file-validation.unit.test.ts`
+holds the same count over every per-file sentence `validateFiles` writes, the
+pre-checks included. All drilled: a reworded sentence, a renamed row, and a
+sentence that names its file twice or not at all each turn it red.
 
 **Phase B is deferred with its trigger.** Promoting the table into
 `@shipstatic/types` with the API consuming it: after Phase A the sentence has

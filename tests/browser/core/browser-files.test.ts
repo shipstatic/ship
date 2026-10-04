@@ -431,12 +431,12 @@ describe('Browser File Processing', () => {
       const files = [new File(['malware'], 'virus.exe')];
 
       await expect(processFilesForBrowser(files, {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        'File extension not allowed',
+        'has an extension that is not allowed',
       );
 
       await expect(
         processFilesForBrowser(files, { build: false, prerender: false }, FREE_PLAN_LIMITS),
-      ).rejects.toThrow('File extension not allowed');
+      ).rejects.toThrow('has an extension that is not allowed');
     });
   });
 
@@ -482,12 +482,12 @@ describe('Browser File Processing', () => {
     it('should reject blocked extensions (.exe, .msi)', async () => {
       const exeFile = new File(['malware'], 'virus.exe');
       await expect(processFilesForBrowser([exeFile], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        'File extension not allowed',
+        'has an extension that is not allowed',
       );
 
       const msiFile = new File(['installer'], 'installer.msi');
       await expect(processFilesForBrowser([msiFile], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        'File extension not allowed',
+        'has an extension that is not allowed',
       );
     });
 

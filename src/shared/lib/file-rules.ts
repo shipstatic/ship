@@ -2,23 +2,27 @@
  * @file One ordered table of deploy-file rules, and the single evaluation two
  * renderers share.
  *
- * **The defect this closes:** one rule was rendering as three sentences. A
- * file over the size cap said `File x is too large. Maximum allowed size is
- * 20MB.` from the deploy pipelines, `File size (21 MB) exceeds limit of 20 MB`
- * from `validateFiles`, and `File too large. Maximum 20971520 bytes allowed`
- * from the API — against the dual-validation doctrine that an error reads the
- * same wherever it was caught (root `CLAUDE.md`). Both pipelines also restated
- * the whole ordered check, so node/browser parity was a comment.
- *
  * **A rule states a predicate and a sentence; a renderer chooses only how to
  * DELIVER it.** That is the `SHAPES`-table move (`cli/formatters.ts`) applied
  * to validation: the throwing renderer raises the first broken rule, the
  * collecting renderer records it, and neither authors prose. Adding a rule is
- * a row, and both surfaces get it in the same position by construction.
+ * a row, and both surfaces get it in the same position by construction. One
+ * table is also what keeps a rule from reading three ways: the deploy
+ * pipelines, `validateFiles` and the API once each worded the size cap
+ * differently, against the dual-validation doctrine that an error reads the
+ * same wherever it is caught (root `CLAUDE.md`).
+ *
+ * **Every sentence is complete on its own.** The SDK is where a refusal is
+ * worded; drop, the console, the CLI and the MCPs show the sentence verbatim
+ * and add nothing, so a sentence names its file exactly once and states the
+ * limit, and reads without a prefix. The family is subject first: `File
+ * "<path>" <verdict>. Maximum <limit> allowed.`, and `File name "<path>" …`
+ * where the name is the subject. The total-size rule's subject is the set of
+ * files, which is why it names no path.
  *
  * **Wording follows the API where a choice existed**, so the deferred Phase B
- * — promoting this table to `@shipstatic/types` with the API consuming it —
- * has less to move. Two deliberate deviations, recorded rather than silent:
+ * (promoting this table to `@shipstatic/types` with the API consuming it) has
+ * less to move. Two deliberate deviations, recorded rather than silent:
  *
  * - **Sizes are formatted, not raw bytes.** The API says `20971520 bytes`;
  *   a browser upload UI showing that is worse for the person reading it, and
@@ -29,8 +33,9 @@
  *
  * Out of scope, and left where they are: `validateDeployPath` (a rule about
  * the deploy PATH rather than the file, and pipelines-only), and
- * `validateFiles`' UI-tier pre-checks — empty, negative, count, unbuilt
- * marker, processing error — which have one holder each and no drift.
+ * `validateFiles`' UI-tier pre-checks (empty, negative, count, unbuilt
+ * marker, processing error), which have one holder each and no drift, and
+ * word their sentences by the same family.
  */
 
 import type { PlatformLimits } from '@shipstatic/types';
@@ -64,12 +69,12 @@ export interface FileRule {
  */
 export const FILE_RULES: readonly FileRule[] = [
   {
-    // The reason comes from `validateFileName`, which already owns this
-    // vocabulary for both surfaces — the rule points at it rather than
-    // restating it.
+    // The sentence comes from `validateFileName`, which owns this vocabulary
+    // for both surfaces and names the file itself; the rule points at it
+    // rather than restating it.
     name: 'name',
     broken: ({ path }) => !validateFileName(path).valid,
-    sentence: ({ path }) => validateFileName(path).reason ?? 'Invalid file name',
+    sentence: ({ path }) => validateFileName(path).reason ?? `File name "${path}" is invalid.`,
   },
   {
     // The blocklist is the platform's, delivered through `/limits`. Absent
@@ -77,19 +82,19 @@ export const FILE_RULES: readonly FileRule[] = [
     // the file, which is where refusal belongs.
     name: 'extension',
     broken: ({ path }, limits) => isBlockedExtension(path, limits.blockedExtensions ?? []),
-    sentence: ({ path }) => `File extension not allowed: "${path}"`,
+    sentence: ({ path }) => `File "${path}" has an extension that is not allowed.`,
   },
   {
     name: 'fileSize',
     broken: ({ size }, limits) => size > limits.maxFileSize,
     sentence: ({ path }, limits) =>
-      `File "${path}" too large. Maximum ${formatFileSize(limits.maxFileSize)} allowed`,
+      `File "${path}" is too large. Maximum ${formatFileSize(limits.maxFileSize)} allowed.`,
   },
   {
     name: 'totalSize',
     broken: ({ totalSize }, limits) => totalSize > limits.maxTotalSize,
     sentence: ({ totalSize }, limits) =>
-      `Total upload size too large. ${formatFileSize(totalSize)} exceeds maximum of ${formatFileSize(limits.maxTotalSize)}`,
+      `Files add up to ${formatFileSize(totalSize)}. Maximum ${formatFileSize(limits.maxTotalSize)} allowed.`,
   },
 ];
 

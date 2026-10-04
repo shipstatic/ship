@@ -38,28 +38,33 @@ export { FILE_VALIDATION_STATUS };
  * Everything else is allowed — browser percent-encodes, Worker decodes, R2 matches.
  *
  * Additional checks: path traversal, reserved names, leading/trailing dots or spaces.
+ *
+ * The reason is a complete sentence naming the file, so every surface shows it
+ * as it is (`file-rules.ts` on why).
  */
 export function validateFileName(filename: string): { valid: boolean; reason?: string } {
+  const refuse = (why: string) => ({ valid: false, reason: `File name "${filename}" ${why}.` });
+
   if (hasUnsafeChars(filename)) {
-    return { valid: false, reason: 'File name contains unsafe characters' };
+    return refuse('contains unsafe characters');
   }
 
   if (filename.startsWith(' ') || filename.endsWith(' ')) {
-    return { valid: false, reason: 'File name cannot start/end with spaces' };
+    return refuse('cannot start or end with spaces');
   }
 
   if (filename.endsWith('.')) {
-    return { valid: false, reason: 'File name cannot end with dots' };
+    return refuse('cannot end with dots');
   }
 
   const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i;
   const nameWithoutPath = filename.split('/').pop() || filename;
   if (reservedNames.test(nameWithoutPath)) {
-    return { valid: false, reason: 'File name uses a reserved system name' };
+    return refuse('uses a reserved system name');
   }
 
   if (filename.includes('..')) {
-    return { valid: false, reason: 'File name contains path traversal pattern' };
+    return refuse('contains a path traversal pattern');
   }
 
   return { valid: true };
@@ -106,7 +111,7 @@ export function validateFiles<T extends ValidatableFile>(
   if (files.length === 0) {
     const issue: ValidationIssue = {
       file: '(no files)',
-      message: 'At least one file must be provided',
+      message: 'At least one file must be provided.',
     };
     errors.push(issue);
 
@@ -124,7 +129,8 @@ export function validateFiles<T extends ValidatableFile>(
     if (hasUnbuiltMarker(file.name)) {
       errors.push({
         file: file.name,
-        message: `Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder`,
+        message:
+          'Unbuilt project detected. Deploy your build output (dist/, build/, out/), not the project folder.',
       });
       return {
         files: files.map((f) => ({
@@ -144,7 +150,7 @@ export function validateFiles<T extends ValidatableFile>(
   if (files.length > config.maxFilesCount) {
     const issue: ValidationIssue = {
       file: `(${files.length} files)`,
-      message: `File count (${files.length}) exceeds limit of ${config.maxFilesCount}`,
+      message: `Too many files (${files.length}). Maximum ${config.maxFilesCount} files allowed.`,
     };
     errors.push(issue);
 
@@ -171,7 +177,7 @@ export function validateFiles<T extends ValidatableFile>(
     // Check for processing errors
     if (file.status === FILE_VALIDATION_STATUS.PROCESSING_ERROR) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = file.statusMessage || 'File failed during processing';
+      statusMessage = file.statusMessage || `File "${file.name}" could not be read.`;
       errors.push({
         file: file.name,
         message: statusMessage,
@@ -181,7 +187,7 @@ export function validateFiles<T extends ValidatableFile>(
     // EMPTY FILE - Warning (not error)
     else if (file.size === 0) {
       fileStatus = FILE_VALIDATION_STATUS.EXCLUDED;
-      statusMessage = 'File is empty (0 bytes) and cannot be deployed due to storage limitations';
+      statusMessage = `File "${file.name}" is empty, so it is excluded.`;
       warnings.push({
         file: file.name,
         message: statusMessage,
@@ -198,7 +204,7 @@ export function validateFiles<T extends ValidatableFile>(
     // Negative file size - Error
     else if (file.size < 0) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = 'File size must be positive';
+      statusMessage = `File "${file.name}" reports a negative size.`;
       errors.push({
         file: file.name,
         message: statusMessage,
@@ -208,27 +214,29 @@ export function validateFiles<T extends ValidatableFile>(
     // File name validation
     else if (!file.name || file.name.trim().length === 0) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = 'File name cannot be empty';
+      statusMessage = 'File name cannot be empty.';
       errors.push({
         file: file.name || '(empty)',
         message: statusMessage,
       });
     } else if (file.name.includes('\0')) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = 'File name contains invalid characters (null byte)';
+      statusMessage = `File name "${file.name}" contains invalid characters (null byte).`;
       errors.push({
         file: file.name,
         message: statusMessage,
       });
     }
 
-    // THE SHARED RULES — name, extension, file size, total size — read from
-    // the one ordered table in `file-rules.ts`.
+    // THE SHARED RULES (name, extension, file size, total size) read from the
+    // one ordered table in `file-rules.ts`.
     //
     // This is the COLLECTING renderer: the same verdict the deploy pipelines'
     // throwing renderer reaches, delivered as a list rather than an exception.
     // Neither surface authors a sentence, which is what stopped one size rule
-    // reading three different ways.
+    // reading three different ways. Every sentence here, the pre-checks above
+    // included, is complete on its own: it names its file once and a consumer
+    // shows it without a prefix (`file-rules.ts`).
     else {
       const input = { path: file.name, size: file.size, totalSize: totalSize + file.size };
       const broken = firstBrokenRule(input, config);
