@@ -116,7 +116,7 @@ Visitors get an unlock page until they enter the password. Length: 6–128 chara
 
 ### Client-side routing
 
-A deployment whose only page is `index.html` serves it for a missing path that has no file extension, so a React, Vue, Svelte or Angular build works on its routes with nothing to configure; a missing asset, or a route whose last segment looks like a file name, is still a 404 (a rewrite covers those). A root `200.html` is served the same way by name; a root `404.html` of your own is served for a missing path instead; your `ship.json` rewrites run before the fallback.
+A deployment whose only page is `index.html` serves it for every missing path, so a React, Vue, Svelte or Angular build works on its routes with nothing to configure. An app that ships other HTML files beside its shell declares the route itself in `ship.json`: `{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }`. Your own rewrites run ahead of either; a root `404.html` of your own is served for a missing path instead.
 
 ## Authentication
 
