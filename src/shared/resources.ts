@@ -61,7 +61,6 @@ export type {
 
 import type { Transport } from './api/http.js';
 import { createDeployBody } from './core/deploy-body.js';
-import { detectAndConfigureSPA } from './lib/spa.js';
 import { validateDeployConfig, validateLabels, validatePassword } from './lib/validation.js';
 import type { DeploymentOptions } from './types.js';
 
@@ -126,13 +125,10 @@ export function createDeploymentResource(
 
   return {
     /**
-     * The whole deploy, in the order it happens: collect the files, ask the
-     * platform whether they are a SPA, validate the request boundary, build
-     * the multipart body, send it.
-     *
-     * It read across two files until the endpoint tier folded down — the
-     * collection and the SPA step here, the validators and the body in the
-     * transport — for no reason a reader could see from either end.
+     * The whole deploy, in the order it happens: collect the files, validate
+     * the request boundary, build the multipart body, send it. What a miss
+     * on the deployed site serves is the platform's to decide from the files
+     * it receives; the SDK ships them and nothing else.
      */
     upload: async (input: DeployInput, options: DeploymentOptions = {}) => {
       if (!processInput) {
@@ -140,8 +136,7 @@ export function createDeploymentResource(
       }
 
       const http = getApi();
-      const collected = await processInput(input, options);
-      const files = await detectAndConfigureSPA(collected, http, options);
+      const files = await processInput(input, options);
 
       if (!files.length) {
         throw ShipError.business('No files to deploy');
@@ -167,14 +162,8 @@ export function createDeploymentResource(
       const buildCommand = validateBuildCommand(options.buildCommand);
       const outputDir = validateOutputDir(options.outputDir);
       const flags =
-        options.build || options.prerender || options.spa
-          ? {
-              build: options.build,
-              prerender: options.prerender,
-              spa: options.spa,
-              buildCommand,
-              outputDir,
-            }
+        options.build || options.prerender
+          ? { build: options.build, prerender: options.prerender, buildCommand, outputDir }
           : undefined;
       const body = await createDeployBody(files, {
         labels,
@@ -204,8 +193,7 @@ export function createDeploymentResource(
         },
         'Deploy',
         // Only `build`/`prerender` reach the build service
-        // (`api/src/lib/upload-processing.ts:35`); `spa` is local detection
-        // bounded by the AI tier's own 10s, so it does not earn the longer
+        // (`api/src/lib/upload-processing.ts`), so only they earn the longer
         // ceiling. The transport owns both budgets; this is the one place that
         // knows which applies.
         options.build || options.prerender ? http.deploy.buildTimeout : http.deploy.timeout,

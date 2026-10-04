@@ -158,13 +158,12 @@ describe('retries', () => {
    * the real deploy path rather than a stand-in.
    */
   describe('a deploy, which is where a signal and a key actually reach', () => {
-    /** `/limits` and `/spa-check` answer; the deploy POST runs the script. */
+    /** `/limits` answers; the deploy POST runs the script. */
     const deployFetch = (onDeploy: (n: number) => Response | Promise<Response>) => {
       let posts = 0;
       const mock = vi.fn(async (url: string | URL | Request) => {
         const href = String(url);
         if (href.endsWith('/limits')) return ok({ maxFileSize: 1e9, maxFilesCount: 100 });
-        if (href.endsWith('/spa-check')) return ok({ isSPA: false });
         posts += 1;
         return onDeploy(posts);
       });

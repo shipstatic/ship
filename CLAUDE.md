@@ -4,7 +4,7 @@
 
 Claude Code instructions for the **Ship SDK & CLI** package.
 
-**@shipstatic/ship** — universal SDK and CLI for ShipStatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Stable; semver applies — breaking changes require a major version bump. **The pre-launch exception:** until the platform has external consumers, a change to a published type rides a minor under the same exception `@shipstatic/types` records beside its additive-evolution law, and the release notes name it (3.4.0: `account.get()` answers `Account`).
+**@shipstatic/ship** — universal SDK and CLI for ShipStatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Stable; semver applies — breaking changes require a major version bump. **The pre-launch exception:** until the platform has external consumers, a change to a published type, or the removal of a CLI flag or SDK option whose mechanism the platform has retired, rides a minor under the same exception `@shipstatic/types` records beside its additive-evolution law, and the release notes name it (3.4.0: `account.get()` answers `Account`; `--no-spa-detect` and `spaDetect` removed, the platform deciding the fallback at upload for every client).
 
 **Branches:** `main` (production) + `development` (integration). The publish workflow runs on both — the guarded publish step publishes only when `package.json` holds a version not yet on the registry, with the dist-tag derived from the version (`-` suffix → `beta`, else `latest`). See root `CLAUDE.md` "Branch & CI Model".
 
@@ -18,7 +18,7 @@ src/
 │   ├── resources.ts     # Resource factories — every endpoint, stated once
 │   ├── types.ts         # Internal SDK types
 │   ├── core/            # constants, credential schema, the deploy body + file pipeline
-│   └── lib/             # Utilities (validation, junk filtering, MD5, SPA detection)
+│   └── lib/             # Utilities (validation, junk filtering, MD5)
 ├── browser/             # Browser Ship class + the `webkitRelativePath` read
 └── node/
     ├── core/config.ts       # readEnvConfig — SHIP_* env-var resolution (no filesystem)
@@ -121,7 +121,7 @@ ship.off(event, handler)
 ```
 
 Deploy options are `signal` (the one cancellation mechanism), `pathDetect`,
-`spaDetect`, plus the wire options from `DeploymentUploadOptions` (`labels`,
+plus the wire options from `DeploymentUploadOptions` (`labels`,
 `via`, `password`, and the `@internal` flags). There are deliberately no
 per-deploy `timeout`/`onProgress`/`onCancel`/`maxConcurrency` options —
 request timeout is a client concern (`ShipClientOptions.timeout`), fetch has
@@ -158,8 +158,7 @@ Four things moved with it, each to the thing that was already its only caller:
 | What | Went to | Because |
 |---|---|---|
 | The 18 endpoint methods | `resources.ts` | Each was wrapped 1:1 by a resource of the same shape |
-| `deploy()` | `deployments.upload` | The deploy pipeline read across two files — collection and SPA detection here, validators and body there — for no reason a reader could see from either end. It is one function now |
-| `checkSPA()` | `lib/spa.ts` | Its single caller sat three lines below it in another file. It also leaves the package's public surface, which it never earned |
+| `deploy()` | `deployments.upload` | The deploy pipeline read across two files — collection here, validators and body there — for no reason a reader could see from either end. It is one function now |
 | `ping` / `getLimits` | `base-ship.ts` | Top-level `Ship` methods, not resources; the wire call belongs with the method that is its only reader |
 
 Two consequences worth knowing:
@@ -172,7 +171,7 @@ Two consequences worth knowing:
   ceilings. The NUMBERS are transport's — a budget for how long to wait on a
   wire is nothing else — while the CHOICE between them is the resource's,
   because only it knows that `build`/`prerender` wait on work the server does
-  after the upload lands, and `spa` does not.
+  after the upload lands.
 
 **What did not change: the public surface.** The `*Resource` interfaces come
 from `@shipstatic/types` and did not move. `ApiHttp`'s eighteen endpoint methods
@@ -316,9 +315,9 @@ the junk filter cannot stop covering for it silently.
 Fenced by 26 rows whose sources are SYNTHETIC — none of them needs a disk or a
 browser, which is itself the evidence the seam landed in the right place.
 
-### Server-Processed Uploads (Build/Prerender/SPA)
+### Server-Processed Uploads (Build/Prerender)
 
-When `build`, `prerender`, or `spa` options are set on `DeploymentUploadOptions`, the SDK delegates processing to the server:
+When `build` or `prerender` is set on `DeploymentUploadOptions`, the SDK delegates processing to the server:
 
 - **`filterJunk`** accepts `{ allowUnbuilt: true }` — skips the unbuilt project marker check (source files have `package.json`, `node_modules`)
 - **`processDeployFiles`** (`shared/core/deploy-files.ts`) applies no deploy
@@ -326,8 +325,7 @@ When `build`, `prerender`, or `spa` options are set on `DeploymentUploadOptions`
   would reject exactly the input the flags exist to accept. It reads the flags
   from the shared options, so the mode is stated once, in the one loop it
   changes. It still filters junk, still skips empty files, still checksums.
-- **`detectAndConfigureSPA`** skips when `spa`, `build`, or `prerender` is set — the server handles SPA detection via the `/upload` endpoint
-- **`createDeployBody`** appends `build=true` / `prerender=true` / `spa=true` to the FormData
+- **`createDeployBody`** appends `build=true` / `prerender=true` to the FormData
 
 **Only browser callers set them, and that asymmetry lives in the CALLERS.**
 `web/my` and `web/www` are browser apps and reach `/upload`; Node has no such
@@ -337,7 +335,7 @@ per-file loop for this mode until 2026-08-12 — a third statement of "skip empt
 checksum, push" — which is what the shared pipeline deleted. What did not move
 is which platform's users can set the flags.
 
-These are `@internal` flags — only used by `web/my` and `web/www` via the `/upload` endpoint. External clients (SDK, CLI, integrations) never set them. They use the `/deployments` pure pipe, where clients prepare files themselves — SPA detection runs client-side via `/spa-check`, builds happen locally before upload.
+These are `@internal` flags — only used by `web/my` and `web/www` via the `/upload` endpoint. External clients (SDK, CLI, integrations) never set them. They use the `/deployments` pure pipe, where clients prepare files themselves and builds happen locally before upload. What a miss on the deployed site serves is the platform's decision from the files it receives, on both endpoints alike (`cloudflare/shared/fallback.ts`); the SDK ships files and asks nothing.
 
 `captcha` rides the same internal tier: `web/www`'s public uploader passes the reCAPTCHA proof as a deploy option, the body creators append it as a form field, and the API grants the public-account agent identity per request. First-party only — every other anonymous deploy is the credential-less `/deployments` path, which needs no proof.
 
@@ -817,7 +815,7 @@ Always call `processOptions(this)` inside action handlers — not `program.opts(
 
 ### `performDeploy` Helper
 
-Shared deploy logic used by both `ship <path>` shortcut and `ship deployments upload`. Handles: path existence/type validation, the deploy options (labels, password, `--no-path-detect`, `--no-spa-detect`), AbortController for Ctrl+C, and a spinner (TTY only, suppressed in `--json` and `--no-color` modes).
+Shared deploy logic used by both `ship <path>` shortcut and `ship deployments upload`. Handles: path existence/type validation, the deploy options (labels, password, `--no-path-detect`), AbortController for Ctrl+C, and a spinner (TTY only, suppressed in `--json` and `--no-color` modes).
 
 It takes `(client, deployPath, options)` and nothing else: every deploy flag
 reaches it through Commander's own merge, so there is no per-flag plumbing and
@@ -1397,17 +1395,15 @@ Required Commander boilerplate is unchanged: `.enablePositionalOptions()` on
 parent groups, `.passThroughOptions()` on subcommands taking a positional
 followed by flags.
 
-**The bug this law was written over.** `--no-path-detect` and `--no-spa-detect`
-were declared as `noPathDetect` / `noSpaDetect` and read under those names —
-but Commander stores the POSITIVE key for a `--no-x` flag, defaulted `true`. So
-both flags parsed cleanly and did **nothing**, in both deploy spellings, for as
-long as they have existed. The test that let it live asserted `exitCode === 0`,
-which a dead flag also produces. They are fenced now through `config` — the
-API sets it from a `ship.json` at the deploy ROOT and the mock derives it the
-same way, so `--no-spa-detect` (the SDK appends no generated config) and
-`--no-path-detect` (a nested `dist/ship.json` never reaches the root) are both
-visible through a wire field rather than through a probe. Fixtures:
-`tests/fixtures/spa-site`, `tests/fixtures/nested-site`.
+**The bug this law was written over.** `--no-path-detect` was declared as
+`noPathDetect` and read under that name — but Commander stores the POSITIVE
+key for a `--no-x` flag, defaulted `true`. So the flag parsed cleanly and did
+**nothing**, in both deploy spellings, for as long as it had existed. The test
+that let it live asserted `exitCode === 0`, which a dead flag also produces.
+It is fenced now through `config` — the API sets it from a `ship.json` at the
+deploy ROOT and the mock derives it the same way, so `--no-path-detect` (a
+nested `dist/ship.json` never reaches the root) is visible through a wire
+field rather than through a probe. Fixture: `tests/fixtures/nested-site`.
 
 ## SDK-Local Types
 
@@ -1616,7 +1612,6 @@ is not named here by full basename.
 | `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-events`, `http-rate-limit`, `http-retry`, `http-timeout` | The transport's cross-cutting concerns, one file each. `http.test.ts` is the anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler. It was three files longer until 2026-08-12 — `http-domains`, `http-tokens` and `http-browser` named halves of an endpoint table that has since folded down into `resources.ts`, and they moved with their subject. |
 | `src/shared/base-ship.ts` | `base-ship`, `base-ship-credentials`, `base-ship-lifecycle`, `base-ship-limits` | Three separable doctrines on one class: the credential slot, the init/auth lifecycle, and the one-shot `/limits` cache. |
 | `src/shared/resources.ts` | `resources-account`, `resources-deployments`, `resources-domains`, `resources-paths`, `resources-tokens` | One file per resource factory — a single file would be a grab bag with no reason to read any part of it — plus `resources-paths`, which is not a resource but the one thing none of them can assert: the URL each builds. The four resource files drive a real `Ship` against the wire-truth handler, and a mock server that ROUTED a request has already forgiven whatever the client did to the URL on the way in, so path encoding and pagination serialization need a stubbed `fetch` and a string comparison. |
-| `src/shared/lib/spa.ts` | `spa`, `spa-environments` | SPA detection and its one wire call. `spa-environments` (ex `http-browser.test.ts`) is the runtime axis: `checkSPA` reads the index's CONTENT, whose shape differs per platform, and the guard that makes a browser bundle work is `typeof Buffer !== 'undefined'` — unfalsifiable without a scope that genuinely lacks `Buffer`. |
 | `src/shared/types.ts` | `types-reexport` | Not a test of the module's own types but of the **freshness** of what it re-exports — a bundled-dependency fence. |
 
 **Recorded feature-axis files** — no single subject module, so the mirror rule
@@ -1723,10 +1718,6 @@ not two".
 **New CLI command:** `cli/index.ts` (command + `withErrorHandling`) → `cli/formatters.ts` (formatter if needed) → `cli/types.ts` (`CLIResult` union if needed) → tests.
 
 **New shared utility:** `src/shared/lib/` → export from `lib/index.ts` if public → unit tests.
-
-## SPA Auto-Detection
-
-On upload, the SDK POSTs `index.html` content (must be < 100KB) to `/spa-check` along with the file list. If the API detects SPA patterns (React router, Vue, etc.), the deployment gets rewrite rules for client-side routing. Disable with `spaDetect: false` (SDK) or `--no-spa-detect` (CLI).
 
 ## ship.json: the client checks syntax, the server owns the schema
 
@@ -2003,12 +1994,11 @@ commit that lands the import deletes it.
 | `account.get()` | `GET /account` | Resolves `Account`, which names the account it describes (`account`). The SDK itself sends no `X-Account`: a key, a deploy token or an OAuth grant is its account, and a browser host in session mode names the account through its own `fetch` (the console does) |
 | `ping()` | `GET /ping` | Resolves `PingResponse` (`{timestamp}`) — reachability is the absence of a throw, so there is no boolean to read |
 | `getLimits()` | `GET /limits` | Cached after init. Carries the plan caps **and** `blockedExtensions` — the platform's hosting blocklist, optional (an older API sends none) |
-| (internal) | `POST /spa-check` | SPA detection during upload — optional auth, anonymous callers allowed |
 | (internal) | `POST /upload` | Only via the `@internal` `deployEndpoint` option (`web/my`, `web/www`) |
 
 **Deploys get their own timeout ceilings — three budgets, one per kind of work.** 30s is right for a metadata read, where anything slower is a fault rather than a payload. A deploy is bounded by the platform instead: `DEPLOYMENT.MAX_TOTAL_SIZE` is 50MB, and 50MB in 30s needs ~13 Mbit/s of sustained UPLOAD — above most residential links — so a deployment the API permits was being aborted client-side, which is exactly the failure `Idempotency-Key` repairs. `DEFAULT_DEPLOY_TIMEOUT` is 5 minutes (50MB at ~1.4 Mbit/s).
 
-A **build or prerender** deploy is the third: it waits for work the SERVER does after the upload lands, so `DEFAULT_DEPLOY_BUILD_TIMEOUT` is **derived, not chosen** — written in code as `DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET`, so tuning either half carries. Raising that server constant must raise this one; they sit in different repos so nothing fences the pair, and the constraint is stated at both ends. `spa` does NOT qualify: it is local detection bounded by the AI tier's own 10s; only build/prerender reach the build service.
+A **build or prerender** deploy is the third: it waits for work the SERVER does after the upload lands, so `DEFAULT_DEPLOY_BUILD_TIMEOUT` is **derived, not chosen** — written in code as `DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET`, so tuning either half carries. Raising that server constant must raise this one; they sit in different repos so nothing fences the pair, and the constraint is stated at both ends.
 
 **Only the DEFAULTS split by operation** — an explicit `timeout` option governs every request including deploys: a caller who names a ceiling asked for a ceiling, not for one with an exception.
 

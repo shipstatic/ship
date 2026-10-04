@@ -158,8 +158,8 @@ describe('the URLs the resources build', () => {
     });
 
     it('honours the @internal deployEndpoint override', async () => {
-      // `web/my` and `web/www` target `/upload`, which runs server-side build
-      // and SPA detection. The option is transport's; the resource reads it
+      // `web/my` and `web/www` target `/upload`, which runs the server-side
+      // build. The option is transport's; the resource reads it
       // rather than restating either path.
       const api = new ApiHttp({
         apiUrl: 'https://api.test.com',

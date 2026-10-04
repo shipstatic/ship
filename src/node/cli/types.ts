@@ -79,18 +79,16 @@ export interface DeployCommandOptions extends LabelOptions {
    */
   ttl?: number;
   /**
-   * `--no-path-detect` and `--no-spa-detect`, under the names COMMANDER gives
-   * them: a `--no-x` flag stores the POSITIVE key, defaulted to `true`, and
-   * sets it `false` when passed. There is no `noPathDetect` anywhere in a
-   * parsed result.
+   * `--no-path-detect`, under the name COMMANDER gives it: a `--no-x` flag
+   * stores the POSITIVE key, defaulted to `true`, and sets it `false` when
+   * passed. There is no `noPathDetect` anywhere in a parsed result.
    *
-   * These were declared as `noPathDetect` / `noSpaDetect` until 2026-08-12 and
-   * read under those names, so both flags parsed cleanly and did NOTHING, in
-   * both deploy spellings — the exact defect the flag law exists to remove.
-   * See CLAUDE.md, "Two flag tiers".
+   * It was declared as `noPathDetect` until 2026-08-12 and read under that
+   * name, so the flag parsed cleanly and did NOTHING, in both deploy
+   * spellings — the exact defect the flag law exists to remove. See
+   * CLAUDE.md, "Two flag tiers".
    */
   pathDetect?: boolean;
-  spaDetect?: boolean;
 }
 
 /**

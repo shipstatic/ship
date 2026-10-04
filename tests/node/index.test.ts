@@ -11,7 +11,6 @@ const mockApiClient = fakeTransport({
   Deploy: { deployment: 'dep_123', url: 'https://dep_123.shipstatic.com' },
   'Get account': { email: 'test@example.com' },
   'Get limits': { maxFileSize: 10485760 },
-  'SPA check': { isSPA: false },
 });
 
 // `function`, not an arrow: vitest 4 invokes constructor mocks with `new`,
@@ -158,7 +157,6 @@ describe('Ship - Node.js Implementation', () => {
           url: 'https://dep_123.shipstatic.com',
         }),
         'Get limits': vi.fn().mockResolvedValue({}),
-        'SPA check': { isSPA: false },
       });
 
       const result = await ship.deploy('./dist');
@@ -224,7 +222,6 @@ describe('Ship - Node.js Implementation', () => {
           url: 'https://dep_paths_123.shipstatic.com',
         }),
         'Get limits': vi.fn().mockResolvedValue({}),
-        'SPA check': { isSPA: false },
       });
 
       await ship.deploy(['./dist/index.html', './dist/style.css']);
@@ -338,12 +335,10 @@ describe('Ship - Node.js Implementation', () => {
           url: 'https://dep_opt_123.shipstatic.com',
         }),
         'Get limits': vi.fn().mockResolvedValue({}),
-        'SPA check': { isSPA: false },
       });
 
       const options = {
         pathDetect: false,
-        spaDetect: false,
       };
 
       await ship.deploy(['./src/index.html'], options);

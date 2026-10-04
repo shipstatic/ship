@@ -55,17 +55,9 @@ export const deploymentsOver = (api: ApiHttp) =>
     processInput: async (input) => input as unknown as StaticFile[],
   });
 
-/**
- * Deploy exactly these files through `api`, bypassing collection.
- *
- * `spaDetect: false` by default, and that default is load-bearing: the SPA
- * pre-flight is a SECOND request, made before the deploy, and the transport
- * rows here are about the deploy's own carriage. Leaving it on made the
- * fake-timer ceiling rows hang on `/spa-check` and never reach the request
- * they were measuring. A row that wants the pre-flight can ask for it.
- */
+/** Deploy exactly these files through `api`, bypassing collection. */
 export const deploy = (
   api: ApiHttp,
   files: Array<Partial<StaticFile>>,
   options: Parameters<ReturnType<typeof deploymentsOver>['upload']>[1] = {},
-) => deploymentsOver(api).upload(files as unknown as DeployInput, { spaDetect: false, ...options });
+) => deploymentsOver(api).upload(files as unknown as DeployInput, options);

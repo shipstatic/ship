@@ -147,9 +147,6 @@ describe('Base Ship Class (Abstract)', () => {
         if (pathname === '/limits') {
           return json({ maxFileSize: 20971520, maxFilesCount: 500, maxTotalSize: 52428800 });
         }
-        if (pathname === '/spa-check') {
-          return json({ isSPA: true, debug: { tier: 'inclusions', reason: 'root mount' } });
-        }
         if (pathname === '/deployments') {
           return json({
             deployment: 'brave-otter-a1b2c3d.shipstatic.com',
@@ -165,16 +162,16 @@ describe('Base Ship Class (Abstract)', () => {
       return { fetch, paths, urls };
     }
 
-    it('reads limits before the SPA pre-flight, and both before the deploy', async () => {
-      // Why the order is load-bearing: `/spa-check` and the deploy body are
-      // both size-validated against the limits, so a deploy that raced ahead
-      // of `/limits` would validate against nothing.
+    it('reads limits before the deploy', async () => {
+      // Why the order is load-bearing: the deploy body is size-validated
+      // against the limits, so a deploy that raced ahead of `/limits` would
+      // validate against nothing.
       const { fetch, paths } = recordingFetch();
       const client = new TestShip({ apiUrl: 'http://localhost:13579', token: TEST_API_KEY, fetch });
 
       await client.deployments.upload(['./ignored']);
 
-      expect(paths).toEqual(['/limits', '/spa-check', '/deployments']);
+      expect(paths).toEqual(['/limits', '/deployments']);
     });
 
     it('sends every call to the configured apiUrl, never the default', async () => {
@@ -203,11 +200,10 @@ describe('Base Ship Class (Abstract)', () => {
   });
 
   /**
-   * Cancel stops a deploy wherever it is. A deploy is three requests (the
-   * limits it validates against, the SPA question, the upload itself), and
-   * the caller's one signal must reach each: a stop that only reached the
-   * last left the form busy while the first two ran, and a stop during the
-   * SPA question was swallowed by its fallback and read as a failure.
+   * Cancel stops a deploy wherever it is. A deploy is two requests (the
+   * limits it validates against, the upload itself), and the caller's one
+   * signal must reach each: a stop that only reached the last left the form
+   * busy while the first ran.
    */
   describe('cancellation reaches every request of a deploy (real transport)', () => {
     /** Answers every path, except one it holds open until its signal aborts. */
@@ -233,7 +229,6 @@ describe('Base Ship Class (Abstract)', () => {
         if (pathname === '/limits') {
           return json({ maxFileSize: 20971520, maxFilesCount: 500, maxTotalSize: 52428800 });
         }
-        if (pathname === '/spa-check') return json({ isSPA: false });
         return json({ deployment: 'brave-otter-a1b2c3d.shipstatic.com', status: 'success' });
       }) as unknown as Fetch;
       return { fetch, paths, arrived, heldSignal: () => heldSignal };
@@ -241,8 +236,7 @@ describe('Base Ship Class (Abstract)', () => {
 
     it.each([
       ['/limits', ['/limits']],
-      ['/spa-check', ['/limits', '/spa-check']],
-      ['/deployments', ['/limits', '/spa-check', '/deployments']],
+      ['/deployments', ['/limits', '/deployments']],
     ])(
       'a stop while %s is in flight cancels it, and sends nothing after it',
       async (held, sent) => {

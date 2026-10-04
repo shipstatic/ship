@@ -49,7 +49,6 @@ import {
   type DomainVerifyResponse,
   type PingResponse,
   ShipError,
-  type SPACheckResponse,
   type TokenDeleteResponse,
   TokenKind,
   type TokenListResponse,
@@ -95,8 +94,7 @@ function failRateLimit(error: ShipError, now: number): Response {
  * Routes reachable without a credential — and NOTHING else.
  *
  * wire: `/ping` + `/limits` (createAuthMiddleware optional),
- * `POST /deployments` (allowPublicDeploys — routes/deployments.ts:52),
- * `POST /spa-check` (`{ deployScope: true, optional: true }` — routes/spa-check.ts:36).
+ * `POST /deployments` (allowPublicDeploys — routes/deployments.ts:52).
  * `POST /tokens` is NOT public: routes/tokens.ts:56-58 puts auth on every
  * token route. An earlier mock let it through, so an SDK regression dropping
  * the Authorization header on `tokens.create()` was undetectable.
@@ -104,7 +102,6 @@ function failRateLimit(error: ShipError, now: number): Response {
 function isPublic(method: string, path: string): boolean {
   if (path === '/ping' || path === '/limits') return true;
   if (path === '/deployments' && method === 'POST') return true;
-  if (path === '/spa-check' && method === 'POST') return true;
   return false;
 }
 
@@ -174,24 +171,6 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
     return json(state.account);
   }
 
-  // --- /spa-check -------------------------------------------------------
-  // wire: routes/spa-check.ts:28 — optional auth, anonymous callers allowed.
-  if (path === '/spa-check' && method === 'POST') {
-    const body = (await request.json().catch(() => ({}))) as {
-      files?: string[];
-      index?: string;
-    };
-    const isSPA = Boolean(
-      body.files?.includes('index.html') && /id=['"]root['"]/.test(body.index ?? ''),
-    );
-    return json({
-      isSPA,
-      debug: isSPA
-        ? { tier: 'inclusions', reason: 'React mount point detected' }
-        : { tier: 'fallback', reason: 'No SPA indicators found' },
-    } satisfies SPACheckResponse);
-  }
-
   // --- /deployments -----------------------------------------------------
   if (path === '/deployments') {
     // wire: routes/deployments.ts:235 — returns the list unconditionally,
@@ -229,8 +208,8 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       // `config` is derived from the UPLOADED FILES, exactly as the API derives
       // it: a `ship.json` at the deploy root, optional leading slash, no other
       // path forgiveness. That is what makes it an observation of what the
-      // client actually sent — `--no-spa-detect` means the SDK never appends
-      // one, and `--no-path-detect` means a nested one never reaches the root.
+      // client actually sent — `--no-path-detect` means a nested one never
+      // reaches the root.
       // wire: lib/deployment-config.ts:162 (findDeploymentConfigFile) →
       // lib/deployment-response.ts:56 (`config: Boolean(...)`)
       const uploaded = (form?.getAll(DEPLOY_FIELDS.FILES) ?? [])

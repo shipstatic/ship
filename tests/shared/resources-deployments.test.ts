@@ -1,9 +1,8 @@
 /**
  * @file Subject: `src/shared/resources.ts` — the deployment resource.
  *
- * `upload` is the SDK's longest path: collect the files, ask the platform
- * whether they are a SPA, validate the request boundary, build the multipart
- * body, send it. It read across two files until 2026-08-12, when the endpoint
+ * `upload` is the SDK's longest path: collect the files, validate the request
+ * boundary, build the multipart body, send it. It read across two files until 2026-08-12, when the endpoint
  * tier folded down out of `ApiHttp` — and these rows read across two seams to
  * match, asserting on `mockApiHttp.deploy` having *been called*.
  *
@@ -13,15 +12,9 @@
  * than the arguments a collaborator was handed. A body that was assembled
  * correctly and one that was merely appended to correctly are different
  * things, and only the first of these can tell them apart.
- *
- * No `vi.mock` of `../../src/shared/lib/spa`, deliberately. An earlier revision
- * mocked `detectAndConfigureSPA` with a hand-written reimplementation of its
- * branching, so the "SPA detection is applied" rows asserted the fake's
- * behaviour and would have kept passing had the real function stopped
- * injecting anything. The real module runs; the transport is the only seam.
  */
 
-import { DEPLOYMENT_CONFIG_FILENAME, IDEMPOTENCY_KEY_CONSTRAINTS } from '@shipstatic/types';
+import { IDEMPOTENCY_KEY_CONSTRAINTS } from '@shipstatic/types';
 import type { Mock } from 'vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Transport } from '../../src/shared/api/http';
@@ -41,7 +34,6 @@ describe('Deployment Resource', () => {
   let carried: Carried[];
   let transport: Transport;
   let answer: unknown;
-  let spaVerdict: unknown;
   let mockProcessInput: Mock;
   // Parameterized exactly as `base-ship` declares it — since types
   // 2.5.0-beta.0 the interface admits the SDK's extended options directly.
@@ -55,12 +47,11 @@ describe('Deployment Resource', () => {
     vi.clearAllMocks();
     carried = [];
     answer = makeDeployment();
-    spaVerdict = { isSPA: false };
 
     const request = vi.fn(
       async (path: string, init: any, operation: string, timeoutMs?: number) => {
         carried.push({ path, init, operation, timeoutMs });
-        return operation === 'SPA check' ? spaVerdict : answer;
+        return answer;
       },
     );
     transport = {
@@ -133,52 +124,6 @@ describe('Deployment Resource', () => {
     });
   });
 
-  describe('upload — SPA detection runs before the body is built', () => {
-    it('injects the real ship.json when the platform says it is a SPA', async () => {
-      spaVerdict = { isSPA: true };
-
-      await upload({ spaDetect: true });
-
-      const files = body().getAll('files[]') as File[];
-      expect(files.map((f) => f.name)).toContain(DEPLOYMENT_CONFIG_FILENAME);
-      const config = files.find((f) => f.name === DEPLOYMENT_CONFIG_FILENAME) as File;
-      expect(JSON.parse(await config.text())).toEqual({
-        rewrites: [{ source: '/(.*)', destination: '/index.html' }],
-      });
-    });
-
-    it('leaves the deploy alone when it is not', async () => {
-      spaVerdict = { isSPA: false };
-
-      await upload({ spaDetect: true });
-
-      expect((body().getAll('files[]') as File[]).map((f) => f.name)).toEqual([
-        'index.html',
-        'style.css',
-      ]);
-    });
-
-    it('deploys anyway when the pre-flight fails', async () => {
-      // A flaky pre-flight must never fail a deploy — and must not silently
-      // drop files either. `spa.test.ts` proves the untouched list is
-      // RETURNED; this proves the deploy still happens with it.
-      (transport.request as Mock).mockImplementation(
-        async (path: string, init: any, operation: string, timeoutMs?: number) => {
-          if (operation === 'SPA check') throw new Error('SPA check unavailable');
-          carried.push({ path, init, operation, timeoutMs });
-          return answer;
-        },
-      );
-
-      await upload({ spaDetect: true });
-
-      expect((body().getAll('files[]') as File[]).map((f) => f.name)).toEqual([
-        'index.html',
-        'style.css',
-      ]);
-    });
-  });
-
   describe('upload — what reaches the body', () => {
     it('names itself sdk when no via is given', async () => {
       await upload();
@@ -231,7 +176,6 @@ describe('Deployment Resource', () => {
     it.each([
       ['build', 'build'],
       ['prerender', 'prerender'],
-      ['spa', 'spa'],
     ])('carries the @internal %s flag', async (_label, flag) => {
       await upload({ [flag]: true } as DeploymentOptions);
       expect(body().get(flag)).toBe('true');
@@ -281,14 +225,6 @@ describe('Deployment Resource', () => {
         expect(deployCall().timeoutMs).toBe(600_000);
       },
     );
-
-    it('does NOT extend the ceiling for spa, which never reaches the build service', async () => {
-      // Local detection bounded by the AI tier's own 10s. The distinction is
-      // the reason the choice lives here rather than in the transport: only
-      // this file knows which flags mean server-side work.
-      await upload({ spa: true });
-      expect(deployCall().timeoutMs).toBe(300_000);
-    });
   });
 
   describe('the rest of the resource', () => {

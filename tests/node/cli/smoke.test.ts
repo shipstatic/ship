@@ -74,7 +74,6 @@ FLAGS
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
   --no-path-detect          Disable automatic path optimization and flattening
-  --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
   --json                    Output results in JSON format
   -q, --quiet               Output only the resource identifier
@@ -123,7 +122,7 @@ describe('true-binary smoke', () => {
       const result = await runCli(['deployments', 'upload', '--help']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toMatch(/^Usage: ship deployments upload/);
-      expect(result.stdout).toContain('--no-spa-detect');
+      expect(result.stdout).toContain('--no-path-detect');
       expect(result.stderr).toBe('');
     });
 

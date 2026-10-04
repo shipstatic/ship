@@ -122,7 +122,6 @@ ${applyBold('FLAGS')}
   --label <label>           Set label (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
   --no-path-detect          Disable automatic path optimization and flattening
-  --no-spa-detect           Disable automatic SPA detection and configuration
   --no-color                Disable colored output
   --json                    Output results in JSON format
   -q, --quiet               Output only the resource identifier
@@ -449,7 +448,6 @@ async function performDeploy(
     ttl?: number;
     idempotencyKey?: string;
     pathDetect?: boolean;
-    spaDetect?: boolean;
     signal?: AbortSignal;
   } = {
     // `SHIP_VIA_ENV` names the slot a wrapper relabels the origin through:
@@ -486,11 +484,10 @@ async function performDeploy(
   const ttl = ttlOf(options);
   if (ttl !== undefined) deployOptions.ttl = ttl;
 
-  // The detection flags, under the names Commander actually gives them —
-  // `--no-x` stores the POSITIVE key, defaulted true. Read as `noPathDetect` /
-  // `noSpaDetect` until 2026-08-12, which is to say never read at all.
+  // The detection flag, under the name Commander actually gives it —
+  // `--no-x` stores the POSITIVE key, defaulted true. Read as `noPathDetect`
+  // until 2026-08-12, which is to say never read at all.
   if (options.pathDetect !== undefined) deployOptions.pathDetect = options.pathDetect;
-  if (options.spaDetect !== undefined) deployOptions.spaDetect = options.spaDetect;
 
   // Cancellation support
   const abortController = new AbortController();
@@ -872,8 +869,7 @@ export function buildProgram(): Command {
       .option('--label <label>', 'Label to add (can be repeated)', collect, [])
       .option('--password <password>', 'Password-protect this deployment')
       .option('--ttl <duration>', 'Expire after this long — 3600, 1h, 7d (needs a token)', parseTtl)
-      .option('--no-path-detect', 'Disable automatic path optimization and flattening')
-      .option('--no-spa-detect', 'Disable automatic SPA detection and configuration');
+      .option('--no-path-detect', 'Disable automatic path optimization and flattening');
 
   // Deployments commands
   const deploymentsCmd = program

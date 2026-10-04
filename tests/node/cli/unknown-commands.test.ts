@@ -191,8 +191,8 @@ describe('a flag parses only where it means something', () => {
     ],
     [
       'a --no-x flag',
-      ['--no-spa-detect', 'deployments', 'list'],
-      '--no-spa-detect',
+      ['--no-path-detect', 'deployments', 'list'],
+      '--no-path-detect',
       'ship deployments list',
     ],
     ['on a group', ['--domain', 'www.example.com', 'domains'], '--domain', 'ship domains'],

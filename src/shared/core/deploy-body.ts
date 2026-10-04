@@ -86,7 +86,6 @@ export async function createDeployBody(
   if (ttl !== undefined) formData.append(DEPLOY_FIELDS.TTL, String(ttl));
   if (flags?.build) formData.append(DEPLOY_FIELDS.BUILD, 'true');
   if (flags?.prerender) formData.append(DEPLOY_FIELDS.PRERENDER, 'true');
-  if (flags?.spa) formData.append(DEPLOY_FIELDS.SPA, 'true');
   if (flags?.buildCommand) formData.append(DEPLOY_FIELDS.BUILD_COMMAND, flags.buildCommand);
   if (flags?.outputDir) formData.append(DEPLOY_FIELDS.OUTPUT_DIR, flags.outputDir);
   if (captcha) formData.append(DEPLOY_FIELDS.CAPTCHA, captcha);

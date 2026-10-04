@@ -413,35 +413,6 @@ describe('ApiHttp Timeout & Cancellation', () => {
       }
     });
 
-    it('does not extend the ceiling for spa detection, which never reaches the build service', async () => {
-      // `spa` is local detection bounded by the AI tier's own 10s
-      // (`api/src/lib/upload-processing.ts` forwards only build/prerender),
-      // so it keeps the plain deploy budget. The distinction matters: a flag
-      // set is not the same question as which flags cost server time.
-      vi.useFakeTimers();
-      try {
-        global.fetch = hangingFetch() as any;
-        const api = new ApiHttp({
-          apiUrl: 'https://api.test.com',
-          getAuthHeaders: () => ({}),
-          // The subject here is the CEILING, not the retry loop.
-          maxRetries: 0,
-        });
-
-        const pending = deploy(api, files, { spa: true });
-        const settled = vi.fn();
-        pending.catch(settled);
-
-        await vi.advanceTimersByTimeAsync(299_999);
-        expect(settled).not.toHaveBeenCalled();
-
-        await vi.advanceTimersByTimeAsync(1);
-        await expect(pending).rejects.toMatchObject({ type: 'timeout_error' });
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-
     it('honours an explicit timeout on deploys too', async () => {
       // Only the DEFAULT splits by operation. A caller who names a ceiling
       // asked for a ceiling, not for one with an exception.

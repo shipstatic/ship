@@ -4,7 +4,7 @@
  * Several files stub a `Ship`'s transport rather than run one — `base-ship*`,
  * the two platform entries — because their subject is what the class does
  * around a request, not the request. They used to stub it as an object of
- * endpoint METHODS (`{ deploy, ping, getLimits, checkSPA, … }`), which stopped
+ * endpoint METHODS (`{ deploy, ping, getLimits, … }`), which stopped
  * being possible on 2026-08-12: the endpoints folded down into `resources.ts`
  * and a transport has two methods now, whatever the request is.
  *
@@ -50,7 +50,7 @@ export type OperationAnswer = unknown | ((req: CarriedRequest) => unknown);
 
 /**
  * @param answers - Keyed by the operation name the caller passes to `request`
- *   (`'Ping'`, `'Get limits'`, `'Deploy'`, `'SPA check'`, …). An unlisted
+ *   (`'Ping'`, `'Get limits'`, `'Deploy'`, …). An unlisted
  *   operation resolves `undefined`, which is what an endpoint the row does not
  *   care about should do.
  * @param deploy - Overrides for the deploy carriage the deployment resource

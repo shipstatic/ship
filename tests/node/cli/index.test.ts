@@ -23,8 +23,6 @@ import { mockState } from '../../mocks/server';
 import { runProgram } from './harness';
 
 const DEMO_SITE = path.resolve(__dirname, '../../fixtures/demo-site');
-/** An index.html the SPA check recognises — a React-style mount point. */
-const SPA_SITE = path.resolve(__dirname, '../../fixtures/spa-site');
 /** Everything under one `dist/`, so path detection has a prefix to lift. */
 const NESTED_SITE = path.resolve(__dirname, '../../fixtures/nested-site');
 
@@ -212,41 +210,33 @@ describe('CLI command tree (in-process)', () => {
       expect(result.stderr).toContain('path does not exist');
     });
 
-    it('accepts --no-path-detect and --no-spa-detect', async () => {
-      const result = await runProgram(['--json', DEMO_SITE, '--no-path-detect', '--no-spa-detect']);
+    it('accepts --no-path-detect', async () => {
+      const result = await runProgram(['--json', DEMO_SITE, '--no-path-detect']);
       expect(result.exitCode).toBe(0);
     });
 
     // -------------------------------------------------------------------------
-    // The detection flags, under the names Commander actually gives them.
+    // The detection flag, under the name Commander actually gives it.
     //
-    // `--no-path-detect` and `--no-spa-detect` were declared as `noPathDetect` /
-    // `noSpaDetect` and read under those names until 2026-08-12 — Commander
-    // stores the POSITIVE key for a `--no-x` flag, so both parsed cleanly and
-    // did NOTHING, in both spellings. The test above is the one that let it
-    // live: it asserted exit 0, which a dead flag also produces.
+    // `--no-path-detect` was declared as `noPathDetect` and read under that
+    // name until 2026-08-12 — Commander stores the POSITIVE key for a `--no-x`
+    // flag, so it parsed cleanly and did NOTHING, in both spellings. The test
+    // above is the one that let it live: it asserted exit 0, which a dead flag
+    // also produces.
     //
     // The observable is `config` — the API sets it from a `ship.json` at the
-    // deploy root, and the mock derives it the same way. So both flags become
+    // deploy root, and the mock derives it the same way. So the flag becomes
     // visible through the wire's own field rather than through a probe.
     // -------------------------------------------------------------------------
     describe.each([
       ['shortcut', [] as string[]],
       ['deployments upload', ['deployments', 'upload']],
-    ])('%s: the detection flags do something', (_form, verb) => {
+    ])('%s: the detection flag does something', (_form, verb) => {
       const configOf = async (...args: string[]) => {
         const result = await runProgram(['--json', ...verb, ...args]);
         expect(result.exitCode).toBe(0);
         return JSON.parse(result.stdout.trim()).config;
       };
-
-      it('detects the SPA and ships a generated ship.json', async () => {
-        expect(await configOf(SPA_SITE)).toBe(true);
-      });
-
-      it('--no-spa-detect ships no config at all', async () => {
-        expect(await configOf(SPA_SITE, '--no-spa-detect')).toBe(false);
-      });
 
       it("lifts dist/ to the root, so the site's own ship.json is found", async () => {
         expect(await configOf(NESTED_SITE)).toBe(true);

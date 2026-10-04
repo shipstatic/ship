@@ -377,7 +377,7 @@ export interface Observation {
  * Run one point and report what the wire said.
  *
  * The LAST `response` event is the operation's own: a deploy's `/limits` read
- * and its pre-flight (`/spa-check`) precede it.
+ * precedes it.
  *
  * **`assert` runs OUTSIDE the catch, and that placement is load-bearing.**
  * Inside it, a failing assert was reported as though the WIRE had errored —

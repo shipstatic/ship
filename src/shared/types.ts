@@ -21,7 +21,7 @@ export interface DeploymentOptions extends DeploymentUploadOptions {
   /**
    * An AbortSignal to allow cancellation of the deploy operation. The one
    * cancellation mechanism: it reaches every request the deploy makes (the
-   * limits it validates against, the SPA question and the upload itself),
+   * limits it validates against and the upload itself),
    * and aborting it rejects the deploy with a typed `Cancelled` error
    * wherever it stands. A deploy the server had already committed stays
    * committed. Request timeouts are a client concern
@@ -30,8 +30,6 @@ export interface DeploymentOptions extends DeploymentUploadOptions {
   signal?: AbortSignal;
   /** Whether to auto-detect and optimize file paths by flattening common directories. Defaults to true. */
   pathDetect?: boolean;
-  /** Whether to auto-detect SPAs and generate ship.json configuration. Defaults to true. */
-  spaDetect?: boolean;
 }
 
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
@@ -71,7 +69,6 @@ export interface DeployBodyContext {
   flags?: {
     build?: boolean;
     prerender?: boolean;
-    spa?: boolean;
     buildCommand?: string;
     outputDir?: string;
   };
@@ -193,7 +190,7 @@ export interface ShipClientOptions {
    * Override the deploy endpoint path. Defaults to `/deployments`.
    *
    * @internal First-party hook used by `web/my` and `web/www` to target the
-   * `/upload` route (which runs server-side build / SPA detection). External
+   * `/upload` route (which runs the server-side build). External
    * SDK consumers must not set this — the `/deployments` endpoint is the
    * stable public contract. See `cloudflare/api/CLAUDE.md` for why the two
    * endpoints exist and what `/upload` does that `/deployments` doesn't.

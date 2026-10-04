@@ -114,9 +114,9 @@ SHIP_PASSWORD="hunter22" ship ./dist        # via env var
 
 Visitors get an unlock page until they enter the password. Length: 6–128 characters. Set per-deployment at upload time — cannot be added or changed later (deploy a new version to rotate). Works on both internal (`*.shipstatic.com`) and custom domains. **Always show the password to the user** if you set one — they need it to view the site.
 
-### SPA routing
+### Client-side routing
 
-Ship auto-detects single-page apps from `index.html` content and configures client-side routing rewrites — all paths serve `index.html`. No action needed. Skipped if a `ship.json` config is already included in the deployment. Disable with `--no-spa-detect`.
+A deployment whose only page is `index.html` serves it for a missing path that has no file extension, so a React, Vue, Svelte or Angular build works on its routes with nothing to configure; a missing asset, or a route whose last segment looks like a file name, is still a 404 (a rewrite covers those). A root `200.html` is served the same way by name; a root `404.html` of your own is served for a missing path instead; your `ship.json` rewrites run before the fallback.
 
 ## Authentication
 
@@ -324,7 +324,6 @@ ship tokens delete <token>            # Delete (revokes immediately)
 | `--password <pwd>` | Password-protect deployment (6–128 chars) |
 | `--ttl <duration>` | Expire after that long — `3600`, `90s`, `1h`, `7d`. Needs a token; not with `--domain` |
 | `--no-path-detect` | Skip build output auto-detection |
-| `--no-spa-detect` | Skip SPA rewrite auto-configuration |
 | `--no-color` | Disable colors |
 | `--config <file>` | Custom config path |
 
