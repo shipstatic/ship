@@ -62,7 +62,6 @@ describe('Base Ship Class (Abstract)', () => {
       Deploy: mockApiDeploy,
       Ping: { success: true, timestamp: 1_700_000_000 },
       'Get limits': {},
-      'SPA check': { isSPA: false },
       'List deployments': { deployments: [], cursor: null },
       'Get deployment': { deployment: 'brave-otter-a1b2c3d' },
       'Get account': { email: 'test@example.com' },
