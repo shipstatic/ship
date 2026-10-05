@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-**PRODUCTION HOLD (operator, 2026-09-30): do not merge `development` into `main` while it carries the account-in-the-path wave.** That merge publishes to `latest`, and the wave is held until the operator signs it off after a manual sitting of root `TESTPLAN-SOLO-SITTING.md` on dev (the Team sitting gates lifting `TEAM_CLOSED` alone). Beta publishes from `development` stay allowed. Full text and expiry: root `plan-account-in-the-path.md`, the production hold.
-
 Claude Code instructions for the **Ship SDK & CLI** package.
 
 **@shipstatic/ship** — universal SDK and CLI for ShipStatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Stable; semver applies — breaking changes require a major version bump. **The pre-launch exception:** until the platform has external consumers, a change to a published type rides a minor under the same exception `@shipstatic/types` records beside its additive-evolution law, and the release notes name it (3.4.0: `account.get()` answers `Account`).
