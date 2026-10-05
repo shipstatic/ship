@@ -54,6 +54,11 @@ export interface MockState {
    * deployment instead of creating a second one.
    */
   idempotency: Map<string, DeploymentCreateResponse>;
+  /**
+   * What `POST /spa-check` answers. Set by the test that needs a yes; the
+   * double decides nothing (see the route's arm in `handler.ts`).
+   */
+  spa: boolean;
   findDeployment(idOrHostname: string): Deployment | undefined;
   createDeployment(
     anonymous: boolean,
@@ -85,6 +90,7 @@ export function createMockState(
     tokens: [],
     verifyCooldown: new Set(),
     idempotency: new Map(),
+    spa: false,
 
     /** The API accepts a bare slug or the full hostname. wire: normalizeDeployment */
     findDeployment(idOrHostname) {

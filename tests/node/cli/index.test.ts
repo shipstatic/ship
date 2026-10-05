@@ -23,7 +23,7 @@ import { mockState } from '../../mocks/server';
 import { runProgram } from './harness';
 
 const DEMO_SITE = path.resolve(__dirname, '../../fixtures/demo-site');
-/** An index.html the SPA check recognises — a React-style mount point. */
+/** A client-rendered app: an empty shell and its script. */
 const SPA_SITE = path.resolve(__dirname, '../../fixtures/spa-site');
 /** Everything under one `dist/`, so path detection has a prefix to lift. */
 const NESTED_SITE = path.resolve(__dirname, '../../fixtures/nested-site');
@@ -240,11 +240,17 @@ describe('CLI command tree (in-process)', () => {
         return JSON.parse(result.stdout.trim()).config;
       };
 
-      it('detects the SPA and ships a generated ship.json', async () => {
+      it('ships a generated ship.json when the platform answers yes', async () => {
+        mockState().spa = true;
         expect(await configOf(SPA_SITE)).toBe(true);
       });
 
-      it('--no-spa-detect ships no config at all', async () => {
+      it('ships none when the platform answers no', async () => {
+        expect(await configOf(SPA_SITE)).toBe(false);
+      });
+
+      it('--no-spa-detect ships no config at all, whatever the answer', async () => {
+        mockState().spa = true;
         expect(await configOf(SPA_SITE, '--no-spa-detect')).toBe(false);
       });
 

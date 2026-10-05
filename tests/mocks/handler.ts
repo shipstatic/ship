@@ -96,7 +96,8 @@ function failRateLimit(error: ShipError, now: number): Response {
  *
  * wire: `/ping` + `/limits` (createAuthMiddleware optional),
  * `POST /deployments` (allowPublicDeploys — routes/deployments.ts:52),
- * `POST /spa-check` (`{ deployScope: true, optional: true }` — routes/spa-check.ts:36).
+ * `POST /spa-check` (no auth middleware at all: the answer is about the request,
+ * so no credential is read).
  * `POST /tokens` is NOT public: routes/tokens.ts:56-58 puts auth on every
  * token route. An earlier mock let it through, so an SDK regression dropping
  * the Authorization header on `tokens.create()` was undetectable.
@@ -175,20 +176,14 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
   }
 
   // --- /spa-check -------------------------------------------------------
-  // wire: routes/spa-check.ts:28 — optional auth, anonymous callers allowed.
+  // wire: routes/spa-check.ts. The answer comes from `state.spa`, set by the
+  // test: the SDK's tests pin what the SDK does with an answer, never how
+  // the server reached it. The rule and its fixtures live in
+  // cloudflare/api/tests/lib/spa.test.ts.
   if (path === '/spa-check' && method === 'POST') {
-    const body = (await request.json().catch(() => ({}))) as {
-      files?: string[];
-      index?: string;
-    };
-    const isSPA = Boolean(
-      body.files?.includes('index.html') && /id=['"]root['"]/.test(body.index ?? ''),
-    );
     return json({
-      isSPA,
-      debug: isSPA
-        ? { tier: 'inclusions', reason: 'React mount point detected' }
-        : { tier: 'fallback', reason: 'No SPA indicators found' },
+      isSPA: state.spa,
+      reason: 'Answered by the test double',
     } satisfies SPACheckResponse);
   }
 

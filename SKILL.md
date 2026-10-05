@@ -116,7 +116,7 @@ Visitors get an unlock page until they enter the password. Length: 6–128 chara
 
 ### SPA routing
 
-Ship auto-detects single-page apps from `index.html` content and configures client-side routing rewrites — all paths serve `index.html`. No action needed. Skipped if a `ship.json` config is already included in the deployment. Disable with `--no-spa-detect`.
+Ship auto-detects single-page apps from `index.html` content and configures client-side routing rewrites — all paths serve `index.html`. Usually no action needed. If the app's routes return 404 on reload, add `{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }` as `ship.json` in the deployed folder. Skipped if a `ship.json` config is already included in the deployment. Disable with `--no-spa-detect`.
 
 ## Authentication
 

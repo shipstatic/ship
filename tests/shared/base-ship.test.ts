@@ -148,7 +148,7 @@ describe('Base Ship Class (Abstract)', () => {
           return json({ maxFileSize: 20971520, maxFilesCount: 500, maxTotalSize: 52428800 });
         }
         if (pathname === '/spa-check') {
-          return json({ isSPA: true, debug: { tier: 'inclusions', reason: 'root mount' } });
+          return json({ isSPA: true, reason: 'Empty application shell' });
         }
         if (pathname === '/deployments') {
           return json({
