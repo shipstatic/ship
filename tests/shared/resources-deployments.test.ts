@@ -158,24 +158,21 @@ describe('Deployment Resource', () => {
       ]);
     });
 
-    it('deploys anyway when the pre-flight fails', async () => {
-      // A flaky pre-flight must never fail a deploy — and must not silently
-      // drop files either. `spa.test.ts` proves the untouched list is
-      // RETURNED; this proves the deploy still happens with it.
+    it('a question that fails is the deploy failing: its error is raised and nothing is uploaded', async () => {
+      // An undecided deploy must not ship: an app deployed without its
+      // answer 404s on reload behind a success message.
+      const failure = new Error('SPA check unavailable');
       (transport.request as Mock).mockImplementation(
         async (path: string, init: any, operation: string, timeoutMs?: number) => {
-          if (operation === 'SPA check') throw new Error('SPA check unavailable');
+          if (operation === 'SPA check') throw failure;
           carried.push({ path, init, operation, timeoutMs });
           return answer;
         },
       );
 
-      await upload({ spaDetect: true });
+      await expect(upload({ spaDetect: true })).rejects.toBe(failure);
 
-      expect((body().getAll('files[]') as File[]).map((f) => f.name)).toEqual([
-        'index.html',
-        'style.css',
-      ]);
+      expect(carried.map((c) => c.operation)).not.toContain('Deploy');
     });
   });
 

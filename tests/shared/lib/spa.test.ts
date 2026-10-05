@@ -185,7 +185,7 @@ describe('SPA Detection (spa.ts)', () => {
         expect(JSON.parse(request.mock.calls[0][1].body).index).toBe(index);
       });
 
-      it('lets a transport failure through — the caller decides', async () => {
+      it('lets a transport failure through as it is', async () => {
         const request = vi.fn().mockRejectedValue(new Error('Service unavailable'));
 
         await expect(
@@ -252,12 +252,11 @@ describe('SPA Detection (spa.ts)', () => {
       expect(result).toEqual(mockFiles);
     });
 
-    it('should handle SPA detection API errors gracefully', async () => {
-      transport.request.mockRejectedValue(new Error('API Error'));
+    it('fails with the error the question failed with: no answer, no file set', async () => {
+      const failure = new Error('API Error');
+      transport.request.mockRejectedValue(failure);
 
-      const result = await detectAndConfigureSPA(mockFiles, transport, options);
-
-      expect(result).toEqual(mockFiles);
+      await expect(detectAndConfigureSPA(mockFiles, transport, options)).rejects.toBe(failure);
     });
 
     it.each([

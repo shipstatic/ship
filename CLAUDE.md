@@ -326,7 +326,7 @@ When `build`, `prerender`, or `spa` options are set on `DeploymentUploadOptions`
   would reject exactly the input the flags exist to accept. It reads the flags
   from the shared options, so the mode is stated once, in the one loop it
   changes. It still filters junk, still skips empty files, still checksums.
-- **`detectAndConfigureSPA`** skips when `spa`, `build`, or `prerender` is set — the server handles SPA detection via the `/upload` endpoint
+- **`detectAndConfigureSPA`** skips when `spa`, `build`, or `prerender` is set: the server handles SPA detection via the `/upload` endpoint. Where it does ask (`/spa-check`), a question that fails is the deploy failing: the transport's error is raised as it is and nothing is uploaded, since a deploy made without the answer ships an app whose routes 404 on reload
 - **`createDeployBody`** appends `build=true` / `prerender=true` / `spa=true` to the FormData
 
 **Only browser callers set them, and that asymmetry lives in the CALLERS.**

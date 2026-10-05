@@ -18,8 +18,7 @@ import { fakeTransport } from '../mocks/transport';
 // It is a `Buffer` rather than the `Blob`/`File` the browser pipeline really
 // produces, and that is a JSDOM limitation stated rather than papered over:
 // jsdom's `Blob` has no `.text()`, so the real browser shape throws inside
-// `checkSPA` and `detectAndConfigureSPA` swallows it — the pre-flight silently
-// never happens, and this row would pass while proving nothing. The Blob and
+// `checkSPA` and the deploy fails with it. The Blob and
 // File arms are certified where they can be: on real Chromium in
 // `tests-browser/`, and against Node's own `Blob` in `shared/lib/spa.test.ts`.
 vi.mock('../../src/browser/core/browser-files', () => ({

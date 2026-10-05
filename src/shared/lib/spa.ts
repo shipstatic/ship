@@ -105,6 +105,11 @@ export async function checkSPA(
  * Detects SPA projects and auto-generates configuration.
  * This function can be used by both Node.js and browser environments.
  *
+ * A question that could not be asked is a deploy that could not be decided,
+ * so its failure is the deploy's failure: the error the transport raised
+ * leaves here as it is, and nothing is uploaded. Deploying without the answer
+ * would publish an app whose routes 404 on reload behind a success message.
+ *
  * @param files - Array of StaticFiles to analyze
  * @param transport - Carries the detection request
  * @param options - Deployment options containing SPA detection settings
@@ -126,18 +131,8 @@ export async function detectAndConfigureSPA(
     return files;
   }
 
-  try {
-    const isSPA = await checkSPA(files, transport, options.signal);
-
-    if (isSPA) {
-      const spaConfig = await createSPAConfig();
-      return [...files, spaConfig];
-    }
-  } catch (error) {
-    // A failed detection is no reason to refuse the deploy, which goes on
-    // without auto-config. A cancelled one is the deploy being stopped, so
-    // the stop passes through rather than being mistaken for a failure.
-    if (options.signal?.aborted) throw error;
+  if (await checkSPA(files, transport, options.signal)) {
+    return [...files, await createSPAConfig()];
   }
 
   return files;

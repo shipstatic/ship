@@ -34,7 +34,7 @@ describe('The credential slot', () => {
     it('deploys with no credential — the request simply carries no Authorization header', async () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
-      (ship as any).http = fakeTransport({ Deploy: mockApiDeploy });
+      (ship as any).http = fakeTransport({ Deploy: mockApiDeploy, 'SPA check': { isSPA: false } });
       await ship.deploy(['test'] as any);
 
       expect(mockApiDeploy).toHaveBeenCalled();
@@ -133,7 +133,7 @@ describe('The credential slot', () => {
 
     it('deploys with the cookie session', async () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com', session: true });
-      (ship as any).http = fakeTransport({ Deploy: mockApiDeploy });
+      (ship as any).http = fakeTransport({ Deploy: mockApiDeploy, 'SPA check': { isSPA: false } });
       await ship.deploy(['test'] as any);
       expect(mockApiDeploy).toHaveBeenCalled();
     });
