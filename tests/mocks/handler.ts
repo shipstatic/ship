@@ -234,12 +234,12 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       // A requested lifetime needs a deployer: anonymity has none, and the
       // platform owns the anonymous window as policy (the claim code is
       // measured against it). Refused before anything is created.
-      // wire: lib/deployment-orchestrator.ts:142 — ShipError.forbidden
+      // wire: lib/deployment-orchestrator.ts, ShipError.authentication
       const ttlField = form?.get(DEPLOY_FIELDS.TTL);
       const ttl = typeof ttlField === 'string' ? validateTtl(Number(ttlField)) : undefined;
       if (ttl !== undefined && anonymous) {
         return fail(
-          ShipError.forbidden(
+          ShipError.authentication(
             'An expiring deployment requires a credential. Anonymous deployments already expire on the platform’s own schedule.',
           ),
         );

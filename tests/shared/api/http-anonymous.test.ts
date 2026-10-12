@@ -66,10 +66,10 @@ describe('Anonymous deploy claim contract', () => {
     const error = await ship.deploy(site, { ttl: 3600 }).catch((e) => e);
 
     expect(isShipError(error)).toBe(true);
-    // Branch on the TYPE. Forbidden rather than Validation: the request is
-    // well-formed and the identity IS resolved — it simply may not do this.
-    expect(error.type).toBe(ErrorType.Forbidden);
-    expect(error.status).toBe(403);
+    // Branch on the TYPE. Authentication: a credential is what would let the
+    // same request through, so the caller is asked for one.
+    expect(error.type).toBe(ErrorType.Authentication);
+    expect(error.status).toBe(401);
     expect(error.message).toMatch(/requires a credential/);
   });
 

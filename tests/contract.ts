@@ -304,14 +304,14 @@ export const CONTRACT: readonly ContractPoint[] = [
     // the mock matches this table, while removing the guard from the API is
     // exactly the drift nothing else here would see.
     //
-    // It costs one slot of the anonymous issuance budget per run (agent:
-    // 5/hr per IP, `WRITE_BUDGETS`), because the limiter runs before the
-    // orchestrator refuses. Recorded so the diagnosis is instant: several e2e
-    // runs inside an hour turn this row's `Forbidden` into a `RateLimit`, and
-    // that is the budget talking, not the contract.
-    // wire: lib/deployment-orchestrator.ts:142 — ShipError.forbidden
+    // It costs one slot of the anonymous issuance budget per run (the agent
+    // budget per IP, `WRITE_BUDGETS`), because the limiter runs before the
+    // orchestrator refuses. Recorded so the diagnosis is instant: many e2e
+    // runs inside an hour turn this row's `Authentication` into a `RateLimit`,
+    // and that is the budget talking, not the contract.
+    // wire: lib/deployment-orchestrator.ts, ShipError.authentication
     name: 'deployments.upload (anonymous, with ttl)',
-    error: { type: ErrorType.Forbidden, status: 403 },
+    error: { type: ErrorType.Authentication, status: 401 },
     live: true,
     run: (_s, c) => c.anonymous.deployments.upload(c.sitePath, { ttl: 3600 }),
   },
