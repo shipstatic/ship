@@ -49,7 +49,7 @@ const ship = new Ship({ token: 'ship-your-api-key' });
 ship ./dist                                        # Deploy (shortcut)
 ship ./dist --domain www.example.com               # Deploy and serve it there
 ship ./dist --ttl 1h                               # Expires in an hour
-ship ./dist --label production --label v1.0.0      # Deploy with labels
+ship ./dist --label env:production --label v1.0.0  # Deploy with labels
 ship deployments list
 ship deployments list --limit 20                   # Page size; a hint shows the next cursor
 ship deployments list --cursor <cursor>            # Continue from a previous page
@@ -212,7 +212,7 @@ Available on `ship <path>` and `ship deployments upload`:
 | Flag | Description |
 |------|-------------|
 | `--domain <domain>` | Serve this deployment at that domain — creates or repoints it. Needs a token |
-| `--label <label>` | Add label (repeatable) |
+| `--label <label>` | Add label, a word or `key:value` (repeatable) |
 | `--password <password>` | Password-protect this deployment (6–128 chars) |
 | `--ttl <duration>` | Expire this deployment after that long — `3600`, `90s`, `30m`, `1h`, `7d`. Needs a token; cannot be combined with `--domain` |
 | `--no-path-detect` | Disable automatic path optimization |

@@ -42,8 +42,8 @@ export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
  */
 export interface DeployBodyContext {
   /**
-   * Deployment labels for categorization. Each label must satisfy
-   * `LABEL_CONSTRAINTS` (length and pattern, lowercased+trimmed).
+   * Deployment labels, each a word (`production`) or a key and a value
+   * (`env:production`), already through `validateLabels`.
    */
   labels?: string[];
   /**

@@ -100,10 +100,10 @@ ship ./dist -q              # → happy-cat-abc1234.shipstatic.com
 ### Labels
 
 ```bash
-ship ./dist --label v1.0 --label production
+ship ./dist --label v1.0 --label env:production
 ```
 
-Labels **replace all existing**, not append. Include current labels to keep them.
+Labels **replace all existing**, not append. Include current labels to keep them. A label is a word (`production`) or a key and a value split by one `:` (`env:production`), stored in lowercase.
 
 ### Password protection
 
@@ -320,7 +320,7 @@ ship tokens delete <token>            # Delete (revokes immediately)
 | `-q, --quiet` | Identifier only |
 | `--token <token>` | Any ship token: API key or deploy token |
 | `--domain <domain>` | Deploy and serve it there — creates or repoints. Needs a token |
-| `--label <label>` | Set label (repeatable, replaces all) |
+| `--label <label>` | Set label, a word or `key:value` (repeatable, replaces all) |
 | `--password <pwd>` | Password-protect deployment (6–128 chars) |
 | `--ttl <duration>` | Expire after that long — `3600`, `90s`, `1h`, `7d`. Needs a token; not with `--domain` |
 | `--no-path-detect` | Skip build output auto-detection |

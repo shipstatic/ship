@@ -93,13 +93,7 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
     let deployed: Awaited<ReturnType<typeof ship.deploy>>;
 
     beforeAll(async () => {
-      // `E2E_TEST_RUN_ID` alone, not decorated. It already opens `e2e-` and
-      // already identifies the run, which is its whole job, and it is 17
-      // characters of a 25-character rule — so `e2e-smoke-${…}` was 27 and
-      // this deploy has been refused CLIENT-SIDE, before any request, for as
-      // long as labels have been validated (`LABEL_CONSTRAINTS.MAX_LENGTH`
-      // has read 25 since 2026-07-28). Nothing caught it because this tier is
-      // opt-in: an unrun suite reports nothing, including about itself.
+      // `E2E_TEST_RUN_ID` alone: it already opens `e2e-` and identifies the run.
       deployed = await ship.deploy(TEST_SITE_PATH, {
         labels: [E2E_TEST_RUN_ID],
       });
