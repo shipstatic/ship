@@ -107,7 +107,7 @@ ship.domains.set('www.münchen.de');    // → Unicode supported
 ### Tokens
 
 ```bash
-ship tokens create --ttl 30d --label ci            # Or 3600, 90s, 1h — one grammar
+ship tokens create --ttl 30d --label project:web  # Or 3600, 90s, 1h — one grammar
 ship tokens list
 ship tokens get <token>
 ship tokens delete <token>

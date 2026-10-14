@@ -1038,10 +1038,9 @@ describe('CLI command tree (in-process)', () => {
   // Tokens resource commands
   // ---------------------------------------------------------------------------
 
-  // Label FORMAT rules on `tokens create` are enforced server-side only (the
-  // SDK validates labels client-side for deploys, not token creation), and the
-  // mock does not reimplement the API's schema — so rejection tests for token
-  // labels live at the API tier, not here.
+  // A token's labels go through `validateLabels` here as on every other
+  // resource; that check's refusals are tested where it lives, in
+  // `@shipstatic/types`, and the mock does not reimplement the API's schema.
   describe('tokens', () => {
     it('create returns the secret once, shaped like a deploy token', async () => {
       const result = await runProgram(['--json', 'tokens', 'create']);

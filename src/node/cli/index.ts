@@ -1117,7 +1117,12 @@ export function buildProgram(): Command {
     .command('create')
     .description('Create a new deploy token')
     .option('--ttl <duration>', 'Expire after this long — 3600, 1h, 7d', parseTtl)
-    .option('--label <label>', 'Label to set (can be repeated)', collect, [])
+    .option(
+      '--label <label>',
+      'Label for the token and every deployment it uploads (can be repeated)',
+      collect,
+      [],
+    )
     .action(
       withErrorHandling(
         (client: Ship, options: EffectiveOptions) => {
