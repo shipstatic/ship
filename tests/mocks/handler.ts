@@ -278,10 +278,12 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       return json(found);
     }
     if (method === 'DELETE' && segments.length === 2) {
-      // wire: routes/deployments.ts:132 — 202, async cleanup. The row
+      // wire: routes/deployments.ts:140 — 202, async cleanup. The row
       // survives its own deletion long enough to state the status it is
-      // transitioning through; nothing else rides along.
+      // transitioning through; nothing else rides along. A repeat finds it
+      // `deleting` and answers the same object.
       if (!found) return fail(ShipError.notFound('Deployment', id));
+      found.status = 'deleting';
       return json(
         { deployment: found.deployment, status: 'deleting' } satisfies DeploymentDeleteResponse,
         202,

@@ -1984,7 +1984,7 @@ commit that lands the import deletes it.
 | `deployments.list()` | `GET /deployments` | Paginated — `{limit, cursor}` options (`--limit`/`--cursor` on the CLI; text mode prints a rerun hint while `--json` carries `cursor`) |
 | `deployments.get()` | `GET /deployments/:deployment` | |
 | `deployments.set()` | `PATCH /deployments/:deployment` | Labels only |
-| `deployments.delete()` | `DELETE /deployments/:deployment` | 202 (async) `{deployment, status:'deleting'}` — resolved, so a caller learns the transitional state without a re-read |
+| `deployments.delete()` | `DELETE /deployments/:deployment` | 202 (async) `{deployment, status:'deleting'}` — resolved, so a caller learns the transitional state without a re-read; a repeat answers the same object, since it states where the row is rather than what the call did |
 | `domains.set()` | `PUT /domains/:name` | Upsert — create, repoint, or label |
 | `domains.list()` | `GET /domains` | Paginated — same `{limit, cursor}` contract |
 | `domains.get()` | `GET /domains/:name` | |

@@ -25,7 +25,7 @@
  * (`ship.on('response', …)`), and a failure's status and type arrive on the
  * `ShipError`. Neither runner reaches inside the SDK.
  *
- * **Verified by reading `cloudflare/api` at eda61be on 2026-07-30** — every
+ * **Verified by reading `cloudflare/api` at f6f26a1 on 2026-10-16** — every
  * point below was checked against the route that answers it, not against the
  * mock. That distinction is the whole reason to write it down: the mock half of
  * this table passes tautologically if the expectations were read off the mock,
@@ -181,6 +181,17 @@ export const CONTRACT: readonly ContractPoint[] = [
     status: 202,
     live: true,
     run: (s, c) => s.deployments.delete(c.deployment),
+  },
+  {
+    // The acknowledgement states where the row IS, not what the call did, so
+    // a repeat is the same 202 and the same object; nothing is flipped twice.
+    name: 'deployments.delete (repeat)',
+    status: 202,
+    live: true,
+    run: async (s, c) => {
+      await s.deployments.delete(c.deployment);
+      return s.deployments.delete(c.deployment);
+    },
   },
 
   // --- domain mutations ----------------------------------------------------
