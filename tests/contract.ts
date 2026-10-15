@@ -25,7 +25,7 @@
  * (`ship.on('response', …)`), and a failure's status and type arrive on the
  * `ShipError`. Neither runner reaches inside the SDK.
  *
- * **Verified by reading `cloudflare/api` at f6f26a1 on 2026-10-16** — every
+ * **Verified by reading `cloudflare/api` at f40618f on 2026-10-16** — every
  * point below was checked against the route that answers it, not against the
  * mock. That distinction is the whole reason to write it down: the mock half of
  * this table passes tautologically if the expectations were read off the mock,
