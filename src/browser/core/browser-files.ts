@@ -2,7 +2,7 @@
  * @file The browser half of the deploy pipeline: reading paths off `File`s.
  *
  * Everything after is shared (`shared/core/deploy-files.ts`) — path
- * optimization, junk filtering, the platform's rules, the checksums. What is
+ * optimization, junk filtering, the platform's rules, the digests. What is
  * genuinely browser here is one line: a directory drop carries
  * `webkitRelativePath`, a file picker does not.
  *

@@ -102,6 +102,24 @@ export async function checkSPA(
 }
 
 /**
+ * Ask the single-page question about a deploy and, on a yes, add the
+ * platform's one SPA config. A `ship.json` already in the set always wins, so
+ * the question is not asked.
+ *
+ * @param files - The deploy, as it stands
+ * @param transport - Carries the one request
+ * @param signal - The deploy's own signal
+ */
+export async function configureSPA(
+  files: StaticFile[],
+  transport: Transport,
+  signal?: AbortSignal,
+): Promise<StaticFile[]> {
+  if (files.some((f) => f.path === DEPLOYMENT_CONFIG_FILENAME)) return files;
+  return (await checkSPA(files, transport, signal)) ? [...files, await createSPAConfig()] : files;
+}
+
+/**
  * Detects SPA projects and auto-generates configuration.
  * This function can be used by both Node.js and browser environments.
  *
@@ -120,20 +138,9 @@ export async function detectAndConfigureSPA(
   transport: Transport,
   options: DeploymentOptions,
 ): Promise<StaticFile[]> {
-  // Skip if disabled, config already exists, or server will handle detection
-  if (
-    options.spaDetect === false ||
-    options.spa ||
-    options.build ||
-    options.prerender ||
-    files.some((f) => f.path === DEPLOYMENT_CONFIG_FILENAME)
-  ) {
+  // Skip if disabled, or if the server will decide the question itself
+  if (options.spaDetect === false || options.spa || options.build || options.prerender) {
     return files;
   }
-
-  if (await checkSPA(files, transport, options.signal)) {
-    return [...files, await createSPAConfig()];
-  }
-
-  return files;
+  return configureSPA(files, transport, options.signal);
 }

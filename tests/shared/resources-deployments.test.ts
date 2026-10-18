@@ -2,8 +2,9 @@
  * @file Subject: `src/shared/resources.ts` — the deployment resource.
  *
  * `upload` is the SDK's longest path: collect the files, ask the platform
- * whether they are a SPA, validate the request boundary, build the multipart
- * body, send it. It read across two files until 2026-08-12, when the endpoint
+ * whether they are a SPA, validate the request boundary, plan the requests,
+ * send them: one declaration, then a fill per batch when the deploy does not
+ * fit one request. It read across two files until 2026-08-12, when the endpoint
  * tier folded down out of `ApiHttp` — and these rows read across two seams to
  * match, asserting on `mockApiHttp.deploy` having *been called*.
  *
@@ -32,30 +33,41 @@ import { makeDeployment } from '../fixtures/builders';
 /** What the resource asked the transport to carry. */
 interface Carried {
   path: string;
-  init: { method?: string; body?: FormData; headers?: Record<string, string> };
+  init: {
+    method?: string;
+    body?: FormData;
+    headers?: Record<string, string>;
+    idempotent?: boolean;
+  };
   operation: string;
   timeoutMs?: number;
 }
+
+const MiB = 1024 * 1024;
 
 describe('Deployment Resource', () => {
   let carried: Carried[];
   let transport: Transport;
   let answer: unknown;
+  /** The status each deploy request answers, in order; 201 once the list runs out. */
+  let statuses: number[];
   let spaVerdict: unknown;
   let mockProcessInput: Mock;
   // Parameterized exactly as `base-ship` declares it — since types
   // 2.5.0-beta.0 the interface admits the SDK's extended options directly.
   let deploymentResource: DeploymentResource<DeploymentOptions>;
 
-  /** The multipart body of the deploy, as the API would parse it. */
+  /** The multipart body of the declaration, as the API would parse it. */
   const body = () => carried.find((c) => c.operation === 'Deploy')?.init.body as FormData;
   const deployCall = () => carried.find((c) => c.operation === 'Deploy') as Carried;
+  const deployCalls = () => carried.filter((c) => c.operation === 'Deploy');
 
   beforeEach(() => {
     vi.clearAllMocks();
     carried = [];
     answer = makeDeployment();
     spaVerdict = { isSPA: false };
+    statuses = [];
 
     const request = vi.fn(
       async (path: string, init: any, operation: string, timeoutMs?: number) => {
@@ -63,9 +75,15 @@ describe('Deployment Resource', () => {
         return operation === 'SPA check' ? spaVerdict : answer;
       },
     );
+    const requestWithStatus = vi.fn(
+      async (path: string, init: any, operation: string, timeoutMs?: number) => {
+        carried.push({ path, init, operation, timeoutMs });
+        return { data: answer, status: statuses.shift() ?? 201 };
+      },
+    );
     transport = {
       request,
-      requestWithStatus: vi.fn(),
+      requestWithStatus,
       deploy: { endpoint: '/deployments', timeout: 300_000, buildTimeout: 600_000 },
     } as unknown as Transport;
 
@@ -121,14 +139,14 @@ describe('Deployment Resource', () => {
       expect(carried.filter((c) => c.operation === 'Deploy')).toHaveLength(0);
     });
 
-    it('refuses a file with no checksum, naming it', async () => {
+    it('refuses a file with no MD5, naming it', async () => {
       // Built inline rather than through a defaulted helper: a `md5 = 'md5'`
       // default swallows `undefined` and makes this row assert nothing.
       mockProcessInput.mockResolvedValue([
         { path: 'index.html', content: Buffer.from('<html></html>'), size: 13 },
       ]);
 
-      await expect(upload()).rejects.toThrow('MD5 checksum missing for file: index.html');
+      await expect(upload()).rejects.toThrow('MD5 missing for file: index.html');
       expect(carried.filter((c) => c.operation === 'Deploy')).toHaveLength(0);
     });
   });
@@ -210,9 +228,9 @@ describe('Deployment Resource', () => {
       expect(body().get('outputDir')).toBe('dist/site');
     });
 
-    it('carries the password verbatim, whitespace included', async () => {
+    it('carries the password the rule judged: trimmed, as the API trims it', async () => {
       await upload({ password: '  secret-123  ' });
-      expect(body().get('password')).toBe('  secret-123  ');
+      expect(body().get('password')).toBe('secret-123');
     });
 
     it('carries the captcha proof for the anonymous human channel', async () => {
@@ -285,6 +303,89 @@ describe('Deployment Resource', () => {
       // this file knows which flags mean server-side work.
       await upload({ spa: true });
       expect(deployCall().timeoutMs).toBe(300_000);
+    });
+  });
+
+  describe('upload: a deploy larger than one request', () => {
+    /** A deploy over the request ceiling: two 40 MiB images, a page and a config. */
+    const large = () => [
+      { path: 'index.html', content: Buffer.from('<p>'), size: 3, md5: 'a'.repeat(32) },
+      { path: 'a.png', content: Buffer.from('a'), size: 40 * MiB, md5: 'b'.repeat(32) },
+      { path: 'ship.json', content: Buffer.from('{}'), size: 2, md5: 'c'.repeat(32) },
+      { path: 'b.png', content: Buffer.from('b'), size: 40 * MiB, md5: 'd'.repeat(32) },
+    ];
+    const fills = () => deployCalls().slice(1);
+    const names = (call: Carried) =>
+      ((call.init.body as FormData).getAll('files[]') as File[]).map((f) => f.name);
+
+    beforeEach(() => mockProcessInput.mockResolvedValue(large()));
+
+    it('declares bare, then sends each batch to the files route, and answers the 201', async () => {
+      statuses = [202, 202, 201];
+
+      const result = await upload();
+
+      expect(deployCalls().map((c) => c.path)).toEqual([
+        '/deployments',
+        `/deployments/${encodeURIComponent(makeDeployment().deployment)}/files`,
+        `/deployments/${encodeURIComponent(makeDeployment().deployment)}/files`,
+      ]);
+      // The declaration: the manifest, every file declared, only the root config carried.
+      expect(names(deployCall())).toEqual(['ship.json']);
+      expect(
+        JSON.parse(body().get('manifest') as string).map((e: { path: string }) => e.path),
+      ).toEqual(['index.html', 'a.png', 'ship.json', 'b.png']);
+      expect(fills().map(names)).toEqual([['index.html', 'a.png'], ['b.png']]);
+      // A fill carries files and nothing else.
+      expect(fills().every((c) => !c.init.body?.has('manifest'))).toBe(true);
+      expect(result).toEqual(makeDeployment());
+    });
+
+    it('stops at the first fill that answers the deployment, a 200 included', async () => {
+      statuses = [202, 200];
+
+      await upload();
+
+      expect(deployCalls()).toHaveLength(2);
+    });
+
+    it('marks every fill safe to repeat, and the declaration only when it carries a key', async () => {
+      statuses = [202, 202, 201];
+      await upload();
+      expect(deployCalls().map((c) => c.init.idempotent)).toEqual([false, true, true]);
+
+      carried = [];
+      statuses = [202, 202, 201];
+      await upload({ idempotencyKey: 'run-42' });
+      expect(deployCalls().map((c) => c.init.idempotent)).toEqual([true, true, true]);
+      expect(fills().every((c) => c.init.headers === undefined)).toBe(true);
+    });
+
+    it('refuses a deployment still pending after its last batch, rather than report a success', async () => {
+      statuses = [202, 202, 202];
+
+      await expect(upload()).rejects.toThrow(
+        'Every file was sent, but the deployment did not go live. Deploy again.',
+      );
+    });
+
+    it('asks the single-page question itself when spa is set and the deploy splits', async () => {
+      statuses = [202, 202, 201];
+      mockProcessInput.mockResolvedValue(large().filter((f) => f.path !== 'ship.json'));
+      spaVerdict = { isSPA: true };
+
+      await upload({ spa: true });
+
+      expect(carried.some((c) => c.operation === 'SPA check')).toBe(true);
+      expect(body().has('spa')).toBe(false);
+      expect(names(deployCall())).toEqual(['ship.json']);
+    });
+
+    it('refuses a build that does not fit one request, sending nothing', async () => {
+      await expect(upload({ build: true })).rejects.toThrow(
+        'A project sent for building can be at most 64 MB.',
+      );
+      expect(deployCalls()).toHaveLength(0);
     });
   });
 

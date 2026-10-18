@@ -25,7 +25,7 @@
  * (`ship.on('response', …)`), and a failure's status and type arrive on the
  * `ShipError`. Neither runner reaches inside the SDK.
  *
- * **Verified by reading `cloudflare/api` at f40618f on 2026-10-16** — every
+ * **Verified by reading `cloudflare/api` at 54caef2 on 2026-10-19**: every
  * point below was checked against the route that answers it, not against the
  * mock. That distinction is the whole reason to write it down: the mock half of
  * this table passes tautologically if the expectations were read off the mock,
@@ -99,6 +99,16 @@ export interface ContractContext {
    * runners resolve their own, and no row hardcodes a path into this table.
    */
   sitePath: string;
+  /**
+   * A directory larger than one deploy request carries
+   * (`writeLargeSite`), so the SDK sends it in several requests.
+   */
+  largeSitePath: string;
+  /**
+   * Told of every deployment a row creates, so the live runner can delete it
+   * after the run as it deletes its own; the mock runner's state resets.
+   */
+  created: (deployment: string) => void;
 }
 
 export interface ContractPoint {
@@ -116,6 +126,8 @@ export interface ContractPoint {
 }
 
 const NO_DOMAINS = 'e2e creates no domains — a custom domain has billing implications';
+const NO_ANONYMOUS_DEPLOYS =
+  'e2e makes no anonymous deployment: one it cannot delete lingers for days';
 const NO_TOKENS = 'e2e creates no tokens — they accumulate with no cleanup path';
 
 export const CONTRACT: readonly ContractPoint[] = [
@@ -191,6 +203,76 @@ export const CONTRACT: readonly ContractPoint[] = [
     run: async (s, c) => {
       await s.deployments.delete(c.deployment);
       return s.deployments.delete(c.deployment);
+    },
+  },
+
+  // --- deploys ----------------------------------------------------------------
+  {
+    // The declaration, then the files route. A deploy larger than one request
+    // is declared bare (the manifest and the options), answers 202 pending,
+    // and each batch of files follows to `POST /deployments/:deployment/files`
+    // until one answers 201 live. The status a caller sees is the last one,
+    // and the row also holds the sequence, since a deploy that answered 201
+    // at the declaration would pass on the status alone.
+    // wire: routes/deployments.ts (POST / and POST /:deployment/files) →
+    // lib/deployment-orchestrator.ts (createDeployment, fillDeployment)
+    name: 'deployments.upload (several requests)',
+    status: 201,
+    live: true,
+    assert: (r) => {
+      const { deployment, statuses } = r as { deployment: { status: string }; statuses: number[] };
+      const deploys = statuses.filter((status) => status === 201 || status === 202);
+      if (deploys[0] !== 202 || deploys.at(-1) !== 201 || deploys.length < 3) {
+        throw new Error(
+          `A deploy over one request must answer 202, then 202 or 201 per fill, ending 201; saw ${deploys.join(', ')}`,
+        );
+      }
+      if (deployment.status !== 'success') {
+        throw new Error(`The last answer must be the live deployment, got ${deployment.status}`);
+      }
+    },
+    run: async (s, c) => {
+      const statuses: number[] = [];
+      const seen = (response: Response) => statuses.push(response.status);
+      s.on('response', seen);
+      try {
+        const deployment = await s.deployments.upload(c.largeSitePath);
+        c.created(deployment.deployment);
+        return { deployment, statuses };
+      } finally {
+        s.off('response', seen);
+      }
+    },
+  },
+  {
+    // An anonymous deploy carries a manifest like every deploy this client
+    // makes, and completes in the one request it declares in: the free plan's
+    // whole deployment fits one, so the SDK never splits one, and the claim
+    // rides the answer. The refusal of an anonymous declaration the request
+    // does not complete is unreachable through this client for that reason;
+    // `cloudflare/api`'s own suite holds it. The answer arrives on the
+    // anonymous client, which `observe` does not watch, so this row reads the
+    // status off that client itself and states no `status` of its own.
+    // wire: lib/deployment-orchestrator.ts, `declare`
+    name: 'deployments.upload (anonymous)',
+    live: NO_ANONYMOUS_DEPLOYS,
+    assert: (r) => {
+      const { deployment, status } = r as { deployment: { claim?: unknown }; status?: number };
+      if (status !== 201 || typeof deployment.claim !== 'string') {
+        throw new Error(`An anonymous deploy must answer 201 with its claim URL; saw ${status}`);
+      }
+    },
+    run: async (_s, c) => {
+      let status: number | undefined;
+      const seen = (response: Response) => {
+        status = response.status;
+      };
+      c.anonymous.on('response', seen);
+      try {
+        return { deployment: await c.anonymous.deployments.upload(c.sitePath), status };
+      } finally {
+        c.anonymous.off('response', seen);
+      }
     },
   },
 

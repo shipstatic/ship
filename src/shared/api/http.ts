@@ -14,14 +14,7 @@
  * DESIGN are not two layers. The endpoints went down to the resources, and
  * "`ApiHttp` is pure transport" stopped being an aspiration in a doc.
  */
-import {
-  API_PATHS,
-  CALLER,
-  DEFAULT_API,
-  ErrorType,
-  IDEMPOTENCY_KEY_CONSTRAINTS,
-  ShipError,
-} from '@shipstatic/types';
+import { API_PATHS, CALLER, DEFAULT_API, ErrorType, ShipError } from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 import type { Fetch, ShipClientOptions } from '../types.js';
 
@@ -83,18 +76,24 @@ function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
 }
 
 /**
- * Deploys get their own ceilings, because one budget cannot fit every
+ * The slowest upload a deploy request is sized for, in bits a second. Stated
+ * here, beside the one ceiling this client derives from it.
+ */
+export const UPLOAD_FLOOR_BITS_PER_SECOND = 2.5e6;
+
+/**
+ * Deploy requests get their own ceilings, because one budget cannot fit every
  * operation this client performs.
  *
  * 30s is right for a metadata read — `/ping`, `/account`, a page of a list —
- * where anything slower is a fault rather than a big payload. A deploy is
- * bounded by the PLATFORM's limits instead: `DEPLOYMENT.MAX_TOTAL_SIZE` is
- * 50MB, and 50MB in 30s needs ~13 Mbit/s of sustained UPLOAD, above what most
- * residential links give. A deployment the API explicitly permits was being
- * aborted here by default — which is the exact failure `Idempotency-Key`
- * exists to repair, so the cause had to go and not merely the remedy.
- *
- * 5 minutes covers 50MB at ~1.4 Mbit/s.
+ * where anything slower is a fault rather than a big payload. A deploy
+ * request is bounded by the request ceiling instead: one carries at most
+ * `DEPLOY_REQUEST_CONSTRAINTS.MAX_BYTES` (64 MiB), and a deployment larger
+ * than that is sent in several requests, each with this ceiling of its own.
+ * At `UPLOAD_FLOOR_BITS_PER_SECOND` the largest request transfers in about
+ * 215 seconds, which leaves this ceiling about 85 seconds for the server's
+ * own work on it: hashing, scanning, processing, the puts and the commit.
+ * `tests/shared/api/http-timeout.test.ts` holds the sum.
  */
 const DEFAULT_DEPLOY_TIMEOUT = 300_000;
 
@@ -173,6 +172,7 @@ export interface Transport {
     path: string,
     options: ShipRequestInit,
     operationName: string,
+    timeoutMs?: number,
   ): Promise<RequestResult<T>>;
   readonly deploy: DeployTransport;
 }
@@ -180,17 +180,20 @@ export interface Transport {
 /**
  * A request as THIS client composes one.
  *
- * Identical to `RequestInit` but for the headers, which are narrowed from the
- * DOM's three-shaped `HeadersInit` to the one shape every call site here
- * actually builds. That narrowing is load-bearing twice over: `mergeHeaders`
- * used to reach its record through an `as` cast, and `hasIdempotencyKey` used
- * to walk all three shapes to find a key that only ever arrives in one of
- * them. Narrowing at RUNTIME instead would have turned an unreachable case
- * into a SILENT no-retry — a deploy that quietly stopped replaying because
- * someone handed the transport a `Headers`. Here that is a compile error.
+ * `RequestInit`, with the headers narrowed from the DOM's three-shaped
+ * `HeadersInit` to the one shape every call site here builds (so
+ * `mergeHeaders` composes a record without a cast), and one field of its
+ * own: `idempotent`, which the resource that knows the request is safe to
+ * repeat sets, and the retry rule reads. The transport never infers it.
  */
 export type ShipRequestInit = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
+  /**
+   * The request may be sent twice with the same effect: a fill (every fill
+   * is safe to repeat), or a declaration carrying an `Idempotency-Key`, which
+   * the API answers with the deployment the key names.
+   */
+  idempotent?: boolean;
 };
 
 // =============================================================================
@@ -343,31 +346,12 @@ export class ApiHttp extends SimpleEvents implements Transport {
       error.isNetworkError() || (error.status !== undefined && RETRYABLE_STATUS.has(error.status));
     if (!worthRetrying) return false;
 
+    // A read is safe to repeat; any other request only when the resource
+    // that composed it says so. PUT and DELETE are semantically idempotent
+    // and still not marked: a DELETE whose response was lost answers 404 on
+    // the retry, turning a success into a reported failure.
     const method = (options.method ?? 'GET').toUpperCase();
-    if (method === 'GET' || method === 'HEAD') return true;
-
-    // PUT and DELETE are semantically idempotent here and still excluded: a
-    // DELETE whose response was lost answers 404 on the retry, turning a
-    // success into a reported failure. The classic hazard; stay out.
-    if (method === 'PUT' || method === 'DELETE') return false;
-
-    // Everything else needs the server's own replay guarantee. A deploy
-    // carrying `Idempotency-Key` replays its stored 201, so a retry is safe by
-    // construction rather than by assumption.
-    return this.hasIdempotencyKey(options.headers);
-  }
-
-  /**
-   * Did this request carry the header that makes a repeat safe?
-   *
-   * Case-insensitively, because HTTP field names are — the CLI's env tier and
-   * the SDK option both spell it canonically, but a caller composing headers
-   * by hand is entitled not to.
-   */
-  private hasIdempotencyKey(headers: ShipRequestInit['headers']): boolean {
-    if (!headers) return false;
-    const target = IDEMPOTENCY_KEY_CONSTRAINTS.HEADER.toLowerCase();
-    return Object.keys(headers).some((key) => key.toLowerCase() === target);
+    return method === 'GET' || method === 'HEAD' || options.idempotent === true;
   }
 
   /**
@@ -390,12 +374,13 @@ export class ApiHttp extends SimpleEvents implements Transport {
       // Credential resolution runs inside the error boundary: a token
       // provider that throws or yields nothing fails the request through
       // the same typed path (and `error` event) as any transport failure.
-      const headers = await this.mergeHeaders(options.headers);
-      const timeout = this.createTimeoutSignal(options.signal, timeoutMs);
+      const { idempotent: _idempotent, ...init } = options;
+      const headers = await this.mergeHeaders(init.headers);
+      const timeout = this.createTimeoutSignal(init.signal, timeoutMs);
       cleanup = timeout.cleanup;
 
       const fetchOptions: RequestInit = {
-        ...options,
+        ...init,
         headers,
         credentials: this.session && !headers.Authorization ? 'include' : undefined,
         signal: timeout.signal,
@@ -454,8 +439,9 @@ export class ApiHttp extends SimpleEvents implements Transport {
     path: string,
     options: ShipRequestInit,
     operationName: string,
+    timeoutMs?: number,
   ): Promise<RequestResult<T>> {
-    return this.executeRequest<T>(`${this.apiUrl}${path}`, options, operationName);
+    return this.executeRequest<T>(`${this.apiUrl}${path}`, options, operationName, timeoutMs);
   }
 
   // ===========================================================================

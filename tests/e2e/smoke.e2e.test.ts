@@ -21,12 +21,13 @@
  * unrelated-looking failures.
  */
 
+import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { ErrorType, isShipError, type ShipError } from '@shipstatic/types';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../src/node';
 import { CONTRACT, type ContractContext, expected, observe } from '../contract';
-import { apiKey } from '../fixtures/builders';
+import { apiKey, writeLargeSite } from '../fixtures/builders';
 import { E2E_API_KEY, E2E_API_URL, E2E_ENABLED, E2E_TEST_RUN_ID } from '../setup-e2e';
 
 const TEST_SITE_PATH = path.resolve(__dirname, '../fixtures/demo-site');
@@ -176,6 +177,12 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
      */
     const live = CONTRACT.filter((point) => point.live === true);
     let ctx: ContractContext;
+    let largeSitePath: string;
+
+    beforeAll(() => {
+      largeSitePath = writeLargeSite();
+    });
+    afterAll(() => rmSync(largeSitePath, { recursive: true, force: true }));
 
     beforeEach(async () => {
       // A fresh deployment per row, matching the mock half — a shared fixture
@@ -191,6 +198,8 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
         // turn a refusal row into a confusing pass.
         anonymous: new Ship({ apiUrl: E2E_API_URL }),
         sitePath: TEST_SITE_PATH,
+        largeSitePath,
+        created: (made) => deploymentsToCleanup.push(made),
         deployment: deployment.deployment,
         missingDeployment: 'no-such-deploy-0000000.shipstatic.com',
         missingDomain: `www.no-such-${E2E_TEST_RUN_ID}.com`,

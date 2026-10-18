@@ -1,6 +1,6 @@
-import { ShipError } from '@shipstatic/types';
+import { DEPLOY_REQUEST_CONSTRAINTS, ShipError } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiHttp } from '../../../src/shared/api/http';
+import { ApiHttp, UPLOAD_FLOOR_BITS_PER_SECOND } from '../../../src/shared/api/http';
 import { deploy, getLimits, listDeployments, listDomains, ping } from './vehicles';
 
 // Mock deploy body creator
@@ -346,16 +346,27 @@ describe('ApiHttp Timeout & Cancellation', () => {
   });
 
   describe('deploys get their own ceiling', () => {
+    it('holds the largest request at the upload floor, with room for the server', () => {
+      // One deploy request carries at most MAX_BYTES; at 2.5 Mbit/s that is
+      // about 215 s on the wire, and the server needs about 85 s of its own
+      // for the hashing, scanning, processing, puts and commit. The ceiling
+      // must hold both, so a bigger request cannot silently outrun it.
+      const api = new ApiHttp({ getAuthHeaders: () => ({}) });
+      const transferSeconds =
+        (DEPLOY_REQUEST_CONSTRAINTS.MAX_BYTES * 8) / UPLOAD_FLOOR_BITS_PER_SECOND;
+
+      expect(UPLOAD_FLOOR_BITS_PER_SECOND).toBe(2.5e6);
+      expect(transferSeconds + 85).toBeLessThanOrEqual(api.deploy.timeout / 1000);
+    });
+
     const files = [
       { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
     ];
 
     it('does not abort a deploy at the 30s read default', async () => {
-      // The platform permits 50MB; 50MB in 30s needs ~13 Mbit/s of upload,
-      // which is above what most residential links give. A deployment the API
-      // explicitly allows must not be aborted here by default — and this is
-      // the exact timeout `Idempotency-Key` exists to repair, so the cause
-      // has to go, not just the remedy.
+      // One deploy request carries up to 64 MiB, and that in 30s needs about
+      // 18 Mbit/s of upload, above what most residential links give. A request
+      // the API explicitly allows must not be aborted here by default.
       vi.useFakeTimers();
       try {
         global.fetch = hangingFetch() as any;

@@ -47,6 +47,8 @@ import {
   type DomainShareResponse,
   type DomainValidateResponse,
   type DomainVerifyResponse,
+  ErrorType,
+  type ManifestEntry,
   type PingResponse,
   ShipError,
   type SPACheckResponse,
@@ -194,23 +196,38 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
     // parameter; the previous mock invented one, so every
     // `deployments.list()` against state came back empty.
     if (method === 'GET') {
-      const page = paginate(state.deployments, url.searchParams);
+      // A pending deployment is listed nowhere (lib/database/deployments.ts,
+      // listDeployments).
+      const page = paginate(
+        state.deployments.filter((d) => d.status !== 'pending'),
+        url.searchParams,
+      );
       return json({
         deployments: page.items,
         cursor: page.cursor,
       } satisfies DeploymentListResponse);
     }
-    // wire: routes/deployments.ts:52 → lib/deployment-orchestrator.ts — the
-    // multipart form's `labels` (JSON array), `via`, and `password` fields are
-    // persisted and echoed on the response.
+    // wire: routes/deployments.ts → lib/deployment-orchestrator.ts, the
+    // declaration. The multipart form's `labels` (JSON array), `via`, and
+    // `password` fields are persisted and echoed on the response. Without a
+    // `manifest` the files carried are the deployment (201); with one, the
+    // manifest declares it and the request may carry any of its files: all
+    // of them is 201, fewer is 202 and the deployment stays pending.
     if (method === 'POST') {
-      // wire: middleware/idempotency.ts — a stored 201 replays verbatim, ahead
-      // of everything else the route would do, so a retry costs nothing.
-      const idempotencyKey = request.headers.get('Idempotency-Key')?.trim();
-      const replay = idempotencyKey ? state.idempotency.get(idempotencyKey) : undefined;
+      const anonymous = !request.headers.get('Authorization');
+      // wire: middleware/idempotency.ts: the earliest live deployment the
+      // key names, answered as it stands and ahead of everything else the
+      // route would do, so a retry costs nothing. An anonymous key is ignored.
+      const idempotencyKey = anonymous
+        ? undefined
+        : request.headers.get('Idempotency-Key')?.trim() || undefined;
+      const replay = idempotencyKey
+        ? state.deployments.find(
+            (d) => d.status === 'success' && state.idempotency.get(d.deployment) === idempotencyKey,
+          )
+        : undefined;
       if (replay) return json(replay, 201, { 'Idempotency-Replay': 'true' });
 
-      const anonymous = !request.headers.get('Authorization');
       const form = await request.formData().catch(() => null);
       const labelsField = form?.get('labels');
       let labels: string[] | undefined;
@@ -244,15 +261,36 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
           ),
         );
       }
+      const manifestField = form?.get(DEPLOY_FIELDS.MANIFEST);
+      const declared = new Set(
+        typeof manifestField === 'string'
+          ? (JSON.parse(manifestField) as ManifestEntry[]).map((e) => e.path.replace(/^\//, ''))
+          : uploaded,
+      );
+      const complete = [...declared].every((p) => uploaded.includes(p));
+      // wire: lib/deployment-orchestrator.ts, `declare`: law 6, before any write.
+      if (!complete && anonymous) {
+        return fail(
+          ShipError.authentication('A deployment sent in several requests needs a credential.'),
+        );
+      }
       const deployment = state.createDeployment(anonymous, {
         ...(labels !== undefined && { labels }),
         ...(typeof viaField === 'string' && viaField !== '' && { via: viaField }),
         password: typeof form?.get('password') === 'string',
         ...(ttl !== undefined && { ttl }),
-        config: uploaded.includes(DEPLOYMENT_CONFIG_FILENAME),
+        config: declared.has(DEPLOYMENT_CONFIG_FILENAME),
+        pending: !complete,
       });
-      // Only 201s are stored — a failed attempt retries fresh.
-      if (idempotencyKey) state.idempotency.set(idempotencyKey, deployment);
+      if (idempotencyKey) state.idempotency.set(deployment.deployment, idempotencyKey);
+      if (!complete) {
+        state.declarations.set(deployment.deployment, {
+          declared,
+          arrived: new Set(uploaded),
+          ...(ttl !== undefined && { ttl }),
+        });
+        return json(deployment, 202);
+      }
       return json(deployment, 201);
     }
     return methodNotAllowed();
@@ -276,6 +314,33 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       }
       found.labels = body.labels;
       return json(found);
+    }
+    // wire: routes/deployments.ts → lib/deployment-orchestrator.ts,
+    // `fillDeployment`. A live deployment answers 200 and nothing is written;
+    // a pending one takes the files it is sent and commits once every declared
+    // file has arrived (201), or stays pending (202); anything else is the
+    // one sentence.
+    if (method === 'POST' && segments.length === 3 && segments[2] === 'files') {
+      if (found?.status === 'success') return json(found);
+      const declaration = found ? state.declarations.get(found.deployment) : undefined;
+      if (!found || !declaration) {
+        return fail(
+          new ShipError(
+            ErrorType.NotFound,
+            'This upload was cancelled or timed out. Deploy again.',
+            404,
+          ),
+        );
+      }
+      const form = await request.formData().catch(() => null);
+      for (const entry of form?.getAll(DEPLOY_FIELDS.FILES) ?? []) {
+        if (entry instanceof File) declaration.arrived.add(entry.name.replace(/^\//, ''));
+      }
+      if (![...declaration.declared].every((p) => declaration.arrived.has(p))) {
+        return json(found, 202);
+      }
+      state.declarations.delete(found.deployment);
+      return json(state.commitDeployment(found, declaration.ttl), 201);
     }
     if (method === 'DELETE' && segments.length === 2) {
       // wire: routes/deployments.ts:140 — 202, async cleanup. The row

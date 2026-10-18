@@ -503,6 +503,9 @@ async function performDeploy(
     spinner = yoctoSpinner({ text: 'uploading…' }).start();
   }
 
+  // Ctrl+C exits at once, and nothing is owed after it: a deploy sent in
+  // several requests that stops part-way is a pending deployment the
+  // platform's sweep reclaims, so the CLI neither waits nor deletes.
   const sigintHandler = () => {
     abortController.abort();
     if (spinner) spinner.stop();

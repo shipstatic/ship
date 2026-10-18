@@ -54,9 +54,9 @@ export interface DeployBodyContext {
    */
   via?: DeploymentViaType;
   /**
-   * Optional plaintext password to protect the deployment.
-   * Length: `PASSWORD_CONSTRAINTS.MIN_LENGTH` to `PASSWORD_CONSTRAINTS.MAX_LENGTH`
-   * characters. Whitespace is preserved verbatim — significant.
+   * Optional plaintext password to protect the deployment, already through
+   * `validatePassword`, which trims it: the body sends the value the rule
+   * judged, and the API trims and judges it the same way.
    */
   password?: string;
   /**

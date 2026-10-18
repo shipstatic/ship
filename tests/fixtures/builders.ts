@@ -13,6 +13,9 @@
  * always the same value.
  */
 
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type {
   Account,
   Deployment,
@@ -72,6 +75,24 @@ export const FREE_PLAN_LIMITS: PlatformLimits = {
     maxFileSize: 'Upgrade to Pro for more.',
     maxFilesCount: 'Upgrade to Pro for more.',
     maxTotalSize: 'Upgrade to Pro for more.',
+  },
+};
+
+/**
+ * The limits a paid account reads: 50 MB a file, 1000 files, 200 MB a
+ * deployment, and no plan to point at past them. Measured against dev's own
+ * paid account on 2026-10-18 (routes/limits.ts). The total is the one that
+ * matters here: a deployment above one request's 64 MiB is sent in several.
+ */
+export const PAID_PLAN_LIMITS: PlatformLimits = {
+  maxFileSize: 50 * 1024 * 1024,
+  maxFilesCount: 1000,
+  maxTotalSize: 200 * 1024 * 1024,
+  blockedExtensions: BLOCKED_EXTENSIONS_SAMPLE,
+  suggestions: {
+    maxFileSize: 'Please contact support if you need more.',
+    maxFilesCount: 'Please contact support if you need more.',
+    maxTotalSize: 'Please contact support if you need more.',
   },
 };
 
@@ -292,4 +313,20 @@ export function makeDnsRecords(): Array<{ type: 'A' | 'CNAME'; name: string; val
     { type: 'A', name: '@', value: A_RECORD_IP },
     { type: 'CNAME', name: 'www', value: CNAME_TARGET },
   ];
+}
+
+/**
+ * A site larger than one deploy request carries: a page and two 33 MiB
+ * images, 66 MiB against the 64 MiB ceiling, so the SDK declares it bare and
+ * fills it in two requests. Written to a fresh temporary directory, which the
+ * caller removes; its size is the one fact that matters, so the images are
+ * zeros.
+ */
+export function writeLargeSite(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'ship-large-site-'));
+  writeFileSync(path.join(dir, 'index.html'), '<html><img src="a.png"><img src="b.png"></html>');
+  for (const name of ['a.png', 'b.png']) {
+    writeFileSync(path.join(dir, name), Buffer.alloc(33 * 1024 * 1024));
+  }
+  return dir;
 }

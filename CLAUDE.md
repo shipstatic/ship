@@ -15,7 +15,7 @@ src/
 │   ├── base-ship.ts     # Base Ship class (auth state, lazy /limits fetch, resources)
 │   ├── resources.ts     # Resource factories — every endpoint, stated once
 │   ├── types.ts         # Internal SDK types
-│   ├── core/            # constants, credential schema, the deploy body + file pipeline
+│   ├── core/            # constants, credential schema, the deploy bodies, the request planner, the file pipeline
 │   └── lib/             # Utilities (validation, junk filtering, MD5, SPA detection)
 ├── browser/             # Browser Ship class + the `webkitRelativePath` read
 └── node/
@@ -124,7 +124,8 @@ Deploy options are `signal` (the one cancellation mechanism), `pathDetect`,
 per-deploy `timeout`/`onProgress`/`onCancel`/`maxConcurrency` options —
 request timeout is a client concern (`ShipClientOptions.timeout`), fetch has
 no upload-progress events to honestly report, `signal` already covers
-cancellation, and a deploy is one multipart POST with nothing to parallelize.
+cancellation, and a deploy's requests go one after another (a declaration,
+then a fill per batch), each a whole request with nothing to parallelize.
 The vestigial four were removed for 2.0 (2026-07-27) after an audit found
 them declared but never consumed.
 
@@ -314,6 +315,46 @@ the junk filter cannot stop covering for it silently.
 Fenced by 26 rows whose sources are SYNTHETIC — none of them needs a disk or a
 browser, which is itself the evidence the seam landed in the right place.
 
+### A deploy larger than one request
+
+**A deploy is declared, then filled, and a deploy that fits one request is
+the case where the declaration carries everything.** `deployments.upload`
+always builds the manifest (`deployManifest`: every file by path, size and
+MD5) and the declaration's fields (`deployFields`, in one fixed order), and
+asks the planner (`shared/core/deploy-plan.ts`) how to send them:
+
+- **Everything fits:** one request, the declaration carrying every file, 201.
+- **It does not:** a bare declaration (the manifest, the options and the root
+  `ship.json`, which the API compiles at the declaration) answering 202
+  pending, then one `POST /deployments/:deployment/files` per batch. The
+  first 201 or 200 is the deployment; a 202 after the last batch is refused,
+  since the client cannot resolve it.
+
+**The planner counts; it never measures.** Each part is its bytes, plus its
+name as the body carries it, plus `PART_OVERHEAD`; one more `PART_OVERHEAD`
+is the closing delimiter. Text values are counted with line breaks as CRLF
+and filenames with their quote, CR and LF escaped, the HTML standard's
+multipart rules, so the count is a ceiling on what any runtime's `FormData`
+emits and a 413 on a planned request means the arithmetic is wrong.
+`bodyBytes` is the one count, read by the planner and by its fixture: the
+rows in `deploy-plan.test.ts` hold it against a real `FormData` on node and
+on Chromium, and two of them hold the value and the name counts EXACTLY, by
+the runtime's own byte difference between two bodies, because the framing's
+slack would hide a counter off by a few bytes from every other row.
+
+**Splitting is internal, which is why this is a minor version.** The
+signature, the options and the answer are the same; the one change a caller
+sees is that a large deploy no longer meets the edge's limit.
+
+**Abort does nothing, and that is the design.** Ctrl+C or a caller's signal
+stops the sending; the pending deployment is the platform's sweep's to
+reclaim, after its window, at the cost of one cap slot until then. No
+`DELETE` is sent: the CLI exits before cleanup could run, a deploy token
+cannot delete, and a `DELETE` after a lost final response would delete a site
+that had just gone live. A fill answering 404 ("This upload was cancelled or
+timed out. Deploy again.") ends the deploy, and the SDK never redeclares on
+its own.
+
 ### Server-Processed Uploads (Build/Prerender/SPA)
 
 When `build`, `prerender`, or `spa` options are set on `DeploymentUploadOptions`, the SDK delegates processing to the server:
@@ -325,7 +366,8 @@ When `build`, `prerender`, or `spa` options are set on `DeploymentUploadOptions`
   from the shared options, so the mode is stated once, in the one loop it
   changes. It still filters junk, still skips empty files, still checksums.
 - **`detectAndConfigureSPA`** skips when `spa`, `build`, or `prerender` is set: the server handles SPA detection via the `/upload` endpoint. Where it does ask (`/spa-check`), a question that fails is the deploy failing: the transport's error is raised as it is and nothing is uploaded, since a deploy made without the answer ships an app whose routes 404 on reload
-- **`createDeployBody`** appends `build=true` / `prerender=true` / `spa=true` to the FormData
+- **A deploy with `spa` that does not fit one request asks `/spa-check` itself** (`configureSPA`) and drops the flag: the server decides the single-page question only from every file at once, in the request that asks for it. A `build` or `prerender` never splits; the planner refuses a project over one request before a byte is sent, in `BUILD_TOO_LARGE`
+- **`deployFields`** appends `build=true` / `prerender=true` / `spa=true` to the declaration
 
 **Only browser callers set them, and that asymmetry lives in the CALLERS.**
 `web/my` and `web/www` are browser apps and reach `/upload`; Node has no such
@@ -1005,9 +1047,10 @@ red the moment a deadline leaves the category.
 - **`PUT` / `DELETE`.** Semantically idempotent here and excluded anyway: a
   DELETE whose response was lost answers 404 on the retry, turning a success
   into a reported failure.
-- **Any other non-`GET` without an `Idempotency-Key`.** With the key a deploy
-  replays its stored 201, so the repeat is safe by construction rather than by
-  assumption.
+- **Any other request its resource did not mark `idempotent`.** The deployment
+  resource marks every fill, which the API answers from the deployment when it
+  is repeated, and a declaration carrying an `Idempotency-Key`, which the API
+  answers with the live deployment the key names. Everything else is sent once.
 - **Anything the CALLER's signal stopped.** The subtle one, and the reason the
   check reads `options.signal.aborted` rather than only the error type: a
   caller's `AbortSignal.timeout()` classifies as `Timeout`, exactly like our
@@ -1047,15 +1090,14 @@ Corrected on the beta channel in `2.2.0-beta.7`, two prereleases after the
 shape it replaces (`beta.5`, `beta.6`). The tests asserting three `error`
 events were pinning that shape, and were rewritten rather than relaxed.
 
-**The idempotency check is narrowed by the TYPE, not at runtime.**
-`hasIdempotencyKey` walked all three `HeadersInit` shapes to find a key that only
-ever arrives in one, while ten lines up `attemptOnce` reached the same headers
-through an `as Record<string, string>` cast — the code already knew.
-`ShipRequestInit` says it once: every internal request carries a plain record.
-Twelve lines became four and the cast is gone. Narrowing at RUNTIME instead was
-considered and refused: it turns an unreachable case into a SILENT no-retry — a
-deploy that quietly stops replaying because someone handed the transport a
-`Headers`. Same ~12 lines, opposite failure mode. Here it is a compile error.
+**The resource says what may be repeated; the transport never infers it.**
+`ShipRequestInit.idempotent` is set by the resource that composed the request,
+because only it knows: a fill is safe to repeat whatever it carries, and a
+declaration is safe only with a key. The transport's rule is one line, "GET,
+HEAD, or idempotent", and it reads no header and matches no path, so a request
+cannot become retryable by carrying a header nobody meant as a mark. The field
+is this client's own word and is stripped before `fetch` sees the init.
+Fenced in `http-retry.test.ts` ("the idempotent request option").
 
 **Surface:** `maxRetries` on `ShipClientOptions`, `0` disables. One knob, the
 name Stripe and OpenAI use, which by this file's own doc-placement rule is
@@ -1124,8 +1166,8 @@ ADDED a second duration phrase rather than sharing one.
   cheap and idempotent replay makes them cheaper. The claim flow remains the
   only writer of `expires` after create.
 - **No ttl on `domains set`** — a link is not a lease.
-- **Idempotent replay returns the stored 201's original `expires`.** The
-  stored answer is the answer; a replayed request's ttl is not consulted.
+- **A replay answers the deployment the key names, as it stands**, with the
+  `expires` its commit stamped; a replayed request's ttl is not consulted.
 **A CLIENT is a fixture too.** The anonymous refusal has a `tests/contract.ts`
 row with a LIVE half, and getting there corrected a reading: "a runner supplies
 one client" sounded structural and was not — a credential-less `Ship` is
@@ -1685,7 +1727,9 @@ playwright provider). It certifies what jsdom can only approximate — native
 `getENV()` detection with no test override, `webkitRelativePath` as Chromium
 defines it, real `File`/`FormData` bytes through `createDeployBody`, and
 spark-md5 digests (same published vectors as the Node tier, deliberately: the
-API verifies checksums on R2 put, so both runtimes must agree). No coverage
+manifest's digests are what R2 checks every put against, so both runtimes must
+agree), and the planner's serialized count against Chromium's own `FormData`
+encoder (`deploy-plan.test.ts`). No coverage
 coupling; separate CI step with `playwright install chromium`.
 
 ```
@@ -1835,7 +1879,7 @@ the hazard is live again with nothing to announce it.
 | Var | Purpose |
 |---|---|
 | `SHIP_PASSWORD` | Default for `--password <password>` on `ship deploy` / `ship deployments upload`. Empty string is normalized to absence (so unset CI variables don't accidentally protect a deploy). |
-| `SHIP_IDEMPOTENCY_KEY` | The SDK's `idempotencyKey` for `ship deploy` / `ship deployments upload` — a stored 201 replays instead of deploying twice (see the Backend Integration table). Empty string is normalized to absence, for the same reason `SHIP_PASSWORD` is: an unset CI variable must not collapse every deploy in a job into one replay. There is **no flag** — this is the whole CLI surface, and it exists for the integrations that wrap the CLI as a subprocess: the GitHub Action derives one key per workflow run, so re-running a job replays the original deployment rather than creating a second one. A shell user's `--idempotency-key` remains the open product call below. |
+| `SHIP_IDEMPOTENCY_KEY` | The SDK's `idempotencyKey` for `ship deploy` / `ship deployments upload`: a re-run is answered with the live deployment the key already made instead of deploying twice (see the Backend Integration table). Empty string is normalized to absence, for the same reason `SHIP_PASSWORD` is: an unset CI variable must not collapse every deploy in a job into one replay. There is **no flag** — this is the whole CLI surface, and it exists for the integrations that wrap the CLI as a subprocess: the GitHub Action derives one key per workflow run, so re-running a job replays the original deployment rather than creating a second one. A shell user's `--idempotency-key` remains the open product call below. |
 | `SHIP_VIA` | Overrides the deploy `via` field (the CLI sends `'cli'` when unset). Used by integrations that **wrap a first-party executable as a subprocess**: the GitHub Action sets `SHIP_VIA=git` on the CLI, and the Gemini extension sets `SHIP_VIA=gmn` on the stdio MCP bin, which reads the same slot with `mcp` as its own default. Since the name gained that second reader, its owner is `SHIP_VIA_ENV` in `@shipstatic/types` (deliberately beside, not inside, `SHIP_ENV`: the SDK never reads it) and both executables read through the constant. In-process SDK consumers set the same field as a programmatic `via` option on the SDK call (`ship.deployments.upload(..., { via: 'mcp' })`) — same destination, different mechanism. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
 
 **Every deploy names its surface; `via` is never empty by accident.** The
@@ -1978,8 +2022,9 @@ commit that lands the import deletes it.
 
 | SDK Method | API Endpoint | Notes |
 |------------|--------------|-------|
-| `deployments.upload()` | `POST /deployments` | Multipart upload |
-| ↳ `idempotencyKey` | header `Idempotency-Key` | Replays the original 201 within 24h instead of deploying twice. Key the ATTEMPT (run id, commit sha), never the try. |
+| `deployments.upload()` | `POST /deployments` | The declaration: the manifest, the options and any of the files. 201 live when it carries every file, 202 pending otherwise |
+| ↳ each further batch | `POST /deployments/:deployment/files` | After a 202, one fill per batch: 202 still pending, 201 live, 200 already live. Files only |
+| ↳ `idempotencyKey` | header `Idempotency-Key` (the declaration only) | Answers the earliest live deployment the key made in your account within 24h, as it stands, instead of deploying twice. An anonymous key is ignored. Key the ATTEMPT (run id, commit sha), never the try. |
 | ↳ CLI `--domain` | *(no endpoint)* | Composed CLIENT-side: this upload, then `domains.set()` with the fresh id. Two wire calls, no new route, no SDK option — see "Composability". |
 | `deployments.list()` | `GET /deployments` | Paginated — `{limit, cursor}` options (`--limit`/`--cursor` on the CLI; text mode prints a rerun hint while `--json` carries `cursor`) |
 | `deployments.get()` | `GET /deployments/:deployment` | |
@@ -2004,7 +2049,7 @@ commit that lands the import deletes it.
 | (internal) | `POST /spa-check` | SPA detection during upload — optional auth, anonymous callers allowed |
 | (internal) | `POST /upload` | Only via the `@internal` `deployEndpoint` option (`web/my`, `web/www`) |
 
-**Deploys get their own timeout ceilings — three budgets, one per kind of work.** 30s is right for a metadata read, where anything slower is a fault rather than a payload. A deploy is bounded by the platform instead: `DEPLOYMENT.MAX_TOTAL_SIZE` is 50MB, and 50MB in 30s needs ~13 Mbit/s of sustained UPLOAD — above most residential links — so a deployment the API permits was being aborted client-side, which is exactly the failure `Idempotency-Key` repairs. `DEFAULT_DEPLOY_TIMEOUT` is 5 minutes (50MB at ~1.4 Mbit/s).
+**Deploy requests get their own timeout ceilings: three budgets, one per kind of work.** 30s is right for a metadata read, where anything slower is a fault rather than a payload. A deploy request is bounded by the request ceiling instead: one carries at most `DEPLOY_REQUEST_CONSTRAINTS.MAX_BYTES` (64 MiB), and a larger deployment is sent in several requests, each with a ceiling of its own. `DEFAULT_DEPLOY_TIMEOUT` is 5 minutes: at `UPLOAD_FLOOR_BITS_PER_SECOND` (2.5 Mbit/s, stated beside it) the largest request transfers in about 215 s, which leaves about 85 s for the server's own work on it. `http-timeout.test.ts` holds that sum, so a bigger request cannot silently outrun the ceiling.
 
 A **build or prerender** deploy is the third: it waits for work the SERVER does after the upload lands, so `DEFAULT_DEPLOY_BUILD_TIMEOUT` is **derived, not chosen** — written in code as `DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET`, so tuning either half carries. Raising that server constant must raise this one; they sit in different repos so nothing fences the pair, and the constraint is stated at both ends. `spa` does NOT qualify: it is local detection bounded by the AI tier's own 10s; only build/prerender reach the build service.
 

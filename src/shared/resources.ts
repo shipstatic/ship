@@ -60,8 +60,14 @@ export type {
 };
 
 import type { Transport } from './api/http.js';
-import { createDeployBody } from './core/deploy-body.js';
-import { detectAndConfigureSPA } from './lib/spa.js';
+import {
+  createDeployBody,
+  createFillBody,
+  deployFields,
+  deployManifest,
+} from './core/deploy-body.js';
+import { planDeploy } from './core/deploy-plan.js';
+import { configureSPA, detectAndConfigureSPA } from './lib/spa.js';
 import { validateDeployConfig, validateLabels, validatePassword } from './lib/validation.js';
 import type { DeploymentOptions } from './types.js';
 
@@ -127,12 +133,16 @@ export function createDeploymentResource(
   return {
     /**
      * The whole deploy, in the order it happens: collect the files, ask the
-     * platform whether they are a SPA, validate the request boundary, build
-     * the multipart body, send it.
+     * platform whether they are a SPA, validate the request boundary, plan
+     * the requests, send them.
      *
-     * It read across two files until the endpoint tier folded down — the
-     * collection and the SPA step here, the validators and the body in the
-     * transport — for no reason a reader could see from either end.
+     * A deploy is declared, then filled. The manifest always rides the
+     * declaration: below the request ceiling the declaration carries every
+     * file and answers 201, the whole deploy; above it the declaration is bare
+     * (the manifest, the options and the root `ship.json`), answers 202, and
+     * each batch of files follows to `POST /deployments/:deployment/files`.
+     * The first 201 or 200 is the deployment. Splitting is internal: the
+     * signature and the answer are the same either way.
      */
     upload: async (input: DeployInput, options: DeploymentOptions = {}) => {
       if (!processInput) {
@@ -141,21 +151,14 @@ export function createDeploymentResource(
 
       const http = getApi();
       const collected = await processInput(input, options);
-      const files = await detectAndConfigureSPA(collected, http, options);
+      let files = await detectAndConfigureSPA(collected, http, options);
 
       if (!files.length) {
         throw ShipError.business('No files to deploy');
       }
-      for (const file of files) {
-        if (!file.md5) {
-          throw ShipError.file(`MD5 checksum missing for file: ${file.path}`, {
-            filePath: file.path,
-          });
-        }
-      }
 
       // Fast-fail on definitely-invalid input before constructing a multipart body.
-      validatePassword(options.password);
+      const password = validatePassword(options.password);
       const ttl = validateTtl(options.ttl);
       const idempotencyKey = validateIdempotencyKey(options.idempotencyKey);
       const labels = validateLabels(options.labels);
@@ -166,50 +169,72 @@ export function createDeploymentResource(
       // caller hears about a malformed value before a body is built.
       const buildCommand = validateBuildCommand(options.buildCommand);
       const outputDir = validateOutputDir(options.outputDir);
-      const flags =
-        options.build || options.prerender || options.spa
-          ? {
-              build: options.build,
-              prerender: options.prerender,
-              spa: options.spa,
-              buildCommand,
-              outputDir,
-            }
-          : undefined;
-      const body = await createDeployBody(files, {
-        labels,
-        via: options.via ?? DEPLOY_VIA,
-        password: options.password,
-        ttl,
-        flags,
-        captcha: options.captcha,
-      });
+      const built = Boolean(options.build || options.prerender);
+      const fieldsFor = (deploy: StaticFile[], spa: boolean | undefined) =>
+        deployFields(deployManifest(deploy), {
+          labels,
+          via: options.via ?? DEPLOY_VIA,
+          password,
+          ttl,
+          flags:
+            built || spa
+              ? { build: options.build, prerender: options.prerender, spa, buildCommand, outputDir }
+              : undefined,
+          captcha: options.captcha,
+        });
+
+      let fields = fieldsFor(files, options.spa);
+      let plan = planDeploy(files, fields, built);
+      // The server decides the single-page question only from every file at
+      // once, so a deploy that splits asks it here, of the same owner, and
+      // drops the flag.
+      if (options.spa && !built && plan.fills.length > 0) {
+        files = await configureSPA(files, http, options.signal);
+        fields = fieldsFor(files, false);
+        plan = planDeploy(files, fields, false);
+      }
 
       // NO Content-Type here, deliberately: `fetch` derives it from the
       // `FormData` body along with the boundary, and setting one by hand would
       // name a boundary the body does not use.
       //
-      // The idempotency key rides a header, not the body, because it must be
-      // readable before the request is parsed — the API replays a stored 201
-      // ahead of the write budget, so a retry costs nothing.
-      return http.request<DeploymentCreateResponse>(
+      // The idempotency key rides the declaration's header, readable before
+      // the body is parsed: the API answers with the live deployment the key
+      // names, ahead of the write budget, so a keyed declaration is safe to
+      // repeat. Every fill is safe to repeat by construction.
+      const signal = options.signal || null;
+      const declared = await http.requestWithStatus<DeploymentCreateResponse>(
         http.deploy.endpoint,
         {
           method: 'POST',
-          body,
+          body: createDeployBody(plan.declaration, fields),
           ...(idempotencyKey
             ? { headers: { [IDEMPOTENCY_KEY_CONSTRAINTS.HEADER]: idempotencyKey } }
             : {}),
-          signal: options.signal || null,
+          signal,
+          idempotent: idempotencyKey !== undefined,
         },
         'Deploy',
         // Only `build`/`prerender` reach the build service
-        // (`api/src/lib/upload-processing.ts:35`); `spa` is local detection
+        // (`api/src/lib/upload-processing.ts`); `spa` is local detection
         // bounded by the AI tier's own 10s, so it does not earn the longer
         // ceiling. The transport owns both budgets; this is the one place that
         // knows which applies.
-        options.build || options.prerender ? http.deploy.buildTimeout : http.deploy.timeout,
+        built ? http.deploy.buildTimeout : http.deploy.timeout,
       );
+      if (declared.status !== 202) return declared.data;
+
+      const fillPath = API_PATHS.DEPLOYMENT_FILES(encodeURIComponent(declared.data.deployment));
+      for (const batch of plan.fills) {
+        const filled = await http.requestWithStatus<DeploymentCreateResponse>(
+          fillPath,
+          { method: 'POST', body: createFillBody(batch), signal, idempotent: true },
+          'Deploy',
+          http.deploy.timeout,
+        );
+        if (filled.status !== 202) return filled.data;
+      }
+      throw ShipError.api('Every file was sent, but the deployment did not go live. Deploy again.');
     },
 
     list: async (options?: ListOptions) =>

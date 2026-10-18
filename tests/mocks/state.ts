@@ -45,15 +45,22 @@ export interface MockState {
   tokens: Token[];
   verifyCooldown: Set<string>;
   /**
-   * Stored 201s, keyed by `Idempotency-Key`.
+   * The `Idempotency-Key` each deployment was born with, by deployment.
    *
-   * wire: `api/src/middleware/idempotency.ts` — the real key is
-   * `idempotency:{actor}:{sha256(key)}`, and the actor half is collapsed here
-   * because one mock serves one caller. What survives is the property a
-   * consumer depends on: a repeat of the same key replays the original
-   * deployment instead of creating a second one.
+   * wire: `api/src/middleware/idempotency.ts`: the key is a column on the
+   * deployment row, and a later declaration with the same key replays the
+   * earliest LIVE deployment carrying it, as it stands. One mock serves one
+   * account, so the account half of the lookup is the whole state; an
+   * anonymous deploy stores no key, as the public account stores none.
    */
-  idempotency: Map<string, DeploymentCreateResponse>;
+  idempotency: Map<string, string>;
+  /**
+   * The declaration of each deployment sent in several requests, while it is
+   * pending: every path the manifest declares, and the paths that have
+   * arrived. wire: `api/src/lib/declaration.ts`, where R2 holds it, and the
+   * fill's completion listing (`listServedPaths`).
+   */
+  declarations: Map<string, { declared: Set<string>; arrived: Set<string>; ttl?: number }>;
   /**
    * What `POST /spa-check` answers. Set by the test that needs a yes; the
    * double decides nothing (see the route's arm in `handler.ts`).
@@ -68,8 +75,12 @@ export interface MockState {
       password?: boolean;
       ttl?: number;
       config?: boolean;
+      /** Born pending: the request does not complete the deployment. */
+      pending?: boolean;
     },
   ): DeploymentCreateResponse;
+  /** The commit: the deployment goes live, its lifetime measured from now. */
+  commitDeployment(deployment: Deployment, ttl?: number): Deployment;
   createToken(body: { ttl?: number; labels?: string[] }): TokenCreateResponse;
   validateDomain(input: string): DomainValidateResponse;
 }
@@ -90,6 +101,7 @@ export function createMockState(
     tokens: [],
     verifyCooldown: new Set(),
     idempotency: new Map(),
+    declarations: new Map(),
     spa: false,
 
     /** The API accepts a bare slug or the full hostname. wire: normalizeDeployment */
@@ -112,18 +124,32 @@ export function createMockState(
         password: fields.password ?? false,
         // Derived from the uploaded files by the route, like the API's own.
         config: fields.config ?? false,
+        // A pending deployment has no lifetime yet: the commit stamps it.
         // A requested lifetime wins over the entitlement's answer, stamped
         // against the server's own clock — the wire carries the duration and
         // the API owns the instant. Absent, the identity decides: anonymous
         // deploys land under the public account (expiring, claimable),
         // authenticated ones never expire.
-        // wire: lib/deployment-orchestrator.ts:174
-        //   `expires = ttl === undefined ? capabilities.ttl : created + ttl`
-        expires:
-          fields.ttl !== undefined ? now + fields.ttl : anonymous ? now + PUBLIC_TTL_SECONDS : null,
+        // wire: lib/deployment-orchestrator.ts, `commit`
+        ...(fields.pending
+          ? { status: 'pending' as const, expires: null }
+          : {
+              expires:
+                fields.ttl !== undefined
+                  ? now + fields.ttl
+                  : anonymous
+                    ? now + PUBLIC_TTL_SECONDS
+                    : null,
+            }),
       });
       state.deployments.push(deployment);
       return anonymous ? { ...deployment, claim: claimUrl() } : deployment;
+    },
+
+    commitDeployment(deployment, ttl) {
+      deployment.status = 'success';
+      deployment.expires = ttl !== undefined ? now + ttl : null;
+      return deployment;
     },
 
     createToken({ ttl, labels }) {

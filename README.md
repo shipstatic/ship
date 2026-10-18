@@ -267,8 +267,10 @@ const ship = new Ship({ token: 'ship-your-api-key', maxRetries: 5 });
 Deliberately never retried: a maintenance 503 (its message says when to come
 back), 429 (the rate limiter has answered), `PUT`/`DELETE` (a repeat can
 misreport a lost success as a failure), anything stopped by a `signal` you
-supplied, and any other non-`GET` without an `Idempotency-Key` — with the key,
-a deploy replays its stored result instead of creating a second one.
+supplied, and any other request that is not safe to send twice. A deploy is
+safe to send twice when it carries an `idempotencyKey`: the API answers with
+the deployment that key already made, within your account, instead of making
+a second one.
 
 `timeout` is the ceiling on one ATTEMPT. For a hard overall deadline pass your
 own `signal` (`AbortSignal.timeout(ms)`), which is never retried past.
@@ -286,6 +288,14 @@ ship.deploy(input, {
   via?: string,               // Client identifier
 });
 ```
+
+#### Large deployments
+
+There's nothing to set up. One request carries up to 64 MB, so a bigger site
+goes in several: the SDK sends a list of every file first, then the files
+themselves in batches, and the site goes live when the last one arrives. You
+get the same answer as for a small site. Every batch is safe to retry, so a
+dropped connection costs you only that batch.
 
 #### Expiring deployments
 

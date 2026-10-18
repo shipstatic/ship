@@ -289,7 +289,7 @@ describe('processDeployFiles', () => {
       expect(empty.readCount).toBe(0);
     });
 
-    it('still checksums what it keeps', async () => {
+    it('still hashes what it keeps', async () => {
       const result = await processDeployFiles([src('index.html', 'hello')], { prerender: true });
 
       expect(result[0].md5).toBe(HELLO_MD5);

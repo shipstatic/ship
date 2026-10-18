@@ -12,10 +12,13 @@
  * inside anything.
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
-import { ErrorType, ShipError } from '@shipstatic/types';
-import { describe, expect, it, vi } from 'vitest';
+import { ErrorType, IDEMPOTENCY_KEY_CONSTRAINTS, ShipError } from '@shipstatic/types';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import Ship from '../../../src/node/index';
+import { ApiHttp } from '../../../src/shared/api/http';
 import { apiKey } from '../../fixtures/builders';
 
 const API = 'https://api.test.example';
@@ -192,6 +195,35 @@ describe('retries', () => {
       expect(fetchImpl.posts()).toBe(1);
     });
 
+    describe('a deployment sent in several requests', () => {
+      // Two 33 MiB files: more than one request carries, so the SDK declares
+      // bare and fills twice.
+      let largeSite: string;
+      beforeAll(() => {
+        largeSite = mkdtempSync(path.join(tmpdir(), 'ship-split-'));
+        for (const name of ['a.bin', 'b.bin']) {
+          writeFileSync(path.join(largeSite, name), Buffer.alloc(33 * 1024 * 1024, name));
+        }
+      });
+      afterAll(() => rmSync(largeSite, { recursive: true, force: true }));
+
+      it('retries a fill without a key, since every fill is safe to repeat', async () => {
+        const pending = { deployment: 'brave-otter-a1b2c3d.shipstatic.com', status: 'pending' };
+        const live = { ...pending, status: 'success' };
+        const fetchImpl = deployFetch((n) =>
+          n === 1
+            ? ok(pending, 202)
+            : n === 2
+              ? fail(ShipError.api('gateway', 502))
+              : ok(n === 3 ? pending : live, n === 3 ? 202 : 201),
+        );
+
+        await expect(newShip(fetchImpl).deploy(largeSite)).resolves.toMatchObject(live);
+        // The declaration, the first fill twice, the second fill.
+        expect(fetchImpl.posts()).toBe(4);
+      });
+    });
+
     it("a caller's abort ends the loop rather than being retried through", async () => {
       // The retryable failure is a 502, so without the signal this deploy
       // would go out three times. It goes out once.
@@ -242,5 +274,41 @@ describe('retries', () => {
       ).rejects.toThrow();
       expect(fetchImpl.posts()).toBe(1);
     });
+  });
+});
+
+/**
+ * The rule itself, at its own seam: the resource that composes a request
+ * says whether it may be sent twice, and the transport never infers it.
+ */
+describe('the idempotent request option', () => {
+  const transport = (fetchImpl: unknown) =>
+    new ApiHttp({ apiUrl: API, fetch: fetchImpl as never, getAuthHeaders: () => ({}) });
+  const failing = () => vi.fn(async () => fail(ShipError.api('gateway', 502)));
+
+  it('lets a POST marked idempotent be retried', async () => {
+    const fetchImpl = failing();
+    await expect(
+      transport(fetchImpl).request('/x', { method: 'POST', idempotent: true }, 'Op'),
+    ).rejects.toThrow();
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not read a key header as the mark: only the composing resource knows', async () => {
+    const fetchImpl = failing();
+    await expect(
+      transport(fetchImpl).request(
+        '/x',
+        { method: 'POST', headers: { [IDEMPOTENCY_KEY_CONSTRAINTS.HEADER]: 'run-1' } },
+        'Op',
+      ),
+    ).rejects.toThrow();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('is this client’s word, so it never reaches fetch', async () => {
+    const fetchImpl = vi.fn(async (_url: unknown, _init?: RequestInit) => ok({}));
+    await transport(fetchImpl).request('/x', { method: 'POST', idempotent: true }, 'Op');
+    expect(fetchImpl.mock.calls[0]?.[1]).not.toHaveProperty('idempotent');
   });
 });

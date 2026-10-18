@@ -12,12 +12,13 @@
  * why the mock-only rows carry their reason as a string rather than a boolean.
  */
 
+import { rmSync } from 'node:fs';
 import path from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../src/node';
 import { CONTRACT, type ContractContext, expected, observe } from './contract';
-import { apiKey } from './fixtures/builders';
-import { getMockServerUrl } from './mocks/server';
+import { apiKey, PAID_PLAN_LIMITS, writeLargeSite } from './fixtures/builders';
+import { getMockServerUrl, mockState } from './mocks/server';
 
 const API_KEY = apiKey('a');
 /** The same fixture the e2e half deploys, so both halves upload like a user. */
@@ -25,12 +26,22 @@ const DEMO_SITE = path.resolve(__dirname, './fixtures/demo-site');
 
 let ship: Ship;
 let ctx: ContractContext;
+let largeSitePath: string;
+
+beforeAll(() => {
+  largeSitePath = writeLargeSite();
+});
+afterAll(() => rmSync(largeSitePath, { recursive: true, force: true }));
 
 // Per TEST, not per file: `setup-server.ts` resets the mock's state after each
 // one (that isolation is what makes file parallelism safe), so fixtures built
 // once would vanish before the second row ran. It also means a row that
 // deletes its fixture cannot disturb the next.
 beforeEach(async () => {
+  // The account a key deploys into reads a paid plan's limits, as the live
+  // runner's dev account does, so a deploy larger than one request is one it
+  // may make.
+  mockState().limits = { ...PAID_PLAN_LIMITS };
   ship = new Ship({ apiUrl: getMockServerUrl(), token: API_KEY });
 
   const deployment = await ship.deployments.upload(DEMO_SITE);
@@ -47,6 +58,9 @@ beforeEach(async () => {
     // load, so this client cannot pick one up from the developer's shell.
     anonymous: new Ship({ apiUrl: getMockServerUrl() }),
     sitePath: DEMO_SITE,
+    largeSitePath,
+    // The mock's state resets after every test; nothing outlives the run.
+    created: () => {},
     deployment: deployment.deployment,
     missingDeployment: 'no-such-deploy-0000000.shipstatic.com',
     expiringDeployment: expiring.deployment,

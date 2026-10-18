@@ -2,7 +2,7 @@
  * @file The Node half of the deploy pipeline: finding files on a filesystem.
  *
  * Everything after the finding is shared (`shared/core/deploy-files.ts`) —
- * path optimization, junk filtering, the platform's rules, the checksums.
+ * path optimization, junk filtering, the platform's rules, the digests.
  * What is genuinely Node here is a directory walk with symlink-cycle
  * protection, a content path computed against the upload root, and the fact
  * that a Node user can point at a project folder and mean `dist/`.
