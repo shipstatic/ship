@@ -291,9 +291,9 @@ ship.deploy(input, {
 
 #### Large deployments
 
-There's nothing to set up. One request carries up to 64 MB, so a bigger site
-goes in several: the SDK sends a list of every file first, then the files
-themselves in batches, and the site goes live when the last one arrives. You
+There's nothing to set up. A site too big for one request goes in several:
+the SDK sends a list of every file first, then the files themselves in
+batches, and the site goes live when the last one arrives. You
 get the same answer as for a small site. Every batch is safe to retry, so a
 dropped connection costs you only that batch.
 
