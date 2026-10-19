@@ -433,7 +433,7 @@ import type { Deployment, Domain, Account, StaticFile } from '@shipstatic/types'
 
 ## AI agents
 
-This package includes a [SKILL.md](./SKILL.md) file, a portable skill definition that AI agents (Claude Code, Codex, and any other skills-aware tool) use to deploy sites with `ship` autonomously.
+ShipStatic's skill for agents, `publish-online`, teaches an agent to publish a folder with this CLI, with no account needed. Coding agents get it with the [ShipStatic plugin](https://github.com/shipstatic/plugin); any skills-aware tool can take it as one file from [www.shipstatic.com/SKILL.md](https://www.shipstatic.com/SKILL.md).
 
 ## Also available
 

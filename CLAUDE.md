@@ -1528,13 +1528,14 @@ others cannot:
 | `docs-contract.test.ts` | Drift between the PUBLISHED docs and this code — a command or flag the docs teach that does not exist, a command that exists and no doc teaches, an SDK member or response key the docs name that `@shipstatic/types` dropped. Also the curated front page: a command missing from `helpText()` must be recorded in `HELP_OMISSIONS` with a reason. |
 | `coverage.thresholds` | Coverage decay. A ratchet — it only goes up. Global bar plus per-glob floors for the three files whose residual gaps are named in `vitest.config.ts` (bin block/spinner/SIGINT are smoke-proven; browser env arms are browser-tier-proven). |
 
-**`SKILL.md` is API surface, not prose.** `package.json` publishes it beside
-`README.md`, and for an agent it IS the API surface — the file read before a
-command is typed. The 2026-07-29 `remove` → `delete` rename swept every source
-file, every test and README, and missed it: `2.0.0-beta.8` shipped teaching
-three commands with no alias to soften the landing, plus `"total": N` on list
-responses, a field types had deliberately removed. Both drifts sat outside all
-five fences of that wave, because every one of them fenced code.
+**A published doc is API surface, not prose.** `package.json` publishes
+`README.md`, and for an agent a published doc IS the API surface: the file read
+before a command is typed. The package ships no skill of its own: ShipStatic's
+one skill for agents, `publish-online`, lives in the coding-agent plugin
+(`integrations/plugin`) and is served at www.shipstatic.com/SKILL.md, and it
+teaches this CLI's no-account publish. Two skills under one name, one of them
+a full CLI reference, would leave an agent unable to tell which is
+ShipStatic's.
 
 The fence reads the docs named in `files`, so **shipping a new markdown file is
 what puts it under contract** — there is no list to update. Its one deliberate

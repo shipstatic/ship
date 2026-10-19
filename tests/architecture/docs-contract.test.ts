@@ -10,9 +10,9 @@ import { buildProgram } from '../../src/node/cli/index';
  * Suite-wide fence: a published doc is a contract, and this reads it against
  * the code it describes.
  *
- * Why this exists. `package.json` ships `README.md` AND `SKILL.md`, so both are
- * API surface — and for an agent `SKILL.md` IS the API surface: it is the file
- * read before a command is typed. On 2026-07-29 the platform standardised
+ * Why this exists. `package.json` ships its markdown docs, so they are API
+ * surface, and for an agent a published doc IS the API surface: it is the
+ * file read before a command is typed. On 2026-07-29 the platform standardised
  * destruction on `delete` (root `CLAUDE.md`, "One operation, one verb"). Every
  * source file, every test and README were swept; `SKILL.md` was not, and
  * `2.0.0-beta.8` shipped teaching three commands the CLI does not have —
@@ -120,7 +120,7 @@ function invocations(text: string): string[][] {
     .split(/\||&&|\|\||;/)
     .map((segment) => {
       const tokens = segment.trim().split(/\s+/).filter(Boolean);
-      // `npx -y @shipstatic/ship …` is the no-install form SKILL.md leads with.
+      // `npx -y @shipstatic/ship …` is the no-install form the docs lead with.
       const bare = tokens.indexOf('ship');
       const npx = tokens.indexOf('@shipstatic/ship');
       const at = npx !== -1 && (bare === -1 || npx < bare) ? npx : bare;
@@ -179,7 +179,6 @@ const docs = publishedDocs.map((doc) => ({
 describe('the published docs describe this code', () => {
   it('reads every published doc (guards against a fence that checks nothing)', () => {
     expect(publishedDocs).toContain('README.md');
-    expect(publishedDocs).toContain('SKILL.md');
     expect(publishedNames.size).toBeGreaterThan(100);
   });
 
@@ -355,9 +354,9 @@ describe('the published docs describe this code', () => {
 
     expect(
       untaught,
-      'The CLI declares a flag no published doc names. Teach it in README or ' +
-        'SKILL.md, or record it in FLAG_OMISSIONS with the reason it is not ' +
-        'user-facing surface.',
+      'The CLI declares a flag no published doc names. Teach it in README, or ' +
+        'record it in FLAG_OMISSIONS with the reason it is not user-facing ' +
+        'surface.',
     ).toEqual([]);
   });
 
@@ -381,9 +380,7 @@ describe('the published docs describe this code', () => {
 
     expect(
       untaught,
-      'The CLI has a command no published doc mentions. README and SKILL.md may ' +
-        'differ in depth — this asks only that ONE of them teach it, which is ' +
-        'the difference between a curated page and a reference.',
+      'The CLI has a command no published doc mentions. Teach it in README.',
     ).toEqual([]);
   });
 
