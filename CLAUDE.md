@@ -992,7 +992,7 @@ cannot change: whether anything will be served when it passes. Hence
 in the future tense ("once it verifies, point it at a deployment").
 
 **`ship domains list` gained a `status` column** in the same wave. It had none,
-and `SKILL.md` carried a sentence apologising for it; a wave whose thesis is
+and a wave whose thesis is
 one derived word a reader needs cannot ship the list that hides it. The
 deployments list keeps its own omission, because a listed deployment is nearly
 always `success` while `unverified` and `unlinked` are ordinary states of the
