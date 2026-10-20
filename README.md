@@ -1,47 +1,56 @@
 # @shipstatic/ship
 
-CLI and SDK for [ShipStatic](https://shipstatic.com) — deploy static websites, landing pages, and prototypes instantly from the terminal or code.
+CLI and SDK for [ShipStatic](https://shipstatic.com). Deploy static websites, landing pages, and prototypes instantly from the terminal or code. Free, no account needed.
 
-## Deploy in seconds — no install, no account
+## Try it in seconds, no account needed
 
 ```bash
 npx @shipstatic/ship ./dist
 ```
 
-That's it. Your site is live on `*.shipstatic.com`. No sign-up, no config, no global install. Got Node? You're ready.
+That's all. There's nothing to install and nothing to sign up for: if you have Node.js, you're ready. Point it at the folder your site is built into (`./dist`, `./build`, `./out`), or at a single file.
 
-The output includes a **claim URL** — visit it to keep the site permanently. Anonymous deployments are public and expire in 3 days.
+You get back a link you can share right away, and a claim link. The site stays up for 3 days, and opening the claim link keeps it for good.
+
+Want it private? Add ShipStatic's built-in password protection, and visitors have to type the password before they see anything:
+
+```bash
+npx @shipstatic/ship ./dist --password "pick-a-password"
+```
+
+From code, it's one call:
 
 ```javascript
 import Ship from '@shipstatic/ship';
 
-const ship = new Ship();
-const result = await ship.deploy('./dist');
-// result.deployment → live URL (happy-cat-abc1234.shipstatic.com)
-// result.claim      → visit to keep permanently
+const result = await new Ship().deploy('./dist');
+// result.deployment: where the site is live (happy-cat-abc1234.shipstatic.com)
+// result.claim: open it to keep the site for good
 ```
 
-## Install (optional, for repeat use)
+## Keep your sites with a free account
+
+Everything above works with no account. A free account keeps your sites for good, lets you use your own domain, and shows you everything you've published in one place.
+
+Get your free API key at [my.shipstatic.com/api-key](https://my.shipstatic.com/api-key), then save it once:
 
 ```bash
-npm install -g @shipstatic/ship   # global CLI — drop the `npx @shipstatic/ship` prefix
-```
-
-> As a project dependency: `npm install @shipstatic/ship`
->
-> Every example in this README uses the bare `ship` command. If you haven't installed it globally, prefix any of them with `npx @shipstatic/ship` (or `npx -y @shipstatic/ship` in non-interactive environments).
-
-## All commands — free API key
-
-For permanent deployments and full control over your sites and domains, get a free API key from [my.shipstatic.com/api-key](https://my.shipstatic.com/api-key).
-
-```bash
-ship config    # paste your API key when prompted
+npx @shipstatic/ship config    # paste your API key when asked
 ```
 
 ```javascript
 const ship = new Ship({ token: 'ship-your-api-key' });
 ```
+
+Every command below works from then on. To drop the `npx @shipstatic/ship` prefix, install it once:
+
+```bash
+npm install -g @shipstatic/ship   # then use the `ship` command
+```
+
+> As a project dependency: `npm install @shipstatic/ship`.
+>
+> Every example below uses the bare `ship` command. Without the global install, start each one with `npx @shipstatic/ship` instead (or `npx -y @shipstatic/ship` where nothing can answer a prompt).
 
 ### Deployments
 
@@ -61,7 +70,7 @@ ship deployments delete <deployment>
 ```typescript
 ship.deploy(input, options?)               // Shortcut for deployments.upload()
 ship.deployments.upload(input, options?)
-ship.deployments.list(options?)            // { limit?, cursor? } — response carries the next cursor
+ship.deployments.list(options?)            // { limit?, cursor? }; the response carries the next cursor
 ship.deployments.get(deployment)
 ship.deployments.set(deployment, { labels })
 ship.deployments.delete(deployment)
@@ -84,7 +93,7 @@ ship domains delete www.example.com
 ```
 
 ```typescript
-ship.domains.set(name, { deployment?, labels? })   // Upsert — create, repoint, or label
+ship.domains.set(name, { deployment?, labels? })   // Upsert: create, repoint, or label
 ship.domains.get(name)
 ship.domains.list(options?)                 // { limit?, cursor? }
 ship.domains.validate(name)
@@ -95,9 +104,9 @@ ship.domains.share(name)
 ship.domains.delete(name)
 ```
 
-`domains.set()` is a merge-upsert — omitted fields are preserved on update, defaulted on create. Once linked, a domain cannot be unlinked (`{ deployment: null }` → 400). Switch deployments or delete the domain instead.
+`domains.set()` is a merge-upsert: omitted fields are kept on update, and defaulted on create. Once linked, a domain cannot be unlinked (`{ deployment: null }` → 400). Switch deployments or delete the domain instead.
 
-Domain names are normalized by the API — any case, Unicode accepted:
+Domain names are normalized by the API, so any case and Unicode are accepted:
 
 ```typescript
 ship.domains.set('WWW.Example.COM');   // → www.example.com
@@ -107,7 +116,7 @@ ship.domains.set('www.münchen.de');    // → Unicode supported
 ### Tokens
 
 ```bash
-ship tokens create --ttl 30d --label project:web  # Or 3600, 90s, 1h — one grammar
+ship tokens create --ttl 30d --label project:web  # Or 3600, 90s, 1h: one grammar
 ship tokens list
 ship tokens get <token>
 ship tokens delete <token>
@@ -139,7 +148,7 @@ ship.getLimits()              // → the account's platform limits, read now
 
 ### Composability
 
-The `-q` flag outputs only the resource identifier — perfect for piping and scripting:
+The `-q` flag outputs only the resource identifier, for piping and scripting:
 
 `ship tokens create -q` is the one exception: it prints the token **secret**, which is shown once and never again.
 
@@ -163,7 +172,7 @@ ship ./dist --ttl 3600        # bare seconds work too
 ```
 
 The platform reclaims the deployment when the time is up. Seconds, or a
-`<n><unit>` duration (`s`/`m`/`h`/`d`) — the same grammar `ship tokens create
+`<n><unit>` duration (`s`/`m`/`h`/`d`), the same grammar `ship tokens create
 --ttl` uses. Bounded at one year.
 
 Two rules, both refused before anything uploads. It **needs a token**: an
@@ -172,7 +181,7 @@ is no deployer to choose a different one. And it **cannot be combined with
 `--domain`**: a domain is a commitment and a deadline is its opposite, so the
 API refuses to point a domain at a deployment that expires.
 
-To keep something longer, deploy it again — there is no way to extend a
+To keep something longer, deploy it again. There is no way to extend a
 deployment's life, and no way to shorten it after the fact.
 
 `--domain` is the same two calls as one command:
@@ -181,7 +190,7 @@ deployment's life, and no way to shorten it after the fact.
 ship ./dist --domain www.example.com
 ```
 
-Both spellings are supported and neither replaces the other. The pipe composes interactively — any two commands, wherever `-q` gives you the value the next one wants. `--domain` is one process, one exit code, and one `--json`, which is what CI needs: a `run:` block is `bash -e` **without** `pipefail`, so a pipeline reports only the last command's status and a failed deploy is masked. It answers as the domain, exactly as `ship domains set` does — DNS records and setup link included on a new external domain — and it needs a token, which it checks before uploading anything.
+Both spellings are supported and neither replaces the other. The pipe composes interactively: any two commands, wherever `-q` gives you the value the next one wants. `--domain` is one process, one exit code, and one `--json`, which is what CI needs: a `run:` block is `bash -e` **without** `pipefail`, so a pipeline reports only the last command's status and a failed deploy is masked. It answers as the domain, exactly as `ship domains set` does (DNS records and setup link included on a new external domain), and it needs a token, which it checks before uploading anything.
 
 ### Shell completion
 
@@ -211,10 +220,10 @@ Available on `ship <path>` and `ship deployments upload`:
 
 | Flag | Description |
 |------|-------------|
-| `--domain <domain>` | Serve this deployment at that domain — creates or repoints it. Needs a token |
+| `--domain <domain>` | Serve this deployment at that domain: creates or repoints it. Needs a token |
 | `--label <label>` | Add label, a word or `key:value` (repeatable) |
 | `--password <password>` | Password-protect this deployment (6–128 chars) |
-| `--ttl <duration>` | Expire this deployment after that long — `3600`, `90s`, `30m`, `1h`, `7d`. Needs a token; cannot be combined with `--domain` |
+| `--ttl <duration>` | Expire this deployment after that long: `3600`, `90s`, `30m`, `1h`, `7d`. Needs a token; cannot be combined with `--domain` |
 | `--no-path-detect` | Disable automatic path optimization |
 | `--no-spa-detect` | Disable automatic SPA detection |
 
@@ -231,19 +240,19 @@ Available on `ship <path>` and `ship deployments upload`:
 ### Authentication
 
 ```javascript
-// No token — deploy only: lands in the public account with a claim URL, 3-day expiry
+// No token: deploy only, with no account; the site comes with a claim link and stays up for 3 days
 const ship = new Ship();
 
-// API key — durable, full account
+// API key: durable, full account
 const ship = new Ship({ token: 'ship-your-api-key' });
 
-// Deploy token — scoped to deploys, optional TTL, revocable
+// Deploy token: scoped to deploys, optional TTL, revocable
 const ship = new Ship({ token: 'deploy-your-token' });
 
-// OAuth access token — delegated, short-lived, sent verbatim
+// OAuth access token: delegated, short-lived, sent verbatim
 const ship = new Ship({ token: accessToken });
 
-// Token provider — invoked per request; refresh lives with you
+// Token provider: invoked per request; refresh lives with you
 const ship = new Ship({ token: () => mintToken() });
 
 // Cookie session: the platform's own apps, where every account request names its account
@@ -299,14 +308,14 @@ dropped connection costs you only that batch.
 
 #### Expiring deployments
 
-Pass `ttl` in **seconds** and the platform reclaims the deployment when the time is up — 1 second to one year. The wire carries the duration and the API stamps `expires` against its own clock, so the answer says when:
+Pass `ttl` in **seconds** and the platform reclaims the deployment when the time is up, from 1 second to one year. The wire carries the duration and the API stamps `expires` against its own clock, so the answer says when:
 
 ```typescript
 const result = await ship.deploy('./dist', { ttl: 3600 });
 // result.expires → unix seconds, one hour after result.created
 ```
 
-Needs a credential — an anonymous deployment already expires on the platform's own schedule. And a deployment carrying a ttl cannot be linked to a domain: the API refuses, which is what stops a domain pointing at something that is about to be reclaimed. There is no way to extend or shorten a deployment after the fact; redeploy instead.
+Needs a credential: a deployment with no account already expires on the platform's own schedule. And a deployment carrying a ttl cannot be linked to a domain: the API refuses, which is what stops a domain pointing at something that is about to be reclaimed. There is no way to extend or shorten a deployment after the fact; redeploy instead.
 
 #### Password protection
 
@@ -348,7 +357,7 @@ ship.on('error', (error, url) => {});           // the call failed, terminally
 ship.off('request', handler);
 ```
 
-One call emits `retry* (error | response)` — every failure is announced, and
+One call emits `retry* (error | response)`: every failure is announced, and
 the event name says whether it ended the call. `attempt` counts from 1, so it
 names both the attempt that failed and which retry is happening.
 
@@ -369,7 +378,7 @@ const ship = new Ship({ fetch: traced });
 
 ```typescript
 // Cloudflare Worker with a service binding to the API.
-// Any parseable apiUrl works — service bindings dispatch by binding identity, not hostname.
+// Any parseable apiUrl works: service bindings dispatch by binding identity, not hostname.
 const ship = new Ship({
   apiUrl: 'https://api',
   fetch: env.API.fetch.bind(env.API),
@@ -386,10 +395,10 @@ try {
 } catch (error) {
   if (isShipError(error)) {
     error.isAuthError();        // semantic category
-    error.isNetworkError();     // semantic category — nothing was exchanged
+    error.isNetworkError();     // semantic category: nothing was exchanged
     error.isClientError();      // semantic category (Business | Config | File | Validation)
     error.type === ErrorType.Validation;  // specific-type check
-    error.type === ErrorType.Timeout;     // a deadline expired — inside isNetworkError()
+    error.type === ErrorType.Timeout;     // a deadline expired, inside isNetworkError()
     error.status === 429;       // status check
   }
 }
@@ -408,7 +417,7 @@ configs work (`ship --config dev.shiprc ...`). The file is strict JSON; an empty
 config".
 
 **No repository file is ever read.** A `.shiprc` or `package.json` `"ship"` key in your working
-directory is ignored — cloning a repo can never change which account you deploy to, or which
+directory is ignored: cloning a repo can never change which account you deploy to, or which
 host your token is sent to.
 
 The **SDK** (`new Ship(...)`) resolves its token in this order:
@@ -418,7 +427,7 @@ The **SDK** (`new Ship(...)`) resolves its token in this order:
 
 `--api-url` / `SHIP_API_URL` / `apiUrl` resolve the same way for the API endpoint.
 
-The SDK never reads `.shiprc` or `package.json` — file resolution is a CLI feature, not an SDK feature. This keeps `new Ship({})` safe to use from embedded contexts (MCP, n8n, library wrappers) without inheriting the host developer's personal credentials.
+The SDK never reads `.shiprc` or `package.json`: file resolution is a CLI feature, not an SDK feature. This keeps `new Ship({})` safe to use from embedded contexts (MCP, n8n, library wrappers) without inheriting the host developer's personal credentials.
 
 ```bash
 SHIP_TOKEN=ship-your-api-key ship deployments list
