@@ -383,7 +383,7 @@ describe('Deployment Resource', () => {
 
     it('refuses a build that does not fit one request, sending nothing', async () => {
       await expect(upload({ build: true })).rejects.toThrow(
-        'A project sent for building can be at most 64 MB.',
+        'We can build projects up to 64 MB. Build this one on your computer and upload the built folder instead.',
       );
       expect(deployCalls()).toHaveLength(0);
     });

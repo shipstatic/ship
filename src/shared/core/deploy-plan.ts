@@ -73,9 +73,11 @@ export interface DeployPlan {
  * What a project sent for building is told when it does not fit one
  * request. A build reads the whole project in the request that asks for it,
  * so it is never split; the server cannot tell a build from a site before it
- * parses the body, which is why this client says it first.
+ * parses the body, which is why this client says it first. It names the way
+ * out: a built site has no such ceiling, since it is sent in as many
+ * requests as it needs.
  */
-export const BUILD_TOO_LARGE = `A project sent for building can be at most ${formatFileSize(MAX_BYTES)}.`;
+export const BUILD_TOO_LARGE = `We can build projects up to ${formatFileSize(MAX_BYTES)}. Build this one on your computer and upload the built folder instead.`;
 
 /**
  * Plan a deploy: one request when everything fits, otherwise a bare

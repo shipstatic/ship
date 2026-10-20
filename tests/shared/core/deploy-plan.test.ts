@@ -90,7 +90,7 @@ describe('planDeploy', () => {
     const files = [sized('src/a.ts', 40 * MiB), sized('src/b.ts', 40 * MiB)];
 
     expect(() => planDeploy(files, deployFields(deployManifest(files)), true)).toThrow(
-      'A project sent for building can be at most 64 MB.',
+      'We can build projects up to 64 MB. Build this one on your computer and upload the built folder instead.',
     );
   });
 });
