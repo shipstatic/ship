@@ -38,11 +38,13 @@ export const JUNK_DIRECTORIES = ['__MACOSX', '.Trashes', '.fseventsd', '.Spotlig
  * Dot files are filtered for security — they typically contain sensitive configuration
  * (.env, .git) or are not meant to be served publicly. This matches server-side filtering.
  *
+ * It judges a SITE's files. A project sent for building is never filtered
+ * here: its source is decided by `@shipstatic/drop`'s `projectSource`, and
+ * a dot file a build reads is source rather than junk.
+ *
  * @param filePaths - An array of file path strings to filter
- * @param options - Optional settings
- * @param options.allowUnbuilt - When true, skip the unbuilt project marker check (for server-processed uploads)
  * @returns A new array containing only non-junk file paths
- * @throws {ShipError} If any path contains an unbuilt project marker (unless allowUnbuilt is true)
+ * @throws {ShipError} If any path contains an unbuilt project marker
  *
  * @example
  * ```typescript
@@ -73,7 +75,7 @@ export const JUNK_DIRECTORIES = ['__MACOSX', '.Trashes', '.fseventsd', '.Spotlig
  * );
  * ```
  */
-export function filterJunk(filePaths: string[], options?: { allowUnbuilt?: boolean }): string[] {
+export function filterJunk(filePaths: string[]): string[] {
   if (!filePaths || filePaths.length === 0) {
     return [];
   }
@@ -81,13 +83,11 @@ export function filterJunk(filePaths: string[], options?: { allowUnbuilt?: boole
   // Reject unbuilt projects before the dot-file filter removes evidence.
   // pnpm stores files under node_modules/.pnpm/ — the dot-file filter below
   // strips .pnpm/ paths, destroying the only signal that this is an unbuilt project.
-  if (!options?.allowUnbuilt) {
-    const marker = filePaths.find((p) => p && hasUnbuiltMarker(p));
-    if (marker) {
-      throw ShipError.business(
-        'Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder',
-      );
-    }
+  const marker = filePaths.find((p) => p && hasUnbuiltMarker(p));
+  if (marker) {
+    throw ShipError.business(
+      'Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder',
+    );
   }
 
   return filePaths.filter((filePath) => {

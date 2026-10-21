@@ -359,12 +359,15 @@ its own.
 
 When `build`, `prerender`, or `spa` options are set on `DeploymentUploadOptions`, the SDK delegates processing to the server:
 
-- **`filterJunk`** accepts `{ allowUnbuilt: true }` — skips the unbuilt project marker check (source files have `package.json`, `node_modules`)
-- **`processDeployFiles`** (`shared/core/deploy-files.ts`) applies no deploy
-  rule: the rules describe the build service's OUTPUT, and the unbuilt refusal
-  would reject exactly the input the flags exist to accept. It reads the flags
-  from the shared options, so the mode is stated once, in the one loop it
-  changes. It still filters junk, still skips empty files, still checksums.
+- **`processDeployFiles`** (`shared/core/deploy-files.ts`) carries a
+  project's source as it was given. Which files a project holds is decided
+  once, before the SDK sees them, by `@shipstatic/drop`'s `projectSource`
+  (what the repository holds), so this loop takes nothing away: no junk
+  filter (a build reads `.npmrc` and `.vitepress/`), no empty-file skip (an
+  empty module a build imports is source, and the files go into a zip for the
+  build service, never to storage), and none of the deploy rules, which
+  describe the build's OUTPUT. It still checksums. `filterJunk` judges a
+  site's files and only a site's, so it takes no option.
 - **`detectAndConfigureSPA`** skips when `spa`, `build`, or `prerender` is set: the server handles SPA detection via the `/upload` endpoint. Where it does ask (`/spa-check`), a question that fails is the deploy failing: the transport's error is raised as it is and nothing is uploaded, since a deploy made without the answer ships an app whose routes 404 on reload
 - **A deploy with `spa` that does not fit one request asks `/spa-check` itself** (`configureSPA`) and drops the flag: the server decides the single-page question only from every file at once, in the request that asks for it. A `build` or `prerender` never splits; the planner refuses a project over one request before a byte is sent, in `BUILD_TOO_LARGE`
 - **`deployFields`** appends `build=true` / `prerender=true` / `spa=true` to the declaration

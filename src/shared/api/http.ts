@@ -14,7 +14,14 @@
  * DESIGN are not two layers. The endpoints went down to the resources, and
  * "`ApiHttp` is pure transport" stopped being an aspiration in a doc.
  */
-import { API_PATHS, CALLER, DEFAULT_API, ErrorType, ShipError } from '@shipstatic/types';
+import {
+  API_PATHS,
+  BUILD_TIME_LIMIT_SECONDS,
+  CALLER,
+  DEFAULT_API,
+  ErrorType,
+  ShipError,
+} from '@shipstatic/types';
 import { SimpleEvents } from '../events.js';
 import type { Fetch, ShipClientOptions } from '../types.js';
 
@@ -98,15 +105,12 @@ export const UPLOAD_FLOOR_BITS_PER_SECOND = 2.5e6;
 const DEFAULT_DEPLOY_TIMEOUT = 300_000;
 
 /**
- * The server's own budget for a build, mirrored here because the client has
- * to outlast it: the API gives the build service
- * `PERFORMANCE.BUILD_SERVICE_TIMEOUT` (`cloudflare/api/src/lib/config.ts`),
- * and that work begins only after the upload lands.
- *
- * **Raising it there must raise it here.** The two sit in different repos, so
- * nothing can fence the pair; the constraint is stated at both ends instead.
+ * The server's own budget for a build, which the client has to outlast: a
+ * build may take `BUILD_TIME_LIMIT_SECONDS` in total, and that work begins
+ * only after the upload lands. Imported from the owner the API and the build
+ * service read too, so the three cannot disagree.
  */
-const BUILD_SERVICE_BUDGET = 300_000;
+const BUILD_SERVICE_BUDGET = BUILD_TIME_LIMIT_SECONDS * 1000;
 
 /**
  * A deploy that also builds: the upload, then the build, then the commit.

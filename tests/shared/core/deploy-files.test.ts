@@ -278,11 +278,39 @@ describe('processDeployFiles', () => {
       expect(pathsOf(result)).toEqual(['virus.exe', 'huge.txt']);
     });
 
-    it('still filters junk and still skips empties', async () => {
+    it('carries the source as it was given: dot files and empty files included', async () => {
+      // Which files a project holds is decided before this pipeline (drop's
+      // `projectSource`), so nothing here may take one away: a build reads
+      // its dot files and imports its empty ones.
+      const result = await processDeployFiles(
+        [
+          src('package.json', '{}'),
+          src('.npmrc', 'legacy-peer-deps=true'),
+          src('.vitepress/config.mts', 'export default {}'),
+          src('.yarnrc.yml', 'nodeLinker: node-modules'),
+          src('src/App.css', ''),
+        ],
+        { build: true },
+      );
+
+      expect(pathsOf(result)).toEqual([
+        'package.json',
+        '.npmrc',
+        '.vitepress/config.mts',
+        '.yarnrc.yml',
+        'src/App.css',
+      ]);
+      const empty = result.find((f) => f.path === 'src/App.css');
+      expect(empty?.size).toBe(0);
+      expect(empty?.md5).toBe('d41d8cd98f00b204e9800998ecf8427e');
+    });
+
+    it('still filters junk and skips empties on the ordinary deploy path', async () => {
       const empty = src('empty.txt', '');
       const result = await processDeployFiles(
-        [src('index.html', 'hello'), src('.DS_Store'), empty],
-        { build: true },
+        [src('index.html', 'hello'), src('.DS_Store'), src('.env'), empty],
+        {},
+        FREE_PLAN_LIMITS,
       );
 
       expect(pathsOf(result)).toEqual(['index.html']);

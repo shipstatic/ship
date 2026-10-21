@@ -408,22 +408,16 @@ describe('Browser File Processing', () => {
       expect(result).toHaveLength(2);
     });
 
-    it('should still skip empty files in server-processed mode', async () => {
-      const files = [new File(['<html>'], 'index.html'), new File([], 'empty.txt')];
+    it('carries empty files and dot files in server-processed mode: the source is decided before it', async () => {
+      const files = [
+        new File(['<html>'], 'index.html'),
+        new File([], 'empty.css'),
+        new File(['x'], '.npmrc'),
+      ];
 
       const result = await processFilesForBrowser(files, { build: true });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].path).toBe('index.html');
-    });
-
-    it('should still filter junk files in server-processed mode', async () => {
-      const files = [new File(['<html>'], 'index.html'), new File([''], '.DS_Store')];
-
-      const result = await processFilesForBrowser(files, { build: true });
-
-      expect(result).toHaveLength(1);
-      expect(result[0].path).toBe('index.html');
+      expect(result.map((f) => f.path)).toEqual(['index.html', 'empty.css', '.npmrc']);
     });
 
     it('should not skip validation when build and prerender are both false/absent', async () => {

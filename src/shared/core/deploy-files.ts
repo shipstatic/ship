@@ -58,13 +58,15 @@ export async function processDeployFiles(
   options: DeploymentOptions = {},
   platformLimits?: PlatformLimits,
 ): Promise<StaticFile[]> {
-  // `build` / `prerender` upload SOURCE files for the build service to
-  // compile. The deploy rules describe its OUTPUT, so they are not this
-  // pipeline's to apply — and the unbuilt-project refusal would reject
-  // precisely the input the flags exist to accept. Both flags are `@internal`
-  // and set only by `web/my` and `web/www`, which are browser apps; there is
-  // no Node caller. That asymmetry lives in the callers, which is why it needs
-  // no second copy of the loop here.
+  // `build` / `prerender` upload a project's SOURCE for the build service to
+  // compile, and which files a source holds was decided once, before this
+  // pipeline ran (drop's `projectSource`: what the repository holds). So this
+  // pipeline carries the set as it is: no junk filter, which would drop the
+  // dot files a build reads (`.npmrc`, `.vitepress/`), no empty-file skip,
+  // since an empty module a build imports is source and the files go into a
+  // zip rather than to storage, and none of the deploy rules, which describe
+  // the build's OUTPUT. Both flags are `@internal` and set only by `web/my`
+  // and `web/www`, which are browser apps; there is no Node caller.
   const serverProcessed = !!(options.build || options.prerender);
 
   const deployPaths = optimizeDeployPaths(
@@ -72,10 +74,10 @@ export async function processDeployFiles(
     { flatten: options.pathDetect !== false },
   ).map((file) => file.path);
 
-  const surviving = new Set(filterJunk(deployPaths, { allowUnbuilt: serverProcessed }));
+  const surviving = serverProcessed ? null : new Set(filterJunk(deployPaths));
   const kept = sources
     .map((source, index) => ({ source, deployPath: deployPaths[index] }))
-    .filter(({ deployPath }) => surviving.has(deployPath));
+    .filter(({ deployPath }) => !surviving || surviving.has(deployPath));
 
   // Nothing to deploy is not a failure, and it is answered before the rules
   // are demanded: a directory of pure junk resolves empty rather than
@@ -95,9 +97,9 @@ export async function processDeployFiles(
     // the path alone.
     if (rules) validateDeployPath(deployPath, source.origin);
 
-    // R2 cannot store zero-byte objects. The size is already in hand, so this
-    // costs nothing and reads nothing.
-    if (source.size === 0) continue;
+    // A served file is never empty (the API stores none). The size is already
+    // in hand, so this costs nothing and reads nothing.
+    if (rules && source.size === 0) continue;
 
     if (rules) {
       // Name, extension and both size caps — ONE ordered table

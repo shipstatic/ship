@@ -394,10 +394,10 @@ describe('ApiHttp Timeout & Cancellation', () => {
     });
 
     it('gives a build deploy room for the server-side build budget', async () => {
-      // A build waits for work the SERVER does after the upload lands: the
-      // API gives the build service 300s, and the client must outlast the
+      // A build waits for work the SERVER does after the upload lands: a
+      // build may take two minutes in total, and the client must outlast the
       // upload AND that budget AND the commit. A flat deploy ceiling aborted
-      // these — and `web/my` sends `build: true` through this same client,
+      // these, and `web/my` sends `build: true` through this same client,
       // so the path is real.
       vi.useFakeTimers();
       try {
@@ -417,7 +417,11 @@ describe('ApiHttp Timeout & Cancellation', () => {
         await vi.advanceTimersByTimeAsync(300_000);
         expect(settled).not.toHaveBeenCalled();
 
-        await vi.advanceTimersByTimeAsync(300_000);
+        // Two minutes more: the build limit, a literal so this does not
+        // restate the constant it checks.
+        await vi.advanceTimersByTimeAsync(119_999);
+        expect(settled).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
         await expect(pending).rejects.toMatchObject({ type: 'timeout_error' });
       } finally {
         vi.useRealTimers();
