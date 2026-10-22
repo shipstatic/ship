@@ -135,7 +135,7 @@ export function createDeploymentResource(
      * the request boundary, plan the requests, send them. The platform asks
      * the single-page question of the files and writes the routing config
      * itself when the deploy asks it to: every deploy asks
-     * (`spaDetect=true`) unless `spaDetect` is `false`, which sends nothing.
+     * (`spa=true`) unless `spaDetect` is `false`, which sends nothing.
      *
      * A deploy is declared, then filled. The manifest always rides the
      * declaration: below the request ceiling the declaration carries every

@@ -226,8 +226,8 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       // `config` is derived from the DECLARATION, exactly as the API derives
       // it: a `ship.json` at the deploy root (optional leading slash, no other
       // path forgiveness), or the platform's single-page config where the
-      // request asks (`spaDetect=true`) and the classifier says yes. The
-      // classifier's answer is `state.spa`, set by the test: the SDK's tests
+      // request asks (`spa=true`) and the classifier says yes. The
+      // classifier's answer is `state.isSPA`, set by the test: the SDK's tests
       // pin what the SDK sends, never how the server decides
       // (cloudflare/api/tests/lib/spa.test.ts). That makes `config` an
       // observation of what the client sent: `--no-spa-detect` sends nothing,
@@ -274,9 +274,9 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       const refusal = deployRefusal(entries, state.limits);
       if (refusal) return fail(ShipError.validation(refusal));
       // wire: lib/upload-input.ts, `readFlag`: only `true` asks.
-      const spaField = form?.get(DEPLOY_FIELDS.SPA_DETECT) ?? null;
+      const spaField = form?.get(DEPLOY_FIELDS.SPA) ?? null;
       if (spaField !== null && spaField !== 'true' && spaField !== 'false') {
-        return fail(ShipError.validation('The spaDetect field must be true or false.'));
+        return fail(ShipError.validation('The spa field must be true or false.'));
       }
       const asksSpa = spaField === 'true';
       // wire: lib/deployment-orchestrator.ts, `declare`: the router's program
@@ -311,7 +311,7 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
         ...(ttl !== undefined && { ttl }),
         config:
           declared.has(DEPLOYMENT_CONFIG_FILENAME) ||
-          (asksSpa && state.spa && declared.has('index.html')),
+          (asksSpa && state.isSPA && declared.has('index.html')),
         pending: !complete,
       });
       if (idempotencyKey) state.idempotency.set(deployment.deployment, idempotencyKey);

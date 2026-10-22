@@ -1763,13 +1763,13 @@ not two".
 
 ## The single-page question
 
-The platform asks it of a deploy that sends `spaDetect=true` (`DEPLOY_FIELDS.SPA_DETECT`) and writes the routing config itself, when the root `index.html` is an empty application shell and the deploy ships no `ship.json` (`cloudflare/api/src/lib/platform-files.ts`). Absence asks nothing, so a client that predates the field is never given a config it did not ask for. This SDK asks by default: `spaDetect` is `true` unless set `false` (`--no-spa-detect` on the CLI), and `false` sends nothing. A `ship.json` the deploy carries always wins.
+The platform asks it of a deploy that sends `spa=true` (`DEPLOY_FIELDS.SPA`) and writes the routing config itself, when the root `index.html` is an empty application shell and the deploy ships no `ship.json` (`cloudflare/api/src/lib/platform-files.ts`). Absence asks nothing. That is production's own field and meaning: the console sends `spa=true`, and 3.8 and older send nothing and run their own check through `/spa-check`. This SDK asks by default: the `spaDetect` option is `true` unless set `false` (`--no-spa-detect` on the CLI), and `false` sends nothing. The option and the field are two names for two layers. A `ship.json` the deploy carries always wins.
 
 It costs no request of its own. A deploy that splits carries the files that configure it in its bare declaration, the root `ship.json` and the root `index.html`, whether or not the question is asked (`deploy-plan.ts`). The API refuses a declaration that leaves the `ship.json` behind, and one that asks the question and leaves the `index.html` behind.
 
 `/spa-check` answers the same question without deploying, for the clients that predate the field. This SDK does not call it.
 
-**3.10 reaches `latest` only after the API that knows the field is on production.** An API without it gives no app its routing config, since this SDK no longer writes one. The API's smoke asks on a declaration that leaves `index.html` behind, which writes nothing and passes only on an API that knows the field (`cloudflare/api/CLAUDE.md`, "The release gate"); a green `pnpm smoke:prod:api` is the precondition for merging this repo's version to `main`. Three `tests/contract.ts` rows hold the wire: an app deployed with no option sends `spaDetect=true` and comes back configured, the opt-out sends nothing and leaves the app unconfigured, and a split declaration carries `index.html`. `pnpm test:e2e` proves them against a real API.
+**3.10 reaches `latest` only after the API that knows the field is on production.** An API without it gives no app its routing config, since this SDK no longer writes one. The API's smoke asks on a declaration that leaves `index.html` behind, which writes nothing and passes only on an API that knows the field (`cloudflare/api/CLAUDE.md`, "The release gate"); a green `pnpm smoke:prod:api` is the precondition for merging this repo's version to `main`. Three `tests/contract.ts` rows hold the wire: an app deployed with no option sends `spa=true` and comes back configured, the opt-out sends nothing and leaves the app unconfigured, and a split declaration carries `index.html`. `pnpm test:e2e` proves them against a real API.
 
 ## ship.json: the client checks syntax, the server owns the schema
 
@@ -1981,7 +1981,7 @@ validation error made with no request (`deployments.upload (no index.html)`).
 
 | SDK Method | API Endpoint | Notes |
 |------------|--------------|-------|
-| `deployments.upload()` | `POST /deployments` | The declaration: the manifest, the options (`spaDetect=true` among them unless `spaDetect` is `false`), the root `ship.json` and `index.html`, and any other files. 201 live when it carries every file, 202 pending otherwise |
+| `deployments.upload()` | `POST /deployments` | The declaration: the manifest, the options (`spa=true` among them unless `spaDetect` is `false`), the root `ship.json` and `index.html`, and any other files. 201 live when it carries every file, 202 pending otherwise |
 | ↳ each further batch | `POST /deployments/:deployment/files` | After a 202, one fill per batch: 202 still pending, 201 live, 200 already live. Files only |
 | ↳ `idempotencyKey` | header `Idempotency-Key` (the declaration only) | Answers the earliest live deployment the key made in your account within 24h, as it stands, instead of deploying twice. An anonymous key is ignored. Key the ATTEMPT (run id, commit sha), never the try. |
 | ↳ CLI `--domain` | *(no endpoint)* | Composed CLIENT-side: this upload, then `domains.set()` with the fresh id. Two wire calls, no new route, no SDK option — see "Composability". |

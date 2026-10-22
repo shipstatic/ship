@@ -62,7 +62,7 @@ export function deployFields(
   if (ttl !== undefined) fields.push([DEPLOY_FIELDS.TTL, String(ttl)]);
   // The platform asks the single-page question only when asked to, and
   // absence asks nothing, so the one value sent is the ask.
-  if (spaDetect) fields.push([DEPLOY_FIELDS.SPA_DETECT, 'true']);
+  if (spaDetect) fields.push([DEPLOY_FIELDS.SPA, 'true']);
   if (flags?.build) fields.push([DEPLOY_FIELDS.BUILD, 'true']);
   if (flags?.prerender) fields.push([DEPLOY_FIELDS.PRERENDER, 'true']);
   if (flags?.buildCommand) fields.push([DEPLOY_FIELDS.BUILD_COMMAND, flags.buildCommand]);

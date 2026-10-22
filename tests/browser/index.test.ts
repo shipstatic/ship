@@ -145,7 +145,7 @@ describe('Ship - Browser Implementation', () => {
 
       // The deploy asks in its one request: the question is the platform's.
       const [deploy] = (ship as any).http.carriedFor('Deploy');
-      expect((deploy.init.body as FormData).get('spaDetect')).toBe('true');
+      expect((deploy.init.body as FormData).get('spa')).toBe('true');
     });
   });
 

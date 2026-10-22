@@ -48,7 +48,7 @@ beforeEach(async () => {
   mockState().limits = { ...PAID_PLAN_LIMITS };
   // The classifier's answer, which the double does not compute: the one row
   // reading it deploys the app fixture, an empty shell the real API says yes to.
-  mockState().spa = true;
+  mockState().isSPA = true;
   ship = new Ship({ apiUrl: getMockServerUrl(), token: API_KEY });
 
   const deployment = await ship.deployments.upload(DEMO_SITE);

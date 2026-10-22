@@ -291,7 +291,7 @@ export const CONTRACT: readonly ContractPoint[] = [
   },
   {
     // The platform asks the single-page question of a deploy that sends
-    // `spaDetect=true`, and this client asks by default and no longer writes
+    // `spa=true`, and this client asks by default and no longer writes
     // the routing config itself, so an app deployed with no option must come
     // back configured and its request must carry the ask. The live half is
     // what proves the API answers it.
@@ -302,8 +302,8 @@ export const CONTRACT: readonly ContractPoint[] = [
     live: true,
     assert: (r) => {
       const { deployment, declaration } = r as Declared;
-      if (declaration?.get(DEPLOY_FIELDS.SPA_DETECT) !== 'true') {
-        throw new Error('A deploy that keeps the default asks: spaDetect=true');
+      if (declaration?.get(DEPLOY_FIELDS.SPA) !== 'true') {
+        throw new Error('A deploy that keeps the default asks: spa=true');
       }
       if (deployment.config !== true) {
         throw new Error('The platform must give an app its routing config');
@@ -321,8 +321,8 @@ export const CONTRACT: readonly ContractPoint[] = [
     live: true,
     assert: (r) => {
       const { deployment, declaration } = r as Declared;
-      if (declaration?.has(DEPLOY_FIELDS.SPA_DETECT)) {
-        throw new Error('The opt-out sends no spaDetect field');
+      if (declaration?.has(DEPLOY_FIELDS.SPA)) {
+        throw new Error('The opt-out sends no spa field');
       }
       if (deployment.config !== false) {
         throw new Error('An opted-out app must get no routing config');

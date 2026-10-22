@@ -63,11 +63,11 @@ export interface MockState {
   declarations: Map<string, { declared: Set<string>; arrived: Set<string>; ttl?: number }>;
   /**
    * What the single-page classifier answers when a declaration asks
-   * (`spaDetect=true`).
+   * (`spa=true`).
    * Set by the test that needs a yes; the double decides nothing (see the
    * `/deployments` arm in `handler.ts`).
    */
-  spa: boolean;
+  isSPA: boolean;
   findDeployment(idOrHostname: string): Deployment | undefined;
   createDeployment(
     anonymous: boolean,
@@ -104,7 +104,7 @@ export function createMockState(
     verifyCooldown: new Set(),
     idempotency: new Map(),
     declarations: new Map(),
-    spa: false,
+    isSPA: false,
 
     /** The API accepts a bare slug or the full hostname. wire: normalizeDeployment */
     findDeployment(idOrHostname) {

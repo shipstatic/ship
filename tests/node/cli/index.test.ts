@@ -241,7 +241,7 @@ describe('CLI command tree (in-process)', () => {
       };
 
       it("gets the platform's ship.json when the platform answers yes", async () => {
-        mockState().spa = true;
+        mockState().isSPA = true;
         expect(await configOf(SPA_SITE)).toBe(true);
       });
 
@@ -250,7 +250,7 @@ describe('CLI command tree (in-process)', () => {
       });
 
       it('--no-spa-detect sends the opt-out, so no config whatever the answer', async () => {
-        mockState().spa = true;
+        mockState().isSPA = true;
         expect(await configOf(SPA_SITE, '--no-spa-detect')).toBe(false);
       });
 

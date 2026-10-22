@@ -64,7 +64,7 @@ export interface DeployBodyContext {
   ttl?: number;
   /**
    * Whether the platform asks the single-page question of the files
-   * (`DEPLOY_FIELDS.SPA_DETECT`). It asks only when asked, so only `true` is
+   * (`DEPLOY_FIELDS.SPA`, `spa`). It asks only when asked, so only `true` is
    * sent, and the deploy's own `spaDetect` default decides it.
    */
   spaDetect?: boolean;
