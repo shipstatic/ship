@@ -2030,7 +2030,7 @@ commit that lands the import deletes it.
 
 | SDK Method | API Endpoint | Notes |
 |------------|--------------|-------|
-| `deployments.upload()` | `POST /deployments` | The declaration: the manifest, the options (`spa` among them unless `spaDetect` is `false`) and any of the files. 201 live when it carries every file, 202 pending otherwise |
+| `deployments.upload()` | `POST /deployments` | The declaration: the manifest, the options (`spa=false` among them when `spaDetect` is `false`), the root `ship.json` and `index.html`, and any other files. 201 live when it carries every file, 202 pending otherwise |
 | ↳ each further batch | `POST /deployments/:deployment/files` | After a 202, one fill per batch: 202 still pending, 201 live, 200 already live. Files only |
 | ↳ `idempotencyKey` | header `Idempotency-Key` (the declaration only) | Answers the earliest live deployment the key made in your account within 24h, as it stands, instead of deploying twice. An anonymous key is ignored. Key the ATTEMPT (run id, commit sha), never the try. |
 | ↳ CLI `--domain` | *(no endpoint)* | Composed CLIENT-side: this upload, then `domains.set()` with the fresh id. Two wire calls, no new route, no SDK option — see "Composability". |
