@@ -841,26 +841,22 @@ describe('processFilesForNode', () => {
       ]);
     });
 
-    it('keeps identically named files from different directories', async () => {
+    it('refuses files from different directories that land on one path', async () => {
+      // Files named one by one keep their basenames, so three config.json from
+      // three folders are one deploy path, which the API refuses in these words.
       writeTree({
         'dir1/config.json': '{"env": "dir1"}',
         'dir2/config.json': '{"env": "dir2"}',
-        'dir3/config.json': '{"env": "dir3"}',
         'index.html': HOME,
       });
 
-      const result = await processFilesForNode(
-        [at('dir1/config.json'), at('dir2/config.json'), at('dir3/config.json'), at('index.html')],
-        {},
-        FREE_PLAN_LIMITS,
-      );
-
-      expect(result.map((f) => f.path)).toEqual([
-        'config.json',
-        'config.json',
-        'config.json',
-        'index.html',
-      ]);
+      await expect(
+        processFilesForNode(
+          [at('dir1/config.json'), at('dir2/config.json'), at('index.html')],
+          {},
+          FREE_PLAN_LIMITS,
+        ),
+      ).rejects.toThrow('The file config.json appears twice.');
     });
 
     it('is line-ending agnostic', async () => {
@@ -969,12 +965,13 @@ describe('processFilesForNode', () => {
     it.skipIf(process.getuid?.() === 0)(
       'wraps an unreadable file into ShipError.file ("Failed to read file")',
       async () => {
-        writeTree({ 'locked.txt': 'cannot read me' });
+        // A site the rules accept, so the pipeline reaches the read.
+        writeTree({ 'index.html': HOME, 'locked.txt': 'cannot read me' });
         fs.chmodSync(at('locked.txt'), 0o000);
 
-        await expect(processFilesForNode([at('locked.txt')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-          'Failed to read file',
-        );
+        await expect(
+          processFilesForNode([at('index.html'), at('locked.txt')], {}, FREE_PLAN_LIMITS),
+        ).rejects.toThrow('Failed to read file');
       },
     );
   });

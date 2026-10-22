@@ -50,7 +50,7 @@ export function deployFields(
   manifest: ManifestEntry[],
   context: DeployBodyContext = {},
 ): DeployField[] {
-  const { labels, via, password, ttl, spa, flags, captcha } = context;
+  const { labels, via, password, ttl, spaDetect, flags, captcha } = context;
   const fields: DeployField[] = [[DEPLOY_FIELDS.MANIFEST, JSON.stringify(manifest)]];
   if (labels && labels.length > 0) fields.push([DEPLOY_FIELDS.LABELS, JSON.stringify(labels)]);
   if (via) fields.push([DEPLOY_FIELDS.VIA, via]);
@@ -60,9 +60,9 @@ export function deployFields(
   // than truthiness: the rule already refuses 0, and a truthiness test would
   // drop it silently instead of letting the caller hear why.
   if (ttl !== undefined) fields.push([DEPLOY_FIELDS.TTL, String(ttl)]);
-  // The platform asks the single-page question unless told not to, so only
-  // the opt-out is sent.
-  if (spa === false) fields.push([DEPLOY_FIELDS.SPA, 'false']);
+  // The platform asks the single-page question only when asked to, and
+  // absence asks nothing, so the one value sent is the ask.
+  if (spaDetect) fields.push([DEPLOY_FIELDS.SPA_DETECT, 'true']);
   if (flags?.build) fields.push([DEPLOY_FIELDS.BUILD, 'true']);
   if (flags?.prerender) fields.push([DEPLOY_FIELDS.PRERENDER, 'true']);
   if (flags?.buildCommand) fields.push([DEPLOY_FIELDS.BUILD_COMMAND, flags.buildCommand]);

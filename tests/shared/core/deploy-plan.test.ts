@@ -65,8 +65,8 @@ describe('planDeploy', () => {
       sized('docs/ship.json', 20),
     ];
 
-    // The same with or without the opt-out: the rule has no condition.
-    for (const context of [{}, { spa: false }]) {
+    // The same whether or not the deploy asks: the planner holds no condition.
+    for (const context of [{}, { spaDetect: true }]) {
       const plan = planDeploy(files, deployFields(deployManifest(files), context));
 
       expect(plan.declaration.map((f) => f.path)).toEqual(['index.html', 'ship.json']);

@@ -282,13 +282,14 @@ sequence, and since 2026-08-12 it is stated once in
 `shared/core/deploy-files.ts`. `node-files.ts` and `browser-files.ts` are the
 collectors, and the browser one is now nine lines of body.
 
-The seam is `DeploySource`: a path, an ORIGIN (named in the security refusal),
-a size, and a `read()`.
+The seam is `DeploySource`: a path, a size, and a `read()`.
 
 **`size` sits beside `read()` rather than behind it, and that is the design.**
 Node fills it from the `statSync` its directory walk already performs to tell a
-file from a directory, so the empty-file skip costs nothing and a deploy refused
-at file three never opens files four through nine hundred. It removed work
+file from a directory, so the empty-file skip costs nothing and every deploy
+rule is judged before the first `read()`: a refused deploy opens no file,
+however many it holds, because no rule reads more than a path and a size. It
+removed work
 rather than preserving it: the old loop stat'd every file a SECOND time to learn
 a number the walk had already read and thrown away.
 
@@ -1762,13 +1763,13 @@ not two".
 
 ## The single-page question
 
-The platform asks it of every deploy and writes the routing config itself, when the root `index.html` is an empty application shell and the deploy ships no `ship.json` (`cloudflare/api/src/lib/platform-files.ts`). The SDK sends nothing for that, because the default is the platform's: the one value it sends is the opt-out, `spa=false` (`DEPLOY_FIELDS.SPA`), when `spaDetect` is `false` (`--no-spa-detect` on the CLI). A `ship.json` the deploy carries always wins.
+The platform asks it of a deploy that sends `spaDetect=true` (`DEPLOY_FIELDS.SPA_DETECT`) and writes the routing config itself, when the root `index.html` is an empty application shell and the deploy ships no `ship.json` (`cloudflare/api/src/lib/platform-files.ts`). Absence asks nothing, so a client that predates the field is never given a config it did not ask for. This SDK asks by default: `spaDetect` is `true` unless set `false` (`--no-spa-detect` on the CLI), and `false` sends nothing. A `ship.json` the deploy carries always wins.
 
-It costs no request of its own. A deploy that splits carries the files that configure it in its bare declaration, the root `ship.json` and the root `index.html`, whether or not the question is asked (`deploy-plan.ts`); the API refuses a declaration that leaves either behind.
+It costs no request of its own. A deploy that splits carries the files that configure it in its bare declaration, the root `ship.json` and the root `index.html`, whether or not the question is asked (`deploy-plan.ts`). The API refuses a declaration that leaves the `ship.json` behind, and one that asks the question and leaves the `index.html` behind.
 
-`/spa-check` answers the same question without deploying. This SDK does not call it.
+`/spa-check` answers the same question without deploying, for the clients that predate the field. This SDK does not call it.
 
-**3.9 reaches `latest` only after the API that knows the field is on production.** An API without it gives no app its routing config, since this SDK no longer writes one, and refuses the opt-out. The API's smoke sends `spa=false` on a declaration and writes nothing (`cloudflare/api/CLAUDE.md`, "The release gate"); a green `pnpm smoke:prod:api` is the precondition for merging this repo's version to `main`. Three `tests/contract.ts` rows hold the wire: an app deployed with no option comes back configured and sent no field, the opt-out is sent as `spa=false` and leaves the app unconfigured, and a split declaration carries `index.html`. `pnpm test:e2e` proves them against a real API.
+**3.10 reaches `latest` only after the API that knows the field is on production.** An API without it gives no app its routing config, since this SDK no longer writes one. The API's smoke asks on a declaration that leaves `index.html` behind, which writes nothing and passes only on an API that knows the field (`cloudflare/api/CLAUDE.md`, "The release gate"); a green `pnpm smoke:prod:api` is the precondition for merging this repo's version to `main`. Three `tests/contract.ts` rows hold the wire: an app deployed with no option sends `spaDetect=true` and comes back configured, the opt-out sends nothing and leaves the app unconfigured, and a split declaration carries `index.html`. `pnpm test:e2e` proves them against a real API.
 
 ## ship.json: the client checks syntax, the server owns the schema
 
@@ -1935,22 +1936,22 @@ the API drop the field.
 **The rules are the platform's, and this package renders them.** Every rule a
 deployment's files are held to is one table in `@shipstatic/types` ("Deploy
 rules"): `FILE_RULES` for each file (name, extension, project, path, file size,
-running total) and `SET_RULES` for the deployment as a whole (it has files, no
-more than the plan allows, and a home page, `index.html` at its root). The API
+running total) and `SET_RULES` for the deployment as a whole (it has files,
+each path once, no more than the plan allows, and a home page, `index.html` at
+its root). The API
 judges a declaration by the same table, so a refusal reads the same wherever it
 is made, and a rule cannot be added to one judge and not the other. This package
 renders it twice and authors no sentence of its own:
 
-- **The throwing renderer**, `validateDeployFile` and `validateDeploySet`
-  (`shared/lib/security.ts`), which both deploy pipelines call: each file
-  before it is read (a refused file costs no I/O), then the set over the files
-  the deploy publishes. A refusal is `ShipError.validation`, the API's own type
-  and status for it.
+- **The throwing renderer** is `deployRefusal` itself, which the shared
+  pipeline (`core/deploy-files.ts`) calls over every file's path and size
+  before it reads one, so a refused deploy costs no I/O. A refusal is
+  `ShipError.validation`, the API's own type and status for it.
 - **The collecting renderer**, `validateFiles`, which the UI tier (drop) reads:
   each file's first broken rule, then the set rules, filed under `(N files)`
-  because they name no one file. Its own checks are only the ones about a
-  `File` rather than a deployment (a processing error, a negative size), and
-  an empty file is excluded with a warning, as the pipelines skip it.
+  because they name no one file. Its own check is the one about a `File`
+  rather than a deployment (a processing error), and an empty file is
+  excluded with a warning, as the pipelines skip it.
 
 **Every sentence is complete on its own**, names its file once (the set rules
 name none), and ends a limit's sentence with the way forward the API delivered
@@ -1980,7 +1981,7 @@ validation error made with no request (`deployments.upload (no index.html)`).
 
 | SDK Method | API Endpoint | Notes |
 |------------|--------------|-------|
-| `deployments.upload()` | `POST /deployments` | The declaration: the manifest, the options (`spa=false` among them when `spaDetect` is `false`), the root `ship.json` and `index.html`, and any other files. 201 live when it carries every file, 202 pending otherwise |
+| `deployments.upload()` | `POST /deployments` | The declaration: the manifest, the options (`spaDetect=true` among them unless `spaDetect` is `false`), the root `ship.json` and `index.html`, and any other files. 201 live when it carries every file, 202 pending otherwise |
 | ↳ each further batch | `POST /deployments/:deployment/files` | After a 202, one fill per batch: 202 still pending, 201 live, 200 already live. Files only |
 | ↳ `idempotencyKey` | header `Idempotency-Key` (the declaration only) | Answers the earliest live deployment the key made in your account within 24h, as it stands, instead of deploying twice. An anonymous key is ignored. Key the ATTEMPT (run id, commit sha), never the try. |
 | ↳ CLI `--domain` | *(no endpoint)* | Composed CLIENT-side: this upload, then `domains.set()` with the fresh id. Two wire calls, no new route, no SDK option — see "Composability". |

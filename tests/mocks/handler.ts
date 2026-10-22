@@ -226,12 +226,12 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       // `config` is derived from the DECLARATION, exactly as the API derives
       // it: a `ship.json` at the deploy root (optional leading slash, no other
       // path forgiveness), or the platform's single-page config where the
-      // request does not opt out (`spa=false`) and the classifier says yes. The classifier's
-      // answer is `state.spa`, set by the test: the SDK's tests pin what the
-      // SDK sends, never how the server decides (cloudflare/api/tests/lib/spa.test.ts).
-      // That makes `config` an observation of what the client sent:
-      // `--no-spa-detect` means `spa=false`, and `--no-path-detect` means a
-      // nested ship.json never reaches the root.
+      // request asks (`spaDetect=true`) and the classifier says yes. The
+      // classifier's answer is `state.spa`, set by the test: the SDK's tests
+      // pin what the SDK sends, never how the server decides
+      // (cloudflare/api/tests/lib/spa.test.ts). That makes `config` an
+      // observation of what the client sent: `--no-spa-detect` sends nothing,
+      // and `--no-path-detect` means a nested ship.json never reaches the root.
       // wire: lib/deployment-orchestrator.ts (`declare`) and
       // lib/platform-files.ts
       const uploaded = (form?.getAll(DEPLOY_FIELDS.FILES) ?? [])
@@ -273,20 +273,30 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
           : [...sizes].map(([path, size]) => ({ path, size }));
       const refusal = deployRefusal(entries, state.limits);
       if (refusal) return fail(ShipError.validation(refusal));
-      // wire: lib/upload-input.ts, `collectSpaFromFormData`: absent asks.
-      const spaField = form?.get(DEPLOY_FIELDS.SPA) ?? null;
+      // wire: lib/upload-input.ts, `readFlag`: only `true` asks.
+      const spaField = form?.get(DEPLOY_FIELDS.SPA_DETECT) ?? null;
       if (spaField !== null && spaField !== 'true' && spaField !== 'false') {
-        return fail(ShipError.validation('The spa field must be true or false.'));
+        return fail(ShipError.validation('The spaDetect field must be true or false.'));
       }
-      const asksSpa = spaField !== 'false';
-      // wire: lib/deployment-orchestrator.ts, `declare`: the files that
-      // configure a deployment ride its declaration.
-      for (const path of [DEPLOYMENT_CONFIG_FILENAME, 'index.html']) {
-        if (declared.has(path) && !uploaded.includes(path)) {
-          return fail(
-            ShipError.validation(`${path} must come in the request that sends the manifest.`),
-          );
-        }
+      const asksSpa = spaField === 'true';
+      // wire: lib/deployment-orchestrator.ts, `declare`: the router's program
+      // rides the declaration, and so does the page the question is asked of.
+      if (
+        declared.has(DEPLOYMENT_CONFIG_FILENAME) &&
+        !uploaded.includes(DEPLOYMENT_CONFIG_FILENAME)
+      ) {
+        return fail(
+          ShipError.validation(
+            `${DEPLOYMENT_CONFIG_FILENAME} must come in the request that sends the manifest.`,
+          ),
+        );
+      }
+      if (asksSpa && declared.has('index.html') && !uploaded.includes('index.html')) {
+        return fail(
+          ShipError.validation(
+            'index.html must come in the request that asks for single-page detection.',
+          ),
+        );
       }
       // wire: lib/deployment-orchestrator.ts, `declare`: law 6, before any write.
       if (!complete && anonymous) {

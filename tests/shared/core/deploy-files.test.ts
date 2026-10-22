@@ -40,7 +40,6 @@ interface TrackedSource extends DeploySource {
 function src(path: string, content = 'x', size?: number): TrackedSource {
   const source: TrackedSource = {
     path,
-    origin: `/abs/${path}`,
     size: size ?? Buffer.byteLength(content),
     readCount: 0,
     read: async () => {
@@ -145,19 +144,26 @@ describe('processDeployFiles', () => {
       expect(lying.readCount).toBe(0);
     });
 
-    it('stops reading at the first refusal', async () => {
-      // A deploy refused at file two must not open files three and four. The
-      // rules run before any I/O, on the strength of the path and size alone.
-      const later = [src('c.txt'), src('d.txt')];
-      await expect(
-        processDeployFiles(
-          [src('index.html'), src(NULL_BYTE_PATH), ...later],
-          {},
-          FREE_PLAN_LIMITS,
-        ),
-      ).rejects.toThrow('contains unsafe characters');
+    it('reads nothing when a file is refused', async () => {
+      // Every rule runs before any I/O, on the strength of the path and size
+      // alone, so the files before the refused one are not read either.
+      const sources = [src('index.html'), src(NULL_BYTE_PATH), src('c.txt'), src('d.txt')];
+      await expect(processDeployFiles(sources, {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+        'contains unsafe characters',
+      );
 
-      expect(later.map((s) => s.readCount)).toEqual([0, 0]);
+      expect(sources.map((s) => s.readCount)).toEqual([0, 0, 0, 0]);
+    });
+
+    it('reads nothing when the deployment as a whole is refused', async () => {
+      // No home page is known from the paths alone, so a large folder without
+      // one is refused before a single file is opened.
+      const sources = [src('a.txt'), src('b.txt'), src('c.txt')];
+      await expect(processDeployFiles(sources, {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+        "There's no index.html at the top of your site.",
+      );
+
+      expect(sources.map((s) => s.readCount)).toEqual([0, 0, 0]);
     });
 
     it('reads exactly once per file it keeps', async () => {

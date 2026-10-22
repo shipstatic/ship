@@ -64,10 +64,10 @@ export interface DeployBodyContext {
   ttl?: number;
   /**
    * Whether the platform asks the single-page question of the files
-   * (`DEPLOY_FIELDS.SPA`). It asks unless told not to, so only `false` is
-   * sent.
+   * (`DEPLOY_FIELDS.SPA_DETECT`). It asks only when asked, so only `true` is
+   * sent, and the deploy's own `spaDetect` default decides it.
    */
-  spa?: boolean;
+  spaDetect?: boolean;
   /**
    * @internal The server-side build flags, and the two build settings that
    * qualify `build` (the command to run, the folder the site lands in).

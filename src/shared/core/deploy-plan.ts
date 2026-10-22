@@ -5,9 +5,10 @@
  * `Content-Length` counts it, framing included. Everything that fits is one
  * request. Everything that does not is a bare declaration (the manifest, the
  * options, the root `ship.json`, which the API compiles at the declaration,
- * and the root `index.html` when the declaration asks the single-page
- * question of it) followed by batches of whole files, packed in order under
- * the same ceiling.
+ * and the root `index.html`, which the single-page question is asked of)
+ * followed by batches of whole files, packed in order under the same ceiling.
+ * Both ride every bare declaration, so the planner holds no condition the API
+ * would have to mirror.
  *
  * The count is a ceiling on what any runtime's `FormData` emits, so the
  * server's count never exceeds it, and a 413 on a request planned here means

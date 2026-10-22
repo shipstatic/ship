@@ -64,10 +64,6 @@ export function validateFiles<T extends ValidatableFile>(
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = file.statusMessage || `File "${file.name}" could not be read.`;
       errors.push({ file: file.name, message: statusMessage });
-    } else if (file.size < 0) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = `File "${file.name}" reports a negative size.`;
-      errors.push({ file: file.name, message: statusMessage });
     } else if (!isPublishedFile(file)) {
       // Excluded, not refused: the deployment goes on without it.
       fileStatus = FILE_VALIDATION_STATUS.EXCLUDED;

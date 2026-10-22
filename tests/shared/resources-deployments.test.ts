@@ -137,10 +137,10 @@ describe('Deployment Resource', () => {
   });
 
   describe('upload — the single-page question is the platform’s', () => {
-    it('leaves it to the platform by default: no field, and no other request', async () => {
+    it('asks it by default, in the one request: spaDetect=true and nothing else', async () => {
       await upload();
 
-      expect(body().has('spa')).toBe(false);
+      expect(body().get('spaDetect')).toBe('true');
       expect((body().getAll('files[]') as File[]).map((f) => f.name)).toEqual([
         'index.html',
         'style.css',
@@ -148,10 +148,10 @@ describe('Deployment Resource', () => {
       expect(carried.map((c) => c.operation)).toEqual(['Deploy']);
     });
 
-    it('sends the opt-out when spaDetect is false', async () => {
+    it('sends nothing when spaDetect is false: absence asks nothing', async () => {
       await upload({ spaDetect: false });
 
-      expect(body().get('spa')).toBe('false');
+      expect(body().has('spaDetect')).toBe(false);
     });
   });
 
@@ -262,7 +262,7 @@ describe('Deployment Resource', () => {
       // reason the choice lives here rather than in the transport: only this
       // file knows which flags mean server-side work.
       await upload({ spaDetect: true });
-      expect(body().has('spa')).toBe(false);
+      expect(body().get('spaDetect')).toBe('true');
       expect(deployCall().timeoutMs).toBe(300_000);
     });
   });
@@ -336,7 +336,7 @@ describe('Deployment Resource', () => {
 
       await upload({ spaDetect: false });
 
-      expect(body().get('spa')).toBe('false');
+      expect(body().has('spaDetect')).toBe(false);
       expect(names(deployCall())).toEqual(['index.html', 'ship.json']);
       expect(fills().map(names)).toEqual([['a.png'], ['b.png']]);
     });

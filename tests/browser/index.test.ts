@@ -143,9 +143,9 @@ describe('Ship - Browser Implementation', () => {
 
       await ship.deploy(mockFiles, { spaDetect: true });
 
-      // The platform asks by default: one request, and no field to send.
+      // The deploy asks in its one request: the question is the platform's.
       const [deploy] = (ship as any).http.carriedFor('Deploy');
-      expect((deploy.init.body as FormData).has('spa')).toBe(false);
+      expect((deploy.init.body as FormData).get('spaDetect')).toBe('true');
     });
   });
 

@@ -14,7 +14,6 @@ export * from './lib/file-validation.js';
 export * from './lib/junk.js';
 // Shared utilities
 export * from './lib/md5.js';
-export * from './lib/security.js';
 export * from './lib/text.js';
 // Core functionality
 export * from './resources.js';

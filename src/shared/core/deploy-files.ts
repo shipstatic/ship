@@ -11,33 +11,26 @@
  * a way to read it. That shape is what lets Node answer "how big is this?"
  * from the stat its directory walk already performed, which is how the empty-
  * file skip stays free — and it is why `read()` is a FUNCTION rather than a
- * field. The processor calls it for files that survive filtering and
- * validation and for no others, so a deploy refused at file three never opens
- * files four through nine hundred.
+ * field. Every deploy rule reads only a path and a size, so the whole
+ * deployment is judged before `read()` is called once: a refused deploy opens
+ * no file, however many it holds.
  */
 
 import type { PlatformLimits, StaticFile } from '@shipstatic/types';
-import { isPublishedFile, ShipError } from '@shipstatic/types';
+import { deployRefusal, isPublishedFile, ShipError } from '@shipstatic/types';
 import { optimizeDeployPaths } from '../lib/deploy-paths.js';
 import { filterJunk } from '../lib/junk.js';
 import { calculateMD5 } from '../lib/md5.js';
-import { validateDeployFile, validateDeploySet } from '../lib/security.js';
 import type { DeploymentOptions } from '../types.js';
 
 /**
  * One file a platform found, before this pipeline has decided anything about
- * it. The only thing a collector owes beyond the bytes is where they came
- * from and how many there are.
+ * it. The only thing a collector owes beyond the bytes is the path they want
+ * and how many there are.
  */
 export interface DeploySource {
   /** The path this file wants, as its platform names it — pre-optimization. */
   path: string;
-  /**
-   * Where the file came from, named in the security refusal: an absolute
-   * filesystem path in Node, a `File.name` in the browser. It is what makes
-   * an unsafe deploy path traceable back to the thing that produced it.
-   */
-  origin: string;
   /** Byte length, known WITHOUT reading — a stat, or `File.size`. */
   size: number;
   /** Reads the content. Called only for files that survive to the checksum. */
@@ -83,35 +76,24 @@ export async function processDeployFiles(
   // this pipeline judges nothing, so every check below reads as what it is.
   const rules = serverProcessed ? null : requireLimits(platformLimits);
 
+  // Every rule the deployment is held to, from the platform's one table, in
+  // the API's order: each published file with its running total, then the
+  // deployment as a whole over the files as sent, empty ones included. All of
+  // them read paths and sizes, which every collector knows before a read.
+  if (rules) {
+    const sent = kept.map(({ source, deployPath }) => ({ path: deployPath, size: source.size }));
+    const refusal = deployRefusal(sent, rules);
+    if (refusal) throw ShipError.validation(refusal);
+  }
+
   const files: StaticFile[] = [];
-  let totalSize = 0;
-
   for (const { source, deployPath } of kept) {
-    // An empty file is never published (`isPublishedFile`). The size is
-    // already in hand, so this costs nothing and reads nothing.
+    // An empty file is never published (`isPublishedFile`), so it is never read.
     if (rules && !isPublishedFile(source)) continue;
-
-    if (rules) {
-      // Every rule a file is held to, from the platform's one table, before
-      // the file is read: a refused file costs no I/O. `totalSize` INCLUDES
-      // this file, which the total rule relies on.
-      totalSize += source.size;
-      validateDeployFile({ path: deployPath, size: source.size, totalSize }, rules);
-    }
-
     const content = await source.read();
     const { md5 } = await calculateMD5(content);
     files.push({ path: deployPath, content, size: source.size, md5 });
   }
-
-  // The rules about the deployment as a whole, over the files as sent, empty
-  // ones included: it has files, no more than the plan allows, and a home page
-  // at its root, which they can then say is empty rather than missing.
-  if (rules)
-    validateDeploySet(
-      kept.map(({ source, deployPath }) => ({ path: deployPath, size: source.size })),
-      rules,
-    );
 
   return files;
 }

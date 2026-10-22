@@ -406,7 +406,7 @@ describe('File Validation', () => {
 
       expect(result.canDeploy).toBe(false);
       expect(result.errors[0].message).toBeDefined();
-      expect(result.errors[0].message).toContain('traversal');
+      expect(result.errors[0].message).toContain('starts with a dot');
       expect(result.validFiles).toHaveLength(0);
       expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
@@ -420,30 +420,6 @@ describe('File Validation', () => {
       expect(result.canDeploy).toBe(false);
       expect(result.errors[0].message).toBeDefined();
       expect(result.errors[0].message).toContain('contains unsafe characters');
-      expect(result.validFiles).toHaveLength(0);
-      expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
-      expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
-    });
-  });
-
-  describe('File Size Validation', () => {
-    const config: PlatformLimits = {
-      maxFileSize: 5 * 1024 * 1024,
-      maxTotalSize: 25 * 1024 * 1024,
-      maxFilesCount: 100,
-      blockedExtensions: BLOCKED_EXTENSIONS,
-    };
-
-    it('should reject negative file sizes (atomic)', () => {
-      const files = [
-        { ...createMockFile('negative.txt', -100), size: -100 },
-        createMockFile('valid.txt', 100),
-      ];
-
-      const result = validateFiles(files, config);
-
-      expect(result.canDeploy).toBe(false);
-      expect(result.errors[0].message).toContain('negative size');
       expect(result.validFiles).toHaveLength(0);
       expect(result.files[0].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
       expect(result.files[1].status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
@@ -773,7 +749,7 @@ describe('File Validation', () => {
       const result = validateFiles([createMockFile('../../../etc/passwd', 100)], config);
       expect(result.canDeploy).toBe(false);
       expect(result.errors[0].message).toBeDefined();
-      expect(result.errors[0].message).toContain('traversal');
+      expect(result.errors[0].message).toContain('starts with a dot');
     });
 
     it('should accept valid filenames', () => {
@@ -784,7 +760,6 @@ describe('File Validation', () => {
         'file123.txt',
         'FILE.TXT',
         'bundle.min.js',
-        'index.html',
         'README.md',
         'config.json',
       ];
@@ -1062,25 +1037,6 @@ describe('File Validation - Boundary Tests', () => {
     });
   });
 
-  describe('Negative Size Edge Cases', () => {
-    it('should reject file with size -1', () => {
-      const files = site({ ...createMockFile('negative.txt', -1), size: -1 });
-      const result = validateFiles(files, config);
-
-      expect(result.canDeploy).toBe(false);
-      expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain('negative size');
-    });
-
-    it('should reject file with very large negative size', () => {
-      const files = site({ ...createMockFile('negative.txt', -999999), size: -999999 });
-      const result = validateFiles(files, config);
-
-      expect(result.canDeploy).toBe(false);
-      expect(result.errors).toHaveLength(1);
-    });
-  });
-
   describe('Filename Length Boundaries', () => {
     it('should accept very long but valid filename', () => {
       // 255 characters is typical filesystem limit
@@ -1191,7 +1147,6 @@ describe('File Validation - Boundary Tests', () => {
         [{ name: 'broken.txt', size: 1, status: FILE_VALIDATION_STATUS.PROCESSING_ERROR }],
       ],
       ['empty file', [createMockFile('empty.txt', 0)]],
-      ['negative size', [createMockFile('negative.txt', -1)]],
       ['null byte', [createMockFile('nul\0.txt', 1)]],
       ['project file', [createMockFile('node_modules/a/b.js', 1)]],
       ['hidden path', [createMockFile('.env', 1)]],

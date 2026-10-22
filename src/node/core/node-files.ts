@@ -159,7 +159,6 @@ export async function processFilesForNode(
   //    walk; the bytes are read only if the file survives that far.
   const sources: DeploySource[] = [...unique].map(([absPath, size]) => ({
     path: contentPath(absPath, inputBasePath),
-    origin: absPath,
     size,
     read: () => readContent(absPath),
   }));

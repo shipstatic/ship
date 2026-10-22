@@ -134,7 +134,8 @@ export function createDeploymentResource(
      * The whole deploy, in the order it happens: collect the files, validate
      * the request boundary, plan the requests, send them. The platform asks
      * the single-page question of the files and writes the routing config
-     * itself; `spaDetect: false` sends the opt-out (`spa=false`).
+     * itself when the deploy asks it to: every deploy asks
+     * (`spaDetect=true`) unless `spaDetect` is `false`, which sends nothing.
      *
      * A deploy is declared, then filled. The manifest always rides the
      * declaration: below the request ceiling the declaration carries every
@@ -171,7 +172,7 @@ export function createDeploymentResource(
         via: options.via ?? DEPLOY_VIA,
         password,
         ttl,
-        spa: options.spaDetect !== false,
+        spaDetect: options.spaDetect !== false,
         flags: built
           ? { build: options.build, prerender: options.prerender, buildCommand, outputDir }
           : undefined,

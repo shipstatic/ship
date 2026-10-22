@@ -401,19 +401,16 @@ describe('Browser File Processing', () => {
       expect(result[1].path).toBe('timed-file.txt');
     });
 
-    it('should handle files with identical names', async () => {
+    it('refuses files that name one path, as the API does', async () => {
       const duplicateFiles = [
         home(),
         new File(['content1'], 'duplicate.txt'),
         new File(['content2'], 'duplicate.txt'),
-        new File(['content3'], 'duplicate.txt'),
       ];
 
-      const result = await processFilesForBrowser(duplicateFiles, {}, FREE_PLAN_LIMITS);
-
-      expect(result).toHaveLength(4);
-      // All should be processed, even with duplicate names
-      expect(result.slice(1).every((f) => f.path === 'duplicate.txt')).toBe(true);
+      await expect(processFilesForBrowser(duplicateFiles, {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+        'The file duplicate.txt appears twice.',
+      );
     });
   });
 

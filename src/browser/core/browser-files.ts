@@ -47,7 +47,6 @@ export async function processFilesForBrowser(
       // A directory drop or `<input webkitdirectory>` carries the relative
       // path; a plain file picker leaves it empty and the name is the path.
       path: file.webkitRelativePath || file.name,
-      origin: file.name,
       size: file.size,
       // Already in hand — a `File` IS the bytes, and a lazy read here would be
       // a promise wrapping a value the browser handed us at drop time.
