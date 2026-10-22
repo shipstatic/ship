@@ -14,6 +14,7 @@ import {
   brokenSetRule,
   FileValidationStatus as FILE_VALIDATION_STATUS,
   firstBrokenRule,
+  isPublishedFile,
 } from '@shipstatic/types';
 
 // The platform's one reading of a byte count, re-exported so this package's
@@ -63,15 +64,15 @@ export function validateFiles<T extends ValidatableFile>(
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = file.statusMessage || `File "${file.name}" could not be read.`;
       errors.push({ file: file.name, message: statusMessage });
-    } else if (file.size === 0) {
-      // Excluded, not refused: the deployment goes on without it.
-      fileStatus = FILE_VALIDATION_STATUS.EXCLUDED;
-      statusMessage = `File "${file.name}" is empty, so it is excluded.`;
-      warnings.push({ file: file.name, message: statusMessage });
     } else if (file.size < 0) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = `File "${file.name}" reports a negative size.`;
       errors.push({ file: file.name, message: statusMessage });
+    } else if (!isPublishedFile(file)) {
+      // Excluded, not refused: the deployment goes on without it.
+      fileStatus = FILE_VALIDATION_STATUS.EXCLUDED;
+      statusMessage = `File "${file.name}" is empty, so it is excluded.`;
+      warnings.push({ file: file.name, message: statusMessage });
     } else {
       const input = { path: file.name, size: file.size, totalSize: totalSize + file.size };
       const broken = firstBrokenRule(input, config);
@@ -92,12 +93,11 @@ export function validateFiles<T extends ValidatableFile>(
     fileStatuses.push({ ...file, status: fileStatus, statusMessage });
   }
 
-  // The rules about the deployment as a whole, over the files it publishes.
-  const published = fileStatuses
-    .filter((file) => file.status !== FILE_VALIDATION_STATUS.EXCLUDED)
-    .map((file) => file.name);
-  const broken = brokenSetRule(published, config);
-  if (broken) errors.push({ file: deployment, message: broken.sentence(published, config) });
+  // The rules about the deployment as a whole, over the files as sent: they
+  // count only what is published, and say when the home page is empty.
+  const sent = fileStatuses.map((file) => ({ path: file.name, size: file.size }));
+  const broken = brokenSetRule(sent, config);
+  if (broken) errors.push({ file: deployment, message: broken.sentence(sent, config) });
 
   // ATOMIC ENFORCEMENT: Two-phase validation for optimal UX + atomic semantics
   // Phase 1 (above): Validate files individually to collect ALL errors

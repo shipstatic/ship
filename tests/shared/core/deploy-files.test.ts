@@ -361,10 +361,12 @@ describe('processDeployFiles', () => {
       );
     });
 
-    it('judges the home page over the files it publishes: an empty one is not one', async () => {
+    it('says an empty index.html is empty, never missing: it is sent, and never published', async () => {
       await expect(
         processDeployFiles([src('index.html', ''), src('app.js')], {}, FREE_PLAN_LIMITS),
-      ).rejects.toThrow("There's no index.html at the top of your site.");
+      ).rejects.toThrow(
+        "The index.html at the top of your site is empty. It's the page visitors see first, so it needs content.",
+      );
     });
   });
 });

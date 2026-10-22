@@ -5,7 +5,7 @@
  * says, so a refusal reads the same here as at the API, and both pipelines
  * (node and browser) refuse alike by construction.
  */
-import type { DeployRuleFile, PlatformLimits } from '@shipstatic/types';
+import type { DeployEntry, DeployRuleFile, PlatformLimits } from '@shipstatic/types';
 import { brokenSetRule, firstBrokenRule, ShipError } from '@shipstatic/types';
 
 /**
@@ -24,11 +24,12 @@ export function validateDeployFile(file: DeployRuleFile, limits: PlatformLimits)
  * Refuse the deployment as a whole by the first set rule it breaks: no files,
  * too many, or no home page at its root.
  *
- * @param paths - The paths of the files the deployment publishes
+ * @param files - The files the deployment was sent, empty ones included: the
+ *   rules count only what is published, and say when the home page is empty
  * @param limits - The platform's limits, from `/limits`
  * @throws {ShipError} The first broken rule's sentence
  */
-export function validateDeploySet(paths: readonly string[], limits: PlatformLimits): void {
-  const broken = brokenSetRule(paths, limits);
-  if (broken) throw ShipError.validation(broken.sentence(paths, limits));
+export function validateDeploySet(files: readonly DeployEntry[], limits: PlatformLimits): void {
+  const broken = brokenSetRule(files, limits);
+  if (broken) throw ShipError.validation(broken.sentence(files, limits));
 }

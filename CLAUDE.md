@@ -1968,8 +1968,11 @@ name. A `..` segment is dot-prefixed, so it is filtered rather than refused.
 the first request, and when exactly one folder holds the shallowest nested
 `index.html` the sentence names it ("There's one in dist/. If that's your site,
 publish that folder instead."), which is the usual cause: a site deployed from
-the folder above its build. An empty `index.html` is not one, since no
-deployment stores an empty file. `tests/contract.ts` holds the refusal as a
+the folder above its build. An empty `index.html` is refused as EMPTY ("The
+index.html at the top of your site is empty."), because both renderers hand the
+set rules the files as sent, empty ones included, and the table decides what is
+published (`isPublishedFile`): an empty file is never published, and never
+refused for itself. `tests/contract.ts` holds the refusal as a
 validation error made with no request (`deployments.upload (no index.html)`).
 
 ## Backend Integration

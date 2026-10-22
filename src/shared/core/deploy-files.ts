@@ -17,7 +17,7 @@
  */
 
 import type { PlatformLimits, StaticFile } from '@shipstatic/types';
-import { ShipError } from '@shipstatic/types';
+import { isPublishedFile, ShipError } from '@shipstatic/types';
 import { optimizeDeployPaths } from '../lib/deploy-paths.js';
 import { filterJunk } from '../lib/junk.js';
 import { calculateMD5 } from '../lib/md5.js';
@@ -87,9 +87,9 @@ export async function processDeployFiles(
   let totalSize = 0;
 
   for (const { source, deployPath } of kept) {
-    // A published file is never empty (the API stores none). The size is
+    // An empty file is never published (`isPublishedFile`). The size is
     // already in hand, so this costs nothing and reads nothing.
-    if (rules && source.size === 0) continue;
+    if (rules && !isPublishedFile(source)) continue;
 
     if (rules) {
       // Every rule a file is held to, from the platform's one table, before
@@ -104,11 +104,12 @@ export async function processDeployFiles(
     files.push({ path: deployPath, content, size: source.size, md5 });
   }
 
-  // The rules about the deployment as a whole, over the files it publishes:
-  // it has files, no more than the plan allows, and a home page at its root.
+  // The rules about the deployment as a whole, over the files as sent, empty
+  // ones included: it has files, no more than the plan allows, and a home page
+  // at its root, which they can then say is empty rather than missing.
   if (rules)
     validateDeploySet(
-      files.map((file) => file.path),
+      kept.map(({ source, deployPath }) => ({ path: deployPath, size: source.size })),
       rules,
     );
 

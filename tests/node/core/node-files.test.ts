@@ -807,12 +807,14 @@ describe('processFilesForNode', () => {
       expect(pathsOf(result)).toEqual(['index.html']);
     });
 
-    it('refuses an empty index.html: a published file is never empty', async () => {
+    it('refuses an empty index.html as empty: a published file is never empty', async () => {
       writeTree({ 'index.html': '', 'app.js': 'js' });
 
       await expect(
         processFilesForNode([at('index.html'), at('app.js')], {}, FREE_PLAN_LIMITS),
-      ).rejects.toThrow(NO_INDEX);
+      ).rejects.toThrow(
+        "The index.html at the top of your site is empty. It's the page visitors see first, so it needs content.",
+      );
     });
 
     it('mixes file and directory inputs', async () => {

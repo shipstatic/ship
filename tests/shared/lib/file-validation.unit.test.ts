@@ -1266,14 +1266,20 @@ describe('File Validation - Boundary Tests', () => {
       });
     });
 
-    it('counts an empty index.html as missing: an empty file is never published', () => {
+    it('says an empty index.html is empty, never missing: it is sent, and never published', () => {
       const result = validateFiles(
         [createMockFile('index.html', 0), createMockFile('style.css', 10)],
         config,
       );
 
       expect(result.canDeploy).toBe(false);
-      expect(result.errors).toEqual([{ file: '(2 files)', message: NO_HOME }]);
+      expect(result.errors).toEqual([
+        {
+          file: '(2 files)',
+          message:
+            "The index.html at the top of your site is empty. It's the page visitors see first, so it needs content.",
+        },
+      ]);
       expect(result.warnings.map((w) => w.file)).toEqual(['index.html']);
     });
 
