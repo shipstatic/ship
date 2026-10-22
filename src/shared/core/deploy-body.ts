@@ -60,7 +60,9 @@ export function deployFields(
   // than truthiness: the rule already refuses 0, and a truthiness test would
   // drop it silently instead of letting the caller hear why.
   if (ttl !== undefined) fields.push([DEPLOY_FIELDS.TTL, String(ttl)]);
-  if (spa) fields.push([DEPLOY_FIELDS.SPA, 'true']);
+  // The platform asks the single-page question unless told not to, so only
+  // the opt-out is sent.
+  if (spa === false) fields.push([DEPLOY_FIELDS.SPA, 'false']);
   if (flags?.build) fields.push([DEPLOY_FIELDS.BUILD, 'true']);
   if (flags?.prerender) fields.push([DEPLOY_FIELDS.PRERENDER, 'true']);
   if (flags?.buildCommand) fields.push([DEPLOY_FIELDS.BUILD_COMMAND, flags.buildCommand]);

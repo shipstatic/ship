@@ -85,15 +85,22 @@ export const BUILD_TOO_LARGE = `We can build projects up to ${formatFileSize(MAX
 const INDEX_PATH = 'index.html';
 
 /**
+ * The files that configure a deployment ride its declaration: the root
+ * `ship.json`, which the API compiles there, and the root `index.html`, which
+ * the single-page question is asked of. The API refuses a declaration that
+ * leaves either behind.
+ */
+const configures = (file: StaticFile) =>
+  file.path === DEPLOYMENT_CONFIG_FILENAME || file.path === INDEX_PATH;
+
+/**
  * Plan a deploy: one request when everything fits, otherwise a bare
  * declaration and as many fills as the files need.
  *
- * What the declaration asks decides what it must carry, so the plan reads it
- * from the fields rather than from a second statement of the same options. A
- * build or a prerender reads every file in the request that asks for it, so
- * it is never split. Otherwise the bare declaration carries the root
- * `ship.json`, which the API compiles there, and, when it asks the
- * single-page question, the root `index.html` the question is asked of.
+ * A build or a prerender reads every file in the request that asks for it,
+ * so it is never split; the plan reads that from the fields rather than from
+ * a second statement of the same options. Otherwise the bare declaration
+ * carries the files that configure the deployment.
  */
 export function planDeploy(files: StaticFile[], fields: DeployField[]): DeployPlan {
   const asks = (name: string) => fields.some(([field]) => field === name);
@@ -102,15 +109,12 @@ export function planDeploy(files: StaticFile[], fields: DeployField[]): DeployPl
     throw ShipError.validation(BUILD_TOO_LARGE);
   }
 
-  const spa = asks(DEPLOY_FIELDS.SPA);
-  const declared = (file: StaticFile) =>
-    file.path === DEPLOYMENT_CONFIG_FILENAME || (spa && file.path === INDEX_PATH);
-  const declaration = files.filter(declared);
+  const declaration = files.filter(configures);
   const fills: StaticFile[][] = [];
   let batch: StaticFile[] = [];
   let size = PART_OVERHEAD;
   for (const file of files) {
-    if (declared(file)) continue;
+    if (configures(file)) continue;
     const bytes = fileBytes(file);
     if (batch.length > 0 && size + bytes > MAX_BYTES) {
       fills.push(batch);

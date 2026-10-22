@@ -132,9 +132,9 @@ export function createDeploymentResource(
   return {
     /**
      * The whole deploy, in the order it happens: collect the files, validate
-     * the request boundary, plan the requests, send them. The single-page
-     * question rides the declaration (`spa`, unless `spaDetect` is `false`):
-     * the platform asks it of the files and writes the routing config itself.
+     * the request boundary, plan the requests, send them. The platform asks
+     * the single-page question of the files and writes the routing config
+     * itself; `spaDetect: false` sends the opt-out (`spa=false`).
      *
      * A deploy is declared, then filled. The manifest always rides the
      * declaration: below the request ceiling the declaration carries every

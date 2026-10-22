@@ -225,11 +225,11 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
       // `config` is derived from the DECLARATION, exactly as the API derives
       // it: a `ship.json` at the deploy root (optional leading slash, no other
       // path forgiveness), or the platform's single-page config where the
-      // request asks (`spa`) and the classifier says yes. The classifier's
+      // request does not opt out (`spa=false`) and the classifier says yes. The classifier's
       // answer is `state.spa`, set by the test: the SDK's tests pin what the
       // SDK sends, never how the server decides (cloudflare/api/tests/lib/spa.test.ts).
       // That makes `config` an observation of what the client sent:
-      // `--no-spa-detect` means no `spa` field, and `--no-path-detect` means a
+      // `--no-spa-detect` means `spa=false`, and `--no-path-detect` means a
       // nested ship.json never reaches the root.
       // wire: lib/deployment-orchestrator.ts (`declare`) and
       // lib/platform-files.ts
@@ -256,15 +256,20 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
           : uploaded,
       );
       const complete = [...declared].every((p) => uploaded.includes(p));
-      const asksSpa = form?.get(DEPLOY_FIELDS.SPA) === 'true';
-      // wire: lib/deployment-orchestrator.ts, `declare`: the page the
-      // single-page question is asked of rides the declaring request.
-      if (asksSpa && declared.has('index.html') && !uploaded.includes('index.html')) {
-        return fail(
-          ShipError.validation(
-            'index.html must come in the request that sends the manifest when it asks for spa.',
-          ),
-        );
+      // wire: lib/upload-input.ts, `collectSpaFromFormData`: absent asks.
+      const spaField = form?.get(DEPLOY_FIELDS.SPA) ?? null;
+      if (spaField !== null && spaField !== 'true' && spaField !== 'false') {
+        return fail(ShipError.validation('The spa field must be true or false.'));
+      }
+      const asksSpa = spaField !== 'false';
+      // wire: lib/deployment-orchestrator.ts, `declare`: the files that
+      // configure a deployment ride its declaration.
+      for (const path of [DEPLOYMENT_CONFIG_FILENAME, 'index.html']) {
+        if (declared.has(path) && !uploaded.includes(path)) {
+          return fail(
+            ShipError.validation(`${path} must come in the request that sends the manifest.`),
+          );
+        }
       }
       // wire: lib/deployment-orchestrator.ts, `declare`: law 6, before any write.
       if (!complete && anonymous) {

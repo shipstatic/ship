@@ -54,32 +54,7 @@ describe('planDeploy', () => {
     expect(plan).toEqual({ declaration: files, fills: [] });
   });
 
-  it('declares a deploy that does not fit bare, with its root ship.json, then fills it in order', () => {
-    const files = [
-      sized('index.html', 10),
-      sized('a.png', 30 * MiB),
-      sized('b.png', 30 * MiB),
-      sized('ship.json', 20),
-      sized('c.png', 30 * MiB),
-      sized('docs/ship.json', 20),
-    ];
-    const plan = planDeploy(files, deployFields(deployManifest(files)));
-
-    expect(plan.declaration.map((f) => f.path)).toEqual(['ship.json']);
-    // Every other file exactly once, in the order given; a nested ship.json is
-    // ordinary content.
-    expect(plan.fills.flat().map((f) => f.path)).toEqual([
-      'index.html',
-      'a.png',
-      'b.png',
-      'c.png',
-      'docs/ship.json',
-    ]);
-    for (const fill of plan.fills) expect(bodyBytes(fill, [])).toBeLessThanOrEqual(MAX_BYTES);
-    expect(plan.fills).toHaveLength(2);
-  });
-
-  it('carries the root index.html in the declaration when it asks the single-page question', () => {
+  it('declares a deploy that does not fit bare, with the files that configure it, then fills it in order', () => {
     const files = [
       sized('a.png', 30 * MiB),
       sized('index.html', 10),
@@ -87,19 +62,26 @@ describe('planDeploy', () => {
       sized('ship.json', 20),
       sized('blog/index.html', 10),
       sized('c.png', 30 * MiB),
+      sized('docs/ship.json', 20),
     ];
 
-    const asked = planDeploy(files, deployFields(deployManifest(files), { spa: true }));
-    expect(asked.declaration.map((f) => f.path)).toEqual(['index.html', 'ship.json']);
-    expect(asked.fills.flat().map((f) => f.path)).toEqual([
-      'a.png',
-      'b.png',
-      'blog/index.html',
-      'c.png',
-    ]);
+    // The same with or without the opt-out: the rule has no condition.
+    for (const context of [{}, { spa: false }]) {
+      const plan = planDeploy(files, deployFields(deployManifest(files), context));
 
-    const unasked = planDeploy(files, deployFields(deployManifest(files)));
-    expect(unasked.declaration.map((f) => f.path)).toEqual(['ship.json']);
+      expect(plan.declaration.map((f) => f.path)).toEqual(['index.html', 'ship.json']);
+      // Every other file exactly once, in the order given; a nested page or
+      // ship.json is ordinary content.
+      expect(plan.fills.flat().map((f) => f.path)).toEqual([
+        'a.png',
+        'b.png',
+        'blog/index.html',
+        'c.png',
+        'docs/ship.json',
+      ]);
+      for (const fill of plan.fills) expect(bodyBytes(fill, [])).toBeLessThanOrEqual(MAX_BYTES);
+      expect(plan.fills).toHaveLength(2);
+    }
   });
 
   it('refuses a prerender that does not fit one request, as it refuses a build', () => {

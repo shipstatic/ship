@@ -122,7 +122,7 @@ ${applyBold('FLAGS')}
   --label <label>           Set label, a word or key:value (repeatable, replaces all existing)
   --password <password>     Password-protect this deployment
   --no-path-detect          Disable automatic path optimization and flattening
-  --no-spa-detect           Disable automatic SPA detection and configuration
+  --no-spa-detect           Don't let the platform set up routing for a single-page app
   --no-color                Disable colored output
   --json                    Output results in JSON format
   -q, --quiet               Output only the resource identifier
@@ -876,7 +876,7 @@ export function buildProgram(): Command {
       .option('--password <password>', 'Password-protect this deployment')
       .option('--ttl <duration>', 'Expire after this long — 3600, 1h, 7d (needs a token)', parseTtl)
       .option('--no-path-detect', 'Disable automatic path optimization and flattening')
-      .option('--no-spa-detect', 'Disable automatic SPA detection and configuration');
+      .option('--no-spa-detect', "Don't let the platform set up routing for a single-page app");
 
   // Deployments commands
   const deploymentsCmd = program

@@ -63,8 +63,9 @@ export interface DeployBodyContext {
    */
   ttl?: number;
   /**
-   * Ask the platform the single-page question of the files
-   * (`DEPLOY_FIELDS.SPA`): the SDK asks unless `spaDetect` is `false`.
+   * Whether the platform asks the single-page question of the files
+   * (`DEPLOY_FIELDS.SPA`). It asks unless told not to, so only `false` is
+   * sent.
    */
   spa?: boolean;
   /**

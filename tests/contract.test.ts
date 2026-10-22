@@ -23,6 +23,8 @@ import { getMockServerUrl, mockState } from './mocks/server';
 const API_KEY = apiKey('a');
 /** The same fixture the e2e half deploys, so both halves upload like a user. */
 const DEMO_SITE = path.resolve(__dirname, './fixtures/demo-site');
+/** A single-page app: an empty shell and its script. */
+const APP_SITE = path.resolve(__dirname, './fixtures/spa-site');
 
 let ship: Ship;
 let ctx: ContractContext;
@@ -42,6 +44,9 @@ beforeEach(async () => {
   // runner's dev account does, so a deploy larger than one request is one it
   // may make.
   mockState().limits = { ...PAID_PLAN_LIMITS };
+  // The classifier's answer, which the double does not compute: the one row
+  // reading it deploys the app fixture, an empty shell the real API says yes to.
+  mockState().spa = true;
   ship = new Ship({ apiUrl: getMockServerUrl(), token: API_KEY });
 
   const deployment = await ship.deployments.upload(DEMO_SITE);
@@ -58,6 +63,7 @@ beforeEach(async () => {
     // load, so this client cannot pick one up from the developer's shell.
     anonymous: new Ship({ apiUrl: getMockServerUrl() }),
     sitePath: DEMO_SITE,
+    appPath: APP_SITE,
     largeSitePath,
     // The mock's state resets after every test; nothing outlives the run.
     created: () => {},

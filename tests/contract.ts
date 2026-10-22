@@ -100,6 +100,11 @@ export interface ContractContext {
    */
   sitePath: string;
   /**
+   * A directory whose `index.html` is an empty application shell: a
+   * single-page app, which the platform gives its routing config.
+   */
+  appPath: string;
+  /**
    * A directory larger than one deploy request carries
    * (`writeLargeSite`), so the SDK sends it in several requests.
    */
@@ -129,6 +134,37 @@ const NO_DOMAINS = 'e2e creates no domains — a custom domain has billing impli
 const NO_ANONYMOUS_DEPLOYS =
   'e2e makes no anonymous deployment: one it cannot delete lingers for days';
 const NO_TOKENS = 'e2e creates no tokens — they accumulate with no cleanup path';
+
+/** A deployment, and the declaring request that made it. */
+interface Declared {
+  deployment: { deployment: string; config: boolean };
+  declaration?: FormData;
+}
+
+/**
+ * Run a deploy and keep its declaring request's body: the first request that
+ * carries a manifest. Told to the runner, so the live half deletes it.
+ */
+async function declared(
+  s: Ship,
+  c: ContractContext,
+  deploy: () => Promise<Declared['deployment']>,
+): Promise<Declared> {
+  let declaration: FormData | undefined;
+  const sent = (_url: string, init: RequestInit) => {
+    if (!declaration && init.body instanceof FormData && init.body.has(DEPLOY_FIELDS.MANIFEST)) {
+      declaration = init.body;
+    }
+  };
+  s.on('request', sent);
+  try {
+    const deployment = await deploy();
+    c.created(deployment.deployment);
+    return { deployment, declaration };
+  } finally {
+    s.off('request', sent);
+  }
+}
 
 export const CONTRACT: readonly ContractPoint[] = [
   // --- reads ---------------------------------------------------------------
@@ -215,11 +251,9 @@ export const CONTRACT: readonly ContractPoint[] = [
     // and the row also holds the sequence, since a deploy that answered 201
     // at the declaration would pass on the status alone.
     //
-    // The declaration asks the single-page question (`spa`, sent unless
-    // `spaDetect` is false), and the API refuses a declaration that asks it
-    // and leaves the root index.html behind (400): the question is asked of
-    // the page in that request. So the row reads both off the declaring
-    // request's own body, and the live half proves the API accepts the field.
+    // The files that configure a deployment ride its declaration, and the
+    // API refuses one that leaves the root index.html behind (400), so the
+    // row reads the declaring request's own body for it.
     // wire: routes/deployments.ts (POST / and POST /:deployment/files) →
     // lib/deployment-orchestrator.ts (createDeployment, fillDeployment, declare)
     name: 'deployments.upload (several requests)',
@@ -237,40 +271,61 @@ export const CONTRACT: readonly ContractPoint[] = [
         throw new Error(`The last answer must be the live deployment, got ${deployment.status}`);
       }
       const { declaration } = r as { declaration?: FormData };
-      if (declaration?.get(DEPLOY_FIELDS.SPA) !== 'true') {
-        throw new Error('The declaration must ask the single-page question');
-      }
-      const carried = declaration.getAll('files[]').map((file) => (file as File).name);
+      const carried = (declaration?.getAll('files[]') ?? []).map((file) => (file as File).name);
       if (!carried.includes('index.html')) {
-        throw new Error(
-          `The declaration must carry index.html when it asks spa; saw ${carried.join(', ')}`,
-        );
+        throw new Error(`The declaration must carry index.html; saw ${carried.join(', ')}`);
       }
     },
     run: async (s, c) => {
       const statuses: number[] = [];
-      let declaration: FormData | undefined;
-      const sent = (_url: string, init: RequestInit) => {
-        if (
-          !declaration &&
-          init.body instanceof FormData &&
-          init.body.has(DEPLOY_FIELDS.MANIFEST)
-        ) {
-          declaration = init.body;
-        }
-      };
       const seen = (response: Response) => statuses.push(response.status);
-      s.on('request', sent);
       s.on('response', seen);
       try {
-        const deployment = await s.deployments.upload(c.largeSitePath);
-        c.created(deployment.deployment);
-        return { deployment, statuses, declaration };
+        return { ...(await declared(s, c, () => s.deployments.upload(c.largeSitePath))), statuses };
       } finally {
-        s.off('request', sent);
         s.off('response', seen);
       }
     },
+  },
+  {
+    // The platform asks every deploy the single-page question unless it
+    // sends `spa=false`, and this client no longer writes the routing config
+    // itself, so an app deployed with no option must come back configured
+    // and its request must carry no `spa` field. The live half is what proves
+    // the API asks by default.
+    // wire: lib/upload-input.ts (`collectSpaFromFormData`) →
+    // lib/platform-files.ts (`platformFiles`)
+    name: 'deployments.upload (an app)',
+    status: 201,
+    live: true,
+    assert: (r) => {
+      const { deployment, declaration } = r as Declared;
+      if (declaration?.has(DEPLOY_FIELDS.SPA)) {
+        throw new Error('A deploy that keeps the default sends no spa field');
+      }
+      if (deployment.config !== true) {
+        throw new Error('The platform must give an app its routing config');
+      }
+    },
+    run: (s, c) => declared(s, c, () => s.deployments.upload(c.appPath)),
+  },
+  {
+    // The opt-out is the one value this client sends, and the API answers it
+    // with a deployment that carries no routing config of the platform's.
+    // wire: lib/upload-input.ts (`collectSpaFromFormData`)
+    name: 'deployments.upload (an app, spaDetect false)',
+    status: 201,
+    live: true,
+    assert: (r) => {
+      const { deployment, declaration } = r as Declared;
+      if (declaration?.get(DEPLOY_FIELDS.SPA) !== 'false') {
+        throw new Error('The opt-out must be sent as spa=false');
+      }
+      if (deployment.config !== false) {
+        throw new Error('An opted-out app must get no routing config');
+      }
+    },
+    run: (s, c) => declared(s, c, () => s.deployments.upload(c.appPath, { spaDetect: false })),
   },
   {
     // An anonymous deploy carries a manifest like every deploy this client

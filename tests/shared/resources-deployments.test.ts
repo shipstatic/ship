@@ -143,11 +143,11 @@ describe('Deployment Resource', () => {
     });
   });
 
-  describe('upload — the single-page question rides the declaration', () => {
-    it('asks it by default, in the declaration itself, and makes no other request', async () => {
+  describe('upload — the single-page question is the platform’s', () => {
+    it('leaves it to the platform by default: no field, and no other request', async () => {
       await upload();
 
-      expect(body().get('spa')).toBe('true');
+      expect(body().has('spa')).toBe(false);
       expect((body().getAll('files[]') as File[]).map((f) => f.name)).toEqual([
         'index.html',
         'style.css',
@@ -155,10 +155,10 @@ describe('Deployment Resource', () => {
       expect(carried.map((c) => c.operation)).toEqual(['Deploy']);
     });
 
-    it('does not ask it when spaDetect is false', async () => {
+    it('sends the opt-out when spaDetect is false', async () => {
       await upload({ spaDetect: false });
 
-      expect(body().has('spa')).toBe(false);
+      expect(body().get('spa')).toBe('false');
     });
   });
 
@@ -269,7 +269,7 @@ describe('Deployment Resource', () => {
       // reason the choice lives here rather than in the transport: only this
       // file knows which flags mean server-side work.
       await upload({ spaDetect: true });
-      expect(body().get('spa')).toBe('true');
+      expect(body().has('spa')).toBe(false);
       expect(deployCall().timeoutMs).toBe(300_000);
     });
   });
@@ -299,7 +299,7 @@ describe('Deployment Resource', () => {
         `/deployments/${encodeURIComponent(makeDeployment().deployment)}/files`,
       ]);
       // The declaration: the manifest, every file declared, and only the root
-      // page and config carried: the single-page question is asked of the page.
+      // page and config carried: the files that configure the deployment.
       expect(names(deployCall())).toEqual(['index.html', 'ship.json']);
       expect(
         JSON.parse(body().get('manifest') as string).map((e: { path: string }) => e.path),
@@ -338,13 +338,14 @@ describe('Deployment Resource', () => {
       );
     });
 
-    it('leaves the page to the fills when it does not ask the single-page question', async () => {
+    it('carries the page in the declaration whether or not the question is asked', async () => {
       statuses = [202, 202, 201];
 
       await upload({ spaDetect: false });
 
-      expect(names(deployCall())).toEqual(['ship.json']);
-      expect(fills().map(names)).toEqual([['index.html', 'a.png'], ['b.png']]);
+      expect(body().get('spa')).toBe('false');
+      expect(names(deployCall())).toEqual(['index.html', 'ship.json']);
+      expect(fills().map(names)).toEqual([['a.png'], ['b.png']]);
     });
 
     it('refuses a build that does not fit one request, sending nothing', async () => {

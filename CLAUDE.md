@@ -1446,7 +1446,7 @@ both flags parsed cleanly and did **nothing**, in both deploy spellings, for as
 long as they have existed. The test that let it live asserted `exitCode === 0`,
 which a dead flag also produces. They are fenced now through `config` — the
 API sets it from a `ship.json` at the deploy ROOT and the mock derives it the
-same way, so `--no-spa-detect` (the SDK does not ask, so the platform writes no config) and
+same way, so `--no-spa-detect` (the SDK sends the opt-out, so the platform writes no config) and
 `--no-path-detect` (a nested `dist/ship.json` never reaches the root) are both
 visible through a wire field rather than through a probe. Fixtures:
 `tests/fixtures/spa-site`, `tests/fixtures/nested-site`.
@@ -1770,13 +1770,13 @@ not two".
 
 ## The single-page question
 
-The platform answers it, and the SDK only asks. Every declaration carries `spa=true` (`DEPLOY_FIELDS.SPA`) unless `spaDetect` is `false` (`--no-spa-detect` on the CLI). The API asks its classifier of the deploy's own `index.html` and, when the page is an empty application shell and the deploy ships no `ship.json`, writes the routing config itself (`cloudflare/api/src/lib/platform-files.ts`). A `ship.json` the deploy carries always wins.
+The platform asks it of every deploy and writes the routing config itself, when the root `index.html` is an empty application shell and the deploy ships no `ship.json` (`cloudflare/api/src/lib/platform-files.ts`). The SDK sends nothing for that, because the default is the platform's: the one value it sends is the opt-out, `spa=false` (`DEPLOY_FIELDS.SPA`), when `spaDetect` is `false` (`--no-spa-detect` on the CLI). A `ship.json` the deploy carries always wins.
 
-It costs no request of its own. A deploy that splits carries the root `index.html` in its bare declaration, beside the root `ship.json`, because the question is asked of the page in the request that asks it; the planner reads that from the fields (`deploy-plan.ts`).
+It costs no request of its own. A deploy that splits carries the files that configure it in its bare declaration, the root `ship.json` and the root `index.html`, whether or not the question is asked (`deploy-plan.ts`); the API refuses a declaration that leaves either behind.
 
-`/spa-check` still answers, for the clients published before the field (this SDK through 3.8, which asked it and appended the config itself); a config such a client appends is, to the API, a `ship.json` the deploy ships.
+`/spa-check` answers the same question without deploying. This SDK does not call it.
 
-**3.9 reaches `latest` only after the API that knows the field is on production.** An API without it refuses `spa` on every deploy, so this release would fail every deploy it makes. The API's smoke asks `spa` on a declaration and writes nothing (`cloudflare/api/CLAUDE.md`, "The release gate"); a green `pnpm smoke:prod:api` is the precondition for merging this repo's version to `main`. The `tests/contract.ts` row for a deploy sent in several requests reads both wire facts off the declaring request (`spa`, and the root `index.html` beside it), so `pnpm test:e2e` proves them against a real API.
+**3.9 reaches `latest` only after the API that knows the field is on production.** An API without it gives no app its routing config, since this SDK no longer writes one, and refuses the opt-out. The API's smoke sends `spa=false` on a declaration and writes nothing (`cloudflare/api/CLAUDE.md`, "The release gate"); a green `pnpm smoke:prod:api` is the precondition for merging this repo's version to `main`. Three `tests/contract.ts` rows hold the wire: an app deployed with no option comes back configured and sent no field, the opt-out is sent as `spa=false` and leaves the app unconfigured, and a split declaration carries `index.html`. `pnpm test:e2e` proves them against a real API.
 
 ## ship.json: the client checks syntax, the server owns the schema
 

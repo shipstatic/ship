@@ -62,7 +62,8 @@ export interface MockState {
    */
   declarations: Map<string, { declared: Set<string>; arrived: Set<string>; ttl?: number }>;
   /**
-   * What the single-page classifier answers when a declaration asks (`spa`).
+   * What the single-page classifier answers when a declaration is asked,
+   * which is every one but `spa=false`.
    * Set by the test that needs a yes; the double decides nothing (see the
    * `/deployments` arm in `handler.ts`).
    */
