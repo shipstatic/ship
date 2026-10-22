@@ -66,7 +66,7 @@
  * `@shipstatic/types`' own suite and its retry posture in `http-retry`.
  */
 
-import { ErrorType } from '@shipstatic/types';
+import { DEPLOY_FIELDS, ErrorType } from '@shipstatic/types';
 import type Ship from '../src/node';
 
 /** Fixtures a runner guarantees before the table runs. */
@@ -214,8 +214,14 @@ export const CONTRACT: readonly ContractPoint[] = [
     // until one answers 201 live. The status a caller sees is the last one,
     // and the row also holds the sequence, since a deploy that answered 201
     // at the declaration would pass on the status alone.
+    //
+    // The declaration asks the single-page question (`spa`, sent unless
+    // `spaDetect` is false), and the API refuses a declaration that asks it
+    // and leaves the root index.html behind (400): the question is asked of
+    // the page in that request. So the row reads both off the declaring
+    // request's own body, and the live half proves the API accepts the field.
     // wire: routes/deployments.ts (POST / and POST /:deployment/files) →
-    // lib/deployment-orchestrator.ts (createDeployment, fillDeployment)
+    // lib/deployment-orchestrator.ts (createDeployment, fillDeployment, declare)
     name: 'deployments.upload (several requests)',
     status: 201,
     live: true,
@@ -230,16 +236,38 @@ export const CONTRACT: readonly ContractPoint[] = [
       if (deployment.status !== 'success') {
         throw new Error(`The last answer must be the live deployment, got ${deployment.status}`);
       }
+      const { declaration } = r as { declaration?: FormData };
+      if (declaration?.get(DEPLOY_FIELDS.SPA) !== 'true') {
+        throw new Error('The declaration must ask the single-page question');
+      }
+      const carried = declaration.getAll('files[]').map((file) => (file as File).name);
+      if (!carried.includes('index.html')) {
+        throw new Error(
+          `The declaration must carry index.html when it asks spa; saw ${carried.join(', ')}`,
+        );
+      }
     },
     run: async (s, c) => {
       const statuses: number[] = [];
+      let declaration: FormData | undefined;
+      const sent = (_url: string, init: RequestInit) => {
+        if (
+          !declaration &&
+          init.body instanceof FormData &&
+          init.body.has(DEPLOY_FIELDS.MANIFEST)
+        ) {
+          declaration = init.body;
+        }
+      };
       const seen = (response: Response) => statuses.push(response.status);
+      s.on('request', sent);
       s.on('response', seen);
       try {
         const deployment = await s.deployments.upload(c.largeSitePath);
         c.created(deployment.deployment);
-        return { deployment, statuses };
+        return { deployment, statuses, declaration };
       } finally {
+        s.off('request', sent);
         s.off('response', seen);
       }
     },

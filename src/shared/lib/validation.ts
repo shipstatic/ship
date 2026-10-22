@@ -34,13 +34,12 @@ export { validateLabels, validatePassword } from '@shipstatic/types';
  * is an object.
  *
  * Scope matches the API's `findDeploymentConfigFile`: the exact name at the
- * deploy root, optional leading slash and nothing else, so a
- * `config/ship.json` stays an ordinary asset the platform never reads.
+ * deploy root, so a `config/ship.json` stays an ordinary asset the platform
+ * never reads. Deploy paths reach here canonical (`normalizeWebPath` strips
+ * any leading slash), so the root is the bare name.
  */
 export async function validateDeployConfig(files: StaticFile[]): Promise<void> {
-  const config = files.find(
-    (f) => f.path === DEPLOYMENT_CONFIG_FILENAME || f.path === `/${DEPLOYMENT_CONFIG_FILENAME}`,
-  );
+  const config = files.find((f) => f.path === DEPLOYMENT_CONFIG_FILENAME);
   if (!config) return;
 
   // Node hands the pipeline a `Buffer`; the browser a `File`/`Blob`, which is

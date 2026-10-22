@@ -63,13 +63,6 @@ describe('validateDeployConfig', () => {
     });
   });
 
-  it('accepts the root config with a leading slash', async () => {
-    // wire: findDeploymentConfigFile — exact name, optional leading slash.
-    await expect(
-      validateDeployConfig([index, file('/ship.json', '{ not json')]),
-    ).rejects.toMatchObject({ type: ErrorType.Config });
-  });
-
   it('ignores a ship.json that is not at the deploy root', async () => {
     // Anywhere but the root it is an ordinary asset the platform never reads.
     await expect(

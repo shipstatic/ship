@@ -1776,6 +1776,8 @@ It costs no request of its own. A deploy that splits carries the root `index.htm
 
 `/spa-check` still answers, for the clients published before the field (this SDK through 3.8, which asked it and appended the config itself); a config such a client appends is, to the API, a `ship.json` the deploy ships.
 
+**3.9 reaches `latest` only after the API that knows the field is on production.** An API without it refuses `spa` on every deploy, so this release would fail every deploy it makes. The API's smoke asks `spa` on a declaration and writes nothing (`cloudflare/api/CLAUDE.md`, "The release gate"); a green `pnpm smoke:prod:api` is the precondition for merging this repo's version to `main`. The `tests/contract.ts` row for a deploy sent in several requests reads both wire facts off the declaring request (`spa`, and the root `index.html` beside it), so `pnpm test:e2e` proves them against a real API.
+
 ## ship.json: the client checks syntax, the server owns the schema
 
 `deploy()` calls `validateDeployConfig` (`shared/lib/validation.ts`) before it
@@ -1802,8 +1804,8 @@ nothing**, against 5.5 s for the same deploy's real upload. Failures carry
 error contract does not depend on where the mistake was caught.
 
 Scope matches the API's `findDeploymentConfigFile`: the exact name at the
-deploy root, optional leading slash. A `config/ship.json` is an ordinary
-asset and is left alone.
+deploy root, which arrives canonical, since the path pipeline strips any
+leading slash. A `config/ship.json` is an ordinary asset and is left alone.
 
 ## Error Handling
 
