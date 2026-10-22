@@ -240,7 +240,7 @@ describe('CLI command tree (in-process)', () => {
         return JSON.parse(result.stdout.trim()).config;
       };
 
-      it('ships a generated ship.json when the platform answers yes', async () => {
+      it("gets the platform's ship.json when the platform answers yes", async () => {
         mockState().spa = true;
         expect(await configOf(SPA_SITE)).toBe(true);
       });
@@ -249,7 +249,7 @@ describe('CLI command tree (in-process)', () => {
         expect(await configOf(SPA_SITE)).toBe(false);
       });
 
-      it('--no-spa-detect ships no config at all, whatever the answer', async () => {
+      it('--no-spa-detect does not ask, so no config whatever the answer', async () => {
         mockState().spa = true;
         expect(await configOf(SPA_SITE, '--no-spa-detect')).toBe(false);
       });

@@ -225,7 +225,7 @@ Available on `ship <path>` and `ship deployments upload`:
 | `--password <password>` | Password-protect this deployment (6–128 chars) |
 | `--ttl <duration>` | Expire this deployment after that long: `3600`, `90s`, `30m`, `1h`, `7d`. Needs a token; cannot be combined with `--domain` |
 | `--no-path-detect` | Disable automatic path optimization |
-| `--no-spa-detect` | Disable automatic SPA detection |
+| `--no-spa-detect` | Don't ask the platform to detect a single-page app and add its routing config |
 
 ### CLI environment variables
 
@@ -293,7 +293,7 @@ ship.deploy(input, {
   ttl?: number,               // Seconds until it expires (needs a token; max 1 year)
   signal?: AbortSignal,       // Abort to cancel the deploy
   pathDetect?: boolean,       // Auto-optimize paths (default: true)
-  spaDetect?: boolean,        // Auto-detect SPA (default: true)
+  spaDetect?: boolean,        // Let the platform detect a single-page app and add its routing (default: true)
   via?: string,               // Client identifier
 });
 ```

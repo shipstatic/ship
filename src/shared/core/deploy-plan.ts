@@ -4,9 +4,10 @@
  * One request carries at most `DEPLOY_REQUEST_CONSTRAINTS.MAX_BYTES`, as
  * `Content-Length` counts it, framing included. Everything that fits is one
  * request. Everything that does not is a bare declaration (the manifest, the
- * options and the root `ship.json`, which the API compiles at the
- * declaration) followed by batches of whole files, packed in order under the
- * same ceiling.
+ * options, the root `ship.json`, which the API compiles at the declaration,
+ * and the root `index.html` when the declaration asks the single-page
+ * question of it) followed by batches of whole files, packed in order under
+ * the same ceiling.
  *
  * The count is a ceiling on what any runtime's `FormData` emits, so the
  * server's count never exceeds it, and a 413 on a request planned here means
@@ -23,6 +24,7 @@
  */
 
 import {
+  DEPLOY_FIELDS,
   DEPLOY_REQUEST_CONSTRAINTS,
   DEPLOYMENT_CONFIG_FILENAME,
   formatFileSize,
@@ -79,23 +81,36 @@ export interface DeployPlan {
  */
 export const BUILD_TOO_LARGE = `We can build projects up to ${formatFileSize(MAX_BYTES)}. Build this one on your computer and upload the built folder instead.`;
 
+/** The page the single-page question is asked of. */
+const INDEX_PATH = 'index.html';
+
 /**
  * Plan a deploy: one request when everything fits, otherwise a bare
  * declaration and as many fills as the files need.
  *
- * @param whole - The deploy must be one request: the server builds or
- *   prerenders it from every file at once.
+ * What the declaration asks decides what it must carry, so the plan reads it
+ * from the fields rather than from a second statement of the same options. A
+ * build or a prerender reads every file in the request that asks for it, so
+ * it is never split. Otherwise the bare declaration carries the root
+ * `ship.json`, which the API compiles there, and, when it asks the
+ * single-page question, the root `index.html` the question is asked of.
  */
-export function planDeploy(files: StaticFile[], fields: DeployField[], whole: boolean): DeployPlan {
+export function planDeploy(files: StaticFile[], fields: DeployField[]): DeployPlan {
+  const asks = (name: string) => fields.some(([field]) => field === name);
   if (bodyBytes(files, fields) <= MAX_BYTES) return { declaration: files, fills: [] };
-  if (whole) throw ShipError.validation(BUILD_TOO_LARGE);
+  if (asks(DEPLOY_FIELDS.BUILD) || asks(DEPLOY_FIELDS.PRERENDER)) {
+    throw ShipError.validation(BUILD_TOO_LARGE);
+  }
 
-  const declaration = files.filter((file) => file.path === DEPLOYMENT_CONFIG_FILENAME);
+  const spa = asks(DEPLOY_FIELDS.SPA);
+  const declared = (file: StaticFile) =>
+    file.path === DEPLOYMENT_CONFIG_FILENAME || (spa && file.path === INDEX_PATH);
+  const declaration = files.filter(declared);
   const fills: StaticFile[][] = [];
   let batch: StaticFile[] = [];
   let size = PART_OVERHEAD;
   for (const file of files) {
-    if (file.path === DEPLOYMENT_CONFIG_FILENAME) continue;
+    if (declared(file)) continue;
     const bytes = fileBytes(file);
     if (batch.length > 0 && size + bytes > MAX_BYTES) {
       fills.push(batch);

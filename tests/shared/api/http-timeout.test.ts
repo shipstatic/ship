@@ -428,11 +428,11 @@ describe('ApiHttp Timeout & Cancellation', () => {
       }
     });
 
-    it('does not extend the ceiling for spa detection, which never reaches the build service', async () => {
-      // `spa` is local detection bounded by the AI tier's own 10s
-      // (`api/src/lib/upload-processing.ts` forwards only build/prerender),
-      // so it keeps the plain deploy budget. The distinction matters: a flag
-      // set is not the same question as which flags cost server time.
+    it('does not extend the ceiling for the single-page question, which never reaches the build service', async () => {
+      // `spa` is a pure function of one page on the server (the API forwards
+      // only build/prerender to the build service), so it keeps the plain
+      // deploy budget. The distinction matters: a flag set is not the same
+      // question as which flags cost server time.
       vi.useFakeTimers();
       try {
         global.fetch = hangingFetch() as any;
@@ -443,7 +443,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
           maxRetries: 0,
         });
 
-        const pending = deploy(api, files, { spa: true });
+        const pending = deploy(api, files, { spaDetect: true });
         const settled = vi.fn();
         pending.catch(settled);
 

@@ -10,17 +10,10 @@ import { fakeTransport } from '../mocks/transport';
 
 // Mock browser file processing.
 //
-// The content was an `ArrayBuffer` — a shape `StaticFile` does not admit and no
-// pipeline emits — which went unnoticed only because the SPA pre-flight was
-// stubbed a layer above. `checkSPA` reads the index itself now, so the shape
-// has to be one it can read.
-//
-// It is a `Buffer` rather than the `Blob`/`File` the browser pipeline really
-// produces, and that is a JSDOM limitation stated rather than papered over:
-// jsdom's `Blob` has no `.text()`, so the real browser shape throws inside
-// `checkSPA` and the deploy fails with it. The Blob and
-// File arms are certified where they can be: on real Chromium in
-// `tests-browser/`, and against Node's own `Blob` in `shared/lib/spa.test.ts`.
+// The content is a `Buffer`, a shape `StaticFile` admits and the body builder
+// reads, rather than the `Blob`/`File` the browser pipeline really produces:
+// jsdom's `Blob` is not the runtime's, and the browser shapes are certified on
+// real Chromium in `tests-browser/`.
 vi.mock('../../src/browser/core/browser-files', () => ({
   processFilesForBrowser: vi.fn().mockResolvedValue([
     {
@@ -101,7 +94,6 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_browser_123',
           url: 'https://dep_browser_123.shipstatic.com',
         }),
-        'SPA check': { isSPA: false },
         'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
@@ -131,13 +123,11 @@ describe('Ship - Browser Implementation', () => {
         apiUrl: 'https://api.shipstatic.com',
       });
 
-      // Mock the API client with SPA detection
       (ship as any).http = fakeTransport({
         Deploy: vi.fn().mockResolvedValue({
           id: 'dep_spa_123',
           url: 'https://dep_spa_123.shipstatic.com',
         }),
-        'SPA check': { isSPA: true }, // SPA detected
         'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
@@ -153,8 +143,9 @@ describe('Ship - Browser Implementation', () => {
 
       await ship.deploy(mockFiles, { spaDetect: true });
 
-      // The unified pipeline asks the platform before it builds the body.
-      expect((ship as any).http.carriedFor('SPA check')).toHaveLength(1);
+      // The question rides the deploy itself: one request, the field set.
+      const [deploy] = (ship as any).http.carriedFor('Deploy');
+      expect((deploy.init.body as FormData).get('spa')).toBe('true');
     });
   });
 
@@ -255,7 +246,6 @@ describe('Ship - Browser Implementation', () => {
       const ship = new Ship({ token: TEST_DEPLOY_TOKEN, apiUrl: 'https://api.example.com' });
       (ship as any).http = fakeTransport({
         Deploy: vi.fn().mockResolvedValue({ deployment: 'brave-otter-a1b2c3d' }),
-        'SPA check': { isSPA: false },
         'Get limits': vi.fn().mockResolvedValue(FREE_PLAN_LIMITS),
       });
 
@@ -297,7 +287,6 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_options_123',
           url: 'https://dep_options_123.shipstatic.com',
         }),
-        'SPA check': { isSPA: false },
         'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
@@ -332,7 +321,6 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_empty_123',
           url: 'https://dep_empty_123.shipstatic.com',
         }),
-        'SPA check': { isSPA: false },
         'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
@@ -357,7 +345,6 @@ describe('Ship - Browser Implementation', () => {
           id: 'dep_mime_123',
           url: 'https://dep_mime_123.shipstatic.com',
         }),
-        'SPA check': { isSPA: false },
         'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
@@ -449,7 +436,6 @@ describe('Ship - Browser Implementation', () => {
       // Mock network timeout
       (ship as any).http = fakeTransport({
         Deploy: vi.fn().mockRejectedValue(new Error('Request timeout after 30000ms')),
-        'SPA check': { isSPA: false },
         'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,
@@ -471,7 +457,6 @@ describe('Ship - Browser Implementation', () => {
       // Mock API error
       (ship as any).http = fakeTransport({
         Deploy: vi.fn().mockRejectedValue(new Error('API key is invalid')),
-        'SPA check': { isSPA: false },
         'Get limits': vi.fn().mockResolvedValue({
           maxFileSize: 10485760,
           maxFilesCount: 1000,

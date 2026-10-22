@@ -67,7 +67,6 @@ import {
   deployManifest,
 } from './core/deploy-body.js';
 import { planDeploy } from './core/deploy-plan.js';
-import { configureSPA, detectAndConfigureSPA } from './lib/spa.js';
 import { validateDeployConfig, validateLabels, validatePassword } from './lib/validation.js';
 import type { DeploymentOptions } from './types.js';
 
@@ -132,14 +131,16 @@ export function createDeploymentResource(
 
   return {
     /**
-     * The whole deploy, in the order it happens: collect the files, ask the
-     * platform whether they are a SPA, validate the request boundary, plan
-     * the requests, send them.
+     * The whole deploy, in the order it happens: collect the files, validate
+     * the request boundary, plan the requests, send them. The single-page
+     * question rides the declaration (`spa`, unless `spaDetect` is `false`):
+     * the platform asks it of the files and writes the routing config itself.
      *
      * A deploy is declared, then filled. The manifest always rides the
      * declaration: below the request ceiling the declaration carries every
      * file and answers 201, the whole deploy; above it the declaration is bare
-     * (the manifest, the options and the root `ship.json`), answers 202, and
+     * (the manifest, the options, the root `ship.json` and, when it asks the
+     * single-page question, the root `index.html`), answers 202, and
      * each batch of files follows to `POST /deployments/:deployment/files`.
      * The first 201 or 200 is the deployment. Splitting is internal: the
      * signature and the answer are the same either way.
@@ -150,8 +151,7 @@ export function createDeploymentResource(
       }
 
       const http = getApi();
-      const collected = await processInput(input, options);
-      let files = await detectAndConfigureSPA(collected, http, options);
+      const files = await processInput(input, options);
 
       if (!files.length) {
         throw ShipError.business('No files to deploy');
@@ -170,29 +170,18 @@ export function createDeploymentResource(
       const buildCommand = validateBuildCommand(options.buildCommand);
       const outputDir = validateOutputDir(options.outputDir);
       const built = Boolean(options.build || options.prerender);
-      const fieldsFor = (deploy: StaticFile[], spa: boolean | undefined) =>
-        deployFields(deployManifest(deploy), {
-          labels,
-          via: options.via ?? DEPLOY_VIA,
-          password,
-          ttl,
-          flags:
-            built || spa
-              ? { build: options.build, prerender: options.prerender, spa, buildCommand, outputDir }
-              : undefined,
-          captcha: options.captcha,
-        });
-
-      let fields = fieldsFor(files, options.spa);
-      let plan = planDeploy(files, fields, built);
-      // The server decides the single-page question only from every file at
-      // once, so a deploy that splits asks it here, of the same owner, and
-      // drops the flag.
-      if (options.spa && !built && plan.fills.length > 0) {
-        files = await configureSPA(files, http, options.signal);
-        fields = fieldsFor(files, false);
-        plan = planDeploy(files, fields, false);
-      }
+      const fields = deployFields(deployManifest(files), {
+        labels,
+        via: options.via ?? DEPLOY_VIA,
+        password,
+        ttl,
+        spa: options.spaDetect !== false,
+        flags: built
+          ? { build: options.build, prerender: options.prerender, buildCommand, outputDir }
+          : undefined,
+        captcha: options.captcha,
+      });
+      const plan = planDeploy(files, fields);
 
       // NO Content-Type here, deliberately: `fetch` derives it from the
       // `FormData` body along with the boundary, and setting one by hand would
@@ -216,8 +205,8 @@ export function createDeploymentResource(
         },
         'Deploy',
         // Only `build`/`prerender` reach the build service
-        // (`api/src/lib/upload-processing.ts`); `spa` is local detection
-        // bounded by the AI tier's own 10s, so it does not earn the longer
+        // (`api/src/lib/upload-processing.ts`); the single-page question is
+        // a pure function of one page, so it does not earn the longer
         // ceiling. The transport owns both budgets; this is the one place that
         // knows which applies.
         built ? http.deploy.buildTimeout : http.deploy.timeout,

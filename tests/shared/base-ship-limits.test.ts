@@ -53,7 +53,6 @@ describe('platform limits: asked every time, never held', () => {
     const ship = new NodeShip({ token: TEST_DEPLOY_TOKEN });
     const transport = fakeTransport({
       'Get limits': { ...mockLimits, maxFileSize: 1 },
-      'SPA check': { isSPA: false },
       Deploy: { deployment: 'dep_123', url: 'https://dep_123.shipstatic.com' },
     });
     (ship as any).http = transport;

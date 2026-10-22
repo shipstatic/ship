@@ -51,7 +51,6 @@ import {
   type ManifestEntry,
   type PingResponse,
   ShipError,
-  type SPACheckResponse,
   type TokenDeleteResponse,
   TokenKind,
   type TokenListResponse,
@@ -97,9 +96,7 @@ function failRateLimit(error: ShipError, now: number): Response {
  * Routes reachable without a credential — and NOTHING else.
  *
  * wire: `/ping` + `/limits` (createAuthMiddleware optional),
- * `POST /deployments` (allowPublicDeploys — routes/deployments.ts:52),
- * `POST /spa-check` (no auth middleware at all: the answer is about the request,
- * so no credential is read).
+ * `POST /deployments` (allowPublicDeploys — routes/deployments.ts:52).
  * `POST /tokens` is NOT public: routes/tokens.ts:56-58 puts auth on every
  * token route. An earlier mock let it through, so an SDK regression dropping
  * the Authorization header on `tokens.create()` was undetectable.
@@ -107,7 +104,6 @@ function failRateLimit(error: ShipError, now: number): Response {
 function isPublic(method: string, path: string): boolean {
   if (path === '/ping' || path === '/limits') return true;
   if (path === '/deployments' && method === 'POST') return true;
-  if (path === '/spa-check' && method === 'POST') return true;
   return false;
 }
 
@@ -177,18 +173,6 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
     return json(state.account);
   }
 
-  // --- /spa-check -------------------------------------------------------
-  // wire: routes/spa-check.ts. The answer comes from `state.spa`, set by the
-  // test: the SDK's tests pin what the SDK does with an answer, never how
-  // the server reached it. The rule and its fixtures live in
-  // cloudflare/api/tests/lib/spa.test.ts.
-  if (path === '/spa-check' && method === 'POST') {
-    return json({
-      isSPA: state.spa,
-      reason: 'Answered by the test double',
-    } satisfies SPACheckResponse);
-  }
-
   // --- /deployments -----------------------------------------------------
   if (path === '/deployments') {
     // wire: routes/deployments.ts:235 — returns the list unconditionally,
@@ -238,13 +222,17 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
         } catch {}
       }
       const viaField = form?.get('via');
-      // `config` is derived from the UPLOADED FILES, exactly as the API derives
-      // it: a `ship.json` at the deploy root, optional leading slash, no other
-      // path forgiveness. That is what makes it an observation of what the
-      // client actually sent — `--no-spa-detect` means the SDK never appends
-      // one, and `--no-path-detect` means a nested one never reaches the root.
-      // wire: lib/deployment-config.ts:162 (findDeploymentConfigFile) →
-      // lib/deployment-response.ts:56 (`config: Boolean(...)`)
+      // `config` is derived from the DECLARATION, exactly as the API derives
+      // it: a `ship.json` at the deploy root (optional leading slash, no other
+      // path forgiveness), or the platform's single-page config where the
+      // request asks (`spa`) and the classifier says yes. The classifier's
+      // answer is `state.spa`, set by the test: the SDK's tests pin what the
+      // SDK sends, never how the server decides (cloudflare/api/tests/lib/spa.test.ts).
+      // That makes `config` an observation of what the client sent:
+      // `--no-spa-detect` means no `spa` field, and `--no-path-detect` means a
+      // nested ship.json never reaches the root.
+      // wire: lib/deployment-orchestrator.ts (`declare`) and
+      // lib/platform-files.ts
       const uploaded = (form?.getAll(DEPLOY_FIELDS.FILES) ?? [])
         .filter((entry): entry is File => entry instanceof File)
         .map((file) => file.name.replace(/^\//, ''));
@@ -268,6 +256,16 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
           : uploaded,
       );
       const complete = [...declared].every((p) => uploaded.includes(p));
+      const asksSpa = form?.get(DEPLOY_FIELDS.SPA) === 'true';
+      // wire: lib/deployment-orchestrator.ts, `declare`: the page the
+      // single-page question is asked of rides the declaring request.
+      if (asksSpa && declared.has('index.html') && !uploaded.includes('index.html')) {
+        return fail(
+          ShipError.validation(
+            'index.html must come in the request that sends the manifest when it asks for spa.',
+          ),
+        );
+      }
       // wire: lib/deployment-orchestrator.ts, `declare`: law 6, before any write.
       if (!complete && anonymous) {
         return fail(
@@ -279,7 +277,9 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
         ...(typeof viaField === 'string' && viaField !== '' && { via: viaField }),
         password: typeof form?.get('password') === 'string',
         ...(ttl !== undefined && { ttl }),
-        config: declared.has(DEPLOYMENT_CONFIG_FILENAME),
+        config:
+          declared.has(DEPLOYMENT_CONFIG_FILENAME) ||
+          (asksSpa && state.spa && declared.has('index.html')),
         pending: !complete,
       });
       if (idempotencyKey) state.idempotency.set(deployment.deployment, idempotencyKey);

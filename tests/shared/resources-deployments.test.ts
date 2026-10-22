@@ -1,10 +1,10 @@
 /**
  * @file Subject: `src/shared/resources.ts` — the deployment resource.
  *
- * `upload` is the SDK's longest path: collect the files, ask the platform
- * whether they are a SPA, validate the request boundary, plan the requests,
- * send them: one declaration, then a fill per batch when the deploy does not
- * fit one request. It read across two files until 2026-08-12, when the endpoint
+ * `upload` is the SDK's longest path: collect the files, validate the request
+ * boundary, plan the requests, send them: one declaration, then a fill per
+ * batch when the deploy does not fit one request. The single-page question
+ * rides the declaration as a field; the platform answers it. It read across two files until 2026-08-12, when the endpoint
  * tier folded down out of `ApiHttp` — and these rows read across two seams to
  * match, asserting on `mockApiHttp.deploy` having *been called*.
  *
@@ -14,15 +14,9 @@
  * than the arguments a collaborator was handed. A body that was assembled
  * correctly and one that was merely appended to correctly are different
  * things, and only the first of these can tell them apart.
- *
- * No `vi.mock` of `../../src/shared/lib/spa`, deliberately. An earlier revision
- * mocked `detectAndConfigureSPA` with a hand-written reimplementation of its
- * branching, so the "SPA detection is applied" rows asserted the fake's
- * behaviour and would have kept passing had the real function stopped
- * injecting anything. The real module runs; the transport is the only seam.
  */
 
-import { DEPLOYMENT_CONFIG_FILENAME, IDEMPOTENCY_KEY_CONSTRAINTS } from '@shipstatic/types';
+import { IDEMPOTENCY_KEY_CONSTRAINTS } from '@shipstatic/types';
 import type { Mock } from 'vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Transport } from '../../src/shared/api/http';
@@ -51,7 +45,6 @@ describe('Deployment Resource', () => {
   let answer: unknown;
   /** The status each deploy request answers, in order; 201 once the list runs out. */
   let statuses: number[];
-  let spaVerdict: unknown;
   let mockProcessInput: Mock;
   // Parameterized exactly as `base-ship` declares it — since types
   // 2.5.0-beta.0 the interface admits the SDK's extended options directly.
@@ -66,13 +59,12 @@ describe('Deployment Resource', () => {
     vi.clearAllMocks();
     carried = [];
     answer = makeDeployment();
-    spaVerdict = { isSPA: false };
     statuses = [];
 
     const request = vi.fn(
       async (path: string, init: any, operation: string, timeoutMs?: number) => {
         carried.push({ path, init, operation, timeoutMs });
-        return operation === 'SPA check' ? spaVerdict : answer;
+        return answer;
       },
     );
     const requestWithStatus = vi.fn(
@@ -151,46 +143,22 @@ describe('Deployment Resource', () => {
     });
   });
 
-  describe('upload — SPA detection runs before the body is built', () => {
-    it('injects the real ship.json when the platform says it is a SPA', async () => {
-      spaVerdict = { isSPA: true };
+  describe('upload — the single-page question rides the declaration', () => {
+    it('asks it by default, in the declaration itself, and makes no other request', async () => {
+      await upload();
 
-      await upload({ spaDetect: true });
-
-      const files = body().getAll('files[]') as File[];
-      expect(files.map((f) => f.name)).toContain(DEPLOYMENT_CONFIG_FILENAME);
-      const config = files.find((f) => f.name === DEPLOYMENT_CONFIG_FILENAME) as File;
-      expect(JSON.parse(await config.text())).toEqual({
-        rewrites: [{ source: '/(.*)', destination: '/index.html' }],
-      });
-    });
-
-    it('leaves the deploy alone when it is not', async () => {
-      spaVerdict = { isSPA: false };
-
-      await upload({ spaDetect: true });
-
+      expect(body().get('spa')).toBe('true');
       expect((body().getAll('files[]') as File[]).map((f) => f.name)).toEqual([
         'index.html',
         'style.css',
       ]);
+      expect(carried.map((c) => c.operation)).toEqual(['Deploy']);
     });
 
-    it('a question that fails is the deploy failing: its error is raised and nothing is uploaded', async () => {
-      // An undecided deploy must not ship: an app deployed without its
-      // answer 404s on reload behind a success message.
-      const failure = new Error('SPA check unavailable');
-      (transport.request as Mock).mockImplementation(
-        async (path: string, init: any, operation: string, timeoutMs?: number) => {
-          if (operation === 'SPA check') throw failure;
-          carried.push({ path, init, operation, timeoutMs });
-          return answer;
-        },
-      );
+    it('does not ask it when spaDetect is false', async () => {
+      await upload({ spaDetect: false });
 
-      await expect(upload({ spaDetect: true })).rejects.toBe(failure);
-
-      expect(carried.map((c) => c.operation)).not.toContain('Deploy');
+      expect(body().has('spa')).toBe(false);
     });
   });
 
@@ -246,7 +214,6 @@ describe('Deployment Resource', () => {
     it.each([
       ['build', 'build'],
       ['prerender', 'prerender'],
-      ['spa', 'spa'],
     ])('carries the @internal %s flag', async (_label, flag) => {
       await upload({ [flag]: true } as DeploymentOptions);
       expect(body().get(flag)).toBe('true');
@@ -297,11 +264,12 @@ describe('Deployment Resource', () => {
       },
     );
 
-    it('does NOT extend the ceiling for spa, which never reaches the build service', async () => {
-      // Local detection bounded by the AI tier's own 10s. The distinction is
-      // the reason the choice lives here rather than in the transport: only
-      // this file knows which flags mean server-side work.
-      await upload({ spa: true });
+    it('does NOT extend the ceiling for the single-page question, which never reaches the build service', async () => {
+      // A pure function of one page on the server. The distinction is the
+      // reason the choice lives here rather than in the transport: only this
+      // file knows which flags mean server-side work.
+      await upload({ spaDetect: true });
+      expect(body().get('spa')).toBe('true');
       expect(deployCall().timeoutMs).toBe(300_000);
     });
   });
@@ -330,12 +298,13 @@ describe('Deployment Resource', () => {
         `/deployments/${encodeURIComponent(makeDeployment().deployment)}/files`,
         `/deployments/${encodeURIComponent(makeDeployment().deployment)}/files`,
       ]);
-      // The declaration: the manifest, every file declared, only the root config carried.
-      expect(names(deployCall())).toEqual(['ship.json']);
+      // The declaration: the manifest, every file declared, and only the root
+      // page and config carried: the single-page question is asked of the page.
+      expect(names(deployCall())).toEqual(['index.html', 'ship.json']);
       expect(
         JSON.parse(body().get('manifest') as string).map((e: { path: string }) => e.path),
       ).toEqual(['index.html', 'a.png', 'ship.json', 'b.png']);
-      expect(fills().map(names)).toEqual([['index.html', 'a.png'], ['b.png']]);
+      expect(fills().map(names)).toEqual([['a.png'], ['b.png']]);
       // A fill carries files and nothing else.
       expect(fills().every((c) => !c.init.body?.has('manifest'))).toBe(true);
       expect(result).toEqual(makeDeployment());
@@ -369,16 +338,13 @@ describe('Deployment Resource', () => {
       );
     });
 
-    it('asks the single-page question itself when spa is set and the deploy splits', async () => {
+    it('leaves the page to the fills when it does not ask the single-page question', async () => {
       statuses = [202, 202, 201];
-      mockProcessInput.mockResolvedValue(large().filter((f) => f.path !== 'ship.json'));
-      spaVerdict = { isSPA: true };
 
-      await upload({ spa: true });
+      await upload({ spaDetect: false });
 
-      expect(carried.some((c) => c.operation === 'SPA check')).toBe(true);
-      expect(body().has('spa')).toBe(false);
       expect(names(deployCall())).toEqual(['ship.json']);
+      expect(fills().map(names)).toEqual([['index.html', 'a.png'], ['b.png']]);
     });
 
     it('refuses a build that does not fit one request, sending nothing', async () => {

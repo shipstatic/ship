@@ -50,7 +50,7 @@ export type OperationAnswer = unknown | ((req: CarriedRequest) => unknown);
 
 /**
  * @param answers - Keyed by the operation name the caller passes to `request`
- *   (`'Ping'`, `'Get limits'`, `'Deploy'`, `'SPA check'`, …). An unlisted
+ *   (`'Ping'`, `'Get limits'`, `'Deploy'`, …). An unlisted
  *   operation resolves `undefined`, which is what an endpoint the row does not
  *   care about should do.
  * @param deploy - Overrides for the deploy carriage the deployment resource

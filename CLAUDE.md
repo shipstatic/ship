@@ -16,7 +16,7 @@ src/
 │   ├── resources.ts     # Resource factories — every endpoint, stated once
 │   ├── types.ts         # Internal SDK types
 │   ├── core/            # constants, credential schema, the deploy bodies, the request planner, the file pipeline
-│   └── lib/             # Utilities (validation, junk filtering, MD5, SPA detection)
+│   └── lib/             # Utilities (validation, junk filtering, MD5)
 ├── browser/             # Browser Ship class + the `webkitRelativePath` read
 └── node/
     ├── core/config.ts       # readEnvConfig — SHIP_* env-var resolution (no filesystem)
@@ -119,8 +119,8 @@ ship.off(event, handler)
 ```
 
 Deploy options are `signal` (the one cancellation mechanism), `pathDetect`,
-`spaDetect`, plus the wire options from `DeploymentUploadOptions` (`labels`,
-`via`, `password`, and the `@internal` flags). There are deliberately no
+plus the wire options from `DeploymentUploadOptions` (`labels`, `via`,
+`password`, `ttl`, `spaDetect`, and the `@internal` flags). There are deliberately no
 per-deploy `timeout`/`onProgress`/`onCancel`/`maxConcurrency` options —
 request timeout is a client concern (`ShipClientOptions.timeout`), fetch has
 no upload-progress events to honestly report, `signal` already covers
@@ -158,7 +158,7 @@ Four things moved with it, each to the thing that was already its only caller:
 |---|---|---|
 | The 18 endpoint methods | `resources.ts` | Each was wrapped 1:1 by a resource of the same shape |
 | `deploy()` | `deployments.upload` | The deploy pipeline read across two files — collection and SPA detection here, validators and body there — for no reason a reader could see from either end. It is one function now |
-| `checkSPA()` | `lib/spa.ts` | Its single caller sat three lines below it in another file. It also leaves the package's public surface, which it never earned |
+| `checkSPA()` | nowhere | The single-page question rides the declaration as a field ("The single-page question"), so the SDK holds no pre-flight at all |
 | `ping` / `getLimits` | `base-ship.ts` | Top-level `Ship` methods, not resources; the wire call belongs with the method that is its only reader |
 
 Two consequences worth knowing:
@@ -355,9 +355,9 @@ that had just gone live. A fill answering 404 ("This upload was cancelled or
 timed out. Deploy again.") ends the deploy, and the SDK never redeclares on
 its own.
 
-### Server-Processed Uploads (Build/Prerender/SPA)
+### Server-Processed Uploads (Build/Prerender)
 
-When `build`, `prerender`, or `spa` options are set on `DeploymentUploadOptions`, the SDK delegates processing to the server:
+When `build` or `prerender` is set on `DeploymentUploadOptions`, the SDK delegates the build to the server:
 
 - **`processDeployFiles`** (`shared/core/deploy-files.ts`) carries a
   project's source as it was given. Which files a project holds is decided
@@ -368,9 +368,8 @@ When `build`, `prerender`, or `spa` options are set on `DeploymentUploadOptions`
   build service, never to storage), and none of the deploy rules, which
   describe the build's OUTPUT. It still checksums. `filterJunk` judges a
   site's files and only a site's, so it takes no option.
-- **`detectAndConfigureSPA`** skips when `spa`, `build`, or `prerender` is set: the server handles SPA detection via the `/upload` endpoint. Where it does ask (`/spa-check`), a question that fails is the deploy failing: the transport's error is raised as it is and nothing is uploaded, since a deploy made without the answer ships an app whose routes 404 on reload
-- **A deploy with `spa` that does not fit one request asks `/spa-check` itself** (`configureSPA`) and drops the flag: the server decides the single-page question only from every file at once, in the request that asks for it. A `build` or `prerender` never splits; the planner refuses a project over one request before a byte is sent, in `BUILD_TOO_LARGE`
-- **`deployFields`** appends `build=true` / `prerender=true` / `spa=true` to the declaration
+- **A `build` or `prerender` never splits**: the planner refuses a project over one request before a byte is sent, in `BUILD_TOO_LARGE`. The planner reads the flags from the declaration's own fields, so what it plans is what is sent
+- **`deployFields`** appends `build=true` / `prerender=true` to the declaration
 
 **Only browser callers set them, and that asymmetry lives in the CALLERS.**
 `web/my` and `web/www` are browser apps and reach `/upload`; Node has no such
@@ -380,7 +379,7 @@ per-file loop for this mode until 2026-08-12 — a third statement of "skip empt
 checksum, push" — which is what the shared pipeline deleted. What did not move
 is which platform's users can set the flags.
 
-These are `@internal` flags — only used by `web/my` and `web/www` via the `/upload` endpoint. External clients (SDK, CLI, integrations) never set them. They use the `/deployments` pure pipe, where clients prepare files themselves — SPA detection runs client-side via `/spa-check`, builds happen locally before upload.
+These are `@internal` flags — only used by `web/my` and `web/www` via the `/upload` endpoint. External clients (SDK, CLI, integrations) never set them. They deploy through `/deployments`, which builds nothing: builds happen locally before upload.
 
 `captcha` rides the same internal tier: `web/www`'s public uploader passes the reCAPTCHA proof as a deploy option, the body creators append it as a form field, and the API grants the public-account agent identity per request. First-party only — every other anonymous deploy is the credential-less `/deployments` path, which needs no proof.
 
@@ -1447,7 +1446,7 @@ both flags parsed cleanly and did **nothing**, in both deploy spellings, for as
 long as they have existed. The test that let it live asserted `exitCode === 0`,
 which a dead flag also produces. They are fenced now through `config` — the
 API sets it from a `ship.json` at the deploy ROOT and the mock derives it the
-same way, so `--no-spa-detect` (the SDK appends no generated config) and
+same way, so `--no-spa-detect` (the SDK does not ask, so the platform writes no config) and
 `--no-path-detect` (a nested `dist/ship.json` never reaches the root) are both
 visible through a wire field rather than through a probe. Fixtures:
 `tests/fixtures/spa-site`, `tests/fixtures/nested-site`.
@@ -1660,7 +1659,6 @@ is not named here by full basename.
 | `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-events`, `http-rate-limit`, `http-retry`, `http-timeout` | The transport's cross-cutting concerns, one file each. `http.test.ts` is the anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler. It was three files longer until 2026-08-12 — `http-domains`, `http-tokens` and `http-browser` named halves of an endpoint table that has since folded down into `resources.ts`, and they moved with their subject. |
 | `src/shared/base-ship.ts` | `base-ship`, `base-ship-credentials`, `base-ship-lifecycle`, `base-ship-limits` | Three separable doctrines on one class: the credential slot, the init/auth lifecycle, and the one-shot `/limits` cache. |
 | `src/shared/resources.ts` | `resources-account`, `resources-deployments`, `resources-domains`, `resources-paths`, `resources-tokens` | One file per resource factory — a single file would be a grab bag with no reason to read any part of it — plus `resources-paths`, which is not a resource but the one thing none of them can assert: the URL each builds. The four resource files drive a real `Ship` against the wire-truth handler, and a mock server that ROUTED a request has already forgiven whatever the client did to the URL on the way in, so path encoding and pagination serialization need a stubbed `fetch` and a string comparison. |
-| `src/shared/lib/spa.ts` | `spa`, `spa-environments` | SPA detection and its one wire call. `spa-environments` (ex `http-browser.test.ts`) is the runtime axis: `checkSPA` reads the index's CONTENT, whose shape differs per platform, and the guard that makes a browser bundle work is `typeof Buffer !== 'undefined'` — unfalsifiable without a scope that genuinely lacks `Buffer`. |
 | `src/shared/types.ts` | `types-reexport` | Not a test of the module's own types but of the **freshness** of what it re-exports — a bundled-dependency fence. |
 
 **Recorded feature-axis files** — no single subject module, so the mirror rule
@@ -1770,9 +1768,13 @@ not two".
 
 **New shared utility:** `src/shared/lib/` → export from `lib/index.ts` if public → unit tests.
 
-## SPA Auto-Detection
+## The single-page question
 
-On upload, the SDK POSTs `index.html` content (must be < 100KB) to `/spa-check` along with the file list. If the API detects SPA patterns (React router, Vue, etc.), the deployment gets rewrite rules for client-side routing. Disable with `spaDetect: false` (SDK) or `--no-spa-detect` (CLI).
+The platform answers it, and the SDK only asks. Every declaration carries `spa=true` (`DEPLOY_FIELDS.SPA`) unless `spaDetect` is `false` (`--no-spa-detect` on the CLI). The API asks its classifier of the deploy's own `index.html` and, when the page is an empty application shell and the deploy ships no `ship.json`, writes the routing config itself (`cloudflare/api/src/lib/platform-files.ts`). A `ship.json` the deploy carries always wins.
+
+It costs no request of its own. A deploy that splits carries the root `index.html` in its bare declaration, beside the root `ship.json`, because the question is asked of the page in the request that asks it; the planner reads that from the fields (`deploy-plan.ts`).
+
+`/spa-check` still answers, for the clients published before the field (this SDK through 3.8, which asked it and appended the config itself); a config such a client appends is, to the API, a `ship.json` the deploy ships.
 
 ## ship.json: the client checks syntax, the server owns the schema
 
@@ -2026,7 +2028,7 @@ commit that lands the import deletes it.
 
 | SDK Method | API Endpoint | Notes |
 |------------|--------------|-------|
-| `deployments.upload()` | `POST /deployments` | The declaration: the manifest, the options and any of the files. 201 live when it carries every file, 202 pending otherwise |
+| `deployments.upload()` | `POST /deployments` | The declaration: the manifest, the options (`spa` among them unless `spaDetect` is `false`) and any of the files. 201 live when it carries every file, 202 pending otherwise |
 | ↳ each further batch | `POST /deployments/:deployment/files` | After a 202, one fill per batch: 202 still pending, 201 live, 200 already live. Files only |
 | ↳ `idempotencyKey` | header `Idempotency-Key` (the declaration only) | Answers the earliest live deployment the key made in your account within 24h, as it stands, instead of deploying twice. An anonymous key is ignored. Key the ATTEMPT (run id, commit sha), never the try. |
 | ↳ CLI `--domain` | *(no endpoint)* | Composed CLIENT-side: this upload, then `domains.set()` with the fresh id. Two wire calls, no new route, no SDK option — see "Composability". |
@@ -2050,12 +2052,11 @@ commit that lands the import deletes it.
 | `account.get()` | `GET /account` | Resolves `Account`, which names the account it describes (`account`). The SDK itself sends no `X-Account`: a key, a deploy token or an OAuth grant is its account, and a browser host in session mode names the account through its own `fetch` (the console does) |
 | `ping()` | `GET /ping` | Resolves `PingResponse` (`{timestamp}`) — reachability is the absence of a throw, so there is no boolean to read |
 | `getLimits()` | `GET /limits` | Cached after init. Carries the plan caps **and** `blockedExtensions` — the platform's hosting blocklist, optional (an older API sends none) |
-| (internal) | `POST /spa-check` | SPA detection during upload — optional auth, anonymous callers allowed |
 | (internal) | `POST /upload` | Only via the `@internal` `deployEndpoint` option (`web/my`, `web/www`) |
 
 **Deploy requests get their own timeout ceilings: three budgets, one per kind of work.** 30s is right for a metadata read, where anything slower is a fault rather than a payload. A deploy request is bounded by the request ceiling instead: one carries at most `DEPLOY_REQUEST_CONSTRAINTS.MAX_BYTES` (64 MiB), and a larger deployment is sent in several requests, each with a ceiling of its own. `DEFAULT_DEPLOY_TIMEOUT` is 5 minutes: at `UPLOAD_FLOOR_BITS_PER_SECOND` (2.5 Mbit/s, stated beside it) the largest request transfers in about 215 s, which leaves about 85 s for the server's own work on it. `http-timeout.test.ts` holds that sum, so a bigger request cannot silently outrun the ceiling.
 
-A **build or prerender** deploy is the third: it waits for work the SERVER does after the upload lands, so `DEFAULT_DEPLOY_BUILD_TIMEOUT` is **derived, not chosen** — written in code as `DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET`, so tuning either half carries. Raising that server constant must raise this one; they sit in different repos so nothing fences the pair, and the constraint is stated at both ends. `spa` does NOT qualify: it is local detection bounded by the AI tier's own 10s; only build/prerender reach the build service.
+A **build or prerender** deploy is the third: it waits for work the SERVER does after the upload lands, so `DEFAULT_DEPLOY_BUILD_TIMEOUT` is **derived, not chosen** — written in code as `DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET`, so tuning either half carries. Raising that server constant must raise this one; they sit in different repos so nothing fences the pair, and the constraint is stated at both ends. `spa` does NOT qualify: the single-page question is a pure function of one page on the server; only build/prerender reach the build service.
 
 **Only the DEFAULTS split by operation** — an explicit `timeout` option governs every request including deploys: a caller who names a ceiling asked for a ceiling, not for one with an exception.
 

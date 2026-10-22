@@ -146,7 +146,7 @@ describe('createDeployBody: the declaration', () => {
       ['ttl', { ttl: 3600 }, '3600'],
       ['build', { flags: { build: true } }, 'true'],
       ['prerender', { flags: { prerender: true } }, 'true'],
-      ['spa', { flags: { spa: true } }, 'true'],
+      ['spa', { spa: true }, 'true'],
       [
         'buildCommand',
         { flags: { build: true, buildCommand: 'npm run build:site' } },
@@ -166,7 +166,7 @@ describe('createDeployBody: the declaration', () => {
       ['ttl', {}],
       ['build', { flags: { build: false } }],
       ['prerender', { flags: { prerender: false } }],
-      ['spa', { flags: { spa: false } }],
+      ['spa', { spa: false }],
       ['buildCommand', { flags: { build: true } }],
       ['outputDir', { flags: { build: true } }],
       ['captcha', {}],

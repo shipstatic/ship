@@ -49,7 +49,7 @@ const real = (path: string, text: string): StaticFile => ({
 describe('planDeploy', () => {
   it('sends a deploy that fits as one request, the declaration carrying every file', () => {
     const files = [sized('index.html', 10), sized('a.png', 20 * MiB), sized('ship.json', 20)];
-    const plan = planDeploy(files, deployFields(deployManifest(files)), false);
+    const plan = planDeploy(files, deployFields(deployManifest(files)));
 
     expect(plan).toEqual({ declaration: files, fills: [] });
   });
@@ -63,7 +63,7 @@ describe('planDeploy', () => {
       sized('c.png', 30 * MiB),
       sized('docs/ship.json', 20),
     ];
-    const plan = planDeploy(files, deployFields(deployManifest(files)), false);
+    const plan = planDeploy(files, deployFields(deployManifest(files)));
 
     expect(plan.declaration.map((f) => f.path)).toEqual(['ship.json']);
     // Every other file exactly once, in the order given; a nested ship.json is
@@ -79,9 +79,39 @@ describe('planDeploy', () => {
     expect(plan.fills).toHaveLength(2);
   });
 
+  it('carries the root index.html in the declaration when it asks the single-page question', () => {
+    const files = [
+      sized('a.png', 30 * MiB),
+      sized('index.html', 10),
+      sized('b.png', 30 * MiB),
+      sized('ship.json', 20),
+      sized('blog/index.html', 10),
+      sized('c.png', 30 * MiB),
+    ];
+
+    const asked = planDeploy(files, deployFields(deployManifest(files), { spa: true }));
+    expect(asked.declaration.map((f) => f.path)).toEqual(['index.html', 'ship.json']);
+    expect(asked.fills.flat().map((f) => f.path)).toEqual([
+      'a.png',
+      'b.png',
+      'blog/index.html',
+      'c.png',
+    ]);
+
+    const unasked = planDeploy(files, deployFields(deployManifest(files)));
+    expect(unasked.declaration.map((f) => f.path)).toEqual(['ship.json']);
+  });
+
+  it('refuses a prerender that does not fit one request, as it refuses a build', () => {
+    const files = [sized('src/a.ts', 40 * MiB), sized('src/b.ts', 40 * MiB)];
+    const fields = deployFields(deployManifest(files), { flags: { prerender: true } });
+
+    expect(() => planDeploy(files, fields)).toThrow('We can build projects up to 64 MB.');
+  });
+
   it('lets one request carry a file at the largest size a plan sells', () => {
     const files = [sized('a.png', 50 * MiB), sized('b.png', 50 * MiB)];
-    const plan = planDeploy(files, deployFields(deployManifest(files)), false);
+    const plan = planDeploy(files, deployFields(deployManifest(files)));
 
     expect(plan.fills.map((fill) => fill.map((f) => f.path))).toEqual([['a.png'], ['b.png']]);
   });
@@ -89,7 +119,9 @@ describe('planDeploy', () => {
   it('refuses a build that does not fit one request, before a byte is sent', () => {
     const files = [sized('src/a.ts', 40 * MiB), sized('src/b.ts', 40 * MiB)];
 
-    expect(() => planDeploy(files, deployFields(deployManifest(files)), true)).toThrow(
+    const fields = deployFields(deployManifest(files), { flags: { build: true } });
+
+    expect(() => planDeploy(files, fields)).toThrow(
       'We can build projects up to 64 MB. Build this one on your computer and upload the built folder instead.',
     );
   });

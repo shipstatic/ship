@@ -21,7 +21,7 @@ export interface DeploymentOptions extends DeploymentUploadOptions {
   /**
    * An AbortSignal to allow cancellation of the deploy operation. The one
    * cancellation mechanism: it reaches every request the deploy makes (the
-   * limits it validates against, the SPA question and the upload itself),
+   * limits it validates against and the upload itself),
    * and aborting it rejects the deploy with a typed `Cancelled` error
    * wherever it stands. A deploy the server had already committed stays
    * committed. Request timeouts are a client concern
@@ -30,8 +30,6 @@ export interface DeploymentOptions extends DeploymentUploadOptions {
   signal?: AbortSignal;
   /** Whether to auto-detect and optimize file paths by flattening common directories. Defaults to true. */
   pathDetect?: boolean;
-  /** Whether to auto-detect SPAs and generate ship.json configuration. Defaults to true. */
-  spaDetect?: boolean;
 }
 
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
@@ -65,13 +63,17 @@ export interface DeployBodyContext {
    */
   ttl?: number;
   /**
-   * @internal Server-side processing flags, and the two build settings that
+   * Ask the platform the single-page question of the files
+   * (`DEPLOY_FIELDS.SPA`): the SDK asks unless `spaDetect` is `false`.
+   */
+  spa?: boolean;
+  /**
+   * @internal The server-side build flags, and the two build settings that
    * qualify `build` (the command to run, the folder the site lands in).
    */
   flags?: {
     build?: boolean;
     prerender?: boolean;
-    spa?: boolean;
     buildCommand?: string;
     outputDir?: string;
   };

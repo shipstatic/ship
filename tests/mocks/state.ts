@@ -62,8 +62,9 @@ export interface MockState {
    */
   declarations: Map<string, { declared: Set<string>; arrived: Set<string>; ttl?: number }>;
   /**
-   * What `POST /spa-check` answers. Set by the test that needs a yes; the
-   * double decides nothing (see the route's arm in `handler.ts`).
+   * What the single-page classifier answers when a declaration asks (`spa`).
+   * Set by the test that needs a yes; the double decides nothing (see the
+   * `/deployments` arm in `handler.ts`).
    */
   spa: boolean;
   findDeployment(idOrHostname: string): Deployment | undefined;
