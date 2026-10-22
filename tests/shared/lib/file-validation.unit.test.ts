@@ -1021,7 +1021,7 @@ describe('File Validation - Boundary Tests', () => {
 
       expect(result.canDeploy).toBe(false);
       expect(result.errors).toEqual([
-        { file: '(1 files)', message: 'There are no files to publish.' },
+        { file: '(1 file)', message: 'There are no files to publish.' },
       ]);
       expect(result.warnings).toHaveLength(1);
       expect(result.validFiles).toHaveLength(0);
@@ -1251,6 +1251,8 @@ describe('File Validation - Boundary Tests', () => {
     };
     const NO_HOME =
       "There's no index.html at the top of your site. It's the page visitors see first, so your site needs one.";
+    const NAME_IT =
+      'If one of your pages is the main one, put it at the top and name it index.html.';
 
     it('refuses a site with no index.html at its root, under the deployment', () => {
       const result = validateFiles(
@@ -1259,7 +1261,7 @@ describe('File Validation - Boundary Tests', () => {
       );
 
       expect(result.canDeploy).toBe(false);
-      expect(result.errors).toEqual([{ file: '(2 files)', message: NO_HOME }]);
+      expect(result.errors).toEqual([{ file: '(2 files)', message: `${NO_HOME} ${NAME_IT}` }]);
       expect(result.validFiles).toHaveLength(0);
       result.files.forEach((f) => {
         expect(f.status).toBe(FILE_VALIDATION_STATUS.VALIDATION_FAILED);
@@ -1281,6 +1283,17 @@ describe('File Validation - Boundary Tests', () => {
         },
       ]);
       expect(result.warnings.map((w) => w.file)).toEqual(['index.html']);
+    });
+
+    it('asks for a small index.html that links to a file published on its own', () => {
+      const result = validateFiles([createMockFile('photo.png', 10)], config);
+
+      expect(result.errors).toEqual([
+        {
+          file: '(1 file)',
+          message: `${NO_HOME} To publish a file on its own, like an image or a PDF, add a small index.html that links to it.`,
+        },
+      ]);
     });
 
     it('names the folder that holds it, when the site sits one folder down', () => {
@@ -1308,7 +1321,7 @@ describe('File Validation - Boundary Tests', () => {
           file: 'installer.exe',
           message: 'File "installer.exe" has an extension that is not allowed.',
         },
-        { file: '(2 files)', message: NO_HOME },
+        { file: '(2 files)', message: `${NO_HOME} ${NAME_IT}` },
       ]);
     });
   });

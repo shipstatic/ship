@@ -53,7 +53,7 @@ export function validateFiles<T extends ValidatableFile>(
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
   let fileStatuses: T[] = [];
-  const deployment = `(${files.length} files)`;
+  const deployment = `(${files.length} ${files.length === 1 ? 'file' : 'files'})`;
 
   let totalSize = 0;
   for (const file of files) {

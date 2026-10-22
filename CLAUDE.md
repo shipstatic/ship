@@ -1964,11 +1964,12 @@ judges nothing: a project's files (`node_modules`, `package.json`) are kept,
 even under pnpm's `node_modules/.pnpm/`, so the `project` rule refuses them by
 name. A `..` segment is dot-prefixed, so it is filtered rather than refused.
 
-**The home page.** A deploy with no `index.html` at its root is refused before
-the first request, and when exactly one folder holds the shallowest nested
-`index.html` the sentence names it ("There's one in dist/. If that's your site,
-publish that folder instead."), which is the usual cause: a site deployed from
-the folder above its build. An empty `index.html` is refused as EMPTY ("The
+**The home page.** A deploy with no `index.html` at the top is refused before
+the first request, and the sentence ends with the step that fits what the files
+show (the table's, `npm/types/CLAUDE.md`, "Deploy rules"): the folder to
+publish when the site sits one folder down, the page to rename when there are
+pages but none at the top, or a small `index.html` to add when there is no page
+at all. An empty `index.html` is refused as EMPTY ("The
 index.html at the top of your site is empty."), because both renderers hand the
 set rules the files as sent, empty ones included, and the table decides what is
 published (`isPublishedFile`): an empty file is never published, and never
