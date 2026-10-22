@@ -32,6 +32,7 @@ import { E2E_API_KEY, E2E_API_URL, E2E_ENABLED, E2E_TEST_RUN_ID } from '../setup
 
 const TEST_SITE_PATH = path.resolve(__dirname, '../fixtures/demo-site');
 const APP_SITE_PATH = path.resolve(__dirname, '../fixtures/spa-site');
+const NO_HOME_SITE_PATH = path.resolve(__dirname, '../fixtures/no-home-site');
 
 /** Rejection capture with the type the assertion actually needs. */
 async function captureError(promise: Promise<unknown>): Promise<ShipError> {
@@ -200,6 +201,7 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
         anonymous: new Ship({ apiUrl: E2E_API_URL }),
         sitePath: TEST_SITE_PATH,
         appPath: APP_SITE_PATH,
+        noHomePath: NO_HOME_SITE_PATH,
         largeSitePath,
         created: (made) => deploymentsToCleanup.push(made),
         deployment: deployment.deployment,

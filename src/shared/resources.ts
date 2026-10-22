@@ -139,8 +139,8 @@ export function createDeploymentResource(
      * A deploy is declared, then filled. The manifest always rides the
      * declaration: below the request ceiling the declaration carries every
      * file and answers 201, the whole deploy; above it the declaration is bare
-     * (the manifest, the options, the root `ship.json` and, when it asks the
-     * single-page question, the root `index.html`), answers 202, and
+     * (the manifest, the options, the root `ship.json` and the root
+     * `index.html`), answers 202, and
      * each batch of files follows to `POST /deployments/:deployment/files`.
      * The first 201 or 200 is the deployment. Splitting is internal: the
      * signature and the answer are the same either way.
@@ -152,10 +152,6 @@ export function createDeploymentResource(
 
       const http = getApi();
       const files = await processInput(input, options);
-
-      if (!files.length) {
-        throw ShipError.business('No files to deploy');
-      }
 
       // Fast-fail on definitely-invalid input before constructing a multipart body.
       const password = validatePassword(options.password);

@@ -438,12 +438,6 @@ describe('Ship - Node.js Implementation', () => {
       );
     });
 
-    it('should handle empty path arrays with consistent error message', async () => {
-      const ship = new Ship({ token: 'test-key' });
-
-      await expect(ship.deploy([])).rejects.toThrow('No files to deploy.');
-    });
-
     it('should handle network errors consistently', async () => {
       // Set up the global mock to reject with network error
       mockApiClient.answer('Deploy', () => {

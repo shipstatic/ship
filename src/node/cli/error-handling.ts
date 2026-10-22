@@ -84,7 +84,7 @@ export interface ErrorOptions {
  * this list: it matches no other predicate, so its position is clarity rather
  * than correctness.
  *
- * An ordered TABLE (the `SHAPES` / `FILE_RULES` move) is the answer if this
+ * An ordered TABLE (the `SHAPES` / deploy-rules move) is the answer if this
  * ever grows a third tie; recorded with that trigger in CLAUDE.md. It buys
  * nothing today — those tables exist to delete a SECOND statement of one
  * fact, and this chain has one reader.

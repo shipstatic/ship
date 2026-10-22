@@ -124,13 +124,6 @@ describe('Deployment Resource', () => {
       );
     });
 
-    it('refuses an empty deploy before building a body', async () => {
-      mockProcessInput.mockResolvedValue([]);
-
-      await expect(upload()).rejects.toThrow('No files to deploy');
-      expect(carried.filter((c) => c.operation === 'Deploy')).toHaveLength(0);
-    });
-
     it('refuses a file with no MD5, naming it', async () => {
       // Built inline rather than through a defaulted helper: a `md5 = 'md5'`
       // default swallows `undefined` and makes this row assert nothing.

@@ -6,7 +6,7 @@
  * a custom list to filter out common junk directories.
  */
 
-import { hasUnbuiltMarker, ShipError } from '@shipstatic/types';
+import { hasUnbuiltMarker } from '@shipstatic/types';
 import { isJunk } from 'junk';
 
 /**
@@ -44,7 +44,6 @@ export const JUNK_DIRECTORIES = ['__MACOSX', '.Trashes', '.fseventsd', '.Spotlig
  *
  * @param filePaths - An array of file path strings to filter
  * @returns A new array containing only non-junk file paths
- * @throws {ShipError} If any path contains an unbuilt project marker
  *
  * @example
  * ```typescript
@@ -80,20 +79,16 @@ export function filterJunk(filePaths: string[]): string[] {
     return [];
   }
 
-  // Reject unbuilt projects before the dot-file filter removes evidence.
-  // pnpm stores files under node_modules/.pnpm/ — the dot-file filter below
-  // strips .pnpm/ paths, destroying the only signal that this is an unbuilt project.
-  const marker = filePaths.find((p) => p && hasUnbuiltMarker(p));
-  if (marker) {
-    throw ShipError.business(
-      'Unbuilt project detected — deploy your build output (dist/, build/, out/), not the project folder',
-    );
-  }
-
   return filePaths.filter((filePath) => {
     if (!filePath) {
       return false; // Exclude null or undefined paths
     }
+
+    // A project's files are not junk: they are kept for the deploy rules to
+    // refuse by name ("project"). pnpm keeps them under node_modules/.pnpm/,
+    // which the dot-file filter below would otherwise drop, taking the only
+    // sign of an unbuilt project with it.
+    if (hasUnbuiltMarker(filePath)) return true;
 
     // Normalize path separators to forward slashes and split into segments
     const parts = filePath.replace(/\\/g, '/').split('/').filter(Boolean);

@@ -99,10 +99,6 @@ export class Ship extends BaseShip {
       );
     }
 
-    if (paths.length === 0) {
-      throw ShipError.business('No files to deploy.');
-    }
-
     const { processFilesForNode } = await import('./core/node-files.js');
     return processFilesForNode(paths, options, limits);
   }

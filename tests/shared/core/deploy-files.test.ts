@@ -22,11 +22,7 @@ import { FREE_PLAN_LIMITS, LIMITS_WITHOUT_BLOCKLIST } from '../../fixtures/build
 /** The md5 of `hello` — a digest a truncated or skipped read cannot produce. */
 const HELLO_MD5 = '5d41402abc4b2a76b9719d911017c592';
 
-/**
- * A path injection the junk filter does NOT catch, so it reaches
- * `validateDeployPath` — see "lets the junk filter reach traversal segments
- * first" below for why this is the only one that does.
- */
+/** A path injection the junk filter does NOT catch, so the name rule refuses it. */
 const NULL_BYTE_PATH = 'logo\0.png';
 
 interface TrackedSource extends DeploySource {
@@ -77,12 +73,22 @@ describe('processDeployFiles', () => {
 
     it('preserves structure verbatim when pathDetect is false', async () => {
       const result = await processDeployFiles(
-        [src('dist/index.html'), src('dist/assets/app.js')],
+        [src('index.html'), src('dist/assets/app.js')],
         { pathDetect: false },
         FREE_PLAN_LIMITS,
       );
 
-      expect(pathsOf(result)).toEqual(['dist/index.html', 'dist/assets/app.js']);
+      expect(pathsOf(result)).toEqual(['index.html', 'dist/assets/app.js']);
+    });
+
+    it('keeps a site in its folder when pathDetect is false, so the refusal names that folder', async () => {
+      await expect(
+        processDeployFiles(
+          [src('dist/index.html'), src('dist/assets/app.js')],
+          { pathDetect: false },
+          FREE_PLAN_LIMITS,
+        ),
+      ).rejects.toThrow("There's one in dist/. If that's your site, publish that folder instead.");
     });
   });
 
@@ -112,12 +118,10 @@ describe('processDeployFiles', () => {
       expect(junk.readCount).toBe(0);
     });
 
-    it('resolves empty — without demanding limits — when everything is junk', async () => {
-      // Nothing to deploy is not a failure, and the answer is reached before
-      // the rules are asked for: this call passes none and must not throw.
-      const result = await processDeployFiles([src('.DS_Store'), src('.git/config')], {});
-
-      expect(result).toEqual([]);
+    it('refuses a deploy that is all junk: there is nothing left to publish', async () => {
+      await expect(
+        processDeployFiles([src('.DS_Store'), src('.git/config')], {}, FREE_PLAN_LIMITS),
+      ).rejects.toThrow('There are no files to publish.');
     });
   });
 
@@ -135,25 +139,29 @@ describe('processDeployFiles', () => {
       // that learned size by reading would have opened this file to discover
       // it was empty — the exact cost the seam exists to avoid.
       const lying = src('claims-empty.txt', 'real bytes', 0);
-      const result = await processDeployFiles([lying], {}, FREE_PLAN_LIMITS);
+      const result = await processDeployFiles([src('index.html'), lying], {}, FREE_PLAN_LIMITS);
 
-      expect(result).toEqual([]);
+      expect(pathsOf(result)).toEqual(['index.html']);
       expect(lying.readCount).toBe(0);
     });
 
     it('stops reading at the first refusal', async () => {
       // A deploy refused at file two must not open files three and four. The
-      // security check runs before any I/O, on the strength of the path alone.
+      // rules run before any I/O, on the strength of the path and size alone.
       const later = [src('c.txt'), src('d.txt')];
       await expect(
-        processDeployFiles([src('a.txt'), src(NULL_BYTE_PATH), ...later], {}, FREE_PLAN_LIMITS),
-      ).rejects.toThrow('Unsafe file path');
+        processDeployFiles(
+          [src('index.html'), src(NULL_BYTE_PATH), ...later],
+          {},
+          FREE_PLAN_LIMITS,
+        ),
+      ).rejects.toThrow('contains unsafe characters');
 
       expect(later.map((s) => s.readCount)).toEqual([0, 0]);
     });
 
     it('reads exactly once per file it keeps', async () => {
-      const sources = [src('a.txt'), src('b.txt')];
+      const sources = [src('index.html'), src('b.txt')];
       await processDeployFiles(sources, {}, FREE_PLAN_LIMITS);
 
       expect(sources.map((s) => s.readCount)).toEqual([1, 1]);
@@ -161,22 +169,15 @@ describe('processDeployFiles', () => {
   });
 
   describe('the platform rules', () => {
-    it('refuses an unsafe deploy path, naming the source it came from', async () => {
-      // The refusal quotes the ORIGIN, not the deploy path: the deploy path is
-      // what went wrong, and the origin is the only thing that says which file
-      // on the caller's machine produced it.
-      await expect(processDeployFiles([src(NULL_BYTE_PATH)], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        `/abs/${NULL_BYTE_PATH}`,
-      );
+    it('refuses a path injection by the name rule, naming the file', async () => {
+      await expect(
+        processDeployFiles([src('index.html'), src(NULL_BYTE_PATH)], {}, FREE_PLAN_LIMITS),
+      ).rejects.toThrow(`File name "${NULL_BYTE_PATH}" contains unsafe characters.`);
     });
 
     it('lets the junk filter reach traversal segments first', async () => {
-      // `validateDeployPath` refuses four patterns; the junk filter runs ahead
-      // of it and drops ANY dot-prefixed segment, so `..` never survives to be
-      // refused — it is simply not deployed. Defence in depth, and the null
-      // byte above is the one arm this pipeline can actually reach. True of
-      // both pipelines before they were merged; recorded here because the
-      // merge is what made it visible in one place.
+      // A `..` segment is dot-prefixed, so the junk filter drops it before the
+      // rules see it: it is not published, rather than refused.
       const result = await processDeployFiles(
         [src('dist/index.html'), src('dist/../../escape.txt')],
         {},
@@ -193,9 +194,13 @@ describe('processDeployFiles', () => {
     });
 
     it('checks no extension when the API sent no list — fail open, never guess', async () => {
-      const result = await processDeployFiles([src('virus.exe')], {}, LIMITS_WITHOUT_BLOCKLIST);
+      const result = await processDeployFiles(
+        [src('index.html'), src('virus.exe')],
+        {},
+        LIMITS_WITHOUT_BLOCKLIST,
+      );
 
-      expect(pathsOf(result)).toEqual(['virus.exe']);
+      expect(pathsOf(result)).toEqual(['index.html', 'virus.exe']);
     });
 
     it('refuses a file over maxFileSize', async () => {
@@ -221,12 +226,12 @@ describe('processDeployFiles', () => {
       // Empty files were skipped, so they are not files this deploy will send
       // and must not push it over the cap.
       const result = await processDeployFiles(
-        [src('a.txt'), src('empty.txt', ''), src('b.txt')],
+        [src('index.html'), src('empty.txt', ''), src('b.txt')],
         {},
         limitsWith({ maxFilesCount: 2 }),
       );
 
-      expect(pathsOf(result)).toEqual(['a.txt', 'b.txt']);
+      expect(pathsOf(result)).toEqual(['index.html', 'b.txt']);
     });
 
     it('refuses more results than maxFilesCount', async () => {
@@ -267,7 +272,9 @@ describe('processDeployFiles', () => {
     it('still refuses an unbuilt project on the ordinary deploy path', async () => {
       await expect(
         processDeployFiles([src('src/index.js'), src('package.json')], {}, FREE_PLAN_LIMITS),
-      ).rejects.toThrow('Unbuilt project detected');
+      ).rejects.toThrow(
+        'File "package.json" belongs to a project that isn\'t built yet. Build it, then publish the folder the build makes, like dist.',
+      );
     });
 
     it('applies no deploy rule, and needs no limits to say so', async () => {
@@ -340,8 +347,24 @@ describe('processDeployFiles', () => {
       });
     });
 
-    it('resolves empty for no sources at all', async () => {
-      expect(await processDeployFiles([], {}, FREE_PLAN_LIMITS)).toEqual([]);
+    it('refuses no sources at all', async () => {
+      await expect(processDeployFiles([], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+        'There are no files to publish.',
+      );
+    });
+
+    it('refuses a deploy with no index.html at its root', async () => {
+      await expect(
+        processDeployFiles([src('about.html'), src('app.js')], {}, FREE_PLAN_LIMITS),
+      ).rejects.toThrow(
+        "There's no index.html at the top of your site. It's the page visitors see first, so your site needs one.",
+      );
+    });
+
+    it('judges the home page over the files it publishes: an empty one is not one', async () => {
+      await expect(
+        processDeployFiles([src('index.html', ''), src('app.js')], {}, FREE_PLAN_LIMITS),
+      ).rejects.toThrow("There's no index.html at the top of your site.");
     });
   });
 });

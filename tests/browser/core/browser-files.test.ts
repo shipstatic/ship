@@ -7,6 +7,12 @@ import { processFilesForBrowser } from '../../../src/browser/core/browser-files'
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
 import { FREE_PLAN_LIMITS } from '../../fixtures/builders';
 
+/** The home page every deployment carries at its root. */
+const home = () => new File(['<html></html>'], 'index.html', { type: 'text/html' });
+
+const NO_HOME =
+  "There's no index.html at the top of your site. It's the page visitors see first, so your site needs one.";
+
 // Mock MD5 calculation for browser files
 vi.mock('../../../src/shared/lib/md5', () => ({
   calculateMD5: vi.fn().mockResolvedValue({ md5: 'mock-browser-hash' }),
@@ -42,22 +48,47 @@ describe('Browser File Processing', () => {
       });
     });
 
-    it('should handle empty file array', async () => {
-      const emptyFiles: File[] = [];
+    it('refuses an empty file array: there is nothing to publish', async () => {
+      await expect(processFilesForBrowser([], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+        'There are no files to publish.',
+      );
+    });
 
-      const result = await processFilesForBrowser(emptyFiles, {}, FREE_PLAN_LIMITS);
+    it('refuses files with no index.html at their root', async () => {
+      const files = [new File(['<p>about</p>'], 'about.html', { type: 'text/html' })];
 
-      expect(result).toHaveLength(0);
+      await expect(processFilesForBrowser(files, {}, FREE_PLAN_LIMITS)).rejects.toThrow(NO_HOME);
+    });
+
+    it('names the folder that holds the home page, when the site sits a folder down', async () => {
+      const drop = (name: string, relativePath: string) => {
+        const file = new File(['x'], name);
+        Object.defineProperty(file, 'webkitRelativePath', {
+          value: relativePath,
+          configurable: true,
+        });
+        return file;
+      };
+
+      await expect(
+        processFilesForBrowser(
+          [drop('index.html', 'site/dist/index.html'), drop('notes.txt', 'site/notes.txt')],
+          {},
+          FREE_PLAN_LIMITS,
+        ),
+      ).rejects.toThrow(
+        `${NO_HOME} There's one in dist/. If that's your site, publish that folder instead.`,
+      );
     });
 
     it('should preserve file content correctly', async () => {
       const testContent = '<html><body>Browser Test</body></html>';
-      const mockFile = new File([testContent], 'test.html', { type: 'text/html' });
+      const mockFile = new File([testContent], 'index.html', { type: 'text/html' });
 
       const result = await processFilesForBrowser([mockFile], {}, FREE_PLAN_LIMITS);
 
       expect(result).toHaveLength(1);
-      expect(result[0].path).toBe('test.html');
+      expect(result[0].path).toBe('index.html');
       expect(result[0].size).toBe(testContent.length);
 
       // Verify content is preserved as File (impossible simplicity!)
@@ -66,6 +97,7 @@ describe('Browser File Processing', () => {
 
     it('should handle files with special characters in names', async () => {
       const mockFiles = [
+        home(),
         new File(['test'], 'file with spaces.txt'),
         new File(['test'], 'file-with-dashes.css'),
         new File(['test'], 'file_with_underscores'),
@@ -74,8 +106,9 @@ describe('Browser File Processing', () => {
 
       const result = await processFilesForBrowser(mockFiles, {}, FREE_PLAN_LIMITS);
 
-      expect(result).toHaveLength(4);
+      expect(result).toHaveLength(5);
       expect(result.map((f) => f.path)).toEqual([
+        'index.html',
         'file with spaces.txt',
         'file-with-dashes.css',
         'file_with_underscores',
@@ -88,11 +121,11 @@ describe('Browser File Processing', () => {
       const largeContent = 'x'.repeat(1024);
       const mockFile = new File([largeContent], 'large-file.txt', { type: 'text/plain' });
 
-      const result = await processFilesForBrowser([mockFile], {}, FREE_PLAN_LIMITS);
+      const result = await processFilesForBrowser([home(), mockFile], {}, FREE_PLAN_LIMITS);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].size).toBe(1024);
-      expect(result[0].path).toBe('large-file.txt');
+      expect(result).toHaveLength(2);
+      expect(result[1].size).toBe(1024);
+      expect(result[1].path).toBe('large-file.txt');
     });
 
     it('should work with mixed file types', async () => {
@@ -125,16 +158,17 @@ describe('Browser File Processing', () => {
         type: 'application/octet-stream',
       });
 
-      const result = await processFilesForBrowser([mockFile], {}, FREE_PLAN_LIMITS);
+      const result = await processFilesForBrowser([home(), mockFile], {}, FREE_PLAN_LIMITS);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].path).toBe('large-file.bin');
-      expect(result[0].size).toBe(5 * 1024 * 1024);
-      expect(result[0].content).toBeInstanceOf(File);
+      expect(result).toHaveLength(2);
+      expect(result[1].path).toBe('large-file.bin');
+      expect(result[1].size).toBe(5 * 1024 * 1024);
+      expect(result[1].content).toBeInstanceOf(File);
     });
 
     it('should handle files with Unicode names', async () => {
       const unicodeFiles = [
+        home(),
         new File(['content'], '测试文件.txt'), // Chinese
         new File(['content'], 'файл'), // Cyrillic
         new File(['content'], 'ملف.html'), // Arabic
@@ -144,8 +178,9 @@ describe('Browser File Processing', () => {
 
       const result = await processFilesForBrowser(unicodeFiles, {}, FREE_PLAN_LIMITS);
 
-      expect(result).toHaveLength(5);
+      expect(result).toHaveLength(6);
       expect(result.map((f) => f.path)).toEqual([
+        'index.html',
         '测试文件.txt',
         'файл',
         'ملف.html',
@@ -156,6 +191,7 @@ describe('Browser File Processing', () => {
 
     it('should skip empty files (aligned with Node — R2 cannot store zero-byte objects)', async () => {
       const emptyFiles = [
+        home(),
         new File([], 'empty.txt'),
         new File([''], 'empty-string.html'),
         new File([new ArrayBuffer(0)], 'empty-buffer.bin'),
@@ -163,12 +199,13 @@ describe('Browser File Processing', () => {
 
       const result = await processFilesForBrowser(emptyFiles, {}, FREE_PLAN_LIMITS);
 
-      // Empty files are skipped — same behavior as Node
-      expect(result).toHaveLength(0);
+      // Empty files are skipped, the same as in Node: only the home page remains
+      expect(result.map((f) => f.path)).toEqual(['index.html']);
     });
 
     it('should handle files with unusual MIME types', async () => {
       const unusualFiles = [
+        home(),
         new File(['content'], 'test.xyz', { type: 'application/unknown' }),
         new File(['content'], 'no-extension', { type: '' }),
         new File(['content'], 'custom.type', { type: 'application/x-custom-type' }),
@@ -177,8 +214,9 @@ describe('Browser File Processing', () => {
 
       const result = await processFilesForBrowser(unusualFiles, {}, FREE_PLAN_LIMITS);
 
-      expect(result).toHaveLength(4);
+      expect(result).toHaveLength(5);
       expect(result.map((f) => f.path)).toEqual([
+        'index.html',
         'test.xyz',
         'no-extension',
         'custom.type',
@@ -199,12 +237,12 @@ describe('Browser File Processing', () => {
       const fileFromString = new File(['string content'], 'from-string.txt');
 
       const result = await processFilesForBrowser(
-        [fileFromBlob, fileFromBuffer, fileFromString],
+        [home(), fileFromBlob, fileFromBuffer, fileFromString],
         {},
         FREE_PLAN_LIMITS,
       );
 
-      expect(result).toHaveLength(3);
+      expect(result).toHaveLength(4);
       expect(result.every((f) => f.content instanceof File)).toBe(true);
     });
 
@@ -335,14 +373,14 @@ describe('Browser File Processing', () => {
     });
 
     it('should handle concurrent file processing', async () => {
-      const files = Array.from(
-        { length: 50 },
-        (_, i) => new File([`content ${i}`], `file-${i}.txt`),
-      );
+      const files = [
+        home(),
+        ...Array.from({ length: 50 }, (_, i) => new File([`content ${i}`], `file-${i}.txt`)),
+      ];
 
       const result = await processFilesForBrowser(files, {}, FREE_PLAN_LIMITS);
 
-      expect(result).toHaveLength(50);
+      expect(result).toHaveLength(51);
       expect(result.every((f) => f.md5 === 'mock-browser-hash')).toBe(true);
     });
 
@@ -352,15 +390,20 @@ describe('Browser File Processing', () => {
         lastModified: now - 1000,
       });
 
-      const result = await processFilesForBrowser([fileWithTimestamp], {}, FREE_PLAN_LIMITS);
+      const result = await processFilesForBrowser(
+        [home(), fileWithTimestamp],
+        {},
+        FREE_PLAN_LIMITS,
+      );
 
-      expect(result).toHaveLength(1);
+      expect(result).toHaveLength(2);
       // The timestamp might not be preserved in StaticFile format, but processing should succeed
-      expect(result[0].path).toBe('timed-file.txt');
+      expect(result[1].path).toBe('timed-file.txt');
     });
 
     it('should handle files with identical names', async () => {
       const duplicateFiles = [
+        home(),
         new File(['content1'], 'duplicate.txt'),
         new File(['content2'], 'duplicate.txt'),
         new File(['content3'], 'duplicate.txt'),
@@ -368,9 +411,9 @@ describe('Browser File Processing', () => {
 
       const result = await processFilesForBrowser(duplicateFiles, {}, FREE_PLAN_LIMITS);
 
-      expect(result).toHaveLength(3);
+      expect(result).toHaveLength(4);
       // All should be processed, even with duplicate names
-      expect(result.every((f) => f.path === 'duplicate.txt')).toBe(true);
+      expect(result.slice(1).every((f) => f.path === 'duplicate.txt')).toBe(true);
     });
   });
 
@@ -444,7 +487,7 @@ describe('Browser File Processing', () => {
       });
 
       await expect(processFilesForBrowser(files, {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        'Unbuilt project detected',
+        "belongs to a project that isn't built yet",
       );
     });
 
@@ -454,7 +497,7 @@ describe('Browser File Processing', () => {
       Object.defineProperty(files[1], 'webkitRelativePath', { value: 'demo/package.json' });
 
       await expect(processFilesForBrowser(files, {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        'Unbuilt project detected',
+        "belongs to a project that isn't built yet",
       );
     });
 
@@ -467,7 +510,7 @@ describe('Browser File Processing', () => {
 
       // Common root 'demo/' is stripped, leaving node_modules visible in content paths
       await expect(processFilesForBrowser(files, {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        'Unbuilt project detected',
+        "belongs to a project that isn't built yet",
       );
     });
   });
@@ -503,21 +546,14 @@ describe('Browser File Processing', () => {
     });
 
     it('should allow characters that survive the URL round-trip', async () => {
-      const parenFile = new File(['test'], 'file(1).json');
-      const result1 = await processFilesForBrowser([parenFile], {}, FREE_PLAN_LIMITS);
-      expect(result1).toHaveLength(1);
-
-      const bracketFile = new File(['test'], 'file[slug].js');
-      const result2 = await processFilesForBrowser([bracketFile], {}, FREE_PLAN_LIMITS);
-      expect(result2).toHaveLength(1);
-
-      const braceFile = new File(['test'], 'file{id}.txt');
-      const result3 = await processFilesForBrowser([braceFile], {}, FREE_PLAN_LIMITS);
-      expect(result3).toHaveLength(1);
-
-      const semicolonFile = new File(['test'], 'file;semi.txt');
-      const result4 = await processFilesForBrowser([semicolonFile], {}, FREE_PLAN_LIMITS);
-      expect(result4).toHaveLength(1);
+      for (const name of ['file(1).json', 'file[slug].js', 'file{id}.txt', 'file;semi.txt']) {
+        const result = await processFilesForBrowser(
+          [home(), new File(['test'], name)],
+          {},
+          FREE_PLAN_LIMITS,
+        );
+        expect(result.map((f) => f.path)).toEqual(['index.html', name]);
+      }
     });
 
     it('should reject Windows reserved names', async () => {
@@ -536,13 +572,14 @@ describe('Browser File Processing', () => {
 
     it('should allow valid file extensions (.html, .css, .json)', async () => {
       const validFiles = [
+        home(),
         new File(['<html>'], 'page.html'),
         new File(['body {}'], 'style.css'),
         new File(['{}'], 'data.json'),
       ];
 
       const result = await processFilesForBrowser(validFiles, {}, FREE_PLAN_LIMITS);
-      expect(result).toHaveLength(3);
+      expect(result).toHaveLength(4);
     });
   });
 
@@ -550,13 +587,16 @@ describe('Browser File Processing', () => {
     it('should handle processing without memory leaks', async () => {
       // Process multiple batches to test for memory leaks
       for (let batch = 0; batch < 10; batch++) {
-        const files = Array.from(
-          { length: 10 },
-          (_, i) => new File([`batch ${batch} file ${i}`], `batch-${batch}-file-${i}.txt`),
-        );
+        const files = [
+          home(),
+          ...Array.from(
+            { length: 10 },
+            (_, i) => new File([`batch ${batch} file ${i}`], `batch-${batch}-file-${i}.txt`),
+          ),
+        ];
 
         const result = await processFilesForBrowser(files, {}, FREE_PLAN_LIMITS);
-        expect(result).toHaveLength(10);
+        expect(result).toHaveLength(11);
       }
     });
 
@@ -579,11 +619,15 @@ describe('Browser File Processing', () => {
       const typedArray = new Uint8Array([72, 101, 108, 108, 111]); // "Hello"
       const fileFromTypedArray = new File([typedArray], 'typed-array.bin');
 
-      const result = await processFilesForBrowser([fileFromTypedArray], {}, FREE_PLAN_LIMITS);
+      const result = await processFilesForBrowser(
+        [home(), fileFromTypedArray],
+        {},
+        FREE_PLAN_LIMITS,
+      );
 
-      expect(result).toHaveLength(1);
-      expect(result[0].content).toBeInstanceOf(File);
-      expect(result[0].size).toBe(5);
+      expect(result).toHaveLength(2);
+      expect(result[1].content).toBeInstanceOf(File);
+      expect(result[1].size).toBe(5);
     });
   });
 });

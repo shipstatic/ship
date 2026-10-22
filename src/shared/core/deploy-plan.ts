@@ -27,6 +27,7 @@ import {
   DEPLOY_FIELDS,
   DEPLOY_REQUEST_CONSTRAINTS,
   DEPLOYMENT_CONFIG_FILENAME,
+  DEPLOYMENT_INDEX_FILENAME,
   formatFileSize,
   ShipError,
 } from '@shipstatic/types';
@@ -81,9 +82,6 @@ export interface DeployPlan {
  */
 export const BUILD_TOO_LARGE = `We can build projects up to ${formatFileSize(MAX_BYTES)}. Build this one on your computer and upload the built folder instead.`;
 
-/** The page the single-page question is asked of. */
-const INDEX_PATH = 'index.html';
-
 /**
  * The files that configure a deployment ride its declaration: the root
  * `ship.json`, which the API compiles there, and the root `index.html`, which
@@ -91,7 +89,7 @@ const INDEX_PATH = 'index.html';
  * leaves either behind.
  */
 const configures = (file: StaticFile) =>
-  file.path === DEPLOYMENT_CONFIG_FILENAME || file.path === INDEX_PATH;
+  file.path === DEPLOYMENT_CONFIG_FILENAME || file.path === DEPLOYMENT_INDEX_FILENAME;
 
 /**
  * Plan a deploy: one request when everything fits, otherwise a bare

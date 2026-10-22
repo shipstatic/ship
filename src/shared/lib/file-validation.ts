@@ -11,11 +11,10 @@ import type {
   ValidationIssue,
 } from '@shipstatic/types';
 import {
+  brokenSetRule,
   FileValidationStatus as FILE_VALIDATION_STATUS,
-  hasUnbuiltMarker,
-  hasUnsafeChars,
+  firstBrokenRule,
 } from '@shipstatic/types';
-import { COUNT_RULE, firstBrokenRule } from './file-rules.js';
 
 // The platform's one reading of a byte count, re-exported so this package's
 // consumers keep reading it from here.
@@ -27,77 +26,24 @@ export type { ValidatableFile };
 export { FILE_VALIDATION_STATUS };
 
 /**
- * Validate filename for deployment safety
+ * Validate files against the platform's deploy rules, listing every refusal.
  *
- * Blocks only characters that genuinely break the upload→serve round-trip:
- * - # ? %     URL round-trip breakers (fragment, query, encoding ambiguity)
- * - \         Path separator confusion (buildFileKey splits on backslash)
- * - < > "     XSS vectors with zero legitimate use in filenames
- * - \x00-\x1f \x7f  Control characters (header injection, display corruption)
+ * The rules and their sentences are the platform's one table in
+ * `@shipstatic/types` ("Deploy rules"), which the API and the deploy
+ * pipelines judge by too, so a refusal listed here reads as it would anywhere.
+ * This is the collecting renderer: each file's first broken rule, then the
+ * rules about the deployment as a whole (it has files, no more than the plan
+ * allows, and a home page at its root), filed under the deployment because
+ * they name no one file.
  *
- * Everything else is allowed — browser percent-encodes, Worker decodes, R2 matches.
+ * - **Errors** block the deployment, and atomically: if any file is refused,
+ *   none is valid.
+ * - **Warnings** exclude a file and let the deployment go on: an empty file,
+ *   which no deployment stores.
  *
- * Additional checks: path traversal, reserved names, leading/trailing dots or spaces.
- *
- * The reason is a complete sentence naming the file, so every surface shows it
- * as it is (`file-rules.ts` on why).
- */
-export function validateFileName(filename: string): { valid: boolean; reason?: string } {
-  const refuse = (why: string) => ({ valid: false, reason: `File name "${filename}" ${why}.` });
-
-  if (hasUnsafeChars(filename)) {
-    return refuse('contains unsafe characters');
-  }
-
-  if (filename.startsWith(' ') || filename.endsWith(' ')) {
-    return refuse('cannot start or end with spaces');
-  }
-
-  if (filename.endsWith('.')) {
-    return refuse('cannot end with dots');
-  }
-
-  const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i;
-  const nameWithoutPath = filename.split('/').pop() || filename;
-  if (reservedNames.test(nameWithoutPath)) {
-    return refuse('uses a reserved system name');
-  }
-
-  if (filename.includes('..')) {
-    return refuse('contains a path traversal pattern');
-  }
-
-  return { valid: true };
-}
-
-/**
- * Validate files against configuration limits with severity-based reporting
- *
- * Validation categorizes issues by severity:
- * - **Errors**: Block deployment (file too large, blocked extension, etc.)
- * - **Warnings**: Exclude files but allow deployment (empty files, etc.)
- *
- * @param files - Array of files to validate
- * @param config - Validation configuration from ship.getLimits()
- * @returns Validation result with errors and warnings
- *
- * @example
- * ```typescript
- * const config = await ship.getLimits();
- * const result = validateFiles(files, config);
- *
- * if (!result.canDeploy) {
- *   // Has errors - deployment blocked
- *   console.error('Deployment blocked:', result.errors);
- * } else if (result.warnings.length > 0) {
- *   // Has warnings - deployment proceeds, some files excluded
- *   console.warn('Files excluded:', result.warnings);
- *   await ship.deploy(result.validFiles);
- * } else {
- *   // All files valid
- *   await ship.deploy(result.validFiles);
- * }
- * ```
+ * @param files - The files, each named by its deploy path
+ * @param config - The platform's limits, from `ship.getLimits()`
+ * @returns Every file with its status, the valid ones, and the issues
  */
 export function validateFiles<T extends ValidatableFile>(
   files: T[],
@@ -105,150 +51,36 @@ export function validateFiles<T extends ValidatableFile>(
 ): FileValidationResult<T> {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
-  let fileStatuses: T[] = []; // Use 'let' for atomic enforcement later
+  let fileStatuses: T[] = [];
+  const deployment = `(${files.length} files)`;
 
-  // Check at least 1 file required
-  if (files.length === 0) {
-    const issue: ValidationIssue = {
-      file: '(no files)',
-      message: 'At least one file must be provided.',
-    };
-    errors.push(issue);
-
-    return {
-      files: [],
-      validFiles: [],
-      errors,
-      warnings: [],
-      canDeploy: false,
-    };
-  }
-
-  // Check for unbuilt project markers (node_modules/, etc.)
-  for (const file of files) {
-    if (hasUnbuiltMarker(file.name)) {
-      errors.push({
-        file: file.name,
-        message:
-          'Unbuilt project detected. Deploy your build output (dist/, build/, out/), not the project folder.',
-      });
-      return {
-        files: files.map((f) => ({
-          ...f,
-          status: FILE_VALIDATION_STATUS.VALIDATION_FAILED,
-          statusMessage: 'Unbuilt project detected',
-        })),
-        validFiles: [],
-        errors,
-        warnings: [],
-        canDeploy: false,
-      };
-    }
-  }
-
-  // The count rule, over the files handed in. Its subject is the set, so the
-  // issue is filed under `(N files)` rather than against any one of them.
-  if (COUNT_RULE.broken(files.length, config)) {
-    const issue: ValidationIssue = {
-      file: `(${files.length} files)`,
-      message: COUNT_RULE.sentence(files.length, config),
-    };
-    errors.push(issue);
-
-    return {
-      files: files.map((f) => ({
-        ...f,
-        status: FILE_VALIDATION_STATUS.VALIDATION_FAILED,
-        statusMessage: issue.message,
-      })),
-      validFiles: [],
-      errors,
-      warnings: [],
-      canDeploy: false,
-    };
-  }
-
-  // Validate each file
   let totalSize = 0;
-
   for (const file of files) {
     let fileStatus: FileValidationStatusType = FILE_VALIDATION_STATUS.READY;
     let statusMessage = 'Ready for upload';
 
-    // Check for processing errors
     if (file.status === FILE_VALIDATION_STATUS.PROCESSING_ERROR) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = file.statusMessage || `File "${file.name}" could not be read.`;
-      errors.push({
-        file: file.name,
-        message: statusMessage,
-      });
-    }
-
-    // EMPTY FILE - Warning (not error)
-    else if (file.size === 0) {
+      errors.push({ file: file.name, message: statusMessage });
+    } else if (file.size === 0) {
+      // Excluded, not refused: the deployment goes on without it.
       fileStatus = FILE_VALIDATION_STATUS.EXCLUDED;
       statusMessage = `File "${file.name}" is empty, so it is excluded.`;
-      warnings.push({
-        file: file.name,
-        message: statusMessage,
-      });
-      // Skip other validations for excluded files
-      fileStatuses.push({
-        ...file,
-        status: fileStatus,
-        statusMessage,
-      });
-      continue;
-    }
-
-    // Negative file size - Error
-    else if (file.size < 0) {
+      warnings.push({ file: file.name, message: statusMessage });
+    } else if (file.size < 0) {
       fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
       statusMessage = `File "${file.name}" reports a negative size.`;
-      errors.push({
-        file: file.name,
-        message: statusMessage,
-      });
-    }
-
-    // File name validation
-    else if (!file.name || file.name.trim().length === 0) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = 'File name cannot be empty.';
-      errors.push({
-        file: file.name || '(empty)',
-        message: statusMessage,
-      });
-    } else if (file.name.includes('\0')) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
-      statusMessage = `File name "${file.name}" contains invalid characters (null byte).`;
-      errors.push({
-        file: file.name,
-        message: statusMessage,
-      });
-    }
-
-    // THE SHARED RULES (name, extension, file size, total size) read from the
-    // one ordered table in `file-rules.ts`.
-    //
-    // This is the COLLECTING renderer: the same verdict the deploy pipelines'
-    // throwing renderer reaches, delivered as a list rather than an exception.
-    // Neither surface authors a sentence, which is what stopped one size rule
-    // reading three different ways. Every sentence here, the pre-checks above
-    // included, is complete on its own: it names its file once and a consumer
-    // shows it without a prefix (`file-rules.ts`).
-    else {
+      errors.push({ file: file.name, message: statusMessage });
+    } else {
       const input = { path: file.name, size: file.size, totalSize: totalSize + file.size };
       const broken = firstBrokenRule(input, config);
-
       if (broken) {
         fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
         statusMessage = broken.sentence(input, config);
+        // The total rule refuses the deployment, not the file that tipped it.
         errors.push({
-          // The total-size rule fails the DEPLOY, not this file, so it keeps
-          // the aggregate subject rather than blaming whichever file tipped it.
-          file: broken.name === 'totalSize' ? `(${files.length} files)` : file.name,
+          file: broken.name === 'totalSize' ? deployment : file.name,
           message: statusMessage,
         });
       } else {
@@ -257,12 +89,15 @@ export function validateFiles<T extends ValidatableFile>(
       }
     }
 
-    fileStatuses.push({
-      ...file,
-      status: fileStatus,
-      statusMessage,
-    });
+    fileStatuses.push({ ...file, status: fileStatus, statusMessage });
   }
+
+  // The rules about the deployment as a whole, over the files it publishes.
+  const published = fileStatuses
+    .filter((file) => file.status !== FILE_VALIDATION_STATUS.EXCLUDED)
+    .map((file) => file.name);
+  const broken = brokenSetRule(published, config);
+  if (broken) errors.push({ file: deployment, message: broken.sentence(published, config) });
 
   // ATOMIC ENFORCEMENT: Two-phase validation for optimal UX + atomic semantics
   // Phase 1 (above): Validate files individually to collect ALL errors

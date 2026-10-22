@@ -25,6 +25,8 @@ const API_KEY = apiKey('a');
 const DEMO_SITE = path.resolve(__dirname, './fixtures/demo-site');
 /** A single-page app: an empty shell and its script. */
 const APP_SITE = path.resolve(__dirname, './fixtures/spa-site');
+/** A page and no home page: not a website. */
+const NO_HOME_SITE = path.resolve(__dirname, './fixtures/no-home-site');
 
 let ship: Ship;
 let ctx: ContractContext;
@@ -64,6 +66,7 @@ beforeEach(async () => {
     anonymous: new Ship({ apiUrl: getMockServerUrl() }),
     sitePath: DEMO_SITE,
     appPath: APP_SITE,
+    noHomePath: NO_HOME_SITE,
     largeSitePath,
     // The mock's state resets after every test; nothing outlives the run.
     created: () => {},

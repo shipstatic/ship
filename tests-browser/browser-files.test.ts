@@ -66,7 +66,7 @@ describe('processFilesForBrowser in Chromium', () => {
   });
 
   it('attaches a real spark-md5 digest and byte-accurate size to every file', async () => {
-    const [file] = await processFilesForBrowser([fileAt('site/hello.txt', 'hello')], {}, LIMITS);
+    const [file] = await processFilesForBrowser([fileAt('site/index.html', 'hello')], {}, LIMITS);
     expect(file.md5).toBe('5d41402abc4b2a76b9719d911017c592');
     expect(file.size).toBe(5);
   });
@@ -74,10 +74,9 @@ describe('processFilesForBrowser in Chromium', () => {
   it('enforces platform limits on real File sizes', async () => {
     const tight: PlatformLimits = { maxFileSize: 1024, maxFilesCount: 5, maxTotalSize: 4096 };
     const oversized = fileAt('site/big.bin', 'x'.repeat(2048));
-    // The sentence is the one `FILE_RULES` authors, byte for byte — the whole
-    // point of the table is that this reads the same here as it does from the
-    // Node pipeline and from `validateFiles`. A loose pattern would have let
-    // the three drift right back apart.
+    // The sentence is the one the platform's `FILE_RULES` authors, byte for
+    // byte: the point of the table is that this reads the same here as from
+    // the Node pipeline, `validateFiles` and the API.
     await expect(processFilesForBrowser([oversized], {}, tight)).rejects.toThrow(
       'File "big.bin" is too large. Maximum 1 KB allowed.',
     );

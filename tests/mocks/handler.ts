@@ -47,6 +47,7 @@ import {
   type DomainShareResponse,
   type DomainValidateResponse,
   type DomainVerifyResponse,
+  deployRefusal,
   ErrorType,
   type ManifestEntry,
   type PingResponse,
@@ -256,6 +257,22 @@ export async function handleApiRequest(request: Request, state: MockState): Prom
           : uploaded,
       );
       const complete = [...declared].every((p) => uploaded.includes(p));
+      // wire: lib/validation.ts, `validateUpload`: the platform's deploy rules
+      // (`@shipstatic/types`), judged over what the deployment declares.
+      const sizes = new Map(
+        (form?.getAll(DEPLOY_FIELDS.FILES) ?? [])
+          .filter((entry): entry is File => entry instanceof File)
+          .map((file) => [file.name.replace(/^\//, ''), file.size] as const),
+      );
+      const entries =
+        typeof manifestField === 'string'
+          ? (JSON.parse(manifestField) as ManifestEntry[]).map((e) => ({
+              path: e.path.replace(/^\//, ''),
+              size: e.size,
+            }))
+          : [...sizes].map(([path, size]) => ({ path, size }));
+      const refusal = deployRefusal(entries, state.limits);
+      if (refusal) return fail(ShipError.validation(refusal));
       // wire: lib/upload-input.ts, `collectSpaFromFormData`: absent asks.
       const spaField = form?.get(DEPLOY_FIELDS.SPA) ?? null;
       if (spaField !== null && spaField !== 'true' && spaField !== 'false') {

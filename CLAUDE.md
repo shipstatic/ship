@@ -304,14 +304,6 @@ Two asymmetries are BY DESIGN — recorded, not unified:
   Uploads". The MODE is read from the shared options where the loop is; who sets
   it is the asymmetry.
 
-**And a fact the merge made visible that nobody had written down:** `filterJunk`
-runs ahead of `validateDeployPath` and drops any dot-prefixed segment, so three
-of that guard's four patterns cannot be reached through this pipeline — a `..`
-segment is never refused, it is simply not deployed. The null byte is the one arm
-that gets there. True of both pipelines before the merge; it took having one of
-them to see it, and a row in `tests/shared/core/deploy-files.test.ts` pins it so
-the junk filter cannot stop covering for it silently.
-
 Fenced by 26 rows whose sources are SYNTHETIC — none of them needs a disk or a
 browser, which is itself the evidence the seam landed in the right place.
 
@@ -829,7 +821,7 @@ and the next composition lands born-here instead of re-arguing the design.
 | **Dispatcher-owned step emission** — the handler gets an `emit` capability; channels become folds (text renders steps, `--json`/`-q` ignore them), tested once at the fold | The **second** command that announces a mid-command beat | The exported `announceStep` and its per-command channel discipline |
 | **A composition/plan shape** | The **second** composed command | Nothing yet — `deployAndLink` as a plain async function is the right altitude for one |
 | **A command table above Commander** | A consumer that needs identity or requirements to be *enumerable* — none exists; the tree already serves completions, help, both fences, and scoped usage | Nothing — the tree IS the table today |
-| **An ordered TABLE for `getUserMessage`** — (predicate, renderer) rows with a completeness tie, the `SHAPES` / `FILE_RULES` move | The **third** ordering TIE in that chain. It has two (auth-before-client, timeout-before-network), both fenced by tests that turn red on a reorder | The if/else chain and the two tie notes above it. Deliberately not built now: those tables exist to delete a SECOND statement of one fact — `SHAPES` had two chains that drifted, `FILE_RULES` one rule read three ways — and this chain has ONE reader, so a table would move code without removing a restatement |
+| **An ordered TABLE for `getUserMessage`** — (predicate, renderer) rows with a completeness tie, the `SHAPES` / deploy-rules move | The **third** ordering TIE in that chain. It has two (auth-before-client, timeout-before-network), both fenced by tests that turn red on a reorder | The if/else chain and the two tie notes above it. Deliberately not built now: those tables exist to delete a SECOND statement of one fact — `SHAPES` had two chains that drifted, the deploy rules one rule read three ways — and this chain has ONE reader, so a table would move code without removing a restatement |
 | **Hand-rolled ambient-config validation**, retiring `zod` from `dependencies` | Someone is paying for the dependency — a consumer install size complaint, or the third field on `CREDENTIAL_FIELDS` | zod's entire runtime footprint here: three imports over TWO fields (`apiUrl`, `token`), where `z.string().url()` is a weaker restatement of the constitution's `validateApiUrl`. Not free, though: `.strict()` is what makes `.shiprc` refuse unknown keys, and `Object.keys(CREDENTIAL_FIELDS)` is what the config wizard rebuilds the file from, so the replacement owes a key list plus a parse that reports which field failed. A change to the published dependency CONTRACT belongs in its own wave, never as a rider. (The live gap that audit surfaced was separable and is fixed — see "One rule, every source" below.) |
 
 **Considered and declined outright**, so it is not rediscovered: a cross-repo
@@ -1243,9 +1235,9 @@ runtime — and it generalizes. `docs-contract`'s taught-ness matcher got the
 one-line version of the same treatment (`isTaught('--flag-that-cannot-exist')`
 must answer `false`), because a matcher answering `true` for everything makes
 "every flag is taught" unfailable while reading exactly as it does now. The
-file-rules table needs neither: its completeness tie is structural — the
-test's own list is asserted deep-equal to the production table, in order — so
-a second plant there would be ceremony.
+deploy-rules tables need neither: their completeness ties are structural (the
+test's own lists are asserted equal to the production tables, in order, in
+`@shipstatic/types`), so a second plant there would be ceremony.
 
 **Bundling carries licence obligations, so the notices ship.**
 `scripts/third-party-licenses.cjs` writes `THIRD-PARTY-LICENSES.md` at build
@@ -1940,91 +1932,45 @@ has moved on from, in both directions. Fenced by the `getLimits` row in
 `tests/contract.ts` — the live half is the only thing in this repo that can see
 the API drop the field.
 
-**One rule, one sentence, two renderers — done 2026-08-12.**
-`src/shared/lib/file-rules.ts` is the ordered table of (predicate, sentence)
-rows over (file, limits): the `SHAPES`-table move (see "`formatOutput` Router")
-applied to validation. `firstBrokenRule` is the single evaluation, and the two
-renderers choose only how to DELIVER it — `validateDeployFile` throws the first
-broken rule (both deploy pipelines), `validateFiles` records it (the UI tier).
-Neither authors prose.
+**The rules are the platform's, and this package renders them.** Every rule a
+deployment's files are held to is one table in `@shipstatic/types` ("Deploy
+rules"): `FILE_RULES` for each file (name, extension, project, path, file size,
+running total) and `SET_RULES` for the deployment as a whole (it has files, no
+more than the plan allows, and a home page, `index.html` at its root). The API
+judges a declaration by the same table, so a refusal reads the same wherever it
+is made, and a rule cannot be added to one judge and not the other. This package
+renders it twice and authors no sentence of its own:
 
-It closed a real divergence: one size rule read three ways —
-`File ${path} is too large. Maximum allowed size is ${n}MB.` (the pipelines),
-`File size (…) exceeds limit of …` (`validateFiles`), and
-`File too large. Maximum ${n} bytes allowed` (the API) — against the
-dual-validation doctrine that an error reads the same wherever it is caught. It
-also made **node/browser pipeline parity structural**: both pipelines call the
-same renderer, so the comment reading "matches Node validation" has nothing
-left to be wrong about.
+- **The throwing renderer**, `validateDeployFile` and `validateDeploySet`
+  (`shared/lib/security.ts`), which both deploy pipelines call: each file
+  before it is read (a refused file costs no I/O), then the set over the files
+  the deploy publishes. A refusal is `ShipError.validation`, the API's own type
+  and status for it.
+- **The collecting renderer**, `validateFiles`, which the UI tier (drop) reads:
+  each file's first broken rule, then the set rules, filed under `(N files)`
+  because they name no one file. Its own checks are only the ones about a
+  `File` rather than a deployment (a processing error, a negative size), and
+  an empty file is excluded with a warning, as the pipelines skip it.
 
-**The SDK is where a refusal is worded, and every sentence is complete on its
-own.** Drop, the console, the CLI and the MCPs show the sentence verbatim and
-add nothing (the console's "the wire message is the displayed message", one
-layer down), so a sentence names its file exactly once, states the limit, and
-reads without a prefix. The family is subject first: `File "<path>" is too
-large. Maximum 20 MB allowed.`, `File "<path>" has an extension that is not
-allowed.`, `File name "<path>" contains unsafe characters.` (the name rule's
-sentence is `validateFileName`'s own, which names the file itself). The two
-issues about the SET name no file, because the subject is the deploy: `Too
-many files (150). Maximum 100 files allowed.` and `Files add up to 26 MB.
-Maximum 25 MB allowed.`; the collecting renderer files them under `(N files)`.
-`validateFiles`' UI pre-checks (empty, negative, unbuilt marker, processing
-error) word their sentences by the same family. A consumer that prefixed the
-path produced `big.txt: File "big.txt" too large`, which is the defect the
-rule closes.
+**Every sentence is complete on its own**, names its file once (the set rules
+name none), and ends a limit's sentence with the way forward the API delivered
+(`PlatformLimits.suggestions`), so drop, the console, the CLI and the MCPs show
+it as it is and this package never learns what a plan is. The CLI's
+`plainMessage` lowercases only the opening word and strips only the final
+period.
 
-**The count is a rule of the table too, asked of the deploy as a whole.**
-`COUNT_RULE` takes the count rather than a file, and each renderer hands it
-the count it is about to send: `validateFiles` the files it was given,
-`validateDeployCount` (the pipelines' renderer, beside `validateDeployFile`)
-the files that survived the walk, since a deploy is not over the cap for
-files it will not send. One sentence, `Too many files (501). Maximum 500
-files allowed.`, filed under `(N files)` by the collecting renderer.
+**What the junk filter does and does not do.** It filters a site's junk and
+judges nothing: a project's files (`node_modules`, `package.json`) are kept,
+even under pnpm's `node_modules/.pnpm/`, so the `project` rule refuses them by
+name. A `..` segment is dot-prefixed, so it is filtered rather than refused.
 
-**A limit's sentence ends with the suggestion, and the API wrote it.**
-`/limits` delivers `PlatformLimits.suggestions`, one sentence per limit
-("Upgrade to Pro for more.", or support where no sold plan allows more),
-computed by the API for the caller's plan, grant and open doors with the
-function its own upload refusal ends with. `withSuggestion` (`file-rules.ts`)
-appends the delivered sentence verbatim to the size, total and count
-sentences, in the table, so both renderers carry it: `File "x" is too large.
-Maximum 20 MB allowed. Upgrade to Pro for more.` A refusal made here and one
-made at the boundary therefore end in the same words by construction, and
-this package never learns what a plan is. An older API delivers no field and
-nothing is appended, as with `blockedExtensions`; `tests/contract.ts`'s
-`getLimits` row holds the field on the wire. The CLI's `plainMessage` leaves
-the appended sentence intact (it lowercases only the opening word and strips
-only the final period), and the MCPs relay the message unchanged.
-
-**The API words the same rules the same way, in the same order**
-(`cloudflare/api/src/lib/validation.ts`): sizes formatted, the path named,
-the name rules, the extension, the size, the count and the total each one
-sentence on both sides, so an error reads the same wherever it was caught.
-That is a restatement, and it is fenced where it can break: a test in
-`cloudflare` imports this package's `validateFiles` and compares every shared
-rule's sentence to `validateUpload`'s, row by row. The fence names its own
-death, which is Phase B below.
-
-Scope held deliberately: `validateDeployPath` stays out (a rule about the
-deploy PATH, not the file, and pipelines-only).
-
-Fenced in `tests/shared/lib/file-rules.unit.test.ts`: every sentence pinned by
-a hand-written row, with the completeness TIE asserting the test's own list
-deep-equals the production table in order (without that line the check counts
-itself — the tautology this estate has on record), plus a row per rule that
-counts the path's mentions and requires exactly one. `file-validation.unit.test.ts`
-holds the same count over every per-file sentence `validateFiles` writes, the
-pre-checks included. All drilled: a reworded sentence, a renamed row, and a
-sentence that names its file twice or not at all each turn it red.
-
-**Phase B is deferred, and its trigger has fired.** Promoting the table into
-`@shipstatic/types` with the API consuming it: the sentence has two holders,
-this table and the API's copies, held in step by the cross-repo fence above
-rather than by an import. The drift it guards was paid for once (the sentences
-were rewritten here and the API's copies followed a wave later), which is the
-stopping rule's condition met. It is a types+api convoy with its own blast
-radius, so it is its own wave; the fence is what makes waiting honest, and the
-commit that lands the import deletes it.
+**The home page.** A deploy with no `index.html` at its root is refused before
+the first request, and when exactly one folder holds the shallowest nested
+`index.html` the sentence names it ("There's one in dist/. If that's your site,
+publish that folder instead."), which is the usual cause: a site deployed from
+the folder above its build. An empty `index.html` is not one, since no
+deployment stores an empty file. `tests/contract.ts` holds the refusal as a
+validation error made with no request (`deployments.upload (no index.html)`).
 
 ## Backend Integration
 

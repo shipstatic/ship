@@ -89,8 +89,8 @@ function refuseUnbuiltProjects(paths: string[]): void {
       if (fs.statSync(absPath).isDirectory()) {
         const marker = fs.readdirSync(absPath).find((e) => UNBUILT_PROJECT_MARKERS.has(e));
         if (marker) {
-          throw ShipError.business(
-            `"${marker}" detected — deploy your build output (dist/, build/, out/), not the project folder`,
+          throw ShipError.validation(
+            `"${p}" is a project that isn't built yet: it has ${marker}. Build it, then publish the folder the build makes, like dist.`,
           );
         }
       }

@@ -177,51 +177,32 @@ describe('filterJunk', () => {
   });
 });
 
-describe('filterJunk — unbuilt project detection', () => {
-  it('should throw on paths containing node_modules/', () => {
-    expect(() => filterJunk(['index.html', 'node_modules/react/index.js', 'app.js'])).toThrow(
-      'Unbuilt project detected',
-    );
+describe("filterJunk — a project's files are not junk", () => {
+  // The junk filter judges nothing about a project: it keeps a project's
+  // files so the deploy rules refuse them by name ("project",
+  // @shipstatic/types). It filters, and never throws.
+  it('keeps node_modules and package.json paths for the rules to refuse', () => {
+    expect(filterJunk(['index.html', 'node_modules/react/index.js', 'package.json'])).toEqual([
+      'index.html',
+      'node_modules/react/index.js',
+      'package.json',
+    ]);
   });
 
-  it('should throw on paths containing package.json', () => {
-    expect(() => filterJunk(['index.html', 'package.json'])).toThrow('Unbuilt project detected');
-
-    expect(() => filterJunk(['myproject/index.html', 'myproject/package.json'])).toThrow(
-      'Unbuilt project detected',
-    );
+  it('keeps a pnpm store path the dot-file filter would otherwise drop', () => {
+    // pnpm keeps a project's packages under node_modules/.pnpm/; dropping
+    // them as dot files would take the only sign of an unbuilt project.
+    const pnpm = 'demo/node_modules/.pnpm/lodash@4/node_modules/lodash/index.js';
+    expect(filterJunk(['demo/index.html', pnpm])).toEqual(['demo/index.html', pnpm]);
   });
 
-  it('should detect markers BEFORE dot-file filter removes evidence (pnpm regression)', () => {
-    // pnpm stores files under node_modules/.pnpm/ — the dot-file filter
-    // would strip .pnpm/ paths, hiding the node_modules marker.
-    // filterJunk must check markers first.
-    expect(() =>
-      filterJunk([
-        'demo/index.html',
-        'demo/node_modules/.pnpm/lodash@4/node_modules/lodash/index.js',
-      ]),
-    ).toThrow('Unbuilt project detected');
-  });
-
-  it('should not throw when no markers present', () => {
-    expect(() => filterJunk(['index.html', '.DS_Store', 'assets/app.js'])).not.toThrow();
-  });
-
-  it('should not throw on partial matches (node_modules as substring)', () => {
-    // hasUnbuiltMarker checks path segments, not substrings
-    expect(() =>
+  it('reads markers by path segment, never as a substring', () => {
+    expect(
       filterJunk([
         'my_node_modules_docs.txt',
         'node_modules_backup.zip',
         'not-node_modules/file.js',
       ]),
-    ).not.toThrow();
-  });
-
-  it('always refuses an unbuilt project: a site is judged here, a project never is', () => {
-    expect(() => filterJunk(['index.html', 'node_modules/react/index.js'])).toThrow(
-      'Unbuilt project detected',
-    );
+    ).toEqual(['my_node_modules_docs.txt', 'node_modules_backup.zip', 'not-node_modules/file.js']);
   });
 });

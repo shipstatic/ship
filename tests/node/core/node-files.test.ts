@@ -48,6 +48,12 @@ const pathsOf = (files: Array<{ path: string }>) => files.map((f) => f.path).sor
 
 const MD5_HEX = /^[0-9a-f]{32}$/;
 
+/** A home page, which every deployment has at its root. */
+const HOME = '<html></html>';
+
+const NO_INDEX =
+  "There's no index.html at the top of your site. It's the page visitors see first, so your site needs one.";
+
 /** Runs `fn` with the working directory switched — for the cwd-relative contract. */
 async function withCwd<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   const previous = process.cwd();
@@ -82,20 +88,25 @@ describe('processFilesForNode', () => {
 
   describe('default path flattening', () => {
     it('reads real bytes and attaches a real md5 and byte-accurate size', async () => {
-      writeTree({ 'project/hello.txt': 'hello' });
+      writeTree({ 'project/index.html': HOME, 'project/hello.txt': 'hello' });
 
-      const result = await processFilesForNode([at('project/hello.txt')], {}, FREE_PLAN_LIMITS);
+      const result = await processFilesForNode(
+        [at('project/index.html'), at('project/hello.txt')],
+        {},
+        FREE_PLAN_LIMITS,
+      );
 
-      expect(result).toHaveLength(1);
-      expect(result[0].path).toBe('hello.txt');
-      expect(result[0].content).toEqual(Buffer.from('hello'));
-      expect(result[0].size).toBe(5);
-      // The digest of bytes this test wrote — a truncated read cannot pass.
-      expect(result[0].md5).toBe('5d41402abc4b2a76b9719d911017c592');
+      expect(result).toHaveLength(2);
+      const hello = result.find((f) => f.path === 'hello.txt');
+      expect(hello?.content).toEqual(Buffer.from('hello'));
+      expect(hello?.size).toBe(5);
+      // The digest of bytes this test wrote: a truncated read cannot pass.
+      expect(hello?.md5).toBe('5d41402abc4b2a76b9719d911017c592');
     });
 
     it('scans directories recursively, stripping the directory itself', async () => {
       writeTree({
+        'dir/index.html': HOME,
         'dir/file1.txt': 'content1',
         'dir/file2.txt': 'content2',
         'dir/subdir/file3.txt': 'content3',
@@ -103,12 +114,13 @@ describe('processFilesForNode', () => {
 
       const result = await processFilesForNode([at('dir')], {}, FREE_PLAN_LIMITS);
 
-      expect(pathsOf(result)).toEqual(['file1.txt', 'file2.txt', 'subdir/file3.txt']);
+      expect(pathsOf(result)).toEqual(['file1.txt', 'file2.txt', 'index.html', 'subdir/file3.txt']);
       expect(result.every((f) => MD5_HEX.test(f.md5 ?? ''))).toBe(true);
     });
 
     it('strips a deeply nested common parent by default', async () => {
       writeTree({
+        'nested/asdf/index.html': HOME,
         'nested/asdf/README.md': 'read me',
         'nested/asdf/css/styles.css': 'css',
         'nested/asdf/js/dark-mode': 'js',
@@ -116,11 +128,17 @@ describe('processFilesForNode', () => {
 
       const result = await processFilesForNode([at('nested/asdf')], {}, FREE_PLAN_LIMITS);
 
-      expect(pathsOf(result)).toEqual(['README.md', 'css/styles.css', 'js/dark-mode']);
+      expect(pathsOf(result)).toEqual([
+        'README.md',
+        'css/styles.css',
+        'index.html',
+        'js/dark-mode',
+      ]);
     });
 
     it('keeps subdirectory structure below the stripped parent', async () => {
       writeTree({
+        'parent/index.html': HOME,
         'parent/sub1/file1.txt': 'content1',
         'parent/sub1/file2.txt': 'content2',
         'parent/sub2/file3.txt': 'content3',
@@ -128,7 +146,12 @@ describe('processFilesForNode', () => {
 
       const result = await processFilesForNode([at('parent')], {}, FREE_PLAN_LIMITS);
 
-      expect(pathsOf(result)).toEqual(['sub1/file1.txt', 'sub1/file2.txt', 'sub2/file3.txt']);
+      expect(pathsOf(result)).toEqual([
+        'index.html',
+        'sub1/file1.txt',
+        'sub1/file2.txt',
+        'sub2/file3.txt',
+      ]);
     });
   });
 
@@ -206,6 +229,7 @@ describe('processFilesForNode', () => {
 
     it('does not truncate deep nesting', async () => {
       writeTree({
+        'index.html': HOME,
         'src/components/ui/forms/inputs/text/TextInput.tsx': 'export const TextInput = () => {};',
         'src/utils/api/endpoints/v1/users.ts': 'export const userAPI = {};',
       });
@@ -213,6 +237,7 @@ describe('processFilesForNode', () => {
       const files = await processFilesForNode([root], { pathDetect: false }, FREE_PLAN_LIMITS);
 
       expect(pathsOf(files)).toEqual([
+        'index.html',
         'src/components/ui/forms/inputs/text/TextInput.tsx',
         'src/utils/api/endpoints/v1/users.ts',
       ]);
@@ -220,6 +245,7 @@ describe('processFilesForNode', () => {
 
     it('preserves every extension across mixed file types', async () => {
       writeTree({
+        'index.html': HOME,
         'public/favicon.ico': 'ico-data',
         'public/manifest.json': '{"name":"test"}',
         'public/robots.txt': 'User-agent: *',
@@ -234,6 +260,7 @@ describe('processFilesForNode', () => {
       expect(pathsOf(files)).toEqual([
         'docs/README.md',
         'docs/api.yml',
+        'index.html',
         'public/favicon.ico',
         'public/manifest.json',
         'public/robots.txt',
@@ -247,6 +274,7 @@ describe('processFilesForNode', () => {
         'some/deep/path/single-file.txt': 'standalone',
         'another/different/path/other-file.txt': 'other',
         'root-file.txt': 'root',
+        'index.html': HOME,
       });
 
       const files = await processFilesForNode(
@@ -254,12 +282,18 @@ describe('processFilesForNode', () => {
           at('some/deep/path/single-file.txt'),
           at('another/different/path/other-file.txt'),
           at('root-file.txt'),
+          at('index.html'),
         ],
         { pathDetect: false },
         FREE_PLAN_LIMITS,
       );
 
-      expect(pathsOf(files)).toEqual(['other-file.txt', 'root-file.txt', 'single-file.txt']);
+      expect(pathsOf(files)).toEqual([
+        'index.html',
+        'other-file.txt',
+        'root-file.txt',
+        'single-file.txt',
+      ]);
     });
 
     it('preserves multiple directory structures across multiple inputs', async () => {
@@ -320,13 +354,17 @@ describe('processFilesForNode', () => {
     });
 
     it('resolves parent-directory references', async () => {
-      writeTree({ 'parent-file.txt': 'Parent file', 'child/.keep': 'x' });
+      writeTree({ 'index.html': HOME, 'parent-file.txt': 'Parent file', 'child/.keep': 'x' });
 
       const files = await withCwd(at('child'), () =>
-        processFilesForNode(['../parent-file.txt'], { pathDetect: false }, FREE_PLAN_LIMITS),
+        processFilesForNode(
+          ['../index.html', '../parent-file.txt'],
+          { pathDetect: false },
+          FREE_PLAN_LIMITS,
+        ),
       );
 
-      expect(pathsOf(files)).toEqual(['parent-file.txt']);
+      expect(pathsOf(files)).toEqual(['index.html', 'parent-file.txt']);
     });
 
     it('deploys from a directory whose PARENT is dot-prefixed (`ship ./dist` inside .app/)', async () => {
@@ -367,7 +405,7 @@ describe('processFilesForNode', () => {
       });
 
       await expect(processFilesForNode([at('myproject')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        '"node_modules" detected',
+        `"${at('myproject')}" is a project that isn't built yet: it has node_modules. Build it, then publish the folder the build makes, like dist.`,
       );
     });
 
@@ -378,7 +416,7 @@ describe('processFilesForNode', () => {
       });
 
       await expect(processFilesForNode([at('myproject')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        '"package.json" detected',
+        `"${at('myproject')}" is a project that isn't built yet: it has package.json. Build it, then publish the folder the build makes, like dist.`,
       );
     });
 
@@ -390,41 +428,76 @@ describe('processFilesForNode', () => {
     });
   });
 
+  describe('the home page', () => {
+    it('refuses a directory with no index.html at its root', async () => {
+      writeTree({ 'site/about.html': HOME, 'site/app.js': 'js' });
+
+      await expect(processFilesForNode([at('site')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+        NO_INDEX,
+      );
+    });
+
+    it('names the folder that holds it when the site sits one folder down', async () => {
+      writeTree({
+        'project/dist/index.html': HOME,
+        'project/dist/app.js': 'js',
+        'project/README.md': 'read me',
+      });
+
+      await expect(processFilesForNode([at('project')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+        `${NO_INDEX} There's one in dist/. If that's your site, publish that folder instead.`,
+      );
+    });
+  });
+
   describe('junk and hidden-file filtering', () => {
     it.each([
       ['.DS_Store', 'real.txt'],
       ['Thumbs.db', 'image.png'],
       ['desktop.ini', 'real.txt'],
     ])('filters %s from a walked directory', async (junkName, kept) => {
-      writeTree({ [`folder/${junkName}`]: 'junk', [`folder/${kept}`]: 'content' });
+      writeTree({
+        'folder/index.html': HOME,
+        [`folder/${junkName}`]: 'junk',
+        [`folder/${kept}`]: 'content',
+      });
 
       const result = await processFilesForNode([at('folder')], {}, FREE_PLAN_LIMITS);
 
-      expect(pathsOf(result)).toEqual([kept]);
+      expect(pathsOf(result)).toEqual([kept, 'index.html'].sort());
     });
 
     it.each([
       ['__MACOSX', '__MACOSX/._hidden'],
       ['.Trashes', '.Trashes/item'],
     ])('filters the %s junk directory', async (dirName, junkPath) => {
-      writeTree({ [`archive/${junkPath}`]: 'junk', 'archive/real.txt': 'content' });
+      writeTree({
+        'archive/index.html': HOME,
+        [`archive/${junkPath}`]: 'junk',
+        'archive/real.txt': 'content',
+      });
 
       const result = await processFilesForNode([at('archive')], {}, FREE_PLAN_LIMITS);
 
-      expect(pathsOf(result)).toEqual(['real.txt']);
+      expect(pathsOf(result)).toEqual(['index.html', 'real.txt']);
       expect(result.some((f) => f.path.includes(dirName))).toBe(false);
     });
 
     it('filters hidden dotfiles even as explicit inputs', async () => {
-      writeTree({ '.env': 'SECRET=value', '.gitignore': 'node_modules', 'normal.txt': 'content' });
+      writeTree({
+        '.env': 'SECRET=value',
+        '.gitignore': 'node_modules',
+        'index.html': HOME,
+        'normal.txt': 'content',
+      });
 
       const result = await processFilesForNode(
-        [at('.env'), at('.gitignore'), at('normal.txt')],
+        [at('.env'), at('.gitignore'), at('index.html'), at('normal.txt')],
         {},
         FREE_PLAN_LIMITS,
       );
 
-      expect(pathsOf(result)).toEqual(['normal.txt']);
+      expect(pathsOf(result)).toEqual(['index.html', 'normal.txt']);
     });
 
     it('filters junk within the upload root while keeping content', async () => {
@@ -481,21 +554,23 @@ describe('processFilesForNode', () => {
       // that shipped its own copy would refuse this file, which is the exact
       // failure mode the list was moved server-side to prevent: a pinned client
       // enforcing a policy the platform has moved on from.
-      writeTree({ 'virus.exe': 'payload' });
+      writeTree({ 'index.html': HOME, 'virus.exe': 'payload' });
 
       const limits = { ...FREE_PLAN_LIMITS, blockedExtensions: ['dmg'] };
-      await expect(processFilesForNode([at('virus.exe')], {}, limits)).resolves.toHaveLength(1);
+      await expect(
+        processFilesForNode([at('index.html'), at('virus.exe')], {}, limits),
+      ).resolves.toHaveLength(2);
     });
 
     it('checks nothing when the API sent no list — fail open, never guess', async () => {
       // An API predating `blockedExtensions` sends none. Absence means "no
       // client-side check", never "an empty policy": the deploy proceeds and
       // the API refuses the file at the boundary, where refusal belongs.
-      writeTree({ 'virus.exe': 'payload' });
+      writeTree({ 'index.html': HOME, 'virus.exe': 'payload' });
 
       await expect(
-        processFilesForNode([at('virus.exe')], {}, LIMITS_WITHOUT_BLOCKLIST),
-      ).resolves.toHaveLength(1);
+        processFilesForNode([at('index.html'), at('virus.exe')], {}, LIMITS_WITHOUT_BLOCKLIST),
+      ).resolves.toHaveLength(2);
     });
 
     it.each(['file?.txt', 'file#anchor.txt', 'file<tag>.txt'])(
@@ -512,10 +587,14 @@ describe('processFilesForNode', () => {
     it.each(['file(1).json', 'file[slug].js', 'file{id}.txt', 'file;semi.txt'])(
       'allows %s — characters that survive the URL round-trip',
       async (name) => {
-        writeTree({ [name]: 'content' });
+        writeTree({ 'index.html': HOME, [name]: 'content' });
 
-        const result = await processFilesForNode([at(name)], {}, FREE_PLAN_LIMITS);
-        expect(result).toHaveLength(1);
+        const result = await processFilesForNode(
+          [at('index.html'), at(name)],
+          {},
+          FREE_PLAN_LIMITS,
+        );
+        expect(result).toHaveLength(2);
       },
     );
 
@@ -536,10 +615,10 @@ describe('processFilesForNode', () => {
     });
 
     it('allows ordinary web extensions', async () => {
-      writeTree({ 'page.html': '<html>', 'style.css': 'body {}', 'data.json': '{}' });
+      writeTree({ 'index.html': '<html>', 'style.css': 'body {}', 'data.json': '{}' });
 
       const result = await processFilesForNode(
-        [at('page.html'), at('style.css'), at('data.json')],
+        [at('index.html'), at('style.css'), at('data.json')],
         {},
         FREE_PLAN_LIMITS,
       );
@@ -547,19 +626,25 @@ describe('processFilesForNode', () => {
     });
 
     it('allows dots inside filenames and directory names', async () => {
-      writeTree({ 'file.test.spec.ts': 'content', 'folder.name/file.txt': 'nested' });
+      writeTree({
+        'index.html': HOME,
+        'file.test.spec.ts': 'content',
+        'folder.name/file.txt': 'nested',
+      });
 
       const result = await processFilesForNode(
-        [at('file.test.spec.ts'), at('folder.name/file.txt')],
+        [at('index.html'), at('file.test.spec.ts'), at('folder.name/file.txt')],
         {},
         FREE_PLAN_LIMITS,
       );
-      expect(result).toHaveLength(2);
+      expect(result).toHaveLength(3);
     });
   });
 
   describe('plan limits through the pipeline', () => {
     const limits = { maxFileSize: 100, maxFilesCount: 5, maxTotalSize: 150 };
+    // A one-byte home page, which every deployment has, counted below.
+    const page = { 'index.html': 'x' };
 
     it('rejects a single file over maxFileSize', async () => {
       writeTree({ 'large.txt': 'x'.repeat(101) });
@@ -568,10 +653,10 @@ describe('processFilesForNode', () => {
     });
 
     it('accepts a file exactly at maxFileSize', async () => {
-      writeTree({ 'exact.txt': 'x'.repeat(100) });
+      writeTree({ ...page, 'exact.txt': 'x'.repeat(100) });
 
-      const result = await processFilesForNode([at('exact.txt')], {}, limits);
-      expect(result[0].size).toBe(100);
+      const result = await processFilesForNode([at('index.html'), at('exact.txt')], {}, limits);
+      expect(result.find((f) => f.path === 'exact.txt')?.size).toBe(100);
     });
 
     it('rejects a cumulative size over maxTotalSize', async () => {
@@ -583,10 +668,14 @@ describe('processFilesForNode', () => {
     });
 
     it('accepts a cumulative size exactly at maxTotalSize', async () => {
-      writeTree({ 'file1.txt': 'x'.repeat(75), 'file2.txt': 'x'.repeat(75) });
+      writeTree({ ...page, 'file1.txt': 'x'.repeat(75), 'file2.txt': 'x'.repeat(74) });
 
-      const result = await processFilesForNode([at('file1.txt'), at('file2.txt')], {}, limits);
-      expect(result).toHaveLength(2);
+      const result = await processFilesForNode(
+        [at('index.html'), at('file1.txt'), at('file2.txt')],
+        {},
+        limits,
+      );
+      expect(result).toHaveLength(3);
     });
 
     it('rejects more results than maxFilesCount', async () => {
@@ -607,12 +696,12 @@ describe('processFilesForNode', () => {
       writeTree({
         'empty1.txt': '',
         'empty2.txt': '',
-        'real1.txt': 'a',
-        'real2.txt': 'b',
+        'index.html': 'a',
+        'real.txt': 'b',
       });
 
       const result = await processFilesForNode(
-        [at('empty1.txt'), at('empty2.txt'), at('real1.txt'), at('real2.txt')],
+        [at('empty1.txt'), at('empty2.txt'), at('index.html'), at('real.txt')],
         {},
         { maxFileSize: 100, maxFilesCount: 2, maxTotalSize: 1000 },
       );
@@ -630,10 +719,12 @@ describe('processFilesForNode', () => {
         'مجلد/ملف.html': 'Arabic file',
         '🚀folder/rocket.css': 'Emoji folder',
         'café/menu.json': 'Accented folder',
+        'index.html': HOME,
       });
 
       const result = await processFilesForNode(
         [
+          at('index.html'),
           at('测试文件.txt'),
           at('папка/файл'),
           at('مجلد/ملف.html'),
@@ -645,6 +736,7 @@ describe('processFilesForNode', () => {
       );
 
       expect(pathsOf(result)).toEqual([
+        'index.html',
         'menu.json',
         'rocket.css',
         'файл',
@@ -654,15 +746,21 @@ describe('processFilesForNode', () => {
     });
 
     it('handles extensionless files', async () => {
-      writeTree({ Dockerfile: 'FROM node:22', Makefile: 'all:', LICENSE: 'MIT', README: 'hi' });
+      writeTree({
+        'index.html': HOME,
+        Dockerfile: 'FROM node:22',
+        Makefile: 'all:',
+        LICENSE: 'MIT',
+        README: 'hi',
+      });
 
       const result = await processFilesForNode(
-        [at('Dockerfile'), at('Makefile'), at('LICENSE'), at('README')],
+        [at('index.html'), at('Dockerfile'), at('Makefile'), at('LICENSE'), at('README')],
         {},
         FREE_PLAN_LIMITS,
       );
 
-      expect(result).toHaveLength(4);
+      expect(result).toHaveLength(5);
     });
 
     it('handles spaces, dashes, underscores, and many dots', async () => {
@@ -671,10 +769,12 @@ describe('processFilesForNode', () => {
         'file-with-dashes': 'b',
         'file_with_underscores.css': 'c',
         'file.with.many.dots.html': 'd',
+        'index.html': HOME,
       });
 
       const result = await processFilesForNode(
         [
+          at('index.html'),
           at('file with spaces.txt'),
           at('file-with-dashes'),
           at('file_with_underscores.css'),
@@ -684,30 +784,35 @@ describe('processFilesForNode', () => {
         FREE_PLAN_LIMITS,
       );
 
-      expect(result).toHaveLength(4);
+      expect(result).toHaveLength(5);
     });
 
-    it('returns nothing for empty directories', async () => {
+    it('refuses empty directories: there is nothing to publish', async () => {
       fs.mkdirSync(at('empty-dir'));
       fs.mkdirSync(at('another-empty'));
 
-      const result = await processFilesForNode(
-        [at('empty-dir'), at('another-empty')],
-        {},
-        FREE_PLAN_LIMITS,
-      );
-      expect(result).toHaveLength(0);
+      await expect(
+        processFilesForNode([at('empty-dir'), at('another-empty')], {}, FREE_PLAN_LIMITS),
+      ).rejects.toThrow('There are no files to publish.');
     });
 
     it('skips empty files entirely', async () => {
-      writeTree({ 'empty.txt': '', 'another-empty': '', 'zero.html': '' });
+      writeTree({ 'index.html': HOME, 'empty.txt': '', 'another-empty': '', 'zero.html': '' });
 
       const result = await processFilesForNode(
-        [at('empty.txt'), at('another-empty'), at('zero.html')],
+        [at('index.html'), at('empty.txt'), at('another-empty'), at('zero.html')],
         {},
         FREE_PLAN_LIMITS,
       );
-      expect(result).toHaveLength(0);
+      expect(pathsOf(result)).toEqual(['index.html']);
+    });
+
+    it('refuses an empty index.html: a published file is never empty', async () => {
+      writeTree({ 'index.html': '', 'app.js': 'js' });
+
+      await expect(
+        processFilesForNode([at('index.html'), at('app.js')], {}, FREE_PLAN_LIMITS),
+      ).rejects.toThrow(NO_INDEX);
     });
 
     it('mixes file and directory inputs', async () => {
@@ -716,10 +821,11 @@ describe('processFilesForNode', () => {
         'directory/file1': 'Dir file 1',
         'directory/file2.css': 'Dir file 2',
         'another-single.html': 'Another single',
+        'index.html': HOME,
       });
 
       const result = await processFilesForNode(
-        [at('single-file.txt'), at('directory'), at('another-single.html')],
+        [at('single-file.txt'), at('directory'), at('another-single.html'), at('index.html')],
         {},
         FREE_PLAN_LIMITS,
       );
@@ -728,6 +834,7 @@ describe('processFilesForNode', () => {
         'another-single.html',
         'file1',
         'file2.css',
+        'index.html',
         'single-file.txt',
       ]);
     });
@@ -737,15 +844,21 @@ describe('processFilesForNode', () => {
         'dir1/config.json': '{"env": "dir1"}',
         'dir2/config.json': '{"env": "dir2"}',
         'dir3/config.json': '{"env": "dir3"}',
+        'index.html': HOME,
       });
 
       const result = await processFilesForNode(
-        [at('dir1/config.json'), at('dir2/config.json'), at('dir3/config.json')],
+        [at('dir1/config.json'), at('dir2/config.json'), at('dir3/config.json'), at('index.html')],
         {},
         FREE_PLAN_LIMITS,
       );
 
-      expect(result.map((f) => f.path)).toEqual(['config.json', 'config.json', 'config.json']);
+      expect(result.map((f) => f.path)).toEqual([
+        'config.json',
+        'config.json',
+        'config.json',
+        'index.html',
+      ]);
     });
 
     it('is line-ending agnostic', async () => {
@@ -753,15 +866,16 @@ describe('processFilesForNode', () => {
         'unix.txt': 'line1\nline2',
         'windows.txt': 'line1\r\nline2',
         'oldmac.txt': 'line1\rline2',
+        'index.html': HOME,
       });
 
       const result = await processFilesForNode(
-        [at('unix.txt'), at('windows.txt'), at('oldmac.txt')],
+        [at('unix.txt'), at('windows.txt'), at('oldmac.txt'), at('index.html')],
         {},
         FREE_PLAN_LIMITS,
       );
 
-      expect(result).toHaveLength(3);
+      expect(result).toHaveLength(4);
       for (const file of result) {
         expect(file.content).toBeInstanceOf(Buffer);
         expect(file.size).toBeGreaterThan(0);
@@ -770,9 +884,10 @@ describe('processFilesForNode', () => {
 
     it('handles 100 files in one call', async () => {
       const spec: Record<string, string> = {};
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 99; i++) {
         spec[`file-${String(i).padStart(3, '0')}.txt`] = `Content of file ${i}`;
       }
+      spec['index.html'] = HOME;
       writeTree(spec);
 
       const result = await processFilesForNode(
@@ -788,30 +903,31 @@ describe('processFilesForNode', () => {
     it('handles concurrent batches without interference', async () => {
       const spec: Record<string, string> = {};
       for (let i = 0; i < 50; i++) spec[`concurrent-${i}.txt`] = `Concurrent file ${i}`;
-      writeTree(spec);
+      writeTree({ ...spec, 'index.html': HOME });
       const all = Object.keys(spec).map((rel) => at(rel));
+      const home = at('index.html');
 
       const results = await Promise.all([
-        processFilesForNode(all.slice(0, 17), {}, FREE_PLAN_LIMITS),
-        processFilesForNode(all.slice(17, 34), {}, FREE_PLAN_LIMITS),
-        processFilesForNode(all.slice(34, 50), {}, FREE_PLAN_LIMITS),
+        processFilesForNode([home, ...all.slice(0, 17)], {}, FREE_PLAN_LIMITS),
+        processFilesForNode([home, ...all.slice(17, 34)], {}, FREE_PLAN_LIMITS),
+        processFilesForNode([home, ...all.slice(34, 50)], {}, FREE_PLAN_LIMITS),
       ]);
 
-      expect(results.map((r) => r.length)).toEqual([17, 17, 16]);
+      expect(results.map((r) => r.length)).toEqual([18, 18, 17]);
     });
 
     it('handles very deep nesting and long filenames', async () => {
       const deep = `${Array(20).fill('dir').join('/')}/deep.txt`;
       const longName = `${'a'.repeat(200)}.txt`;
-      writeTree({ [deep]: 'deep content', [longName]: 'long name' });
+      writeTree({ [deep]: 'deep content', [longName]: 'long name', 'index.html': HOME });
 
       const result = await processFilesForNode(
-        [at(deep), at(longName)],
+        [at(deep), at(longName), at('index.html')],
         { pathDetect: false },
         FREE_PLAN_LIMITS,
       );
 
-      expect(pathsOf(result)).toEqual([`${'a'.repeat(200)}.txt`, 'deep.txt']);
+      expect(pathsOf(result)).toEqual([`${'a'.repeat(200)}.txt`, 'deep.txt', 'index.html']);
     });
 
     it('rejects nonexistent inputs', async () => {
@@ -823,14 +939,14 @@ describe('processFilesForNode', () => {
 
   describe('symlinks', () => {
     it('walks through a symlink cycle exactly once — no hang, no duplicates', async () => {
-      writeTree({ 'dir_a/file1.txt': 'file1' });
+      writeTree({ 'dir_a/index.html': HOME, 'dir_a/file1.txt': 'file1' });
       fs.mkdirSync(at('dir_a/sub'), { recursive: true });
       // sub/loop → dir_a: following it would recurse forever.
       fs.symlinkSync(at('dir_a'), at('dir_a/sub/loop'));
 
       const result = await processFilesForNode([at('dir_a')], {}, FREE_PLAN_LIMITS);
 
-      expect(pathsOf(result)).toEqual(['file1.txt']);
+      expect(pathsOf(result)).toEqual(['file1.txt', 'index.html']);
     });
 
     it('visits a target reachable through two links only once', async () => {

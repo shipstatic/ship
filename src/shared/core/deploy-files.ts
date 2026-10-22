@@ -21,7 +21,7 @@ import { ShipError } from '@shipstatic/types';
 import { optimizeDeployPaths } from '../lib/deploy-paths.js';
 import { filterJunk } from '../lib/junk.js';
 import { calculateMD5 } from '../lib/md5.js';
-import { validateDeployCount, validateDeployFile, validateDeployPath } from '../lib/security.js';
+import { validateDeployFile, validateDeploySet } from '../lib/security.js';
 import type { DeploymentOptions } from '../types.js';
 
 /**
@@ -79,33 +79,22 @@ export async function processDeployFiles(
     .map((source, index) => ({ source, deployPath: deployPaths[index] }))
     .filter(({ deployPath }) => !surviving || surviving.has(deployPath));
 
-  // Nothing to deploy is not a failure, and it is answered before the rules
-  // are demanded: a directory of pure junk resolves empty rather than
-  // complaining about limits it was never going to consult.
-  if (kept.length === 0) return [];
-
-  // The rules, or none. `null` is server-processed mode — the one state where
-  // this pipeline judges nothing — so every check below reads as what it is:
-  // we validate when we have something to validate against.
+  // The rules, or none. `null` is server-processed mode, the one state where
+  // this pipeline judges nothing, so every check below reads as what it is.
   const rules = serverProcessed ? null : requireLimits(platformLimits);
 
   const files: StaticFile[] = [];
   let totalSize = 0;
 
   for (const { source, deployPath } of kept) {
-    // Fail fast, before any I/O: an unsafe path is refused on the strength of
-    // the path alone.
-    if (rules) validateDeployPath(deployPath, source.origin);
-
-    // A served file is never empty (the API stores none). The size is already
-    // in hand, so this costs nothing and reads nothing.
+    // A published file is never empty (the API stores none). The size is
+    // already in hand, so this costs nothing and reads nothing.
     if (rules && source.size === 0) continue;
 
     if (rules) {
-      // Name, extension and both size caps — ONE ordered table
-      // (`shared/lib/file-rules.ts`), shared with the collecting renderer the
-      // UI tier uses. `totalSize` INCLUDES this file, which the total-size
-      // rule relies on.
+      // Every rule a file is held to, from the platform's one table, before
+      // the file is read: a refused file costs no I/O. `totalSize` INCLUDES
+      // this file, which the total rule relies on.
       totalSize += source.size;
       validateDeployFile({ path: deployPath, size: source.size, totalSize }, rules);
     }
@@ -115,9 +104,13 @@ export async function processDeployFiles(
     files.push({ path: deployPath, content, size: source.size, md5 });
   }
 
-  // Counted over RESULTS, not over candidates: empty files were skipped above
-  // and a deploy is not over the cap for files it will not send.
-  if (rules) validateDeployCount(files.length, rules);
+  // The rules about the deployment as a whole, over the files it publishes:
+  // it has files, no more than the plan allows, and a home page at its root.
+  if (rules)
+    validateDeploySet(
+      files.map((file) => file.path),
+      rules,
+    );
 
   return files;
 }

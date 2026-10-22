@@ -310,30 +310,6 @@ describe('Ship - Browser Implementation', () => {
       });
     });
 
-    it('should handle empty File[]', async () => {
-      const ship = new Ship({
-        token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.shipstatic.com',
-      });
-
-      (ship as any).http = fakeTransport({
-        Deploy: vi.fn().mockResolvedValue({
-          id: 'dep_empty_123',
-          url: 'https://dep_empty_123.shipstatic.com',
-        }),
-        'Get limits': vi.fn().mockResolvedValue({
-          maxFileSize: 10485760,
-          maxFilesCount: 1000,
-          maxTotalSize: 52428800,
-        }),
-      });
-
-      const emptyFiles: File[] = [];
-
-      // Empty File[] is rejected early — aligned with Node behavior
-      await expect(ship.deploy(emptyFiles)).rejects.toThrow('No files to deploy.');
-    });
-
     it('should handle File objects with different MIME types', async () => {
       const ship = new Ship({
         token: TEST_DEPLOY_TOKEN,

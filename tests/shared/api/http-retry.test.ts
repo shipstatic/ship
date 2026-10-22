@@ -195,11 +195,12 @@ describe('retries', () => {
     });
 
     describe('a deployment sent in several requests', () => {
-      // Two 33 MiB files: more than one request carries, so the SDK declares
-      // bare and fills twice.
+      // A home page and two 33 MiB files: more than one request carries, so
+      // the SDK declares with the page and fills twice.
       let largeSite: string;
       beforeAll(() => {
         largeSite = mkdtempSync(path.join(tmpdir(), 'ship-split-'));
+        writeFileSync(path.join(largeSite, 'index.html'), '<h1>home</h1>');
         for (const name of ['a.bin', 'b.bin']) {
           writeFileSync(path.join(largeSite, name), Buffer.alloc(33 * 1024 * 1024, name));
         }

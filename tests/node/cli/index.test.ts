@@ -249,7 +249,7 @@ describe('CLI command tree (in-process)', () => {
         expect(await configOf(SPA_SITE)).toBe(false);
       });
 
-      it('--no-spa-detect does not ask, so no config whatever the answer', async () => {
+      it('--no-spa-detect sends the opt-out, so no config whatever the answer', async () => {
         mockState().spa = true;
         expect(await configOf(SPA_SITE, '--no-spa-detect')).toBe(false);
       });
@@ -258,9 +258,12 @@ describe('CLI command tree (in-process)', () => {
         expect(await configOf(NESTED_SITE)).toBe(true);
       });
 
-      it('--no-path-detect keeps the prefix, so nothing is at the root', async () => {
-        // `dist/ship.json` is an ordinary asset — the config is root-only.
-        expect(await configOf(NESTED_SITE, '--no-path-detect')).toBe(false);
+      it('--no-path-detect keeps the prefix, so the site has no home page and is refused', async () => {
+        const result = await runProgram([...verb, NESTED_SITE, '--no-path-detect']);
+        expect(result.exitCode).not.toBe(0);
+        expect(result.stderr).toContain(
+          "there's no index.html at the top of your site. It's the page visitors see first, so your site needs one. There's one in dist/. If that's your site, publish that folder instead",
+        );
       });
     });
 

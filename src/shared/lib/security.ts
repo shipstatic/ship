@@ -1,73 +1,34 @@
 /**
- * @file Shared security validation for the deploy pipeline.
- * Used by both Node.js and browser file processing pipelines.
+ * @file The deploy pipelines' refusals. The rules, their order and their
+ * sentences are the platform's one table in `@shipstatic/types` ("Deploy
+ * rules"), which the API judges a deployment by too; these only throw what it
+ * says, so a refusal reads the same here as at the API, and both pipelines
+ * (node and browser) refuse alike by construction.
  */
-import type { PlatformLimits } from '@shipstatic/types';
-import { ShipError } from '@shipstatic/types';
-import { COUNT_RULE, type FileRuleInput, firstBrokenRule } from './file-rules.js';
+import type { DeployRuleFile, PlatformLimits } from '@shipstatic/types';
+import { brokenSetRule, firstBrokenRule, ShipError } from '@shipstatic/types';
 
 /**
- * Validate a deploy path for security concerns.
- * Rejects paths containing path traversal patterns or null bytes.
+ * Refuse a file by the first rule it breaks.
  *
- * Checks for:
- * - Null bytes (\0) — path injection
- * - /../ — directory traversal within path
- * - ../ at start — upward traversal
- * - /.. at end — trailing traversal
- *
- * Does NOT reject double dots in filenames (e.g., "foo..bar.txt" is safe).
- *
- * @param deployPath - The deployment path to validate
- * @param sourceIdentifier - Human-readable identifier for error messages
- * @throws {ShipError} If the path contains unsafe patterns
- */
-export function validateDeployPath(deployPath: string, sourceIdentifier: string): void {
-  if (
-    deployPath.includes('\0') ||
-    deployPath.includes('/../') ||
-    deployPath.startsWith('../') ||
-    deployPath.endsWith('/..')
-  ) {
-    throw ShipError.business(
-      `Security error: Unsafe file path "${deployPath}" for file: ${sourceIdentifier}`,
-    );
-  }
-}
-
-/**
- * The THROWING renderer of `FILE_RULES` — the deploy pipelines' shape.
- *
- * It raises the first rule the file breaks and nothing else: the rules, their
- * order and their sentences all live in `file-rules.ts`, so this function
- * cannot re-order, skip or reword one. That is what makes node/browser parity
- * structural — both pipelines call this, and this calls the one table.
- *
- * Its counterpart is the collecting renderer in `file-validation.ts`
- * (`validateFiles`), which reaches the same verdict and reports it as a list
- * instead of a throw.
- *
- * @param input - The file and the deploy so far (`totalSize` INCLUDES it)
+ * @param file - The file and the deployment so far (`totalSize` INCLUDES it)
  * @param limits - The platform's limits, from `/limits`
  * @throws {ShipError} The first broken rule's sentence
  */
-export function validateDeployFile(input: FileRuleInput, limits: PlatformLimits): void {
-  const broken = firstBrokenRule(input, limits);
-  if (broken) {
-    throw ShipError.business(broken.sentence(input, limits));
-  }
+export function validateDeployFile(file: DeployRuleFile, limits: PlatformLimits): void {
+  const broken = firstBrokenRule(file, limits);
+  if (broken) throw ShipError.validation(broken.sentence(file, limits));
 }
 
 /**
- * The throwing renderer of `COUNT_RULE`: the deploy's file count, judged over
- * the files the pipeline will send.
+ * Refuse the deployment as a whole by the first set rule it breaks: no files,
+ * too many, or no home page at its root.
  *
- * @param count - How many files the deploy carries
+ * @param paths - The paths of the files the deployment publishes
  * @param limits - The platform's limits, from `/limits`
- * @throws {ShipError} The count rule's sentence
+ * @throws {ShipError} The first broken rule's sentence
  */
-export function validateDeployCount(count: number, limits: PlatformLimits): void {
-  if (COUNT_RULE.broken(count, limits)) {
-    throw ShipError.business(COUNT_RULE.sentence(count, limits));
-  }
+export function validateDeploySet(paths: readonly string[], limits: PlatformLimits): void {
+  const broken = brokenSetRule(paths, limits);
+  if (broken) throw ShipError.validation(broken.sentence(paths, limits));
 }

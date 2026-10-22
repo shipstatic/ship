@@ -104,6 +104,8 @@ export interface ContractContext {
    * single-page app, which the platform gives its routing config.
    */
   appPath: string;
+  /** A directory with a page but no `index.html` at its root: not a website. */
+  noHomePath: string;
   /**
    * A directory larger than one deploy request carries
    * (`writeLargeSite`), so the SDK sends it in several requests.
@@ -326,6 +328,18 @@ export const CONTRACT: readonly ContractPoint[] = [
       }
     },
     run: (s, c) => declared(s, c, () => s.deployments.upload(c.appPath, { spaDetect: false })),
+  },
+  {
+    // ShipStatic publishes websites, so a deployment has an index.html at its
+    // root. This client refuses one without it before a byte is sent, in the
+    // words the API would use (the deploy rules, `@shipstatic/types`), so the
+    // live half proves the refusal reads as a validation error with no
+    // request made. The API's own refusal is held by its suite and its smoke.
+    // wire: lib/validation.ts (`validateUpload`) → `@shipstatic/types` SET_RULES
+    name: 'deployments.upload (no index.html)',
+    error: { type: ErrorType.Validation, status: 400 },
+    live: true,
+    run: (s, c) => s.deployments.upload(c.noHomePath),
   },
   {
     // An anonymous deploy carries a manifest like every deploy this client
