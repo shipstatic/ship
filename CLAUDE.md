@@ -2,30 +2,41 @@
 
 Claude Code instructions for the **Ship SDK & CLI** package.
 
-**@shipstatic/ship** — universal SDK and CLI for ShipStatic. Clean `resource.action()` API, identical in Node.js and Browser. **Maturity:** Stable; semver applies — breaking changes require a major version bump. **The pre-launch exception:** until the platform has external consumers, a change to a published type rides a minor under the same exception `@shipstatic/types` records beside its additive-evolution law, and the release notes name it (3.4.0: `account.get()` answers `Account`).
+**@shipstatic/ship** is the universal SDK and CLI for ShipStatic: a
+`resource.action()` API, identical in Node.js and the browser.
+**Maturity:** stable; semver applies, so a breaking change needs a major
+version. **The pre-launch exception:** until the platform has external
+consumers, a change to a published type rides a minor under the same
+exception `@shipstatic/types` records beside its additive-evolution law, and
+the release notes name it.
 
-**Branches:** `main` (production) + `development` (integration). The publish workflow runs on both — the guarded publish step publishes only when `package.json` holds a version not yet on the registry, with the dist-tag derived from the version (`-` suffix → `beta`, else `latest`). See root `CLAUDE.md` "Branch & CI Model".
+**Releasing.** Work on `development`. Bump `version` in `package.json` and
+push: a prerelease (`-` suffix) publishes to `beta` (from either branch, normally `development`), a
+stable version to `latest` from `main`. A version already on the registry is a
+no-op. A version relying on new API behaviour merges to `main` only once that
+API is on production. Keep `ci.yml`'s filename: it is half of the npm
+trusted-publisher registration.
 
 ## Architecture
 
 ```
 src/
-├── shared/              # Cross-platform code (70% of codebase)
+├── shared/              # Cross-platform code (most of the package)
 │   ├── api/http.ts      # The transport: headers, retries, timeout, events
-│   ├── base-ship.ts     # Base Ship class (auth state, lazy /limits fetch, resources)
-│   ├── resources.ts     # Resource factories — every endpoint, stated once
+│   ├── base-ship.ts     # Base Ship class (credential slot, resources, top-level calls)
+│   ├── resources.ts     # Resource factories: every endpoint, stated once
 │   ├── types.ts         # Internal SDK types
-│   ├── core/            # constants, credential schema, the deploy bodies, the request planner, the file pipeline
+│   ├── core/            # constants, credential schema, deploy body, request planner, file pipeline
 │   └── lib/             # Utilities (validation, junk filtering, MD5)
 ├── browser/             # Browser Ship class + the `webkitRelativePath` read
 └── node/
-    ├── core/config.ts       # readEnvConfig — SHIP_* env-var resolution (no filesystem)
+    ├── core/config.ts       # readEnvConfig: SHIP_* env-var resolution (no filesystem)
     ├── core/node-files.ts   # the filesystem walk (the pipeline itself is shared)
     └── cli/
-        ├── bin.ts           # THE EXECUTABLE (dist/cli.cjs) — the only file with side effects
+        ├── bin.ts           # THE EXECUTABLE (dist/cli.cjs), the only file with side effects
         ├── index.ts         # Commander.js command tree + withErrorHandling + performDeploy
         ├── create-client.ts # Credential precedence (flag → env → file) → Ship instance
-        ├── shiprc.ts        # ~/.shiprc + --config reader (strict JSON) — CLI ONLY
+        ├── shiprc.ts        # ~/.shiprc + --config reader (strict JSON), CLI ONLY
         ├── config.ts        # Interactive `ship config` wizard
         ├── error-handling.ts # toShipError + getUserMessage (TEXT channel)
         ├── formatters.ts    # announce() + the render router
@@ -37,71 +48,58 @@ src/
 
 **`bin.ts` is the executable; `index.ts` is a library.** Importing the command
 tree has no side effects, which is what lets the suite and the completion
-renderer read it. The bin block sat at the bottom of `index.ts` behind
-`if (process.env.NODE_ENV !== 'test')` until 2026-07-29 — production behaviour
-keyed on a test variable, and a real constraint besides: anything wanting to
-read the tree had to be a test or pretend to be one. A module boundary says the
-same thing to every caller, without the conditional.
+renderer read it.
 
-The SDK proper has no filesystem dependency — the only ambient credential source is `SHIP_*` env vars. File-based config (`~/.shiprc`, or a `--config` path) lives entirely in `cli/shiprc.ts`. This is what makes `new Ship({})` safe to use in embedded contexts (MCP, GitHub Action) without leaking the host's `~/.shiprc` credentials. (The n8n node is NOT an SDK consumer — zero runtime dependencies is n8n Cloud's verification requirement, so it speaks HTTP directly and its credential comes from n8n's own store.)
+**The SDK has no filesystem dependency.** Its only ambient credential source
+is `SHIP_*` env vars. File config (`~/.shiprc`, or a `--config` path) lives
+entirely in `cli/shiprc.ts`, which is what makes `new Ship({})` safe in
+embedded hosts (MCP, the GitHub Action): it never reads the host's
+`~/.shiprc`. The n8n node is not an SDK consumer: n8n Cloud verification
+requires zero runtime dependencies, so it speaks HTTP directly.
 
 ## Quick Reference
 
 ```bash
-pnpm test --run              # unit + integration (e2e is NOT in the default run)
-pnpm test:unit --run         # Pure functions only
+pnpm test --run              # unit + integration (e2e and browser are NOT in the default run)
+pnpm test:unit --run         # pure functions only
 pnpm test:integration --run  # SDK/CLI against the mock server
-pnpm test:e2e --run          # REAL API — refuses to load without SHIP_E2E_API_KEY
-pnpm coverage                # the suite + the ratchet — what CI runs
-pnpm typecheck               # tsc over src AND tests (tsconfig.check.json)
+pnpm test:browser            # capability tier: real Chromium via playwright (CI runs it)
+pnpm test:e2e --run          # REAL API; refuses to load without SHIP_E2E_API_KEY
+pnpm coverage                # the suite + the ratchet: what CI runs
+pnpm typecheck               # tsc over src, tests and tests-browser (tsconfig.check.json)
 pnpm check:package           # publint + attw over the built artifact
-pnpm build                   # Build all bundles
+pnpm build                   # all bundles
 ```
 
 ### Key Files
 
+The tree above names the main `src/` files. Beside them:
+
 | File | Purpose |
 |------|---------|
-| `src/shared/resources.ts` | Every request the SDK can make — path, verb, body, response type |
-| `src/shared/api/http.ts` | The transport. Carries requests; knows nothing about what they mean |
-| `src/shared/base-ship.ts` | Base Ship class (auth, init, top-level methods) |
-| `src/node/core/config.ts` | `readEnvConfig` — SHIP_* env-var resolution (the SDK's only ambient source) |
-| `src/node/cli/bin.ts` | The executable — `dist/cli.cjs`. The one file that runs on import |
-| `src/node/cli/index.ts` | CLI command tree, `withErrorHandling`, `performDeploy` |
-| `src/node/cli/create-client.ts` | `createClient` + `mergeCliConfig` — credential precedence (flag > env > file) |
-| `src/node/cli/shiprc.ts` | `loadShipFile` / `parseShipFile` — strict-JSON reader for `~/.shiprc` and `--config` (CLI only). No repository file is ever read |
+| `src/node/cli/shiprc.ts` | `loadShipFile` / `parseShipFile`: the strict-JSON reader for `~/.shiprc` and `--config` (CLI only). No repository file is ever read |
 | `src/node/cli/utils.ts` | Output primitives (`success`, `error`, `warn`, `info`, `formatTable`, `formatDetails`) |
-| `src/node/cli/formatters.ts` | Resource-specific output formatters, `formatOutput` router |
-| `src/node/cli/types.ts` | CLI option and result types (`GlobalOptions`, `CLIResult`, `EnrichedDomain`) |
-| `src/node/cli/error-handling.ts` | CLI error UX — `toShipError` (normalize), `getUserMessage` (translate). Text channel only; `--json` transmits `ShipError.toResponse()` via `utils.ts` `error()` |
-| `src/node/cli/config.ts` | Interactive `ship config` wizard — the only WRITER of the file `shiprc.ts` is the only reader of (writes `~/.shiprc`, or the file `--config` names) |
-| `src/node/cli/completions.ts` | `renderCompletion(program, shell)` — bash/zsh/fish scripts derived from the tree |
-| `src/node/cli/completion.ts` | Shell completion install/uninstall |
-| `tests/fixtures/builders.ts` | Typed fixture builders — the only fixture source |
+| `tests/fixtures/builders.ts` | Typed fixture builders, the only fixture source |
 | `tests/mocks/handler.ts` | The mock API: one Web-standard handler, wire-cited per route |
-| `tests/architecture/` | Suite-time fences (integrity, naming, docs contract) |
+| `tests/contract.ts` | The wire facts the SDK depends on, stated once, run against the mock and the real API |
+| `tests/architecture/` | Suite-time fences (integrity, naming, docs contract, SDK/CLI parity) |
 
-## Comments state the law; this file keeps the story
+## Comments state the rule; history lives in git
 
-**A comment in code states the rule and, where the rule was bought with a bug,
-one short pointer — "see CLAUDE.md §…". The dated war story lives only here.**
-
-Narratives drift exactly like code does, and a story told in three places
-drifts three ways — at one point `config.ts` opened with a 37-line account of
-a `JSON.parse` divergence whose parser no longer existed. What stays in code:
-the rule, the mechanism, and the non-obvious constraint — `this`-binding,
-registration order, why a cast is safe. What moves here: dates, bug
-archaeology, and "it used to be X" where X is gone. The rest of the platform
-already works this way.
+**A comment in code states the rule, the mechanism and the non-obvious
+constraint** (`this`-binding, registration order, why a cast is safe), and
+where useful it points at a section here. This file states rules and their
+reasons in the present tense too. Dates, bug archaeology and "it used to be X"
+belong in commit messages, where `git log` and `git blame` keep them beside the
+change.
 
 ## Core Patterns
 
 ### Ship Class Public Surface (base-ship.ts)
 
 ```typescript
-// Resources — every collection the SDK reaches. `/activities` is
-// deliberately not among them (see "Routes the API exposes that the SDK
-// does not reach").
+// Resources: every collection the SDK reaches. `/activities` is deliberately
+// not among them (see "Routes the API exposes that the SDK does not reach").
 ship.deployments / ship.domains / ship.account / ship.tokens
 
 // Convenience shortcuts
@@ -119,96 +117,70 @@ ship.off(event, handler)
 ```
 
 Deploy options are `signal` (the one cancellation mechanism), `pathDetect`,
-plus the wire options from `DeploymentUploadOptions` (`labels`, `via`,
-`password`, `ttl`, `spaDetect`, and the `@internal` flags). There are deliberately no
-per-deploy `timeout`/`onProgress`/`onCancel`/`maxConcurrency` options —
-request timeout is a client concern (`ShipClientOptions.timeout`), fetch has
-no upload-progress events to honestly report, `signal` already covers
-cancellation, and a deploy's requests go one after another (a declaration,
-then a fill per batch), each a whole request with nothing to parallelize.
-The vestigial four were removed for 2.0 (2026-07-27) after an audit found
-them declared but never consumed.
+and the wire options from `DeploymentUploadOptions` (`labels`, `via`,
+`password`, `ttl`, `spaDetect`, `idempotencyKey`, and the `@internal` flags).
+**Refused per-deploy options:**
 
-### One layer, not two: the resources ARE the endpoints
+- `timeout`: a request ceiling is a client concern (`ShipClientOptions.timeout`).
+- `onProgress`: fetch has no upload-progress events to report honestly.
+- `onCancel`: `signal` already covers cancellation.
+- `maxConcurrency`: a deploy's requests go one after another (a declaration,
+  then a fill per batch), so there is nothing to parallelize.
+
+### One layer: the resources ARE the endpoints
 
 **`resources.ts` states WHICH request; `api/http.ts` carries it.** A resource
-method is its endpoint — the path, the verb, the body, the response type — and
-it hands that to a narrow `Transport` (`request`, `requestWithStatus`, plus the
-deploy's carriage). Nothing above that line knows the base URL, the credential,
-the retry policy or the event vocabulary; nothing below knows what a domain is.
+method is its endpoint (path, verb, body, response type) and hands that to a
+narrow `Transport` (`request`, `requestWithStatus`, plus the deploy's
+carriage). Nothing above that line knows the base URL, the credential, the
+retry policy or the event vocabulary; nothing below knows what a domain is.
+`ApiHttp` has no endpoint table and no API vocabulary.
 
-**It was two layers until 2026-08-12, and the second was a restatement.**
-`ApiHttp` carried eighteen endpoint methods — `getDomain`, `listTokens`, … —
-and every resource method wrapped one of them 1:1 (`get: async (name) =>
-getApi().getDomain(name)`). That is not an adapter, because the isomorphism was
-DESIGNED: this SDK mirrors the wire one method per endpoint (see "Recorded
-absences"), so the two could not diverge without one of them being wrong.
+**Resource vocabulary never moves into the transport.** The public grouping is
+the `*Resource` interfaces' business, and those live in `@shipstatic/types`.
 
-The fold went **DOWN**, and the direction is the whole decision. Moving the
-resource vocabulary UP into `ApiHttp` would mix what the doctrine separates —
-the public grouping is the `*Resource` interfaces' business, and those live in
-`@shipstatic/types`. Going the other way, each layer keeps exactly what it
-already named, and **"`ApiHttp` is pure transport" stopped being an aspiration
-in this file and became literally true**: the class has no endpoint table, no
-API vocabulary, and no idea what it is carrying.
-
-Four things moved with it, each to the thing that was already its only caller:
-
-| What | Went to | Because |
-|---|---|---|
-| The 18 endpoint methods | `resources.ts` | Each was wrapped 1:1 by a resource of the same shape |
-| `deploy()` | `deployments.upload` | The deploy pipeline read across two files — collection and SPA detection here, validators and body there — for no reason a reader could see from either end. It is one function now |
-| `checkSPA()` | nowhere | The single-page question rides the declaration as a field ("The single-page question"), so the SDK holds no pre-flight at all |
-| `ping` / `getLimits` | `base-ship.ts` | Top-level `Ship` methods, not resources; the wire call belongs with the method that is its only reader |
-
-Two consequences worth knowing:
-
-- **`request` takes a PATH, not a URL.** The base is the transport's. Twenty-two
-  call sites wrote `${this.apiUrl}${API_PATHS.X}` by hand, which is twenty-two
-  chances to assemble it differently.
-- **The deploy's carriage stayed with transport**, as `Transport['deploy']`:
-  the endpoint (a client option may redirect it to `/upload`) and the two
-  ceilings. The NUMBERS are transport's — a budget for how long to wait on a
-  wire is nothing else — while the CHOICE between them is the resource's,
-  because only it knows that `build`/`prerender` wait on work the server does
-  after the upload lands, and `spa` does not.
-
-**What did not change: the public surface.** The `*Resource` interfaces come
-from `@shipstatic/types` and did not move. `ApiHttp`'s eighteen endpoint methods
-were exported by accident of `export *` and nothing in the estate reached them;
-their removal is internals only.
+- **`request` takes a PATH, not a URL.** The base is the transport's, so no
+  call site assembles `${apiUrl}${API_PATHS.X}` by hand.
+- **The deploy's carriage is the transport's** (`Transport['deploy']`): the
+  endpoint (a client option may redirect it to `/upload`) and the two
+  ceilings. The NUMBERS are the transport's; the CHOICE between them is the
+  resource's, because only it knows that `build`/`prerender` wait on server
+  work after the upload lands and `spa` does not.
 
 ### Resource Factory Pattern
 
 Resources are factory functions that receive a `ResourceContext` (`getApi`, a
-thunk resolving the `Transport`) instead of the full Ship instance. This enables
-functional composition: factories only depend on the callbacks they actually
-need. Deployment resource additionally receives `processInput`.
+thunk resolving the `Transport`) instead of the whole Ship instance, so a
+factory depends only on what it uses. The deployment resource also receives
+`processInput`.
 
 ### HTTP Client Architecture
 
-`ApiHttp` in `src/shared/api/http.ts` — every request flows through
-`executeRequest`, which handles header merging, timeout, retries, event emission
-and error mapping. Two public variants: `request<T>()` returns data directly;
-`requestWithStatus<T>()` returns `{ data, status }` for the one operation where
-HTTP status IS the answer (201 vs 200 on domain upsert).
+Every request flows through `executeRequest` in `src/shared/api/http.ts`,
+which owns header merging, the timeout, retries, events and error mapping.
+`request<T>()` returns data; `requestWithStatus<T>()` returns `{ data, status }`
+for the one operation where the status IS the answer (domain upsert: 201 means
+`isCreate: true`).
 
-**Key patterns:**
-- All path parameters use `encodeURIComponent()` — the SDK does not validate
-  identifiers, so this is the whole client-side defence against a hostile name
-  forging a sub-route. Fenced by a row **quantified over every resource method
-  that takes one** (`resources-paths.test.ts`): one method forgetting it is the
-  entire defect class, and a hand-picked example only ever proves the method
-  someone remembered.
-- Optional arrays: use `labels !== undefined` (not `labels?.length`) — distinguishes "not provided" from "empty array"
-- `requestWithStatus()` used when HTTP status drives behavior (domain creation: 201 = `isCreate: true`)
-- Internal request options are `ShipRequestInit`, whose `headers` is narrowed to
-  a plain record — see "Retries" for why that narrowing is load-bearing
+- **Every path parameter is `encodeURIComponent()`-ed.** The SDK does not
+  validate identifiers, so this is the whole client-side defence against a
+  hostile name forging a sub-route. `resources-paths.test.ts` quantifies over
+  every resource method that takes one, because one method forgetting it is
+  the whole defect class.
+- **Optional arrays:** test `labels !== undefined`, never `labels?.length`, so
+  "not provided" and "empty" stay distinct.
+- **Internal request options are `ShipRequestInit`**, whose `headers` is
+  narrowed to a plain record (see "Retries").
 
-**Transport injection (`fetch`):** `ShipClientOptions.fetch` overrides the function used for every outbound API call. Defaults to `globalThis.fetch` (captured at construction). Any `fetch`-compatible function works — typical uses include a Cloudflare service-binding `Fetcher` for Worker-to-Worker calls, tracing/retry wrappers, and test mocks. All downstream machinery (events, timeouts, `AbortSignal`, multipart bodies, `ShipError` normalisation) operates on standard `Request`/`Response`, so the injected fetcher inherits everything for free.
+**Transport injection (`fetch`).** `ShipClientOptions.fetch` replaces the
+function used for every outbound call (default: `globalThis.fetch`, captured
+at construction). Any `fetch`-compatible function works: a service-binding
+`Fetcher`, a tracing wrapper, a test mock. Everything downstream works on
+standard `Request`/`Response`, so an injected fetcher inherits it all.
 
-**Events — every failure is visible, and the event NAME says whether it ended
-the call:**
+**Events: every failure is visible, and the event NAME says whether it ended
+the call.**
+
 ```typescript
 ship.on('request', (url, init) => ...);          // once per ATTEMPT
 ship.on('retry', (error, url, attempt) => ...);  // that attempt failed; another is coming
@@ -217,166 +189,186 @@ ship.on('error', (error, url) => ...);           // the call failed, terminally
 ```
 
 One call emits `retry* (error | response)`, so the stream is unambiguous at
-every PREFIX — a consumer never has to wait to learn what it is watching. The
-failure events are emitted by `executeRequest`, not `attemptOnce`, and that
-placement IS the mechanism: terminality is a property of the loop, so an
-attempt cannot name its own failure. `attempt` counts from 1, which makes the
-value read both ways at once — attempt N failing IS retry N.
-
-See "Retries" for why this replaced a per-attempt `error`.
+every prefix. `error` fires exactly once per failed call (a mid-backoff abort
+included) and `response` once, on the attempt that worked. The failure events
+are emitted by `executeRequest`, not `attemptOnce`: terminality is a property
+of the loop, so an attempt cannot name its own failure. `attempt` counts from
+1, so attempt N failing IS retry N.
 
 ### Authentication Flow
 
-The constructor is fully synchronous: the credential and the HTTP client are formed at construction time from constructor args, with `SHIP_TOKEN` / `SHIP_API_URL` filling any gaps in Node. Nothing is deferred and nothing is held: platform limits are read when they are used (below).
+The constructor is synchronous: the credential and the HTTP client are formed
+from constructor args, with `SHIP_TOKEN` / `SHIP_API_URL` filling gaps in
+Node. Nothing is deferred and nothing is held.
 
-**One credential slot.** `token` carries any platform token — `ship-` API key, `deploy-` deploy token, `oauth-` OAuth access token — sent verbatim as `Authorization: Bearer <value>`. The value's shape says what it is: the server classifies with the same `classifyToken` (`@shipstatic/types`) the SDK uses for boundary validation, so client and server can never disagree on dispatch. **The OAuth population gained its prefix on 2026-08-14** and the SDK needed no source change for it — one slot, one dispatcher, the rules owned by the constitution — which is the clearest evidence that slot is the right shape. A bearer carrying no known prefix still rides the slot and is still forwarded verbatim; the server refuses it, because the platform mints nothing unprefixed any more. A `TokenProvider` function in the same slot supplies the token per request — minting and refresh live with the caller, the SDK just asks. `session: true` is the cookie-session identity for first-party browser apps. `token` + `session` together is a config error. **There is no credential precedence anywhere in the SDK** — one slot means multiplicity is inexpressible.
+**One credential slot.** `token` carries any platform token (`ship-` API key,
+`deploy-` deploy token, `oauth-` OAuth access token), sent verbatim as
+`Authorization: Bearer <value>`. The server classifies with the same
+`classifyToken` (`@shipstatic/types`) the SDK uses for boundary validation, so
+a new token population needs no SDK change. A bearer with no known prefix
+still rides the slot; the server refuses it. A `TokenProvider` function in
+the same slot supplies the token per request: minting and refresh live with
+the caller. `session: true` is the cookie-session identity for first-party
+browser apps; `token` + `session` together is a config error. **There is no
+credential precedence anywhere in the SDK**: one slot makes multiplicity
+inexpressible.
 
-**Token resolution (Node, in priority order):**
+**Token resolution (Node, in order):** the constructor argument, then
+`SHIP_TOKEN` (plus `SHIP_API_URL`). That is the whole SDK contract.
+`~/.shiprc` and `--config` are CLI-only, so the SDK cannot leak a developer's
+dotfile credential into an anonymous public deploy. The single env var
+follows the one-token idiom (`GITHUB_TOKEN`, `NPM_TOKEN`, `VERCEL_TOKEN`).
+Browser `Ship` has no ambient source at all.
 
-1. Constructor argument (`new Ship({ token })`)
-2. Environment variable: `SHIP_TOKEN` (plus `SHIP_API_URL` for the endpoint)
+**Lifetime dominance: storage must not outlive the credential.** A dotfile is
+indefinite, so `.shiprc` holds durable tokens. An env var lives as long as the
+process, so `SHIP_TOKEN` holds what its provisioner keeps fresh (a short-lived
+token per CI run is correct). A constructor argument or provider lives per
+request, which is where hourly OAuth bearers belong.
 
-That's the entire SDK contract. `~/.shiprc` and the `--config` path are **CLI-only** — see `src/node/cli/shiprc.ts`. This separation is what makes `new Ship({})` safe in embedded contexts: the SDK can't reach into the host developer's personal dotfile and silently leak credentials into anonymous public deployments. The single env var follows the industry's one-token idiom (`GITHUB_TOKEN`, `NPM_TOKEN`, `VERCEL_TOKEN`).
-
-**The lifetime-dominance doctrine:** storage must not outlive the credential. A dotfile is indefinite — `.shiprc` holds durable tokens. A process environment lives as long as the process — `SHIP_TOKEN` holds whatever its provisioner keeps fresh (a CI job injecting a short-lived token per run is correct). A constructor argument or provider lives per request — it holds anything, which is where hourly OAuth bearers belong.
-
-**The fail-closed anonymity invariant:** anonymity requires proven absence of credentials. An anonymous deploy simply carries no `Authorization` header — the API grants the public-account agent identity per request (`AuthMethod.AGENT`; claim URL + expiry on the response), and the SDK has no agent-token machinery at all. A credential that is present but expired, malformed, or rejected fails the request with a typed error — it never demotes a deploy to an anonymous PUBLIC_ACCOUNT deploy. Empty-string normalization is the invariant's boundary condition: `''` (shell expansion of an unset CI variable) is absence of intent and falls through to the next source; a configured provider yielding nothing is broken intent and throws.
-
-Browser `Ship` has no ambient source at all — the token comes from constructor options (or, for first-party browser apps, the cookie session via `session: true`).
+**Fail-closed anonymity: anonymity requires proven absence of credentials.**
+An anonymous deploy carries no `Authorization` header; the API grants the
+agent identity per request (`AuthMethod.AGENT`, a claim URL and an expiry on
+the response), and the SDK has no agent-token machinery. A credential that is
+present but expired, malformed or rejected fails the request with a typed
+error; it never demotes a deploy to an anonymous public one. `''` (an unset CI
+variable expanded by the shell) is absence and falls through to the next
+source; a configured provider yielding nothing is broken intent and throws.
 
 #### Strict-isolation contract for embedded hosts
 
-The env-var fallback is **the** SDK contract. There is no programmatic opt-out — no `envFallback: false` flag, no `token: null` sentinel. Embedded SDK consumers (MCP, GitHub Action, library wrappers, multi-tenant integrations) are expected to manage `SHIP_TOKEN` at the process boundary:
+The env-var fallback is **the** SDK contract, with no programmatic opt-out (no
+`envFallback: false`, no `token: null` sentinel).
 
-- **Hosts that pass credentials explicitly** (e.g. MCP receives a token via its server config and forwards it to `new Ship({ token })`) get exactly what they expect — explicit args win, no surprises.
-- **Hosts that need strict isolation** (e.g. a multi-tenant runner where the deployer's identity must never leak into a customer's deployment) must scrub `SHIP_TOKEN` from the worker process or run the SDK in a sub-process with a clean env. The SDK trusts whatever env it sees.
+- **Hosts that pass credentials explicitly** (the MCP forwarding its configured
+  token to `new Ship({ token })`) get what they expect: explicit args win.
+- **Hosts that need strict isolation** (a multi-tenant runner where the
+  deployer's identity must never reach a customer's deployment) scrub
+  `SHIP_TOKEN` from the process, or run the SDK in a sub-process with a clean
+  env. The SDK trusts the env it sees.
 
-Why no opt-out option? Because every flag we add to disable env reading would itself become a footgun in the same way `configFile` resolution did — embedded consumers would forget to set it and silently leak. Making env reading non-overrideable forces the host to think about credential isolation as a process-level concern, where it actually belongs.
+An opt-out flag is refused: embedded consumers would forget to set it and leak
+silently. Credential isolation is a process-level concern, and a
+non-overridable env read keeps it there.
 
 #### The device-flow future
 
-The CLI's recorded future for delegated auth is the OAuth device flow. Its doctrine reading: the *refresh token* is the durable credential — ambient storage (OS keychain, `.shiprc`) is permitted; the access tokens it mints are short-lived and ride a `TokenProvider`, never a dotfile or an env var. The provider is already the public contract, so the device flow adds no SDK surface.
+The CLI's recorded future for delegated auth is the OAuth device flow. The
+refresh token is the durable credential (OS keychain or `.shiprc` are
+permitted); the access tokens it mints are short-lived and ride a
+`TokenProvider`, never a dotfile or an env var. The provider is already the
+public contract, so the device flow adds no SDK surface, and its spelling joins
+`CREDENTIAL_HINT`.
 
 ### Cross-Platform File Input
 
-The shared `DeployInput` type is `File[] | string | string[]`. Each platform's `deploy()` shortcut narrows to its accepted shape; non-matching inputs throw at runtime.
+`DeployInput` is `File[] | string | string[]`. Each platform's `deploy()`
+narrows to its shape; anything else throws at runtime.
 
 ```typescript
-// Node — string or string[] (file/directory paths; directories walked recursively)
+// Node: file/directory paths; directories walked recursively
 ship.deploy('./dist');
 ship.deploy(['./dist/index.html', './dist/app']);
 
-// Browser — File[] (typically from <input type="file"> or drag-and-drop)
+// Browser: File[] (from <input type="file"> or drag-and-drop)
 ship.deploy(Array.from(fileInput.files));
-ship.deploy([fileFromDragDrop]);
 ```
 
-`FileList` is not accepted directly — the runtime check is `Array.isArray(input) && input.every(item => item instanceof File)`. Convert with `Array.from(fileInput.files)`. Synthetic `StaticFile` objects (`{path, content, md5, size}`) are an internal pipeline shape produced by `processFilesForNode` / `processFilesForBrowser`; they are not a public input format for `deploy()`.
+`FileList` is not accepted directly (the check is `Array.isArray(input) &&
+input.every(item => item instanceof File)`); convert with `Array.from`.
+`StaticFile` (`{path, content, md5, size}`) is an internal pipeline shape, not
+a public input. In the browser the SDK takes a file's path from
+`webkitRelativePath`, falling back to `name`.
 
 ### One deploy pipeline, two collectors
 
 **Only the FINDING is platform-shaped.** Node walks a filesystem; a browser is
-handed `File` objects. Everything after — optimize the paths, drop the junk,
-refuse what the platform's rules refuse, checksum what survives — is one
-sequence, and since 2026-08-12 it is stated once in
-`shared/core/deploy-files.ts`. `node-files.ts` and `browser-files.ts` are the
-collectors, and the browser one is now nine lines of body.
+handed `File` objects. Everything after (optimize the paths, drop the junk,
+refuse what the deploy rules refuse, checksum what survives) is one sequence
+in `shared/core/deploy-files.ts`; `node-files.ts` and `browser-files.ts` are
+only collectors.
 
-The seam is `DeploySource`: a path, a size, and a `read()`.
+**The seam is `DeploySource`: a path, a size and a `read()`.** `size` sits
+beside `read()`, filled in Node from the `statSync` the walk already makes, so
+every deploy rule is judged before the first read: a refused deploy opens no
+file, because no rule reads more than a path and a size. The pipeline's tests
+use synthetic sources, needing no disk and no browser.
 
-**`size` sits beside `read()` rather than behind it, and that is the design.**
-Node fills it from the `statSync` its directory walk already performs to tell a
-file from a directory, so the empty-file skip costs nothing and every deploy
-rule is judged before the first `read()`: a refused deploy opens no file,
-however many it holds, because no rule reads more than a path and a size. It
-removed work
-rather than preserving it: the old loop stat'd every file a SECOND time to learn
-a number the walk had already read and thrown away.
-
-Two asymmetries are BY DESIGN — recorded, not unified:
+Two asymmetries are by design:
 
 - **Only Node pre-checks `UNBUILT_PROJECT_MARKERS` on input directories.** A
-  Node user types a path and can plausibly type a repository root, where the
-  walk would then enumerate `node_modules`; a browser user picks files. The junk
-  filter refuses the same mistake one step later for paths it can see, so this
-  is about the cheapest moment, which for a large monorepo is the difference
-  between an immediate answer and a long one.
-- **Only browser callers set `build`/`prerender`** — see "Server-Processed
-  Uploads". The MODE is read from the shared options where the loop is; who sets
-  it is the asymmetry.
+  Node user can type a repository root, where the walk would enumerate
+  `node_modules`; refusing before the walk is the cheapest moment. The junk
+  filter would refuse the same mistake one step later.
+- **Only browser callers set `build`/`prerender`** (see "Server-Processed
+  Uploads"). The mode is read from the shared options; who sets it is the
+  asymmetry.
 
-Fenced by 26 rows whose sources are SYNTHETIC — none of them needs a disk or a
-browser, which is itself the evidence the seam landed in the right place.
+**What the junk filter does and does not do.** It filters a site's junk and
+judges nothing: a project's files (`node_modules`, `package.json`) are kept,
+even under pnpm's `node_modules/.pnpm/`, so the `project` rule refuses them by
+name. A `..` segment is dot-prefixed, so it is filtered rather than refused.
 
 ### A deploy larger than one request
 
-**A deploy is declared, then filled, and a deploy that fits one request is
-the case where the declaration carries everything.** `deployments.upload`
-always builds the manifest (`deployManifest`: every file by path, size and
-MD5) and the declaration's fields (`deployFields`, in one fixed order), and
-asks the planner (`shared/core/deploy-plan.ts`) how to send them:
+**A deploy is declared, then filled; a deploy that fits one request is the
+case where the declaration carries everything.** `deployments.upload` always
+builds the manifest (`deployManifest`: every file by path, size and MD5) and
+the declaration's fields (`deployFields`, in one fixed order), and asks the
+planner (`shared/core/deploy-plan.ts`) how to send them:
 
-- **Everything fits:** one request, the declaration carrying every file, 201.
-- **It does not:** a bare declaration (the manifest, the options and the root
-  `ship.json`, which the API compiles at the declaration) answering 202
-  pending, then one `POST /deployments/:deployment/files` per batch. The
-  first 201 or 200 is the deployment; a 202 after the last batch is refused,
-  since the client cannot resolve it.
+- **Everything fits:** one request carrying every file, answered 201.
+- **It does not:** a bare declaration (the manifest, the options, the root
+  `ship.json`, which the API compiles at the declaration, and the root
+  `index.html`) answered 202 pending, then one
+  `POST /deployments/:deployment/files` per batch. The first 201 or 200 is
+  the deployment; a 202 after the last batch is refused, since the client
+  cannot resolve it.
 
 **The planner counts; it never measures.** Each part is its bytes, plus its
-name as the body carries it, plus `PART_OVERHEAD`; one more `PART_OVERHEAD`
-is the closing delimiter. Text values are counted with line breaks as CRLF
-and filenames with their quote, CR and LF escaped, the HTML standard's
-multipart rules, so the count is a ceiling on what any runtime's `FormData`
-emits and a 413 on a planned request means the arithmetic is wrong. **The
-recorded break:** a CLI from before 3.7 sending a request between 64 and 100
-MiB meets the 413 whose sentence names the update.
-`bodyBytes` is the one count, read by the planner and by its fixture: the
-rows in `deploy-plan.test.ts` hold it against a real `FormData` on node and
-on Chromium, and two of them hold the value and the name counts EXACTLY, by
-the runtime's own byte difference between two bodies, because the framing's
-slack would hide a counter off by a few bytes from every other row.
+name as the body carries it, plus `PART_OVERHEAD`, and one more
+`PART_OVERHEAD` closes the body. Text values count line breaks as CRLF and
+filenames count their escaped quote, CR and LF (the HTML standard's multipart
+rules), so the count is a ceiling on what any runtime's `FormData` emits, and
+a 413 on a planned request means the arithmetic is wrong. `bodyBytes` is the
+one count; `deploy-plan.test.ts` holds it against a real `FormData` on Node and
+Chromium, and two rows hold the value and name counts EXACTLY by the runtime's
+own byte difference between two bodies. **The recorded break:** a CLI older
+than 3.7 sending a request between 64 and 100 MiB meets a 413 whose sentence
+names the update.
 
-**Splitting is internal, which is why this is a minor version.** The
-signature, the options and the answer are the same; the one change a caller
-sees is that a large deploy no longer meets the edge's limit.
-
-**Abort does nothing, and that is the design.** Ctrl+C or a caller's signal
-stops the sending; the pending deployment is the platform's sweep's to
-reclaim, after its window, at the cost of one cap slot until then. No
+**Abort does nothing, by design.** Ctrl+C or a caller's signal stops the
+sending, and the platform's sweep reclaims the pending deployment after its
+window; until then it holds one slot of the plan's cap. No
 `DELETE` is sent: the CLI exits before cleanup could run, a deploy token
 cannot delete, and a `DELETE` after a lost final response would delete a site
 that had just gone live. A fill answering 404 ("This upload was cancelled or
-timed out. Deploy again.") ends the deploy, and the SDK never redeclares on
-its own.
+timed out. Deploy again.") ends the deploy, and the SDK never redeclares on its
+own.
 
 ### Server-Processed Uploads (Build/Prerender)
 
-When `build` or `prerender` is set on `DeploymentUploadOptions`, the SDK delegates the build to the server:
+With `build` or `prerender` set on `DeploymentUploadOptions`, the server
+builds:
 
-- **`processDeployFiles`** (`shared/core/deploy-files.ts`) carries a
-  project's source as it was given. Which files a project holds is decided
-  once, before the SDK sees them, by `@shipstatic/drop`'s `projectSource`
-  (what the repository holds), so this loop takes nothing away: no junk
-  filter (a build reads `.npmrc` and `.vitepress/`), no empty-file skip (an
-  empty module a build imports is source, and the files go into a zip for the
-  build service, never to storage), and none of the deploy rules, which
-  describe the build's OUTPUT. It still checksums. `filterJunk` judges a
-  site's files and only a site's, so it takes no option.
-- **A `build` or `prerender` never splits**: the planner refuses a project over one request before a byte is sent, in `BUILD_TOO_LARGE`. The planner reads the flags from the declaration's own fields, so what it plans is what is sent
-- **`deployFields`** appends `build=true` / `prerender=true` to the declaration
+- **`processDeployFiles` carries a project's source as given.** Which files a
+  project holds is decided before the SDK sees them, by `@shipstatic/drop`'s
+  `projectSource`, so this path takes nothing away: no junk filter (a build
+  reads `.npmrc` and `.vitepress/`), no empty-file skip (an empty module a
+  build imports is source), and none of the deploy rules, which describe a
+  build's OUTPUT. It still checksums. `filterJunk` judges a site's files only,
+  so it takes no option.
+- **A build or prerender never splits.** The planner refuses a project over
+  one request before a byte is sent (`BUILD_TOO_LARGE`), reading the flags from
+  the declaration's own fields, so what it plans is what is sent.
+- **`deployFields`** appends `build=true` / `prerender=true`.
 
-**Only browser callers set them, and that asymmetry lives in the CALLERS.**
-The platform's own web apps are browser apps and reach `/upload`; Node has no
-such caller, and its own unbuilt-marker precheck would refuse a project folder before
-the walk in any case. The browser processor carried a whole second copy of the
-per-file loop for this mode until 2026-08-12 — a third statement of "skip empty,
-checksum, push" — which is what the shared pipeline deleted. What did not move
-is which platform's users can set the flags.
-
-These are `@internal` flags, used only by the platform's own web apps through `/upload`. External clients (SDK, CLI, integrations) never set them. They deploy through `/deployments`, which builds nothing: builds happen locally before upload.
-
-`captcha` rides the same internal tier: the platform's public uploader passes its proof as a deploy option and the body creators append it as a form field. First-party only; every other anonymous deploy is the credential-less `/deployments` path, which needs no proof.
+These are `@internal` flags, set only by the platform's own browser apps
+through `/upload`. Node has no such caller (and its unbuilt-marker precheck
+would refuse a project folder anyway). External clients deploy through
+`/deployments`, which builds nothing. `captcha` is the same tier: a
+first-party uploader's proof, appended as a form field. Every other anonymous
+deploy is the credential-less `/deployments` path, which needs no proof.
 
 ## CLI Patterns
 
@@ -384,178 +376,118 @@ These are `@internal` flags, used only by the platform's own web apps through `/
 
 | Type | Text format | JSON format | Quiet (`-q`) format |
 |------|------------|-------------|---------------------|
-| Success message | green text | `{ "success": "..." }` | — |
+| Success message | green text | `{ "success": "..." }` | none |
 | Data (single) | key-value pairs | raw JSON object | key identifier only |
 | Data (list) | table | raw JSON object | one identifier per line |
 | Void/ping | success/error text | `{ "success": "..." }` | no output (exit code) |
 | Error | `[error]` prefix, red | `ErrorResponse` (see below) | stderr (unchanged) |
 
-**Text translates, JSON transmits.** The three message envelopes above
-(`success` / `warning` / `info`) have no wire counterpart, so they are
-CLI-shaped `{ kind: message }`. Errors do have one, and the `--json` channel
-emits it verbatim — `ShipError.toResponse()`, so `error` names the
-`ErrorType`, `message` carries the wire's own sentence, `status` the HTTP
-status. Text mode is the only channel that gets `getUserMessage`'s actionable
-rewording ("pass --token, set SHIP_TOKEN, or run ship config").
+**Text translates, JSON transmits.** The three message envelopes (`success`,
+`warning`, `info`) have no wire counterpart, so they are CLI-shaped
+`{ kind: message }`. Errors do, and `--json` emits it verbatim:
+`ShipError.toResponse()`, so `error` names the `ErrorType`, `message` carries
+the wire's sentence and `status` the HTTP status. Clients branch on `error`
+and `status`, never on the sentence. Only text mode gets `getUserMessage`'s
+actionable rewording ("pass --token, set SHIP_TOKEN, or run ship config").
 
-The two must not be merged. Until 2026-07-29 `--json` emitted
-`{ error: <message> }` — prose under the key the API, the SDK, and
-`@shipstatic/types` all reserve for the type, which left an agent nothing to
-branch on but the sentence, against this platform's own rule that clients
-branch on `error` type / `status` and never on message strings. Five emitters
-carried the inverted shape, not one.
+Two things hold it: `error()` in `utils.ts` is **overloaded** so a bare string
+is accepted only for the text channel (an untyped failure has no wire shape,
+so writing one into `--json` is a compile error), and
+`tests/node/cli/json-errors.test.ts` asserts the envelope across every
+producer (the global boundary, Commander's parser, `handleUnknownSubcommand`,
+the `preAction` validator, transport failure).
 
-Two things hold it now, and neither is prose: `error()` in `utils.ts` is
-**overloaded** so that a bare string is accepted only for the text channel
-(an untyped failure has no wire shape, so writing one into `--json` is a
-compile error), and `tests/node/cli/json-errors.test.ts` asserts the envelope
-across every producer — the global boundary, Commander's parser,
-`handleUnknownSubcommand`, the `preAction` validator, and transport failure.
+- Text messages open lowercase (identifiers, paths and acronyms survive) and
+  lose their final period: `plainMessage` in `utils.ts` is that typography.
+- Internal fields (`isCreate`, `_dnsRecords`, `_shareUrl`) are stripped from
+  JSON output.
+- `[error]`/`[warning]`/`[info]` prefixes use inverse colour in a TTY.
 
 ### Deletions answer with an acknowledgement
 
-The same law, one channel over. A deletion is not void: the wire answers with
-the resource noun carrying its canonical key, plus the resource's own state
-field where the state changed (`@shipstatic/types`,
-`DeploymentDeleteResponse`). It carries no `message` on purpose — *"an
-acknowledgement is data, and each surface composes its own copy"* — so this is
-the one shape where the API deliberately authors no prose and the CLI is
-expected to write the sentence itself.
+A deletion is not void: the wire answers with the resource noun carrying its
+canonical key, plus the resource's own state field where the state changed
+(`DeploymentDeleteResponse` in `@shipstatic/types`). It carries no `message`
+on purpose (an acknowledgement is data, and each surface composes its own
+copy), so the CLI writes the sentence. **Quiet** prints the key, **`--json`**
+transmits the shape through the one JSON exit in `formatOutput`, and **text**
+alone composes copy.
 
-Three channels, one acknowledgement, each in its own idiom: **quiet** prints
-the key, **`--json`** transmits the shape through the single JSON exit in
-`formatOutput`, and **text** is the only one that composes copy.
+**The tense is the response's.** `DELETE /deployments/:deployment` answers 202
+with `status: 'deleting'`, and the files stay served until the platform's
+cleanup finishes, so text says
+`<host> deployment deleting — served until cleanup completes`. A hard delete
+(`{domain}`, `{token}`) says `deleted`, because the row is gone. The gate is the
+transitional-state MAP in `formatters.ts` (`IN_FLIGHT`), never the presence of
+a `status`: `Deployment` and `Domain` carry statuses of their own, so keying on
+presence would print "www.example.com domain pending". An unrecognised state
+reads as done.
 
-**And the TENSE in that sentence is the response's too.** An acknowledgement
-carries the resource's own state field only where the resource survived
-mid-transition, so that field is how a surface knows whether to speak in the
-past. `DELETE /deployments/:deployment` answers **202**, marks the row
-`deleting`, and queues the cleanup; the files stay served until the
-platform's cleanup finishes. The CLI
-read the acknowledgement's key, discarded its `status`, and said "deleted"
-anyway — a completed past tense over a live site, which is precisely backwards
-for someone deleting a deployment BECAUSE it exposed something. `--json` was
-truthful throughout; only the sentence lied. Text now says
-`<host> deployment deleting — served until cleanup completes`, while a hard
-delete (`{domain}`, `{token}`) still says `deleted`, because there the row is
-genuinely gone.
-
-The gate is the transitional-state MAP in `formatters.ts`
-(`DELETION_IN_FLIGHT`), never the mere presence of a `status` — `Deployment`
-and `Domain` both carry a status of their own (`pending`, `success`), so a
-formatter keying on presence would answer "www.example.com domain pending" the
-day a handler resolved an entity here. An unrecognised state reads as done.
-
-**The identifier in that sentence is the response's, never the request's.**
-The two diverge routinely — a deployment is addressable by bare slug and
-answers with its hostname; a domain is accepted in any case and answers
-normalized — so a sentence built from the argument names whichever form the
-caller happened to type. The resource noun is the CLI's own word, and because
-an acknowledgement is the resource noun carrying its key, that one `resource`
-both selects the field and writes the sentence.
-
-This regressed once (`11fc633`): the commit that gave the delete methods real
-return types also widened the formatter's branch to a test on the operation
-name, intercepting the acknowledgement it had just plumbed through — `--json`
-emitted `{ success: "<slug> deployment removed" }`: prose in the data
-channel, a bare slug where the platform names an FQDN, no `status`. Two
-things hold it now, and neither is a convention: `OutputContext` no longer
-carries the caller's argument at all (the field existed only to be echoed, so
-a sentence composed from input is now inexpressible), and
-`tests/node/cli/json-acknowledgements.test.ts` asserts the envelope for every
-deletion — including that deleting by slug and by hostname produces
-byte-identical output.
+**The identifier is the response's, never the request's.** A deployment is
+addressable by bare slug and answers with its hostname; a domain is accepted in
+any case and answers normalized. `OutputContext` carries no caller argument, so
+a sentence composed from input is inexpressible, and
+`tests/node/cli/json-acknowledgements.test.ts` asserts every deletion's
+envelope, including byte-identical output for deleting by slug and by hostname.
 
 ### What a status means
 
-`ErrorResponse.status` is documented **"HTTP status code (API contexts)"** — it
-is a fact about an exchange, not decoration on a 4xx-ish type. So the question
-is never "did we make a request?", it is **"what would the wire say?"**:
+`ErrorResponse.status` is documented as "HTTP status code (API contexts)": a
+fact about an exchange. So the question is **"what would the wire say?"**:
 
-- **A check that mirrors a server rule keeps the status the server would send.**
-  Blocked extensions, label rules, password length, token format — the platform
-  validates these on both sides from the same rules (root `CLAUDE.md`,
-  "Validation Architecture"), and the whole point is that the error reads the
-  same wherever it was caught. `ShipError.validation(...)` with its 400 is
-  correct here. **"The same rules" means imported OR delivered**: the extension
-  blocklist arrives at runtime in `PlatformLimits.blockedExtensions` rather than
-  as a constant, and mirrors the server no less for it — more so, since a
-  delivered rule cannot be stale.
-- **A fault with no server rule to mirror carries no status**, and therefore one
-  of the client-only types — `Network`, `Cancelled`, `File`, `Config`, which are
-  exactly the statusless factories in `@shipstatic/types`. Your shell, your
-  dotfile, this binary's command grammar: no API has an opinion on any of them,
-  so a 400 would be an HTTP fact about an exchange that never happened. That is
-  a *plausible* lie, which is worse than an obvious one — it survives review.
+- **A check that mirrors a server rule keeps the status the server would
+  send.** Blocked extensions, label rules, password length, token format and
+  the size and count caps are validated on both sides from the same rules, so
+  the error reads the same wherever it is caught: `ShipError.validation(...)`
+  with its 400. "The same rules" means imported OR delivered: the extension
+  blocklist arrives in `PlatformLimits.blockedExtensions` and mirrors the
+  server no less for it.
+- **A fault with no server rule to mirror carries no status**, and so one of
+  the client-only types: `Network`, `Cancelled`, `File`, `Config`, the
+  statusless factories in `@shipstatic/types`. Your shell, your dotfile and
+  this binary's grammar have no API opinion, so a 400 there would be a
+  plausible lie, which survives review better than an obvious one.
 
 `completion.ts` is the worked example: an fs call that threw is `file`,
-everything else there is a statement about the user's shell setup, so `config`.
-CLI grammar errors go through `usageError()` in `index.ts` — `Validation` for
-the type, no status.
+everything else there is about the user's shell setup, so `config`. CLI
+grammar errors go through `usageError()` in `index.ts`: `Validation`, no
+status. A failed local file read in `md5.ts` is `ShipError.file` with the path
+in `details`.
 
-**The SDK was audited against this rule (2026-07-29) and mostly already
-complied** — an earlier note here claimed "~25 sites violate it", which was
-wrong and is corrected. Almost every local throw in `src/shared/`,
-`src/browser/`, and `src/node/core/` *mirrors a server rule* and rightly keeps
-its 400: unsafe filenames, path traversal, label rules, and the size/count caps
-all come from the same constants the API enforces (`hasUnbuiltMarker` is checked
-in `api/src/lib/validation.ts` too), and blocked extensions come from the list
-the API *delivers*. One site was genuinely wrong — a failed local file read in
-`md5.ts`, now `ShipError.file` with the path in `details`.
-
-What remains is a third category the rule deliberately does not govern:
-**assertions** like "processFilesForNode can only be called in Node.js
-environment" or "Invalid input for MD5 calculation". They guard states a correct
-caller cannot reach, so their type and status are not a contract anyone reads,
-and reclassifying them would be churn for no observable difference. Leave them.
+**Assertions are a third category, and the rule does not govern them.**
+"processFilesForNode can only be called in Node.js environment" guards a state
+a correct caller cannot reach, so its type and status are no contract. Leave
+them.
 
 **Local commands throw; they never report.** `completion` and `config` make no
-request, so neither can use `withErrorHandling` (it builds a `Ship`, which
-resolves credentials). Both take the same shape instead — the action wraps the
-call and hands anything thrown to `handleError` — which is what gives a local
-failure the same one writer and the same exit code as every other. Reporting
-inline is not a smaller version of this; it is a different thing that looks the
-same: `completion` printed `[error] …` and then exited **0** until 2026-07-29,
-so `ship completion install && …` ran on after a failure. `handleError` in turn
-resolves the credential only for the auth branch, so a local failure never
-reads `.shiprc` to render its own message.
+request, so neither uses `withErrorHandling` (it builds a `Ship`). Each action
+wraps its call and hands anything thrown to `handleError`, which gives a local
+failure the same writer and the same non-zero exit as every other.
+`handleError` resolves the credential only for the auth branch, so a local
+failure never reads `.shiprc` to render its message.
 
-- Text messages open lowercase (leading sentence word decapitalized; identifiers, paths, and acronyms survive verbatim); trailing periods stripped — `plainMessage` in `utils.ts` is that typography, named once
-- Deletions produce a success message **in text only** — see "Deletions answer with an acknowledgement" below
-
-### One grammar: `<key> <noun> <verb>` — and one function
+### One grammar: `<key> <noun> <verb>`, and one function
 
 `announce(result, context)` in `formatters.ts` composes **every** sentence the
-CLI makes about a mutation, from the two things it already has: what the command
-IS (`OutputContext`) and what the wire ANSWERED. Nothing else is needed, and no
-formatter writes a template any more:
+CLI makes about a mutation, from what the command IS (`OutputContext`) and
+what the wire ANSWERED:
 
 ```
 <canonical key> <resource noun> <past tense, or the wire's own state>
 ```
 
-The key is read from the NOUN (`result[noun]`), so `.url` is not reachable; the
-word order belongs to the function, not a call site; and the state override
-applies everywhere at once, so an operation that becomes asynchronous tomorrow
-updates its own sentence. Five formatters each wrote their own template until
-2026-07-29 and produced six grammars between them — every one of those bugs was
-a formatter making a choice it did not need to make. Three of them stopped
-needing `context` at all once the sentences were hoisted, which is the cleanest
-evidence the split was real: a renderer does not need to know what the command
-was.
-
-**Mutations announce, reports render.** A report has no key and no verb, so it
-prints its answer instead — `ping`, `validate`, `records`, `dns`, `share`.
-`ACKNOWLEDGING` (`delete`, `verify`) names the mutations whose response is an
-acknowledgement and therefore has no entity to render beneath the sentence.
+The key is read from the NOUN (`result[noun]`), so `.url` is unreachable; word
+order belongs to the function; the state override applies everywhere, so an
+operation that becomes asynchronous updates its own sentence. No formatter
+writes a template. `ACKNOWLEDGING` (`delete`, `verify`) names the mutations
+whose response is an acknowledgement, with no entity to render beneath the
+sentence.
 
 `announce` has **two occasions, one writer**: `formatOutput` calls it for the
 answer, and `announceStep` calls it mid-command for the first beat of a
-composed one (`ship <path> --domain <name>`). `announceStep` is the only export
-— `announce` itself stays private, because a second exported sentence-maker is
-how six grammars happened the first time. See "Composability".
-
-The resulting sentences:
+composed one (`ship <path> --domain <name>`). `announceStep` is the only
+export; `announce` stays private, because a second exported sentence-maker is
+how grammars multiply.
 
 ```
 mock-deploy-001.shipstatic.com deployment uploaded
@@ -563,315 +495,223 @@ www.example.com domain created            (…updated)
 tok0001 token created
 www.example.com domain verification queued
 www.example.com domain deleted
-tok0001 token deleted
 brave-otter-a1b2c3d.shipstatic.com deployment deleting — served until cleanup completes
 www.example.com domain is valid
 ```
 
-**The key, never the URL.** A URL is a *field* of the resource and is already
-printed on its own row in the details block below, so opening with it made the
-text channel disagree with `-q` and `--json`, which have always named the key.
-`ship ./dist` and `domains set` opened with the URL while `verify` and `delete`
-opened with the key — one resource, two identifiers, decided by which command
-you happened to run.
-
-Audited against the real binary on 2026-07-29 and found to be **six** grammars
-across eleven messages: `token tok0001 created` inverted the order its own
-sibling `tok0002 token deleted` used; `domain is valid` named no subject at all
-though it held the normalized name; `domains share` emitted a bare URL
-identical to its own `-q` output. Fenced by the `it.each` table in
-`tests/node/cli/formatters.unit.test.ts` ("one grammar"), which asserts every
-composed sentence *starts with* the key its fixture carries — so a new command
-cannot invent a seventh form.
+**The key, never the URL.** A URL is a field of the resource, printed on its
+own row in the details block, so opening with it would make text disagree with
+`-q` and `--json`. The `it.each` table in
+`tests/node/cli/formatters.unit.test.ts` ("one grammar") asserts every composed
+sentence starts with its fixture's key.
 
 **Reports render, mutations announce.** A report answers a question, so it
 prints its answer (`records` a table, `dns` and `share` a details block,
-`validate` its verdict, `ping` the word `api reachable`); only a mutation gets
-a success sentence. `share` printed a green URL under `success()` until this
-audit, which is why its text and `-q` output were byte-identical.
+`validate` its verdict, `ping` the words `api reachable`); only a mutation gets
+a success sentence.
 
 **A verdict is not a failure.** `domains validate` on an invalid name writes
-the reason to **stdout** and sets exit 1. The exit code is the machine answer —
-`ship domains validate x && …` is the documented idiom — but the call
-*succeeded*, and stderr under `[error]` claimed otherwise, contradicting both
-the SDK (which resolves that shape without throwing) and `--json` (which has
-always put the same verdict on stdout). It names no subject because
-`normalized` is null when invalid: the response carries no identifier, and the
-CLI does not fall back to the caller's argument.
+the reason to **stdout** and sets exit 1. The exit code is the machine answer
+(`ship domains validate x && …`), but the call succeeded, as the SDK and
+`--json` agree. It names no subject, because `normalized` is null when invalid
+and the CLI never falls back to the caller's argument.
 
 **Shell completions are RENDERED from the tree, not shipped.**
 `renderCompletion(program, shell)` emits bash/zsh/fish, and
-`ship completion install` writes what it renders at that moment — an
-installed completion always matches the binary that installed it, which a
-copied file could never promise. Three hand-written scripts were the third,
-fourth and fifth statement of the command tree until 2026-07-29 (`ship tokens
-get` shipped the previous day and completed in **zero** shells;
-`--limit`/`--cursor` were in none of them). `tests/node/cli/completions.test.ts`
+`ship completion install` writes what it renders then, so an installed
+completion always matches its binary. `tests/node/cli/completions.test.ts`
 quantifies over the whole tree; the smoke tier installs through the real
-binary and runs `bash -n` / `zsh -n` / `fish --no-execute`, because a real
-shell is the only thing that can say the output parses.
+binary and runs `bash -n` / `zsh -n` / `fish --no-execute`, since only a real
+shell can say the output parses.
 
-**And so is scoped usage.** `handleUnknownSubcommand` reads `this.name()` and
-`subcommandsOf(this)` — no arguments, no closure, module scope. Until
-2026-07-30 it took `(parentName, validSubcommands[])` by hand — the last
-hand-written restatement of the tree, stale the same way (`ship tokens bogus`
-offered three subcommands while the derived completion one module over
-offered four). Fenced in `tests/node/cli/unknown-commands.test.ts`,
-quantified over `buildProgram()` (the hand-written table it replaced carried
-the very defect it existed to catch). Consequence for word order: the printed
-list is REGISTRATION order — the same order `--help` and the completions
-show. One order, three surfaces; the front page keeps its own, by design.
+**The last hand-written copy of the command tree is gone: scoped usage is
+derived too.** `handleUnknownSubcommand` reads `this.name()` and
+`subcommandsOf(this)`: no arguments, no closure. `tests/node/cli/unknown-commands.test.ts`
+quantifies over `buildProgram()`. The printed list is REGISTRATION order, the
+same as `--help` and the completions; the front page keeps its own.
 
-**The front page may curate, but not forget.** `helpText()` is hand-written and
-byte-pinned, so leaving a command off is legitimate — provided the omission is
-recorded in `HELP_OMISSIONS` (`tests/architecture/docs-contract.test.ts`) with
-its reason. It was missing `ping`, `account get` and `tokens get` when the fence
-was written; two were added to the page, and `account get` is recorded, because
-`ship whoami` is the same read and is the spelling the page shows.
+**The front page may curate, but not forget.** `helpText()` is hand-written
+and byte-pinned, so leaving a command off is legitimate, provided the omission
+is recorded in `HELP_OMISSIONS` (`tests/architecture/docs-contract.test.ts`)
+with its reason (`account get` is recorded: `ship whoami` is the same read and
+the spelling the page shows).
 
-**`-q` prints the key for every shape that has one.** `tokens get` and
-`tokens delete` printed NOTHING until 2026-07-29 — the quiet router matched the
-`tokens` collection and had no branch for a single token, so the one resource
-whose identifier you most want to pipe was the only one emitting none, and
-`ship tokens list -q | xargs -I{} ship tokens delete {} -q` (this repo's own
-README idiom, one noun over) was silent. The one deliberate exception is
-`tokens create -q`, which emits the **secret** rather than the id: it is shown
-once and never again, so `ship tokens create -q >> .env` is why that channel
-exists there. It is checked before the `token` branch, since a creation
-response carries both.
-- Internal fields (`isCreate`, `_dnsRecords`, `_shareUrl`) are stripped from JSON output
-- `[error]`/`[warning]`/`[info]` prefixes use inverse color backgrounds in TTY
+**`-q` prints the key for every shape that has one.** The one exception is
+`tokens create -q`, which emits the **secret**: it is shown once and never
+again, so `ship tokens create -q >> .env` is why that channel exists there. It
+is checked before the `token` branch, since a creation response carries both.
 
 ### No repository file is ever read
 
 `.shiprc` resolution is **two locations**: `~/.shiprc`, or the path `--config`
-names. A project-level search — `./.shiprc`, `package.json` `"ship"`, walking
-up from the cwd — sat in front of both until 2.0.0 and is gone, along with
-cosmiconfig.
+names. There is no project-level search (`./.shiprc`, `package.json` `"ship"`,
+walking up from the cwd), and none may be added: its only capability is a
+repository-controlled file supplying credentials or an API URL, so a cloned
+repo could redirect the user's token or deploy to the repo owner's account.
+Every field of such a surface is equally untrustworthy, so the refusal is of
+the surface, never of one field. `--config <file>` reads any path as given.
 
-It was deleted rather than fixed, because its only capability WAS the
-anti-pattern: a repository-controlled file supplying credentials. Two exploits
-were verified against the real binary on 2026-07-30:
-
-1. A cloned repo's `package.json` carrying `{"ship": {"apiUrl": "http://…"}}`
-   received `Authorization: Bearer <the user's SHIP_TOKEN>` on a plain
-   `ship deployments list` — exit 0, no warning.
-2. **Worse, because it survived the first patch:** a repo's `token` outranked
-   `~/.shiprc` entirely, so `ship ./dist` in a cloned repo deployed to the
-   *repo owner's* account, silently.
-
-The first was patched with a `refuseProjectApiUrl` rule (~50 lines with
-symlink canonicalisation, since `/var` is a symlink on macOS and a textual
-compare misread the user's own home file as a project file). That patch was
-the wrong SHAPE of fix: it refused one field of a surface whose every field
-was equally untrustworthy, which is why the second exploit was still there
-after it. Both are properties of the surface, so the surface went.
-
-The asymmetry that gives the game away: the wizard `chmod`s `~/.shiprc` to
-0600 "like `~/.netrc`" while the reader accepted the same credential from a
-tracked, world-readable `package.json`.
-
-`--config <file>` is unaffected and is now strictly better — there is no
-extension dispatch to work around, so any path is simply read.
-
-**Format: strict JSON.** YAML acceptance was an accident of cosmiconfig's
-`noExt` loader default, and it cost the `dev.shiprc` "No loader specified"
-bug, a two-pass writer/reader repair, and a 15-line comment explaining
-`extname` dispatch. Nothing in the product ever produced YAML — the wizard
-writes JSON and the docs show JSON. An **empty file is an absent config**, not
-a broken one; `touch ~/.shiprc` and any interrupted write produce one.
+**Format: strict JSON.** The wizard writes JSON and the docs show JSON; YAML is
+not accepted. An **empty file is an absent config**, not a broken one (`touch
+~/.shiprc` and an interrupted write both produce one). The wizard `chmod`s
+`~/.shiprc` to 0600.
 
 ### One file, two commands, one idea of what it is
 
 `ship config` is the only WRITER of the file `shiprc.ts` is the only READER
-of. Until 2026-07-30 they held different ideas of it, in both directions: the
-writer's bare `JSON.parse` inside `catch → {}` read a file the reader
-rejected BY NAME as "no existing config" and wrote `{}` over it — token and
-`apiUrl` gone, under a `saved to …` message, making **the recovery path the
-destructive one**; and "preserve every other field" kept the very `apiKey`
-the reader's rename hint promised `ship config` would fix, so **the advice
-was a loop**.
+of, and **the schema is the file.** `CREDENTIAL_FIELDS` is `.strict()`: `token`
+and `apiUrl` are the only fields a `.shiprc` may hold.
 
-Both are one rule now: **the schema is the file.** `CREDENTIAL_FIELDS` is
-`.strict()` — `token` and `apiUrl` are the only fields a `.shiprc` may
-legally hold. The writer rebuilds the file from
-`Object.keys(CREDENTIAL_FIELDS)` rather than mutating what it read (dropping
-a rejected key IS the repair the hint promises, announced rather than done
-quietly), and it **refuses what it cannot parse** instead of replacing it
-(`ErrorType.Config`, *the file was left unchanged*) — a file we cannot read
-is a file whose contents we cannot claim to preserve.
-
-**The FORMAT is shared outright** — `readExistingConfig` calls the reader's
-own `parseShipFile`. **One parse, two policies**: the reader parses then
-rejects; the writer parses then repairs what the reader rejects (it must
-accept `{apiKey}` in order to fix it). The fence therefore asserts format
-agreement only, per file (`tests/node/cli/config.test.ts`): reader and writer
-run over the same content and their verdicts are compared — when `.shiprc`
-became strict JSON in 2.0.0 that fence needed no structural change, only its
-`expected` column moved on both sides at once, which is the fence working.
+- **The writer rebuilds** the file from `Object.keys(CREDENTIAL_FIELDS)`
+  rather than mutating what it read, so dropping a rejected key (an old
+  `apiKey`) IS the repair the reader's hint promises, announced rather than
+  silent.
+- **The writer refuses what it cannot parse** (`ErrorType.Config`, the file
+  left unchanged): a file it cannot read is a file whose contents it cannot
+  claim to preserve.
+- **The FORMAT is shared outright.** `readExistingConfig` calls the reader's
+  own `parseShipFile`. One parse, two policies: the reader rejects, the writer
+  repairs what the reader rejects. `tests/node/cli/config.test.ts` runs both
+  over the same content and compares their verdicts per file.
 
 ### Composability
 
-`-q` outputs only the key identifier — the value you'd pipe forward. `domains set` reads deployment from stdin when piped.
+`-q` outputs only the key identifier, the value to pipe forward.
+`domains set` reads the deployment from stdin when piped.
 
 ```bash
 ship ./dist -q | ship domains set www.example.com
 ship ./dist --domain www.example.com          # the same two calls, one command
 ```
 
-**Both spellings are product; neither replaces the other, and this paragraph
-exists so the question stays answered.** The pipe composes *interactively* —
-any two commands, wherever `-q` hands the next one the value it wants — and it
-is the documented shell idiom. `--domain` exists because a pipeline is the
-wrong shape for CI: a workflow `run:` block is `bash -e` **without**
-`pipefail`, so a pipeline reports the LAST command's status and a failed deploy
-is masked by `domains set`'s own confusion — and a CI consumer needs the
-deploy's full `--json`, which `-q` deliberately discards. One process, one exit
-code, one JSON.
+**Both spellings are product; neither replaces the other.** The pipe composes
+interactively and is the documented shell idiom. `--domain` exists because a
+pipeline is the wrong shape for CI: a workflow `run:` block is `bash -e`
+**without** `pipefail`, so a failed deploy is masked by the last command's
+status, and a CI consumer needs the deploy's full `--json`, which `-q`
+discards. One process, one exit code, one JSON.
 
-**With `--domain`, the answer is the DOMAIN**, because the domain is what the
-user asked about: "deploy this *to www.example.com*" is a question about the
-destination, and `domains.set()` has always carried the answer — the `Domain`
-it returns holds the freshly linked deployment and the URL. So the composed
-command renders through the `domain.set` row that already exists: **no new
-type, no new response shape, no new formatter, no new output row.** The only
-type-level edit the whole feature needed was `DeployCommandOptions.domain`.
+**With `--domain`, the answer is the DOMAIN**, because the destination is what
+the user asked about, and the `Domain` that `domains.set()` returns already
+holds the linked deployment and the URL. So the composed command renders
+through the existing `domain.set` row: no new type, response shape, formatter
+or output row.
 
-Four consequences, each falling out rather than being arranged:
-
-- `-q` prints the domain name, because the quiet channel prints the row's key
-  and the row is `domain.set`'s.
-- `--json` transmits the `DomainSetResult`, internals stripped, byte-identical
-  to `ship domains set --json`.
+- `-q` prints the domain name; `--json` transmits the `DomainSetResult`,
+  byte-identical to `ship domains set --json`.
 - A new external domain gets the same first-link DNS enrichment, because
-  `performDomainSet` is literally the same function `domains set` calls.
-- **`ship ./dist -q` without the flag still prints the deployment id.** The
-  pipe seed is untouched, forever, with a test pinning it.
+  `performDomainSet` is the function `domains set` calls.
+- **`ship ./dist -q` without the flag prints the deployment id, forever**, with
+  a test pinning it.
 
 **The flag chooses which command runs, not what one command does.** `runDeploy`
-reads `--domain` ONCE and picks between two `withErrorHandling` pairs —
+reads `--domain` ONCE and picks between two `withErrorHandling` pairs:
 `deployOnly` under `{upload, deployment}` and `deployAndLink(domain)` under
-`{set, domain}`. Identity and behaviour are therefore chosen together, from one
-reading. The alternative shapes were both considered and are worse: a result
-carrying an internal `_context` override would be **the response deciding the
-output**, which is the exact thing `OUTPUTS` exists to forbid (see
-"`formatOutput` Router"); a static action plus a separately-resolved context
-branches on one condition in two places and lets the two answers disagree.
+`{set, domain}`, so identity and behaviour come from one reading. Refused
+alternatives: a result carrying an internal `_context` override (the response
+deciding the output, which `OUTPUTS` exists to forbid), and a static action
+with a separately resolved context (one condition branched in two places).
 
-Two beats in the text channel, one sentence-writer. `announceStep` (exported
-from `formatters.ts`) writes the deployment's own sentence the moment the
-upload lands — streamed like the spinner, and load-bearing rather than
-decorative: if the link then fails, the id the user has already paid for is on
-screen. A beat is the **sentence alone**, in the **text channel alone**: the
-details block belongs to the answer, and `--json` still has exactly one exit
-while `-q` still prints exactly one key. `announce` stays private — this is a
-second OCCASION for it, not a second writer.
+**Two beats in text, one sentence-writer.** `announceStep` writes the
+deployment's sentence the moment the upload lands, so if the link then fails
+the id is on screen. A beat is the sentence alone, in the text channel alone:
+`--json` keeps one exit and `-q` one key.
 
 **`--domain` refuses without a credential BEFORE it reads a file.** An
-anonymous account cannot own a domain, so the invocation is unsatisfiable, and
-discovering that after the upload would have minted a public, expiring,
-claimable deployment as the side effect of a failed *authenticated* intent —
-which the fail-closed anonymity invariant forbids. It asks `resolveCliToken`,
-i.e. the credential the CLI RESOLVED, so a fourth source slots in there and
-never here. The error is statusless `Config`, per "What a status means": no
-exchange happened, so there is no HTTP status to report, and `Authentication`
-would both carry a 401 for a request never made and hand the sentence to
-`getUserMessage`'s generic auth arm — losing the one thing worth saying, which
-is that it is `--domain` that needs the token. The remedy itself
-(`CREDENTIAL_HINT` in `error-handling.ts`) is one fact with one owner, shared
-with the auth message, because the device flow will change both at once.
+anonymous account cannot own a domain, and finding out after the upload would
+mint a public, expiring deployment as the side effect of a failed
+authenticated intent, which fail-closed anonymity forbids. It asks
+`resolveCliToken` (the credential the CLI resolved), so a fourth credential
+source slots in there and never here, and the error is
+statusless `Config`: no exchange happened, and `Authentication` would carry a
+401 for a request never made and lose the point that `--domain` needs the
+token. The remedy, `CREDENTIAL_HINT` in `error-handling.ts`, is one fact shared
+with the auth message.
 
-A link failure is **not** rolled back: a deployed-but-unlinked site is a valid
-platform state, and an idempotent re-run replays the deploy and simply links
-again. **"Idempotent" is a condition, not a description of the default** — it
-holds when `SHIP_IDEMPOTENCY_KEY` is set, which is the CI shape the flag exists
-for (the GitHub Action derives one per workflow run). A bare shell retry has no
-key, so it mints a SECOND deployment: valid, unlinked, and visible in the
-account. Say so when advising a retry.
+**A link failure is not rolled back**: a deployed-but-unlinked site is a valid
+state. **"Idempotent" is a condition**: a re-run replays the deploy only when
+`SHIP_IDEMPOTENCY_KEY` is set (the GitHub Action derives one per workflow
+run). A bare shell retry mints a SECOND deployment, valid and unlinked. Say so
+when advising a retry.
 
-**The fold rule, so the next composed command inherits it rather than
-re-deriving it: on failure, `--json` stays the verbatim error envelope and
+**The fold rule: on failure, `--json` stays the verbatim error envelope, and
 completed steps are text-only.** The machine channel never learns the
-mid-command deployment id. That is not an oversight to fix later — it is the
-one-JSON-exit law meeting the envelope-verbatim law, and either alternative
-breaks one of them: a second document breaks the first, and a `partial` field
-beside `error` breaks the second. The convergence story is idempotent replay,
-not a richer error. Text is the channel that carries the progress, which is why
-`announceStep` is text-only by construction.
+mid-command deployment id. A second JSON document would break the one-exit
+law; a `partial` field beside `error` would break the verbatim-envelope law.
+The recovery is idempotent replay, not a richer error.
 
 **Recorded absences** (decisions, not gaps):
 
-- **No SDK `domain` deploy option.** The SDK mirrors the wire 1:1
-  (`resource.action()` per endpoint); composition is CLI grammar, exactly as
-  DNS enrichment is CLI-only. An SDK consumer composes two typed calls.
-- **No `SHIP_DOMAIN` env var.** The CLI-only env tier exists for values a
-  subprocess wrapper cannot put on argv (secrets, ambient keys). A domain rides
-  argv fine.
-- **No domain prevalidation before the upload.** Parity with the verb it
-  names: `domains set` does not prevalidate either. The API refuses at link
-  time with its own message, and the idempotent replay makes the retry cheap.
-  The credential preflight above is different in kind — it prevents a *wrong
-  deploy*, not a wrong link.
+- **No SDK `domain` deploy option.** The SDK mirrors the wire one method per
+  endpoint; composition is CLI grammar, like DNS enrichment. An SDK consumer
+  composes two typed calls.
+- **No `SHIP_DOMAIN` env var.** The CLI-only env tier is for values a
+  subprocess wrapper cannot put on argv (secrets, ambient keys).
+- **No domain prevalidation before the upload**, matching `domains set`. The
+  API refuses at link time, and replay makes the retry cheap. The credential
+  preflight differs in kind: it prevents a wrong deploy, not a wrong link.
 
-**Deferred mechanisms, each with the condition that ends the deferral.** The
-estate's stopping rule governs all four — machinery earns existence at the
-SECOND holder, not the first — so these are recorded here rather than built,
-and the next composition lands born-here instead of re-arguing the design.
+**Machinery not built until a second holder exists** (the condition that
+builds each):
 
-| Deferred mechanism | Builds when | What it replaces |
-|---|---|---|
-| **Identity as a dispatcher contract** — `withErrorHandling` accepts `OutputContext \| (input) => OutputContext`, resolves once, hands the result to the handler | The **second** command whose identity depends on its invocation | `runDeploy`'s hand-rolled dispatch and the comment defending it |
-| **Dispatcher-owned step emission** — the handler gets an `emit` capability; channels become folds (text renders steps, `--json`/`-q` ignore them), tested once at the fold | The **second** command that announces a mid-command beat | The exported `announceStep` and its per-command channel discipline |
-| **A composition/plan shape** | The **second** composed command | Nothing yet — `deployAndLink` as a plain async function is the right altitude for one |
-| **A command table above Commander** | A consumer that needs identity or requirements to be *enumerable* — none exists; the tree already serves completions, help, both fences, and scoped usage | Nothing — the tree IS the table today |
-| **An ordered TABLE for `getUserMessage`** — (predicate, renderer) rows with a completeness tie, the `SHAPES` / deploy-rules move | The **third** ordering TIE in that chain. It has two (auth-before-client, timeout-before-network), both fenced by tests that turn red on a reorder | The if/else chain and the two tie notes above it. Deliberately not built now: those tables exist to delete a SECOND statement of one fact — `SHAPES` had two chains that drifted, the deploy rules one rule read three ways — and this chain has ONE reader, so a table would move code without removing a restatement |
-| **Hand-rolled ambient-config validation**, retiring `zod` from `dependencies` | Someone is paying for the dependency — a consumer install size complaint, or the third field on `CREDENTIAL_FIELDS` | zod's entire runtime footprint here: three imports over TWO fields (`apiUrl`, `token`), where `z.string().url()` is a weaker restatement of the constitution's `validateApiUrl`. Not free, though: `.strict()` is what makes `.shiprc` refuse unknown keys, and `Object.keys(CREDENTIAL_FIELDS)` is what the config wizard rebuilds the file from, so the replacement owes a key list plus a parse that reports which field failed. A change to the published dependency CONTRACT belongs in its own wave, never as a rider. (The live gap that audit surfaced was separable and is fixed — see "One rule, every source" below.) |
+- **Identity as a dispatcher contract** (`withErrorHandling` taking
+  `OutputContext | (input) => OutputContext`): a second command whose identity
+  depends on its invocation.
+- **Dispatcher-owned step emission** (an `emit` capability; channels as
+  folds): a second command with a mid-command beat.
+- **A composition/plan shape:** a second composed command.
+- **A command table above Commander:** a consumer needing identity or
+  requirements to be enumerable; the tree already serves every reader.
+- **An ordered table for `getUserMessage`:** a third ordering tie (two exist,
+  auth before client and timeout before network, fenced in
+  `error-handling.unit.test.ts`); with one reader a table removes nothing.
+- **Hand-rolled ambient-config validation, retiring `zod`:** someone paying
+  for the dependency (an install-size complaint) or a third field on
+  `CREDENTIAL_FIELDS`. `z.string().url()` is already a weaker restatement of
+  the constitution's `validateApiUrl`. The replacement owes `.strict()`'s unknown-key refusal
+  and the key list the wizard rebuilds from, and a change to the published
+  dependency contract ships on its own, never as a rider.
 
-**Considered and declined outright**, so it is not rediscovered: a cross-repo
-existence fence for `web/docs`' CLI page. The rename-drift class it would catch
-is already owned by the prose fence's retired-spellings list, and a true
-existence check would need ship's command tree executed from another repo's CI
-— disproportionate machinery for a covered risk.
+**Refused:** a cross-repo existence fence for the docs site's CLI page. The
+rename class it would catch is covered by the platform's prose fence, and a
+true existence check would run this command tree from another repo's CI.
 
 ### Table Output
 
-- **3 spaces** between columns (matches ps, kubectl, docker)
-- Trailing spaces are trimmed from table rows, because columnify pads every cell
-  to its column width. **NUL bytes are not** — both renderers scrubbed them until
-  2026-08-12 for an artifact that does not exist. Measured, not assumed: 18
-  shapes through columnify 1.6.0's real API — plain rows, ragged widths and
-  ragged KEYS, empty strings, CJK and emoji, multiline cells, ANSI-coloured
-  cells, tabs and CR, twenty columns, a 400-char cell, and the details
-  renderer's own two-column form — emit zero NUL. Two copies of a scrub for an
-  artifact that never appears is the cost with none of the benefit.
-- Headers are dimmed; property names can be remapped via `headerMap`
-- Property order matches API response exactly
-- `INTERNAL_FIELDS` list (`['isCreate', 'claim']`) is filtered from table/details output — `claim` renders through the claim CTA instead, and deliberately stays in `--json` output so scripts can read it
+- **3 spaces** between columns (like ps, kubectl, docker).
+- Trailing spaces are trimmed from rows, because columnify pads every cell.
+  NUL bytes are not scrubbed: columnify emits none.
+- Headers are dimmed; property names can be remapped via `headerMap`.
+- Property order matches the API response.
+- `INTERNAL_FIELDS` (`['isCreate', 'claim']`) is filtered from table and
+  details output. `claim` renders through the claim CTA instead, and stays in
+  `--json` so scripts can read it.
 
 ### `processOptions` Helper
 
-Always call `processOptions(this)` inside action handlers — not `program.opts()`. It converts Commander's `--no-color` (which sets `color: false`) to the `noColor: true` convention used throughout.
+Always call `processOptions(this)` inside action handlers, never
+`program.opts()`. It converts Commander's `--no-color` (`color: false`) to the
+`noColor: true` convention used throughout.
 
 ### `performDeploy` Helper
 
-Shared deploy logic used by both `ship <path>` shortcut and `ship deployments upload`. Handles: path existence/type validation, the deploy options (labels, password, `--no-path-detect`, `--no-spa-detect`), AbortController for Ctrl+C, and a spinner (TTY only, suppressed in `--json` and `--no-color` modes).
-
-It takes `(client, deployPath, options)` and nothing else: every deploy flag
-reaches it through Commander's own merge, so there is no per-flag plumbing and
-no source to arbitrate between (see "Two flag tiers").
+Shared deploy logic for `ship <path>` and `ship deployments upload`: path
+existence and type checks, the deploy options, an AbortController for Ctrl+C,
+and a spinner (TTY only, suppressed under `--json` and `--no-color`). It takes
+`(client, deployPath, options)` and nothing else; every deploy flag reaches it
+through Commander's own merge.
 
 **The two spellings register the SAME action function.** `runDeploy` is what
 `.action()` receives on both, and both take their flags from one
-`withDeployOptions(cmd)`, so the flag set and the behaviour cannot drift
-between them — there is nothing to keep in step. `runDeploy` then reads
-`--domain` and dispatches to `deployOnly` or `deployAndLink(domain)`; see
-"Composability" for why the flag picks a command rather than modifying one.
+`withDeployOptions(cmd)`, so flags and behaviour cannot drift between them.
+`performDomainSet` is the domain-side counterpart: everything
+`ship domains set` does once its grammar has produced arguments. The stdin
+fallback and the label merge stay in that command, because they are how it
+reads a request, so both spellings link identically.
 
-`performDomainSet` is its counterpart on the domain side: everything
-`ship domains set` does once its own grammar has produced arguments. The stdin
-fallback and the label merge stay in that command — they are how it reads a
-request, not how it links — and what is left is shared with the `--domain` arm,
-so both spellings link identically by construction.
+The spinner keeps its dynamic `import()`: bundled, it no longer defers an
+install, but it still skips evaluating the module on runs that never show it
+(`--json`, `-q`, non-TTY), which is most CI runs.
 
 ### Command Handler Pattern
 
@@ -887,32 +727,22 @@ deploymentsCmd
 ```
 
 `OutputContext` (`operation`, `resource`) names what the command IS. Both are
-**union types**, not strings: `operation` selects behaviour (`PAST_TENSE`,
-`ACKNOWLEDGING`) and `resource` names the response field carrying the
-identifier, so a typo in either used to mean a command that silently announced
-nothing with every test still green. `resource` is lowercase because that IS
-the field name — `announce` reads `result[resource]` directly; it was
-`resourceType: 'Deployment'` with a `.toLowerCase()` at the single point of
-use, a capitalisation carried around only to undo.
+**union types**: `operation` selects behaviour (`PAST_TENSE`, `ACKNOWLEDGING`)
+and `resource` names the response field carrying the identifier, so a typo is
+a compile error rather than a command that silently announces nothing.
+`resource` is lowercase because it IS the field name (`announce` reads
+`result[resource]`).
 
-It reaches `formatOutput` and **nothing else**. The error path took it too
-until 2026-07-29 and ignored it — `getUserMessage`'s parameter was literally
-`_context` — and could not have used it either: the wire message already names
-the resource, which is why the CLI relays it. `withErrorHandling` additionally
-re-declared the context's shape inline and rebuilt it field by field into a
-copy; both are gone.
+It reaches `formatOutput` and **nothing else**: the error path relays the
+wire's message, which already names the resource. It carries **no positional
+argument**: the arguments are the request, and every sentence is composed from
+the response.
 
-It deliberately carries **no positional argument**: the arguments are the
-request, and every sentence the CLI writes about a result is composed from the
-response. A `getResourceId` plumbed the caller's argument to the formatter
-until 2026-07-29, where its only consumer echoed it back as the deletion
-identifier — see "Deletions answer with an acknowledgement".
-
-### `formatOutput` Router — one table, both channels
+### `formatOutput` Router: one table, both channels
 
 `SHAPES` in `formatters.ts` lists every response shape the CLI can receive, in
-resolution order, each stated ONCE with both of the things a channel needs from
-it: the key `-q` pipes forward, and the formatter text renders.
+resolution order, each stated ONCE with what both channels need: the key `-q`
+pipes forward, and the formatter text renders.
 
 | Discriminant | `-q` emits | Text |
 |---|---|---|
@@ -922,1162 +752,801 @@ it: the key `-q` pipes forward, and the formatter text renders.
 | `records` | `<type> <name> <value>` per row | `formatDomainRecords` |
 | `hash` | the setup URL | `formatDomainShare` |
 | `dns` | the provider name, if resolved | `formatDomainDns` |
-| `domain` | the name | `formatDomain` (plain `Domain` or `EnrichedDomain`); the standing's next step beneath its details, per `DOMAIN_NEXT_STEP` |
-| `domain` (verify) | the name | `formatDomainVerify` (`EnrichedDomainVerify`): where to read the verdict, and the link step when the read after queueing found nothing linked. NOT the standing's step — see "One step per standing" |
+| `domain` | the name | `formatDomain` (plain or `EnrichedDomain`), with the standing's next step per `DOMAIN_NEXT_STEP` |
+| `domain` (verify) | the name | `formatDomainVerify`: where to read the verdict, and the link step when nothing is linked. Not the standing's step |
 | `deployment` | the id | `formatDeployment` |
-| `secret` | the SECRET — shown once, never again | `formatToken` |
+| `secret` | the SECRET, shown once | `formatToken` |
 | `token` | the id | `formatToken` |
 | `email` | the address | `formatAccount` |
 | `valid` | the normalized name, or nothing | `formatDomainValidate` |
 
-Plus `(operation: 'ping')`, answered before the table — text says
+Plus `(operation: 'ping')`, answered before the table: text says
 `api reachable`, `--json` transmits `{ timestamp }`, `-q` says nothing.
 
-**Order is load-bearing** in two places, and both are ties rather than
-preferences: `Domain` carries a `deployment` field, so `domain` must precede
-`deployment`; a token creation carries both `token` and `secret`, so `secret`
-must precede `token`.
+**Order is load-bearing in two places, both ties:** `Domain` carries a
+`deployment` field, so `domain` precedes `deployment`; a token creation carries
+`token` and `secret`, so `secret` precedes `token`.
 
-**The two channels were two independent `if/else` chains until 2026-07-30** —
-same discriminants, same order, nothing tying them — and it shipped a bug:
-`tokens get`/`tokens delete` printed NOTHING under `-q` (the quiet chain had
-a branch for the collection, none for a single token). A row cannot
-half-exist now; resolution order is a property of the list. `SHAPES` is
-**exported for the suite**, and that tie is load-bearing:
-`tests/node/cli/formatters.unit.test.ts` pins a hand-written case per row,
-then asserts its own list deep-equals `SHAPES.map(s => s.on)` — without that
-line the completeness check counted the test's own array and was a tautology
-(caught in review, 2026-07-30). Asserting the mapped list also makes the two
-order ties above enforced rather than trusted to this paragraph. A fence must
-quantify over PRODUCTION and pin expectations by hand; both sides
-hand-written is a mirror.
+`SHAPES` is **exported for the suite**: `tests/node/cli/formatters.unit.test.ts`
+pins a hand-written case per row, then asserts its own list deep-equals
+`SHAPES.map(s => s.on)`, which also enforces both ties. **A fence quantifies
+over PRODUCTION and pins expectations by hand**; both sides hand-written is a
+mirror.
 
-A shape with no row falls through to `formatDetails`, deliberately — a future
-`GET /labels` shows its content on the first run rather than needing a
-formatter first.
-
-A deletion short-circuits ahead of the table **in text mode only**, composing
-its sentence from the acknowledgement; in `--json` it falls through to the one
-JSON exit, and in `-q` the quiet branch above the table has already printed the
-key.
+A shape with no row falls through to `formatDetails`, so a new response shape
+shows its content on the first run. A deletion short-circuits ahead of the
+table **in text mode only**; in `--json` it falls through to the one JSON exit,
+and `-q`'s quiet branch has already printed the key.
 
 ### One step per standing
 
-Since types 3.0.0, `Domain.status` is the domain's STANDING — the one derived
-word saying what it needs from its owner (`live`, `unlinked`, `unverified`,
-`paused`) — and the DNS fact lives beside it as `verification`. The CLI reads
-that word and derives nothing.
-
-`DOMAIN_NEXT_STEP` in `formatters.ts` is the whole surface: a
+`Domain.status` is the domain's STANDING (`live`, `unlinked`, `unverified`,
+`paused`), the one derived word saying what it needs from its owner; the DNS
+fact sits beside it as `verification`. The CLI reads that word and derives
+nothing. `DOMAIN_NEXT_STEP` in `formatters.ts` is a
 `Record<DomainStatusType, (domain) => string | null>`, so a fifth standing
 fails to compile at the one place that prints a step. `live` prints nothing.
-It replaced a lone `deployment === null` hint, which was the console's
-`unlinked` derivation done a second time in another repo — and wrong in the
-same way the console's was: a linked-but-unverified domain got no advice at
-all, while an unverified unlinked one was told to link rather than to fix DNS.
+`ship domains list` shows a `status` column; the deployments list does not,
+because a listed deployment is nearly always `success`.
 
-**`ship domains verify` is the one domain surface that does NOT print it**,
-and the exception is the command rather than an oversight. Its read of the
-domain lands moments after the check is QUEUED and before it has run, so the
-standing it would report is `unverified` by construction. Printing that
-sentence would tell somebody who has just configured DNS and asked us to check
-it to go and configure DNS. `get` and `set` report a settled state, where the
-standing is the whole answer; `verify` reports a state that is deliberately
-stale, where the only honest thing to say is the one fact a pending verdict
+**`ship domains verify` does NOT print the standing**, by design. Its read
+lands after the check is QUEUED and before it runs, so the standing is
+`unverified` by construction, and printing that step would tell someone who
+just configured DNS to configure DNS. It says only what a pending verdict
 cannot change: whether anything will be served when it passes. Hence
-`_deployment` survives on `EnrichedDomainVerify`, and its sentence is written
-in the future tense ("once it verifies, point it at a deployment").
+`_deployment` on `EnrichedDomainVerify`, and the future-tense sentence ("once
+it verifies, point it at a deployment").
 
-**`ship domains list` gained a `status` column** in the same wave. It had none,
-and a wave whose thesis is
-one derived word a reader needs cannot ship the list that hides it. The
-deployments list keeps its own omission, because a listed deployment is nearly
-always `success` while `unverified` and `unlinked` are ordinary states of the
-domain flow.
-
-**And one instant-shaped trap the wave surfaced.** `formatValue` in `utils.ts`
-renders a unix-seconds field as a date from an ALLOWLIST of key names
-(`INSTANT_FIELDS`), because the alternative is guessing from the value and
-`links`, `files` and `size` are all plain numbers on the same objects. It is a
-restatement of the constitution's instant-named fields with one holder, so it
-is not promoted into `@shipstatic/types` (one holder is no owner) — but the
-drift is silent in the worst way: a new instant renders as `1785000000` and
-nothing fails. When the constitution gains an instant, add it there in the same
-wave. `verified` and `paused` joined on 2026-09-20.
+**`INSTANT_FIELDS` is an allowlist, and its drift is silent.** `formatValue` in
+`utils.ts` renders a unix-seconds field as a date only for listed key names,
+since `links`, `files` and `size` are plain numbers on the same objects. A new
+instant field in `@shipstatic/types` renders as `1785000000` with nothing
+failing, so add it to `INSTANT_FIELDS` in the same change. (One holder is no
+owner, so the list is not promoted into types.)
 
 ### DNS Enrichment on Domain Create
 
-When `ship domains set <name> [deployment]` creates a new external domain (`isCreate: true`, name contains `.`), the CLI fetches `domains.records()` and `domains.share()` in parallel, attaching results as `_dnsRecords` and `_shareUrl` on the result for the formatter to display. The share URL arrives FINISHED from the API (`DomainShareResponse.url`, composed server-side from the environment's own domain, like the claim URL); the CLI never assembles one. This is CLI-only behavior; SDK resources return plain data.
+When `ship domains set <name> [deployment]` creates a new external domain
+(`isCreate: true`, a name containing `.`), the CLI fetches `domains.records()`
+and `domains.share()` in parallel and attaches `_dnsRecords` and `_shareUrl`
+for the formatter. The share URL arrives finished from the API
+(`DomainShareResponse.url`); the CLI never assembles one. CLI-only: SDK
+resources return plain data.
 
 ### Retries
 
-The CLI's own 5xx message says "try again". The client now takes its own
-advice before handing that sentence to a person. `executeRequest` is the loop
-and `attemptOnce` is one request — the same single wrap point that already
-owned headers, the timeout signal, the events and error normalization, so an
-attempt is a whole request and nothing has to be undone between two.
+`executeRequest` is the loop and `attemptOnce` one request, the same wrap
+point that owns headers, the timeout signal, events and error normalization,
+so an attempt is a whole request and nothing is undone between two.
 
-**Retried:** anything where nothing was exchanged — `Network` (a refused
-connection, a DNS failure) and `Timeout` (a deadline of ours expired) — and
-500/502/503/504. Two retries by default, so three attempts, with full
-jitter — `random() * min(2s, 300ms * 2^n)`. Jitter matters more than the
-curve: it is what stops a platform hiccup from returning every client at once.
+**Retried:** anything where nothing was exchanged (`Network`, `Timeout`) and
+500/502/503/504. Two retries by default (three attempts), with full jitter,
+`random() * min(2s, 300ms * 2^n)`; jitter is what stops a platform hiccup
+returning every client at once. The first two are read through
+`isNetworkError()`, the CATEGORY (`ERROR_CATEGORIES.network` in
+`@shipstatic/types`), so a future member inherits the answer; the http-timeout
+suite's "and is RETRIED" holds it.
 
-**The first two are read through `isNetworkError()`, the CATEGORY, and not
-named individually.** "Nothing was exchanged" IS the retryability criterion,
-so a future member should inherit this answer rather than wait for someone to
-remember the line — and naming `Timeout` beside a guard that already contains
-it would be a second owner of that membership, free to disagree with the
-first. `@shipstatic/types` owns it (`ERROR_CATEGORIES.network`); what holds
-the decision here is the http-timeout suite's "and is RETRIED", which turns
-red the moment a deadline leaves the category.
-
-**Not retried, each a decision rather than an omission:**
+**Not retried, each a decision:**
 
 - **A maintenance 503.** A state, not a fault: its message says when to come
-  back, and retrying it three times only delays that sentence reaching the
-  person who needs it. Same STATUS as the retryable 503, which is exactly why
-  the check reads the TYPE — and why that test is the load-bearing one.
-- **429.** The platform's rate limiter has just answered; a client that
-  auto-retries is arguing with it. Revisit only alongside honoring
-  `Retry-After`, as its own decision.
-- **`PUT` / `DELETE`.** Semantically idempotent here and excluded anyway: a
-  DELETE whose response was lost answers 404 on the retry, turning a success
-  into a reported failure.
+  back. Same status as a retryable 503, so the check reads the TYPE, and that
+  test is the load-bearing one.
+- **429.** The rate limiter has just answered. Revisit only together with
+  honouring `Retry-After`.
+- **`PUT` / `DELETE`.** A DELETE whose response was lost answers 404 on retry,
+  turning a success into a reported failure.
 - **Any other request its resource did not mark `idempotent`.** The deployment
-  resource marks every fill, which the API answers from the deployment when it
-  is repeated, and a declaration carrying an `Idempotency-Key`, which the API
-  answers with the live deployment the key names. Everything else is sent once.
-- **Anything the CALLER's signal stopped.** The subtle one, and the reason the
-  check reads `options.signal.aborted` rather than only the error type: a
-  caller's `AbortSignal.timeout()` classifies as `Timeout`, exactly like our
-  own ceiling, which this loop retries on purpose — so on the error alone the
-  caller's deadline would look retryable and be silently outlived. **That
-  check carries the invariant alone**; nothing else in `isRetryable` can tell
-  whose clock ran out, which is what makes "does not retry past a caller's own
-  deadline" the load-bearing test in `http-retry`.
+  resource marks every fill (the API answers a repeat from the deployment) and
+  a declaration carrying an `Idempotency-Key`. Everything else is sent once.
+- **Anything the CALLER's signal stopped.** A caller's `AbortSignal.timeout()`
+  classifies as `Timeout`, like the client's own ceiling, so the check reads
+  `options.signal.aborted`. **That check alone carries the invariant**, and
+  "does not retry past a caller's own deadline" in `http-retry.test.ts` is the
+  load-bearing test.
 
-**Which required teaching the composed signal to say which deadline fired.**
-`createTimeoutSignal` aborted bare, so the SDK's own timeout, a caller's abort
-and a caller's `AbortSignal.timeout()` all arrived as `AbortError` and all
-classified as `Cancelled` — "you cancelled this" for a deadline nobody set by
-hand. An abort REASON survives fetch's rejection verbatim (captured across
-Node, Bun and the three engines), so each keeps its identity: ours is a
-`TimeoutError` naming the ceiling, the caller's is forwarded untouched. The
-same change removes the abort listener on cleanup, which was harmless when
-there was one attempt and a leak that grows once there are three.
-
-**Events stay honest, and `error` still means what it always meant.** The
-first cut of this tier made `request` and `error` fire per ATTEMPT. Honest
-about what happened — and it silently redefined `error`: before retries, an
-error-event count equalled failed CALLS; after, a consumer saw
-`error, error, response` and could not tell "failed, retrying" from "failed,
-terminally" at any prefix. That is a semantic change to an event every
-existing consumer already had a handler for.
-
-So the vocabulary gained a word instead. `request` stays per attempt (a
-request truly went out). A failed attempt that will be tried again emits
-**`retry`**, carrying the same normalized `ShipError`, the URL, and the
-attempt number. `error` is terminal and fires exactly once per failed call —
-including a mid-backoff abort, which ends the call. `response` fires once, on
-the attempt that worked. Nothing is hidden and nothing is ambiguous:
-`retry* (error | response)`.
-
-Corrected on the beta channel in `2.2.0-beta.7`, two prereleases after the
-shape it replaces (`beta.5`, `beta.6`). The tests asserting three `error`
-events were pinning that shape, and were rewritten rather than relaxed.
+**The composed signal says which deadline fired.** An abort REASON survives
+fetch's rejection verbatim (Node, Bun and the three browser engines), so
+`createTimeoutSignal` aborts with a `TimeoutError` naming the ceiling, and a
+caller's reason is forwarded untouched. The abort listener is removed on
+cleanup, since a leak grows with each attempt.
 
 **The resource says what may be repeated; the transport never infers it.**
-`ShipRequestInit.idempotent` is set by the resource that composed the request,
-because only it knows: a fill is safe to repeat whatever it carries, and a
-declaration is safe only with a key. The transport's rule is one line, "GET,
-HEAD, or idempotent", and it reads no header and matches no path, so a request
-cannot become retryable by carrying a header nobody meant as a mark. The field
-is this client's own word and is stripped before `fetch` sees the init.
-Fenced in `http-retry.test.ts` ("the idempotent request option").
+`ShipRequestInit.idempotent` is set by the resource that composed the request.
+The transport's rule is one line, "GET, HEAD, or idempotent", reading no header
+and matching no path, so a header nobody meant as a mark cannot make a request
+retryable. The field is stripped before `fetch` sees the init. Fenced in
+`http-retry.test.ts` ("the idempotent request option").
 
-**Surface:** `maxRetries` on `ShipClientOptions`, `0` disables. One knob, the
-name Stripe and OpenAI use, which by this file's own doc-placement rule is
-what earns it public README surface. No env var and **no CLI flag** (recorded
-absence — the CLI rides the default; add a flag the day someone asks).
-
-No `tests/contract.ts` rows: retry is client POLICY, not a wire fact. The API
-is not promising to fail twice.
+**Surface:** `maxRetries` on `ShipClientOptions`, `0` disables (the name Stripe
+and OpenAI use, so it is public README surface). No env var and **no CLI flag**
+(the CLI rides the default; add a flag when someone asks). No
+`tests/contract.ts` rows: retry is client policy, not a wire fact.
 
 ### Ephemeral deployments (`--ttl`)
 
-**The platform was already asking how long a deployment lives; the request may
-now answer it.** The API's entitlement answered from IDENTITY (anonymous → 3
-days, authenticated → forever) and the orchestrator stamped that verbatim; a
-requested `ttl` overrides only the authenticated `null`. This half of the
-feature is deliberately thin — when the wire owns the fact, the SDK mirrors it
-1:1 and the CLI declares one flag into machinery that already knows what to do
-with it.
+**The API decides a deployment's lifetime from identity (anonymous: 3 days;
+authenticated: forever), and a requested `ttl` overrides only the
+authenticated `null`.** The wire owns the fact, so the SDK mirrors it and the
+CLI declares one flag.
 
-- **SDK:** `deploy(path, { ttl })` in SECONDS, validated at the request
-  boundary by `validateTtl` from `@shipstatic/types` beside `validatePassword`
-  and `validateLabels`, appended as `DEPLOY_FIELDS.TTL`. A duration, never an
-  instant: the server owns time.
+- **SDK:** `deploy(path, { ttl })` in SECONDS, validated by `validateTtl` from
+  `@shipstatic/types` beside `validatePassword` and `validateLabels`, appended
+  as `DEPLOY_FIELDS.TTL`. A duration, never an instant: the server owns time.
 - **CLI:** `--ttl <duration>` on `withDeployOptions`, so the flag law supplies
-  both spellings, the misapplication refusal, and the completions with no
-  further code.
+  both spellings, the misapplication refusal and the completions.
 - **One parser, two commands.** `parseTtl` accepts bare seconds or `<n><unit>`
-  (`s`/`m`/`h`/`d`), and `tokens create --ttl` moved onto it — one word, one
-  grammar, everywhere. The parser owns the SPELLING and nothing else;
-  `validateTtl` owns the RANGE, which is what makes the refusal identical from
-  the CLI, the SDK and the API. The wire only ever carries a number.
-- **`ttlOf` reads the EFFECTIVE options, and that is load-bearing.**
-  `tokens create` declared `--ttl` alone and correctly read `cmdOptions.ttl`
-  until 2026-08-12. The moment the deploy shortcut — which IS the program —
-  declared the same flag, Commander's root began consuming it and that read
-  went silently undefined: every `ship tokens create --ttl 1h` would have
-  minted a permanent token. One helper, one source, for both commands. See
-  "Two flag tiers".
+  (`s`/`m`/`h`/`d`) for deploys and `tokens create --ttl`. It owns the
+  SPELLING; `validateTtl` owns the RANGE, so the refusal is identical from the
+  CLI, the SDK and the API. The wire carries a number.
+- **`ttlOf` reads the EFFECTIVE options.** The deploy shortcut IS the program
+  and declares `--ttl`, so Commander's root consumes it wherever it is typed; a
+  read of `cmdOptions.ttl` in `tokens create` would go silently undefined and
+  mint a permanent token. See "Two flag tiers".
 
-**Two preflights, both before a byte is read**, and they are the two deploy
-flags that promise something past the upload:
+**Two preflights, both before a byte is read:**
 
 - **No credential → statusless `Config`** carrying `CREDENTIAL_HINT`, the
-  `--domain` arm's shape verbatim. An anonymous deployment already expires on
-  the platform's schedule, and discovering the refusal after the upload would
-  have minted a public, expiring, claimable deployment as the side effect of a
-  failed authenticated intent.
-- **With `--domain` → statusless `Validation`.** A domain is a commitment and
-  a deadline is its opposite; the API refuses to link any deployment with a
-  non-null `expires`, so the combination cannot succeed and the only question
-  is whether the user pays for an upload first.
+  `--domain` arm's shape. An anonymous deployment already expires on the
+  platform's schedule.
+- **With `--domain` → statusless `Validation`.** The API refuses to link a
+  deployment with a non-null `expires`, so the combination cannot succeed.
 
-**Rendering needed nothing.** `formatValue` already humanizes `expires`
-through `formatTimestamp`, so the details block shows the expiry with zero new
-code. The claim CTA's *relative* phrase ("expires in 3 days") is gated on
-`claim`, which a credentialed ttl deploy never carries — reusing it would have
-ADDED a second duration phrase rather than sharing one.
+**Rendering needs nothing new**: `formatValue` humanizes `expires` through
+`formatTimestamp`. The claim CTA's relative phrase is gated on `claim`, which a
+credentialed ttl deploy never carries, and reusing it for `--ttl` would add a
+second duration phrase rather than share one.
 
-**Recorded absences** (decisions, not gaps):
+**Recorded absences:**
 
-- **No `SHIP_TTL` env var.** The CLI-only env tier exists for values a
-  subprocess wrapper cannot put on argv (secrets, ambient keys). A duration
-  rides argv fine — the `SHIP_DOMAIN` precedent.
-- **No ttl mutation.** A deployment is an immutable artifact with labels as
-  its only mutable annotation. To keep something longer, redeploy; deploys are
-  cheap and idempotent replay makes them cheaper. The claim flow remains the
+- **No `SHIP_TTL` env var.** A duration rides argv (the `SHIP_DOMAIN` precedent).
+- **No ttl mutation.** A deployment is immutable with labels as its only
+  mutable annotation; redeploy to keep something longer. The claim flow is the
   only writer of `expires` after create.
-- **No ttl on `domains set`** — a link is not a lease.
+- **No ttl on `domains set`**: a link is not a lease.
 - **A replay answers the deployment the key names, as it stands**, with the
-  `expires` its commit stamped; a replayed request's ttl is not consulted.
-**A CLIENT is a fixture too.** The anonymous refusal has a `tests/contract.ts`
-row with a LIVE half, and getting there corrected a reading: "a runner supplies
-one client" sounded structural and was not — a credential-less `Ship` is
-exactly the kind of thing the context already guarantees, so it sits beside the
-ids. The live half is the point, since only it can catch the API dropping the
-guard, and one `if` in the orchestrator is all that holds a coherence rule the
-platform designed deliberately (the claim window is pinned to the anonymous
-lifetime). It costs one slot of the anonymous issuance budget per run, recorded
-in the row so several e2e runs in an hour read as a budget, not a contract.
-
-That fixture also hardened the suite: `tests/setup-e2e.ts` now scrubs
-`SHIP_TOKEN`, because the SDK reads it and a developer with one exported would
-have run the whole live suite as that account — and made the anonymous fixture
-quietly authenticated, turning a refusal row into a pass.
-
-**And a fence limitation worth knowing.** The docs contract asks whether a
-flag NAME is taught, not whether each command teaching is present — `--ttl`
-was already documented for `tokens create`, so the fence stayed green when the
-deploy gained it. It is not the first catch this flag was expected to be, and
-a per-command check would need the docs to name commands beside flags, which
-they do not. The deploy docs were written deliberately instead.
+  `expires` its commit stamped; the replayed request's ttl is not consulted.
 
 ### The bundle boundary
 
 **What this package bundles and what it asks a consumer to install is one
-line, and it is fenced in three directions** (`tests/package/bundle-boundary.test.ts`,
-an artifact tier — it reads the BUILT bytes, because what a bundle requires is
-a property of the bytes and not of the config that produced them):
+line, fenced in three directions** by `tests/package/bundle-boundary.test.ts`,
+an artifact tier that reads the BUILT bytes:
 
-1. `dist/cli.cjs` requires **nothing beyond node builtins**;
+1. `dist/cli.cjs` requires nothing beyond Node builtins;
 2. every bare specifier the SDK entries require is a declared dependency;
-3. every declared dependency is reached by some entry — the direction that
-   catches rot;
-   plus the config half: every tsup external names a declared dependency.
+3. every declared dependency is reached by some entry (the direction that
+   catches rot); plus every tsup external names a declared dependency.
 
-`dependencies` is now the SDK's three — `zod`, `spark-md5`, `junk`. It was
-five until 2026-08-12; see "One deploy body" below for why the multipart pair
-left. The CLI's four (`commander`,
-`columnify`, `yocto-spinner`, `yoctocolors`) are devDependencies bundled into
-`dist/cli.cjs`, so an embedded SDK consumer — the MCP, and through it the
-vscode `.vsix` — no longer installs four packages it never executes, and an
-`npx @shipstatic/ship` cold-run no longer downloads them.
+`dependencies` is the SDK's three: `zod`, `spark-md5`, `junk`. The CLI's four
+(`commander`, `columnify`, `yocto-spinner`, `yoctocolors`) are devDependencies
+bundled into `dist/cli.cjs`, so an embedded SDK consumer installs nothing it
+never executes. `build-shims/empty.cjs` shims Node builtins for the browser
+bundle.
 
-The list had rotted in BOTH directions before the fence existed: `tsup.config.ts`
-named `cosmiconfig` and `cli-table3` as externals for two majors after both
-were deleted with 2.0, and aliased a build shim for a package that no longer
-existed (`build-shims/empty.cjs` STAYS — it shims node builtins for the browser
-bundle). Nothing was wrong at runtime, which is exactly why it survived: a dead
-external is invisible until someone reads the file.
-
-**And the fence carries its own counterexample, which it runs every time.**
-The hand drill meant to prove this one planted NOTHING, twice (2026-08-12): a
-grep matched the dead external's name in a *comment* rather than the array,
-and on the second try biome collapsed the array back. Both times the suite
-stayed green and the fence was one step from being reported as proven. **A
-hand drill is evidence that evaporates** — nobody reading a green suite later
-can see it happened — so the three checks are now functions of their inputs
-(specifier list, declared dependencies, externals), and a `the checks can see
-a defect` block feeds each one a synthetic defect of its own class and asserts
-it is NAMED: an escaped specifier, a dead external spelled `cosmiconfig` and
-`cli-table3`, an unreached dependency. Each row also passes a clean input, so
-a check that "caught" everything would fail too, and a fourth row proves the
-extractor sees real bytes at all — `dist/cli.cjs` being empty is an assertion
-here, so an extractor that always returned `[]` would satisfy the fence's
-headline check and every direction under it.
-
-Synthetic rather than planted, deliberately: a plant has to survive a
-formatter, a grep and a reviewer, and this one survived none of them. This is
-the transport wave's planted-impossible-input applied to a check instead of a
-runtime — and it generalizes. `docs-contract`'s taught-ness matcher got the
-one-line version of the same treatment (`isTaught('--flag-that-cannot-exist')`
-must answer `false`), because a matcher answering `true` for everything makes
-"every flag is taught" unfailable while reading exactly as it does now. The
-deploy-rules tables need neither: their completeness ties are structural (the
-test's own lists are asserted equal to the production tables, in order, in
-`@shipstatic/types`), so a second plant there would be ceremony.
+**A check is a function of its inputs, and it runs its own counterexamples.**
+A hand drill is evidence that evaporates, so the three checks take their
+inputs (specifier list, declared dependencies, externals) as arguments, and a
+`the checks can see a defect` block feeds each a synthetic defect of its class
+and asserts it is NAMED, plus a clean input, plus a row proving the extractor
+sees real bytes. `docs-contract`'s matcher gets the one-line version:
+`isTaught('--flag-that-cannot-exist')` must answer `false`. The deploy-rules
+tables need no planted defect: their completeness ties are structural (the
+test's own lists are asserted equal to the production tables in
+`@shipstatic/types`, in order), so a plant there would be ceremony.
 
 **Bundling carries licence obligations, so the notices ship.**
 `scripts/third-party-licenses.cjs` writes `THIRD-PARTY-LICENSES.md` at build
-time, and the list is **derived from esbuild's metafile** rather than written
-down — transitive dependencies included, which a hand list misses on day one
-(five of the fifteen are transitive). A bundled package whose notice cannot be
-found fails the build. It does not read `require.resolve('pkg/package.json')`:
-a modern `exports` map does not expose it, which fails for exactly the packages
-most likely to be bundled.
+time from esbuild's metafile (transitive dependencies included), and fails the
+build for a bundled package whose notice it cannot find. It never reads
+`require.resolve('pkg/package.json')`, which a modern `exports` map hides.
 
-**And a derivation is only as honest as its inputs, which this one paid for
-(2026-08-12, the stable gate).** tsup names its metafile
-`metafile-{format}.json` inside `outDir`; the three build configs share one
-`outDir` and tsup runs them CONCURRENTLY — so `index` and `browser` both wrote
-`metafile-esm.json`, and `index` and `cli` both wrote `metafile-cjs.json`. Two
-writers per path. Measured over 24 builds: **about one in nine under CPU load**
-ended with a half-overwritten file that `JSON.parse` rejected, failing the
-build — and `prepack` is `build`, so a publish inherited the coin flip.
+**One metafile per `(entry, format)`.** tsup names its metafile per format and
+runs the three configs concurrently into one `outDir`, so shared names collide
+and a surviving metafile can describe the wrong bundle. `tsup.config.ts` writes
+one per entry and format via an `esbuildPlugins` hook into `build-meta/`,
+outside `dist` (build telemetry, not product).
+`tests/package/licence-coverage.test.ts` asserts every bundle the package
+SHIPS (read from `package.json`'s `exports` and `bin`) is described by a
+metafile, and the script makes the same check during the build: a missing
+metafile names its bundle (`dist/index.cjs`), a corrupt one exits 1 with a
+message instead of a stack, and a fourth entry is covered the day it ships.
 
-**The crash was the lucky outcome.** The quiet one is a metafile that survives
-intact while describing the wrong bundle: the licence list is then derived from
-a SUBSET of what the artifact bundles, the notice under-reports, and the build
-exits 0. That never happened only because the CLI bundle is a superset of the
-index bundle — an accident of this package's shape. The index bundle's own
-metafile was discarded on **every** build for the whole life of the collision,
-and nothing noticed, because nothing was looking.
-
-Two changes, and the second is the one that generalizes:
-
-- `tsup.config.ts` writes one metafile per `(entry, format)` via a small
-  `esbuildPlugins` hook, into `build-meta/` — outside `dist`, since a metafile
-  is build telemetry rather than product and `files: ["dist", …]` had been
-  publishing 78 KB of them to every consumer.
-- `tests/package/licence-coverage.test.ts` declines to trust that. It asks
-  whether every bundle the package **ships** is described by some metafile,
-  reading the shipped set from `package.json`'s `exports` + `bin` — the
-  published artifact's own account of itself, **not** a restatement of the
-  build config that produced it. A fourth entry is covered the day it ships,
-  and the same check inside the script fails the build directly. Both drills
-  were watched failing: a missing metafile turns the fence red and names
-  `dist/index.cjs`, a corrupt one exits 1 with a message instead of a stack.
-
-The spinner keeps its dynamic `import()`. Bundled, that no longer defers a
-package install, but it still defers evaluating the module on the runs that
-never show a spinner (`--json`, `-q`, non-TTY), which is most CI runs.
-
-**One deploy body, and the multipart pair retired (2026-08-12).** There were
-two `deploy-body.ts` files, and everything that mattered was identical: the
-same fields appended in the same order. The Node one carried twenty extra
-lines because `formdata-node`'s objects are not the ones undici's `fetch`
-knows how to encode, so it serialized through `form-data-encoder` into an
-ArrayBuffer with a hand-computed `Content-Type` and `Content-Length`.
-
-That was a real constraint on a Node without a global `FormData`, and
-`engines.node >= 20` has had global `FormData`, `File` and a
-multipart-encoding `fetch` all along — the constraint had lapsed before the
-code was written. One shared builder in `shared/core/deploy-body.ts`, both
-platform files deleted, both packages out of `dependencies` and out of the
-tsup externals.
-
-**And the seam it left open closed on 2026-08-12.** `getDeployBodyCreator()`
-was an abstract method on the base class feeding a `createDeployBody` slot on
-`ApiHttpOptions` — and once one builder served both platforms, the two subclass
-overrides were the same four words. A seam with the same answer on both sides is
-not a seam. The abstract method, the option, the private field and the
-`DeployBodyCreator` type are gone; `deploy` imports the builder.
-
-The tests improved by losing it. Four files injected a `FormData`-returning
-stub, and `http.test.ts` made its stub a `vi.fn` so the deploy CONTEXT was
-assertable — one seam short of the claim, since the API reads FIELDS. With
-nothing left to inject, `via` and the captcha proof are read back off the real
-`FormData` the transport handed to `fetch`.
-
-**This section previously recorded the swap as out of scope** — "an SDK
-behaviour change with its own compatibility questions, a separate decision,
-not a bundling detail". Separate was right and it got its own wave; what the
-note did not say, and what a reader took from it, is that something GATED it.
-Nothing did.
-
-Two things earned it rather than assumed it. The behaviour was captured on
-both runtimes this SDK targets — node 22 and bun 1.3, the latter because
-`plan-ship-native-binary.md` compiles a Bun binary — and both encode a native
-`FormData` with `filename="assets/nested/index.html"` intact, which is the
-whole contract: the deploy PATH rides `File.name`. And the built artifact was
-posted at a real socket, where the paths, the index-aligned checksums and the
-metadata fields all arrive as before.
-
-The creator returns a bare `FormData` now, not `{ body, headers }`: `fetch`
-sets the boundary and the `Content-Type`, so a caller that composed headers
-was doing the runtime's job. The 400-line Node test went with it — it mocked
-both packages and asserted on `append` CALLS, where a real `FormData` can be
-READ BACK, so the one replacement asserts the artifact the API receives.
+**One deploy body, native `FormData`.** `shared/core/deploy-body.ts`'s
+`createDeployBody` returns a bare `FormData`; `fetch` sets the boundary and
+`Content-Type`. Node ≥ 20 has global `FormData`, `File` and a
+multipart-encoding `fetch`, and Node 22 and Bun both keep
+`filename="assets/nested/index.html"` intact, which is the contract: the
+deploy PATH rides `File.name`. Tests read fields (`via`, the captcha proof)
+back off the real `FormData` handed to `fetch`, never assert `append` calls.
 
 ### Two flag tiers, and one place each is read
 
-**Global flags** — `--token`, `--config`, `--api-url`, `--json`, `-q/--quiet`,
-`--no-color` (plus Commander's `-h`/`-V`). Identity and channel: they mean the
-same thing on every command and parse anywhere. **Command-owned flags** —
-everything else. `GLOBAL_FLAGS` in `index.ts` is the whole statement; the
-command-owned set is its complement, so a flag joins the law by being declared
-and there is no second list to keep in step.
+**Global flags** (`--token`, `--config`, `--api-url`, `--json`, `-q/--quiet`,
+`--no-color`, plus Commander's `-h`/`-V`) mean the same thing on every command
+and parse anywhere. **Command-owned flags** are everything else. `GLOBAL_FLAGS`
+in `index.ts` is the whole statement; the command-owned set is its complement,
+so there is no second list.
 
 **A flag parses only where it means something.** The deploy shortcut IS the
-program, so its flags (`--domain`, `--label`, `--password`, the two `--no-…`
-detections) must be declared at program level — and Commander then recognises
-them in front of every other command, where nothing reads them.
-`ship --domain www.x.com domains list` parsed cleanly and dropped the domain;
-the user who typed it believed they had linked one. Silent-swallow is the worst
-of the three possible answers. `assertFlagsApply` (the `preAction` hook, beside
-the token/URL validation) now refuses before any action runs: a command-owned
-flag that was actually TYPED must be declared by the command about to run. It
-names the flag and — read from the tree, never restated — the commands that own
-it. Statusless `Validation`, per "What a status means".
+program, so its flags (`--domain`, `--label`, `--password`, `--ttl`, the two
+`--no-…` detections) are declared at program level, where Commander would
+accept them in front of any command that ignores them
+(`ship --domain www.x.com domains list`). `assertFlagsApply` (the `preAction`
+hook) refuses before any action runs: a command-owned flag that was TYPED must
+be declared by the command about to run. It names the flag and, read from the
+tree, the commands that own it (`ownersOf` surveys the program too, and
+`pathOf` renders it as `ship <path>`). Statusless `Validation`.
 
-Two mechanical points, both load-bearing:
+- **Presence comes from the SOURCE, not the value**:
+  `getOptionValueSource(key) === 'cli'`. `--label` defaults to `[]` and
+  `--no-path-detect` to `true`, so a truthiness test would refuse everything.
+- **POSITION is deliberately not part of the law.** `ship --label x
+  deployments upload ./dist` is honoured; telling the spellings apart would
+  need a second parser over raw argv, refused like a second copy of the tree.
 
-- **Presence comes from the SOURCE, not the value.** `getOptionValueSource(key)
-  === 'cli'`. `--label` defaults to `[]` and `--no-path-detect` to `true`, so a
-  truthiness test would refuse every subcommand always.
-- **POSITION is deliberately not part of the law.** `ship --label x deployments
-  upload ./dist` is honoured. Commander stores it identically to the canonical
-  spelling, so telling the two apart means scanning raw argv beside the parser
-  — a second parser, refused on the same grounds as a second copy of the
-  command tree. The defect worth money was misapplication, and that is closed.
+**One rule, every source: the API URL.** `validateApiUrl` runs where the
+sources become one value, in `createClient` after `mergeCliConfig`, so a bad
+URL from a flag, `.shiprc` or `SHIP_API_URL` gets the same verdict. The
+`preAction` check stays as the flag's fast-fail; two call sites of one rule
+(owned by `@shipstatic/types`) is dual validation, not a restatement. **CLI
+tier only**: the `Ship` constructor stays loose, because an embedded consumer
+on a service binding may pass an unroutable `apiUrl: 'https://api'` (in the
+README).
 
-**One rule, every source — the API URL.** `validateApiUrl` ran only in the
-`preAction` hook, which sees the FLAG and nothing else. So one value got two
-verdicts by how it arrived: `ship --api-url https://api.example.com/v1` was
-refused with the constitution's authored sentence, while the same value saved
-into `.shiprc` or exported as `SHIP_API_URL` was accepted and produced
-transport failures on every command afterwards — with nothing connecting the
-symptom to the cause. Measured against the real binary, all three sources,
-before the fix.
+**The harness injects `--api-url <mock server>` into every invocation that
+lacks one**, and a flag beats the other sources, so no harness-driven test can
+reach the file or env path. Those paths are fenced in
+`create-client.unit.test.ts`.
 
-**The sources reach one verdict where they become one value**, so the check
-sits in `createClient` after `mergeCliConfig`. The `preAction` check stays: it
-is the flag's fast-fail and a better moment to fail. Two call sites of one
-rule at two tiers is the dual-validation idiom, not a second statement — the
-rule has one owner, `@shipstatic/types`.
+**One place each flag is read.** Commander's root consumes any option the ROOT
+declares, wherever it sits in argv, so a subcommand's own declaration of the
+same flag (kept for its `--help` and completions) never receives a value.
 
-**CLI TIER ONLY, deliberately.** The `Ship` constructor stays loose because an
-embedded consumer may legitimately pass an unroutable `apiUrl` — a Cloudflare
-service binding dispatches by binding identity, so `apiUrl: 'https://api'` is
-correct there and is documented in the README. This is the CLI deciding what a
-person may write in a config file, which is a different question.
+- A flag declared ONLY on its command (`--limit`, `--cursor`) arrives in that
+  action's `cmdOptions`.
+- A flag the program declares too arrives in the EFFECTIVE options
+  (`processOptions(command)` → `optsWithGlobals()`, parent winning), which
+  every handler receives as `options` (`EffectiveOptions`).
 
-Fenced in `create-client.unit.test.ts` rather than through the CLI harness,
-for a mechanical reason worth knowing: **the harness injects
-`--api-url <mock server>` into every invocation that does not carry one**, and
-a flag beats both other sources by design — so no harness-driven test can ever
-exercise the file or env path. That is also why the gap survived a suite with
-a dedicated file for parse-time URL checks.
+Read one place per tier; never arbitrate between them. `labelsOf` (the
+`--label ''` clearing rule) and `passwordOf` (the `SHIP_PASSWORD` tier) each
+read one source. `EffectiveOptions` is **wider than any one command's truth**
+(`domains set` receives a type carrying `domain`), and that stays: the guard
+makes such a flag unreachable, and narrowing per command would restate each
+flag set with nothing checking it against the `.option()` calls.
 
-**And one place each flag is read.** Commander's root consumes any option the
-ROOT declares, wherever it sits in argv — so a deploy flag typed *after*
-`deployments upload` still lands on the program, and that subcommand's own
-declaration (which exists so its `--help` and its completions are accurate)
-never receives a value. Hence:
+**`--no-x` flags are read under their POSITIVE key**, defaulted `true`
+(Commander stores `pathDetect`, not `noPathDetect`). A test asserting only
+`exitCode === 0` cannot see a dead flag, so both detections are fenced through
+a wire field: the API sets `config` from a `ship.json` at the deploy ROOT and
+the mock derives it the same way, so `--no-spa-detect` (no `spa=true`, no
+config) and `--no-path-detect` (a nested `dist/ship.json` never reaches the
+root) are visible. Fixtures: `tests/fixtures/spa-site`,
+`tests/fixtures/nested-site`.
 
-- A flag declared ONLY on its command (`--limit`, `--cursor`, `--ttl`) arrives
-  in that action's own `cmdOptions`.
-- A flag the program declares too arrives in the EFFECTIVE options —
-  `processOptions(command)` → `optsWithGlobals()`, parent winning — which is
-  what every handler already receives as `options` (`EffectiveOptions`).
-
-Read one place per tier; never arbitrate between them. Three helpers
-(`mergeLabelOption` / `mergePasswordOption` / `mergeDomainOption`) and four
-call sites did that arbitration by hand until 2026-08-12, and they were not
-belt-and-braces — they were the ONLY thing making `ship deployments upload
-./dist --label x` work, which is why the merge cannot simply be deleted in
-favour of `cmdOptions`. What survives is `labelsOf` (the `--label ''` clearing
-rule) and `passwordOf` (the `SHIP_PASSWORD` tier), each reading one source.
-
-`EffectiveOptions` is **wider than any one command's truth** — `domains set`
-receives a type carrying `domain` and `password` — and that is recorded rather
-than fixed. It is unreachable, not merely unset: the guard refuses such a flag
-before the handler exists. Narrowing per command (`GlobalOptions &
-LabelOptions` at each site) was rejected because it would be a second statement
-of that command's flag set with nothing checking it against the `.option()`
-calls — the restatement class this file removes everywhere else.
-
-**The owner list in the refusal includes the SHORTCUT.** `ownersOf` walks from
-the command it is given, so the program is surveyed too, and `pathOf` renders
-the root from its own `registeredArguments` (`ship <path>`). Skipping it was
-the first version's defect, and a self-contradicting one: `assertFlagsApply`
-exempts the program *because* it owns these flags, while the survey ten lines
-down could not say so — sending the reader to `ship deployments upload` when
-`ship <path> --domain …` is the spelling every doc leads with.
-
-Required Commander boilerplate is unchanged: `.enablePositionalOptions()` on
-parent groups, `.passThroughOptions()` on subcommands taking a positional
-followed by flags.
-
-**The bug this law was written over.** `--no-path-detect` and `--no-spa-detect`
-were declared as `noPathDetect` / `noSpaDetect` and read under those names —
-but Commander stores the POSITIVE key for a `--no-x` flag, defaulted `true`. So
-both flags parsed cleanly and did **nothing**, in both deploy spellings, for as
-long as they have existed. The test that let it live asserted `exitCode === 0`,
-which a dead flag also produces. They are fenced now through `config` — the
-API sets it from a `ship.json` at the deploy ROOT and the mock derives it the
-same way, so `--no-spa-detect` (the SDK sends the opt-out, so the platform writes no config) and
-`--no-path-detect` (a nested `dist/ship.json` never reaches the root) are both
-visible through a wire field rather than through a probe. Fixtures:
-`tests/fixtures/spa-site`, `tests/fixtures/nested-site`.
+Required Commander boilerplate: `.enablePositionalOptions()` on parent groups,
+`.passThroughOptions()` on subcommands taking a positional followed by flags.
 
 ## SDK-Local Types
 
-`DomainSetResult` is the published return shape of `domains.set()` — `Domain` plus an `isCreate` flag derived from HTTP 201 vs 200. It lives in `@shipstatic/types` (alongside `Domain`) so the resource interface return type matches the SDK's actual return value.
+`DomainSetResult` is the published return shape of `domains.set()`: `Domain`
+plus `isCreate` (201 vs 200). It lives in `@shipstatic/types` beside `Domain`,
+so the resource interface matches the SDK's return value.
 
-`EnrichedDomain extends DomainSetResult` — adds optional `_dnsRecords` and `_shareUrl` for CLI display. `EnrichedDomainVerify extends DomainVerifyResponse` adds `_deployment`, the domain's linked deployment as read once after the verify was queued (null when nothing is linked, absent when that read failed), which is what lets `ship domains verify` name the one step left. It carries the LINK fact rather than the domain's `status` for a reason recorded at both the type and the formatter — see "One step per standing". `CLIResult` is the discriminated union of all possible command outputs. All in `src/node/cli/types.ts`.
+In `src/node/cli/types.ts`: `EnrichedDomain extends DomainSetResult` adds
+optional `_dnsRecords` and `_shareUrl` for display. `EnrichedDomainVerify
+extends DomainVerifyResponse` adds `_deployment`, the linked deployment read
+once after the verify was queued (null when nothing is linked, absent when that
+read failed); it carries the LINK fact, not the `status` (see "One step per
+standing"). `CLIResult` is the union of all command outputs.
 
 ## Testing
-
-```bash
-pnpm test --run          # unit + integration (e2e and browser are NOT in the default run)
-pnpm coverage            # the same suite, plus the ratchet — what CI runs
-pnpm typecheck           # tsc over src AND tests, 0 errors
-pnpm check:package       # publint + attw over the built artifact
-pnpm test:browser        # capability tier — real Chromium via playwright (CI runs it)
-pnpm test:e2e --run      # REAL API; refuses to load without SHIP_E2E_API_KEY
-```
 
 | Pattern | Project | Mock server |
 |---------|---------|-------------|
 | `*.unit.test.ts` | `unit` | No |
-| `*.test.ts` | `integration` | Yes — per file, ephemeral port |
-| `tests-browser/*.test.ts` | `browser` | No — real Chromium, pure browser primitives |
+| `*.test.ts` | `integration` | Yes, per file, ephemeral port |
+| `tests-browser/*.test.ts` | `browser` | No: real Chromium, pure browser primitives |
 | `*.e2e.test.ts` | `e2e` | No (a real API) |
 
-**EVERY test tier is typechecked.** `pnpm typecheck` runs `tsconfig.check.json`
-over `src`, `tests` and `tests-browser` together. This is the load-bearing one:
-vitest transpiles through esbuild WITHOUT checking types, so until 2026-07-27
-nothing checked the test tree — which is what let an `apiKey` constructor option, a
-`flattenDirs` deploy option, a `basePath` that never existed, a
-`findCommonParent(paths, separator)` overload that never existed, and
-`processFilesForNode` called with four arguments all sit there passing. The
-fixtures' `satisfies` clauses were decorative until this gate existed.
-
-**`tests-browser/**` was left out of that repair and spent the next fortnight in
-exactly the condition it describes.** Two of the four projects — `e2e` and
-`browser` — are absent from `pnpm test`, which makes typecheck the ONLY local
-gate with any reach into them. On 2026-08-12 the deploy-body consolidation
-deleted `src/browser/core/deploy-body.ts` and left a test importing it: every
-local gate green, `pnpm test:browser` red in CI, four tests not-run rather than
-passing for a fortnight. A tier outside the typecheck gate is a tier where
-deleting a module is silent. The include list is "all of them" now, which is the
-only shape that cannot rot the same way, and both halves of that defect were
-drilled against it — the deleted module (TS2307) and the retired `{ body }`
-shape (TS2339).
+**Every test tier is typechecked.** `pnpm typecheck` runs
+`tsconfig.check.json` over `src`, `tests` and `tests-browser` together: vitest
+transpiles through esbuild without checking types, and `e2e` and `browser` are
+outside `pnpm test`, so typecheck is the only local gate reaching them. The
+include list is "all of them", the only shape that cannot leave a tier where
+deleting a module is silent.
 
 ### Hermeticity
 
-`tests/setup.ts` loads for BOTH in-process projects and enforces two
-invariants that used to be convention:
+`tests/setup.ts` loads for both in-process projects and enforces:
 
-- **No ambient credentials** — every `SHIP_*` var is scrubbed at load, so a
-  developer's exported `SHIP_TOKEN` cannot authenticate the suite's
-  "anonymous" paths.
-- **No outbound network** — `fetch` is wrapped and THROWS, naming the URL, for
-  any host that is not loopback. `DEFAULT_API` is production, so a missing
-  mock route or a forgotten `apiUrl` would otherwise reach it.
+- **No ambient credentials**: every `SHIP_*` var is scrubbed at load, so an
+  exported `SHIP_TOKEN` cannot authenticate the suite's anonymous paths.
+- **No outbound network**: `fetch` is wrapped and THROWS, naming the URL, for
+  any non-loopback host. `DEFAULT_API` is production, so a missing mock route
+  would otherwise reach it.
 
 The child-process CLI tier builds its environment from an **allowlist**
-(`tests/node/cli/helpers.ts`) — `PATH`, `TMPDIR`, a throwaway `HOME`,
-`NO_COLOR`, `CI`, and nothing else. A blocklist only removes what someone
-thought of: `FORCE_COLOR=3` (iTerm's default) used to reach the child and turn
-sixteen exact-output tests red on a developer's machine while CI stayed green.
-Notably `SHELL` is absent too, so shell detection is a test input rather than a
-property of the machine. The same file refuses to run against a **stale
-`dist/`** — those tests execute `dist/cli.cjs`, which `pnpm test` does not
-build.
+(`tests/node/cli/helpers.ts`): `PATH`, `TMPDIR`, a throwaway `HOME`,
+`NO_COLOR`, `CI`, nothing else. A blocklist removes only what someone thought
+of (`FORCE_COLOR=3` from a terminal turns exact-output tests red). `SHELL` is
+absent too, so shell detection is a test input. The same file refuses to run
+against a **stale `dist/`**, since those tests execute `dist/cli.cjs` and
+`pnpm test` does not build. `tests/setup-e2e.ts` scrubs `SHIP_TOKEN` as well,
+or the live suite would run as the developer's account and turn the anonymous
+refusal row into a pass.
 
-### The four fences
+### The fences
 
-`tests/architecture/` holds suite-time invariants. Each catches a class the
+`tests/architecture/` holds suite-time invariants, each catching a class the
 others cannot:
 
 | Fence | Catches |
 |---|---|
-| `test-integrity.test.ts` | A test file that reaches NO production code — the tautology class. A tautology neither raises nor lowers coverage, so no ratchet can see it. Reach is resolved TRANSITIVELY through local test-support modules (`./harness`, `../mocks/…`) but importing only fixture builders does not count — builders pull in `@shipstatic/types`, never `src/`. Its only exceptions are the two artifact tiers (`smoke.test.ts`, `package/dist-entries.test.ts`), each recorded with a reason. |
-| `test-naming.test.ts` | Layout drift: a filename that describes the test instead of its subject, a mirror file with no `src/` counterpart, an aspect split not recorded in this file. |
-| `docs-contract.test.ts` | Drift between the PUBLISHED docs and this code — a command or flag the docs teach that does not exist, a command that exists and no doc teaches, an SDK member or response key the docs name that `@shipstatic/types` dropped. Also the curated front page: a command missing from `helpText()` must be recorded in `HELP_OMISSIONS` with a reason. |
-| `coverage.thresholds` | Coverage decay. A ratchet — it only goes up. Global bar plus per-glob floors for the three files whose residual gaps are named in `vitest.config.ts` (bin block/spinner/SIGINT are smoke-proven; browser env arms are browser-tier-proven). |
+| `test-integrity.test.ts` | A test file reaching NO production code (the tautology class, invisible to coverage). Reach resolves transitively through local test-support modules; importing only fixture builders does not count. Exceptions: the two artifact tiers (`smoke.test.ts`, `package/dist-entries.test.ts`), each with a reason |
+| `test-naming.test.ts` | Layout drift: a filename describing the test instead of its subject, a mirror file with no `src/` counterpart, an aspect split not recorded in this file |
+| `docs-contract.test.ts` | Drift between the PUBLISHED docs and the code: a taught command or flag that does not exist, an existing command no doc teaches, an SDK member or response key `@shipstatic/types` dropped. Also `HELP_OMISSIONS` |
+| `sdk-cli-parity.test.ts` | An SDK resource method with no CLI output row, or a CLI row with no SDK method, both enumerated from production (`CLI_OMISSIONS` records deliberate gaps) |
+| `coverage.thresholds` | Coverage decay. A ratchet that only goes up, with per-file floors named in `vitest.config.ts` for code only the smoke or browser tier reaches |
 
-**A published doc is API surface, not prose.** `package.json` publishes
-`README.md`, and for an agent a published doc IS the API surface: the file read
-before a command is typed. The package ships no skill of its own: ShipStatic's
-one skill for agents, `publish-online`, lives in the coding-agent plugin
-(`integrations/plugin`) and is served at www.shipstatic.com/SKILL.md, and it
-teaches this CLI's no-account publish. Two skills under one name, one of them
-a full CLI reference, would leave an agent unable to tell which is
-ShipStatic's.
+**A published doc is API surface.** `package.json` publishes `README.md`, and
+for an agent that file IS the interface. The fence reads the docs named in
+`files`, so shipping a new markdown file puts it under contract. Its one
+omission is `helpText()`, byte-pinned by the smoke tier. **The docs contract
+asks whether a flag NAME is taught, not whether each command's use is**: a
+flag already documented on one command stays green when another gains it, so
+document such additions deliberately.
 
-The fence reads the docs named in `files`, so **shipping a new markdown file is
-what puts it under contract** — there is no list to update. Its one deliberate
-omission is `helpText()`: a hand-curated front page (see "Two help scopes")
-byte-pinned by the smoke tier, where leaving a command out is a design choice.
-Reference documentation makes no such claim.
+**This package ships no skill.** ShipStatic's one agent skill,
+`publish-online`, lives in the coding-agent plugin (`shipstatic/plugin`) and
+is served at www.shipstatic.com/SKILL.md; two skills under one name would
+leave an agent unable to tell which is ShipStatic's.
 
 ### The mock server
 
-`tests/mocks/` is a hand-maintained twin of `cloudflare/api`, in three parts:
-`handler.ts` (one Web-standard `handleApiRequest(request, state)`),
-`state.ts` (per-instance state from a factory), and `server.ts` (a thin
-`node:http` adapter plus lifecycle).
-
-Three mechanisms keep it honest, and they cover different halves:
+`tests/mocks/` is a hand-maintained twin of the API: `handler.ts` (one
+Web-standard `handleApiRequest(request, state)`), `state.ts` (per-instance
+state from a factory), `server.ts` (a thin `node:http` adapter).
 
 | | Holds | Runs |
 |---|---|---|
 | `satisfies` on every body | the response SHAPES | `pnpm typecheck` |
-| `tests/contract.ts` | the BEHAVIOUR — status, typed error, guard order | CI (mock half) + opt-in (live half) |
-| `// wire:` citations | where to look when one of the above fails | a reader |
+| `tests/contract.ts` | the BEHAVIOUR: status, typed error, guard order | CI (mock half) + opt-in (live half) |
+| `// wire:` citations | where in the API to look when one of the above fails | a reader |
 
-**The contract table is the one that closed the real gap.** Shapes were tied to
-the published types on 2026-07-29, but behaviour was tied to nothing: a route
-flipping 202 to 200 leaves every citation reading exactly as before, and ~1000
-tests green. The e2e suite was nominally the detector — its header even claimed
-it "asserts the same contract points the mock encodes" — but nothing checked
-that claim, so they were two hand-maintained lists with no tie. Now the points
-live once in `tests/contract.ts` and two runners consume them:
-`tests/contract.test.ts` (mock, in CI) and the `wire contract` block of
-`tests/e2e/smoke.e2e.test.ts` (real API, opt-in). Both observe through
-PUBLISHED surface only — a success's status off the `response` event, a
-failure's off the `ShipError` — which is what lets one table drive both.
+**The contract points live once, in `tests/contract.ts`, and two runners
+consume them**: `tests/contract.test.ts` (mock, in CI) and the
+`wire contract` block of `tests/e2e/smoke.e2e.test.ts` (real API, opt-in).
+Both observe through published surface only (a success's status off the
+`response` event, a failure's off the `ShipError`). The mock half proves the
+mock encodes the table; only the live half proves the table matches the API.
+**Run `pnpm test:e2e` before a release, and after any API change.** Rows the
+e2e tier must not run carry their reason as a string instead of `live: true`
+(`NO_DOMAINS`, `NO_TOKENS`). **A client is a fixture too**: a credential-less
+`Ship` sits beside the ids, so the anonymous ttl refusal has a live half.
 
-**What each half can say**, stated because the difference matters: the mock
-half proves the mock encodes the table; only the live half can prove the table
-matches `cloudflare/api`. So CI catches a mock that drifts from the table, and
-a live run catches a table that drifts from the API. **Run `pnpm test:e2e`
-before a release, and after any API change.**
+**`.github/workflows/e2e.yml` runs `pnpm test:e2e` daily**, plus
+`workflow_dispatch`. It is live once two repository secrets are set:
+`SHIP_E2E_API_KEY` (an API key for a non-production API) and
+`SHIP_E2E_API_URL` (that API's URL). Both are required, because without the
+URL the harness defaults to production. An unconfigured run emits a
+`::notice` and passes.
 
-Rows the e2e tier must not run carry their reason as a string instead of
-`live: true` (`NO_DOMAINS`, `NO_TOKENS`), so the coverage gap is stated in the
-table rather than inferred. That gap always existed; it was simply invisible.
-
-**CI catches API drift on a schedule.** `.github/workflows/e2e.yml` runs
-`pnpm test:e2e` daily, plus `workflow_dispatch` for a hand run. It is LIVE only
-once the operator sets two repository secrets — `SHIP_E2E_API_KEY` (a
-dev-account API key) and `SHIP_E2E_API_URL` (the dev API URL). Both are
-required: without the URL the harness defaults to PRODUCTION, and a scheduled
-run must never surprise-target prod. An unconfigured run emits a `::notice` and
-passes, so its verdict reads "unconfigured" rather than "broken".
-
-**It does NOT gate `publish`, and that half of the original decision stands
-unchanged**: the dev API is deployed by hand and may legitimately lag this
-repo, so a red contract run means "these two disagree", not "this release is
-wrong". It is a separate scheduled workflow that reports, never a `needs:` of
-anything — and it lives in its own file, because `ci.yml`'s filename is half
-the npm trusted-publisher registration.
-
-**What changed was the other half.** This section read *"deliberately not wired
-today — inert config rots"* until 2026-08-12, and two things that day moved the
-balance. The wave-closing e2e run failed TWICE on the suite's own staleness — a
-27-char label against a 25-char rule, and a stale typed-404 belief about async
-deletion — which is what *an unrun suite reports nothing, including about
-itself* looks like in practice. And the ttl wave added contract rows whose live
-halves exist precisely for drift only a live run can see. A `schedule:` answers
-"inert config rots" by construction: a cron runs whether or not anyone
-remembers it.
-
-Two mechanical notes. The failure notice sits in its own job under
-`permissions: {}`, because the e2e job carries a real API credential and the
-alerts webhook must never sit beside it (root `CLAUDE.md`, the
-one-job-one-credential law and "CI notifications"). And a burst of hand dispatches can flip the
-anonymous-ttl row's `Forbidden` into a `RateLimit`: each run spends a slot of
-the dev API's anonymous budget, since the limiter
-runs before the orchestrator refuses. The daily cadence is far inside it; that
-row's own comment in `tests/contract.ts` carries the signature.
-
-### Testing canon
-
-The cohesion contract. A change that breaks one of these needs a recorded
-exception, not a workaround:
-
-1. **Pure lib tests mock nothing.** `md5`, `path`, `deploy-paths`,
-   `validation`, `junk` run the real thing against real inputs.
-2. **SDK-level tests run a real `Ship` against the wire-truth handler.**
-   Internal module mocks only with a recorded reason — today exactly one:
-   `node:readline/promises` in `config.test.ts`, because stdin is the one
-   collaborator a test cannot supply for real.
-3. **A mock may only mock exports that exist** — the typecheck enforces it.
-4. **Raw `fetch` stubbing only where transport IS the subject** — the
-   `http*.test.ts` family. Everywhere else, inject the `fetch` option (a
-   published contract) or talk to the mock server.
-5. **Builders are the only fixture source** (`tests/fixtures/builders.ts`),
-   and they take explicit timestamps — no `Date.now()` in an asserted value.
-6. **Every mock route cites its `cloudflare/api` wire truth**, `satisfies` its
-   published response type, and has its status / typed error / guard order
-   stated in `tests/contract.ts` — a citation says where to look, the type
-   holds the shape, the table holds the behaviour.
-
-The e2e harness var is deliberately named `SHIP_E2E_API_KEY` — it names a
-literal API key, the CI secret name is unchanged, and it is not part of the
-SDK's env contract (`SHIP_TOKEN`). Don't rename it during credential sweeps.
-
-**Tests run in parallel.** Each file gets its OWN mock server on an ephemeral
-port and its OWN state (`tests/mocks/server.ts`), so no file can observe
-another's writes and no two can contend for a port. This replaced a
-"never parallelize" rule whose reason — one shared server on a fixed 13579 —
-no longer exists; the law changed with its reason, not despite it.
-
-**Recorded aspect splits** — one subject, more than one mirror file. Legal
-under the layout law (`<module>-<aspect>.test.ts`), listed here because the law
-requires the aspect to be recorded — and since 2026-07-27 that recording is
-mechanical: `tests/architecture/test-naming.test.ts` fails the suite if a split
-is not named here by full basename.
-
-| Module | Files | Why |
-|---|---|---|
-| `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-events`, `http-rate-limit`, `http-retry`, `http-timeout` | The transport's cross-cutting concerns, one file each. `http.test.ts` is the anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler. It was three files longer until 2026-08-12 — `http-domains`, `http-tokens` and `http-browser` named halves of an endpoint table that has since folded down into `resources.ts`, and they moved with their subject. |
-| `src/shared/base-ship.ts` | `base-ship`, `base-ship-credentials`, `base-ship-lifecycle`, `base-ship-limits` | Three separable doctrines on one class: the credential slot, the init/auth lifecycle, and `getLimits`, which asks the server every time. |
-| `src/shared/resources.ts` | `resources-account`, `resources-deployments`, `resources-domains`, `resources-paths`, `resources-tokens` | One file per resource factory — a single file would be a grab bag with no reason to read any part of it — plus `resources-paths`, which is not a resource but the one thing none of them can assert: the URL each builds. The four resource files drive a real `Ship` against the wire-truth handler, and a mock server that ROUTED a request has already forgiven whatever the client did to the URL on the way in, so path encoding and pagination serialization need a stubbed `fetch` and a string comparison. |
-| `src/shared/types.ts` | `types-reexport` | Not a test of the module's own types but of the **freshness** of what it re-exports — a bundled-dependency fence. |
-
-**Recorded feature-axis files** — no single subject module, so the mirror rule
-cannot apply. The list lives in the naming fence; adding to it is a decision.
-Today: `unknown-commands` (the CLI's error surface), `validation` (parse-time
-credential/URL checks), `smoke` (the true-binary tier), and `e2e/smoke.e2e`.
-
-### Commander
-
-`commander@^14` — deliberately NOT 15: Commander 15 (2026-05) is ESM-only
-and requires Node ≥22.12, incompatible with the CJS `dist/cli.cjs` bin and
-the `engines >=20.19.0` consumer contract. Revisit when dropping Node 20 /
-going ESM-only is decided (a consumer-contract call, like the engines pin
-itself). The floor moved from `>=20.0.0` on 2026-08-12 and the conclusion here
-is unchanged — 22.12 is above both — but note the shape of what moved it: an
-ESM-only package reached by `require()` is exactly the hazard this pin avoids,
-and the SDK's own `dist/index.cjs` still has one in `junk`.
-
-**Two help scopes, one machinery.** The ROOT renders the hand-written front
-page (`helpText()` — the kept design, byte-pinned in the smoke tier): that is
-what `ship`, `ship --help`/`-h`, and `ship help` show. Subcommands render
-Commander's NATIVE scoped help (`ship domains --help`,
-`ship help deployments`, and `--help` beside a missing argument), which knows
-each command's exact usage and options. The split is one conditional in
-`configureHelp.formatHelp` — root → `helpText()`, else →
-`Help.prototype.formatHelp` (the escape past our own override). Riding the
-built-in `-h, --help` option and explicit `help [command]` command means no
-help route ever resolves credentials or reads a config file. Short forms
-`-h`/`-V` are supported (user decision 2026-07-27).
-`allowExcessArguments()` is a recorded opt-out of v13+'s excess-arguments
-error: unknown subcommands must reach `handleUnknownSubcommand` as excess
-args to get scoped usage. Option arguments that parse (`--ttl`) throw
-`InvalidArgumentError` — the docs' canonical pattern; a bare `parseInt` once
-turned `--ttl abc` into `NaN` on the wire.
-
-### The CLI's two tiers
-
-`src/node/cli/index.ts` exports `buildProgram()` — a factory returning a
-fresh Commander tree (instances are not reusable across parses). The tree
-**never calls `process.exit` on the command path**: outcomes land in
-`process.exitCode` or ride a thrown `CommanderError`, and the bin path ends
-naturally when the event loop drains, so buffered stdout can never be
-truncated on a pipe. The one recorded exception is `performDeploy`'s SIGINT
-handler (`process.exit(130)`) — Ctrl+C must terminate *now* with the shell's
-128+SIGINT convention, and an interrupt is precisely the case where waiting
-for the loop to drain is wrong. That design is what makes the tree drivable
-in-process:
-
-- **In-process tier** (`index.test.ts`, `unknown-commands`, `validation` via
-  `tests/node/cli/harness.ts`): drives `buildProgram()` directly, so V8
-  coverage sees the command tree — a subprocess is invisible to it, which is
-  how 917 lines once read 0% while being "tested". The harness pins a
-  deterministic colour environment (`NO_COLOR` on, `FORCE_COLOR` cleared) —
-  the in-process tier reads the same `process.env` the child tier once leaked.
-- **Child-process smoke tier** (`smoke.test.ts`, the ONE file that spawns
-  `dist/cli.cjs`): proves what only a real binary can — byte-exact help, exit
-  codes, stdin piping, colour responding to the launch environment, the
-  stdout surviving a pipe intact, and the completion round trip — install
-  through the real binary, then `bash -n` / `zsh -n` / `fish --no-execute` over
-  what it wrote, because a real shell is the only thing that can say the
-  rendered script parses.
-
-### The browser capability tier
-
-`tests-browser/` (the analog of the backend's `tests-workerd`): a small suite
-run on **real Chromium** via `pnpm test:browser` (vitest browser mode,
-playwright provider). It certifies what jsdom can only approximate — native
-`getENV()` detection with no test override, `webkitRelativePath` as Chromium
-defines it, real `File`/`FormData` bytes through `createDeployBody`, and
-spark-md5 digests (same published vectors as the Node tier, deliberately: the
-manifest's digests are what R2 checks every put against, so both runtimes must
-agree), and the planner's serialized count against Chromium's own `FormData`
-encoder (`deploy-plan.test.ts`). No coverage
-coupling; separate CI step with `playwright install chromium`.
-
-```
-tests/
-├── contract.ts       # The wire facts ship depends on — stated ONCE
-├── contract.test.ts  # …run against the MOCK (CI). Its twin is in e2e/
-├── architecture/     # Fences: integrity, naming, docs contract
-├── browser/ node/ shared/   # Mirror axis — tests/<path>/<module>.test.ts
-├── node/cli/completions.test.ts  # The rendered shell scripts (mirror of completions.ts)
-├── node/cli/harness.ts      # In-process CLI runner (buildProgram + capture)
-├── node/cli/smoke.test.ts   # The ONE child-process file (dist/cli.cjs)
-├── package/          # The BUILT artifact (dist entries)
-├── e2e/              # Real API, opt-in — runs the SAME contract table
-├── fixtures/builders.ts     # Typed builders — the only fixture source
-├── mocks/            # handler.ts + state.ts + server.ts
-├── setup.ts          # Hermeticity (both in-process projects)
-└── setup-server.ts   # Mock-server lifecycle (integration only)
-tests-browser/        # Capability tier — real Chromium (pnpm test:browser)
-```
+- **It does not gate `publish`.** The non-production API may lag this repo, so
+  red means "these two disagree", not "this release is wrong". It is its own
+  workflow, never a `needs:`, and never in `ci.yml`.
+- **Its failure notice runs in its own job under `permissions: {}`**: the e2e
+  job holds an API credential, and the alerts webhook never sits beside one.
+- **A burst of hand dispatches can turn the anonymous-ttl row's `Forbidden`
+  into a `RateLimit`**, since each run spends anonymous budget and the limiter
+  runs before the refusal. That row's comment in `tests/contract.ts` carries
+  the signature.
 
 **When the API changes:** update `@shipstatic/types` → follow the `// wire:`
 citations in `tests/mocks/handler.ts` → `pnpm typecheck` guides the rest.
 
+### Testing canon
+
+A change that breaks one of these needs a recorded exception, not a
+workaround:
+
+1. **Pure lib tests mock nothing.** `md5`, `path`, `deploy-paths`,
+   `validation`, `junk` run the real thing on real inputs.
+2. **SDK-level tests run a real `Ship` against the wire-truth handler.** An
+   internal module mock needs a recorded reason; today there is one,
+   `node:readline/promises` in `config.test.ts`, since stdin cannot be
+   supplied for real.
+3. **A mock may only mock exports that exist** (the typecheck enforces it).
+4. **Raw `fetch` stubbing only where transport IS the subject** (the
+   `http*.test.ts` family). Elsewhere, inject the `fetch` option or use the
+   mock server.
+5. **Builders are the only fixture source** (`tests/fixtures/builders.ts`),
+   with explicit timestamps: no `Date.now()` in an asserted value.
+6. **Every mock route cites its API wire truth**, `satisfies` its published
+   response type, and has its status, typed error and guard order in
+   `tests/contract.ts`.
+
+The e2e harness var is deliberately `SHIP_E2E_API_KEY`: it names a literal API
+key, matches the CI secret, and is not part of the SDK's env contract
+(`SHIP_TOKEN`). Do not rename it in credential sweeps.
+
+**Tests run in parallel.** Each file gets its own mock server on an ephemeral
+port and its own state (`tests/mocks/server.ts`), so no file sees another's
+writes or contends for a port.
+
+**Recorded aspect splits**: one subject, more than one mirror file, legal under
+the layout law (`<module>-<aspect>.test.ts`). `tests/architecture/test-naming.test.ts`
+fails the suite if a split is not named here by full basename.
+
+| Module | Files | Why |
+|---|---|---|
+| `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-events`, `http-rate-limit`, `http-retry`, `http-timeout` | The transport's cross-cutting concerns, one file each. `http.test.ts` is the anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler |
+| `src/shared/base-ship.ts` | `base-ship`, `base-ship-credentials`, `base-ship-lifecycle`, `base-ship-limits` | Three doctrines on one class: the credential slot, the lifecycle, and `getLimits`, which asks the server every time |
+| `src/shared/resources.ts` | `resources-account`, `resources-deployments`, `resources-domains`, `resources-paths`, `resources-tokens` | One file per resource factory, plus `resources-paths`: the URL each builds, which a routing mock server would forgive, so it needs a stubbed `fetch` and a string comparison |
+| `src/shared/types.ts` | `types-reexport` | The **freshness** of what the module re-exports: a bundled-dependency fence |
+
+**Recorded feature-axis files**: no single subject module, so the mirror rule
+cannot apply. The list lives in the naming fence (`FEATURE_AXIS`), and adding
+to it is a decision: `unknown-commands` (the CLI's error surface), `validation`
+(parse-time credential and URL checks), `smoke` (the true-binary tier), and
+`e2e/smoke.e2e`.
+
+### Commander
+
+**`commander@^14`, deliberately not 15.** Commander 15 is ESM-only and needs
+Node ≥ 22.12, incompatible with the CJS `dist/cli.cjs` bin and the
+`engines >=20.19.0` consumer contract. Revisit when dropping Node 20 or going
+ESM-only is decided. An ESM-only package reached by `require()` is the hazard
+the pin avoids; `dist/index.cjs` already requires one (`junk`), which is why
+20.19.0 (where `require(esm)` landed) is the floor.
+
+**Two help scopes, one machinery.** The ROOT renders the hand-written front
+page (`helpText()`, byte-pinned in the smoke tier): `ship`, `ship --help`/`-h`
+and `ship help`. Subcommands render Commander's NATIVE scoped help
+(`ship domains --help`, `ship help deployments`, `--help` beside a missing
+argument). The split is one conditional in `configureHelp.formatHelp`: root →
+`helpText()`, else → `Help.prototype.formatHelp`. Riding the built-in
+`-h, --help` and `help [command]` means no help route resolves credentials or
+reads a config file. `-h`/`-V` are supported.
+
+`allowExcessArguments()` is a recorded opt-out of the excess-arguments error:
+unknown subcommands must reach `handleUnknownSubcommand` as excess args to get
+scoped usage. Option arguments that parse (`--ttl`) throw
+`InvalidArgumentError`, never a bare `parseInt` that sends `NaN`.
+
+### The CLI's two tiers
+
+`src/node/cli/index.ts` exports `buildProgram()`, a factory returning a fresh
+Commander tree (instances are not reusable across parses). **The tree never
+calls `process.exit` on the command path**: outcomes land in
+`process.exitCode` or ride a thrown `CommanderError`, and the bin ends when
+the event loop drains, so buffered stdout is never truncated on a pipe. The
+one exception is `performDeploy`'s SIGINT handler (`process.exit(130)`):
+Ctrl+C must end now, with the shell's 128+SIGINT convention.
+
+- **In-process tier** (`index.test.ts`, `unknown-commands`, `validation`, via
+  `tests/node/cli/harness.ts`): drives `buildProgram()` directly, so V8
+  coverage sees the command tree (a subprocess is invisible to it). The
+  harness pins the colour environment (`NO_COLOR` on, `FORCE_COLOR` cleared).
+- **Child-process smoke tier** (`smoke.test.ts`, the ONE file that spawns
+  `dist/cli.cjs`): byte-exact help, exit codes, stdin piping, colour from the
+  launch environment, stdout surviving a pipe, and the completion round trip
+  through a real shell.
+
+### The browser capability tier
+
+`tests-browser/` runs on **real Chromium** via `pnpm test:browser` (vitest
+browser mode, playwright provider), certifying what jsdom only approximates:
+native `getENV()` detection, `webkitRelativePath` as Chromium defines it, real
+`File`/`FormData` bytes through `createDeployBody`, spark-md5 digests (the same
+published vectors as the Node tier, since the platform checks every stored file
+against the manifest's digests), and the planner's count against Chromium's
+`FormData` encoder (`deploy-plan.test.ts`). No coverage coupling; a separate CI
+step with `playwright install chromium`.
+
+```
+tests/
+├── contract.ts       # The wire facts ship depends on, stated ONCE
+├── contract.test.ts  # …run against the MOCK (CI). Its twin is in e2e/
+├── architecture/     # Fences: integrity, naming, docs contract, SDK/CLI parity
+├── browser/ node/ shared/   # Mirror axis: tests/<path>/<module>.test.ts
+├── node/cli/harness.ts      # In-process CLI runner (buildProgram + capture)
+├── node/cli/smoke.test.ts   # The ONE child-process file (dist/cli.cjs)
+├── package/          # The BUILT artifact (dist entries, bundle boundary, licences)
+├── e2e/              # Real API, opt-in: runs the SAME contract table
+├── fixtures/         # builders.ts (the only fixture source) + site folders
+├── mocks/            # handler.ts + state.ts + server.ts
+├── setup.ts          # Hermeticity (both in-process projects)
+├── setup-e2e.ts      # e2e harness (scrubs SHIP_TOKEN)
+└── setup-server.ts   # Mock-server lifecycle (integration only)
+tests-browser/        # Capability tier: real Chromium (pnpm test:browser)
+```
+
 ## Adding New Features
 
-**New SDK method:** `@shipstatic/types` (interface) → `resources.ts` (the
-endpoint: path, verb, body, response type) → fixture → tests.
-
-Three steps, not four. It was `types → api/http.ts → resources.ts → …` until
-2026-08-12, and the middle pair was one fact written twice — see "One layer,
-not two".
-
-**New CLI command:** `cli/index.ts` (command + `withErrorHandling`) → `cli/formatters.ts` (formatter if needed) → `cli/types.ts` (`CLIResult` union if needed) → tests.
-
-**New shared utility:** `src/shared/lib/` → export from `lib/index.ts` if public → unit tests.
+- **New SDK method:** `@shipstatic/types` (interface) → `resources.ts` (path,
+  verb, body, response type) → fixture → tests.
+- **New CLI command:** `cli/index.ts` (command + `withErrorHandling`) →
+  `cli/formatters.ts` (a `SHAPES` row or formatter if needed) → `cli/types.ts`
+  (`CLIResult` union if needed) → tests.
+- **New shared utility:** `src/shared/lib/` → export from `lib/index.ts` if
+  public → unit tests.
 
 ## The single-page question
 
-The platform asks it of a deploy that sends `spa=true` (`DEPLOY_FIELDS.SPA`) and writes the routing config itself, when the root `index.html` is an empty application shell and the deploy ships no `ship.json` (`cloudflare/api/src/lib/platform-files.ts`). Absence asks nothing. That is production's own field and meaning: the console sends `spa=true`, and 3.8 and older send nothing and run their own check through `/spa-check`. This SDK asks by default: the `spaDetect` option is `true` unless set `false` (`--no-spa-detect` on the CLI), and `false` sends nothing. The option and the field are two names for two layers. A `ship.json` the deploy carries always wins.
+A deploy asks it by sending `spa=true` (`DEPLOY_FIELDS.SPA`): the platform then
+writes the routing config itself when the root `index.html` is an empty
+application shell and the deploy ships no `ship.json`. Absence asks nothing.
+This SDK asks by default: `spaDetect` is `true` unless set `false`
+(`--no-spa-detect`), and `false` sends nothing. The option and the field are
+two names for two layers; neither is renamed. A `ship.json` the deploy carries
+always wins. The SDK writes no routing config of its own, so it relies on an
+API that knows the field.
 
-It costs no request of its own. A deploy that splits carries the files that configure it in its bare declaration, the root `ship.json` and the root `index.html`, whether or not the question is asked (`deploy-plan.ts`). The API refuses a declaration that leaves the `ship.json` behind, and one that asks the question and leaves the `index.html` behind.
+It costs no request: a split deploy's bare declaration carries the root
+`ship.json` and the root `index.html` whether or not it asks
+(`deploy-plan.ts`), and the API refuses a declaration that leaves the
+`ship.json` behind, or asks the question and leaves the `index.html` behind.
+`/spa-check` answers the same question for clients older than the field; this
+SDK does not call it.
 
-`/spa-check` answers the same question without deploying, for the clients that predate the field. This SDK does not call it.
-
-**3.10 reaches `latest` only after the API that knows the field is on production.** An API without it gives no app its routing config, since this SDK no longer writes one. The API's smoke asks on a declaration that leaves `index.html` behind, which writes nothing and passes only on an API that knows the field (`cloudflare/api/CLAUDE.md`, "The release gate"); a green `pnpm smoke:prod:api` is the precondition for merging this repo's version to `main`. Three `tests/contract.ts` rows hold the wire: an app deployed with no option sends `spa=true` and comes back configured, the opt-out sends nothing and leaves the app unconfigured, and a split declaration carries `index.html`. `pnpm test:e2e` proves them against a real API.
+Three `tests/contract.ts` rows hold the wire: an app deployed with no option
+sends `spa=true` and comes back configured, the opt-out sends nothing and
+leaves it unconfigured, and a split declaration carries `index.html`.
+`pnpm test:e2e` proves them against a real API.
 
 ## ship.json: the client checks syntax, the server owns the schema
 
 `deploy()` calls `validateDeployConfig` (`shared/lib/validation.ts`) before it
-builds the multipart body — the third of three request-boundary validators in
-the same fast-fail block, beside `validatePassword` and `validateLabels`, all
-imported from that one module. It finds the root `ship.json`, reads it on
-either platform (`Buffer` in Node, `Blob` in the browser), and applies the
-types-tier rule `assertShipJsonSyntax`.
+builds the body, beside `validatePassword` and `validateLabels`. It finds the
+root `ship.json`, reads it on either platform (`Buffer` in Node, `Blob` in the
+browser), and applies `assertShipJsonSyntax` from `@shipstatic/types`.
 
-**The split is deliberate and bounded.** ship.json's schema and its compiler
-live on the server and evolve there, so a client that judged them would
-reject configs a newer platform accepts — which is why validation was
-server-only to begin with. The client therefore checks only what is true of
-*every* past and future schema: the text parses as JSON (frozen by RFC 8259),
-and its top level is an object. Both are monotonic; neither can produce a
-false rejection. A UTF-8 BOM is stripped rather than refused, matching the
-server.
-
-What it buys is the hand-edit case — a trailing comma, a `//` comment,
-single quotes, smart quotes pasted from documentation. Measured: an 11 MB
-deploy with a one-character config typo fails in **964 ms having uploaded
-nothing**, against 5.5 s for the same deploy's real upload. Failures carry
-`ErrorType.Config`, the same type the server's own rejection uses, so the
-error contract does not depend on where the mistake was caught.
-
-Scope matches the API's `findDeploymentConfigFile`: the exact name at the
-deploy root, which arrives canonical, since the path pipeline strips any
-leading slash. A `config/ship.json` is an ordinary asset and is left alone.
+**The split is deliberate.** The schema and its compiler live on the server,
+so a client judging them would reject configs a newer platform accepts. The
+client checks only what is true of every past and future schema: the text
+parses as JSON (RFC 8259) and its top level is an object. A UTF-8 BOM is
+stripped, as on the server. That catches the hand-edit case (a trailing comma,
+a `//` comment, smart quotes) before any upload, with `ErrorType.Config`, the
+type the server's own rejection uses. Scope: the exact name at the deploy root
+(paths arrive canonical); a `config/ship.json` is an ordinary asset.
 
 ## Error Handling
 
-All errors use `ShipError` from `@shipstatic/types`. The class provides the full factory + type-guard API and the two HTTP-context constructors (`fromHttpResponse`, `fromFetchError`). See `@shipstatic/types/CLAUDE.md` "Error Flow" for the end-to-end lifecycle.
-
-**`ApiHttp` is pure transport**, and since 2026-08-12 that is literally true
-rather than aspirational — see "One layer, not two". It owns no error-mapping
-logic either: `executeRequest` calls the two helpers directly —
+All errors use `ShipError` from `@shipstatic/types` (factories, type guards,
+`fromHttpResponse`, `fromFetchError`); its "Error Flow" section has the
+lifecycle. `ApiHttp` owns no error mapping: `executeRequest` calls
 `ShipError.fromHttpResponse(response, operationName)` for non-OK responses and
-`ShipError.fromFetchError(error, operationName)` for thrown causes (which passes
-existing `ShipError`s through unchanged).
+`ShipError.fromFetchError(error, operationName)` for thrown causes (an existing
+`ShipError` passes through).
 
-**CLI error UX** (`src/node/cli/error-handling.ts`) — pure functions, fully unit-testable:
-- `toShipError(err)` — normalizes any thrown value to a `ShipError` (used by the CLI's global error handler for non-fetch errors like Commander parse failures).
-- `getUserMessage(err, context, options)` — maps a `ShipError` to an actionable user-facing CLI string (auth → credential hints, timeout → the deadline sentence verbatim, network → connectivity, maintenance → the operator's sentence + where to watch, client/4xx → trust the API message, 5xx → generic "try again"). **Text channel only.**
+**CLI error UX** (`src/node/cli/error-handling.ts`), pure functions:
 
-  The timeout arm sits AHEAD of the network one and branches on the TYPE,
-  because the two share a category — `isNetworkError()` is true for both, and
-  rightly so: nothing was exchanged either way. Until 2026-08-12 there was no
-  type to branch on and the network arm claimed it, so a deploy that hit its
-  five-minute ceiling — the slowest, most expensive failure this CLI produces
-  — told the user to check their Wi-Fi. `--json` was truthful throughout; only
-  the human channel lied. The arm relays `fromFetchError`'s own sentence and
-  appends nothing: "try again" belongs to the 5xx arm, which has nothing
-  better to say, and it is half-false here because the client has already
-  tried three times.
+- `toShipError(err)` normalizes any thrown value (Commander parse failures
+  included).
+- `getUserMessage(err, options)` maps a `ShipError` to an actionable string:
+  auth → credential hints, timeout → the deadline sentence verbatim, network →
+  connectivity, maintenance → the operator's sentence and where to watch,
+  client/4xx → the API message, 5xx → "try again". **Text channel only.**
 
-  The maintenance arm sits between network and client for a reason: a closed
-  platform is neither the caller's fault nor a transport failure nor a server
-  fault, and each neighbouring arm would mis-serve it. It relays the sentence
-  and appends the status URL but **never "try again"** — that advice belongs to
-  the 5xx arm, which has nothing better to say, whereas a maintenance message
-  states when.
+**The timeout arm sits AHEAD of the network arm and branches on the TYPE**: the
+two share a category (`isNetworkError()`), and a deploy that hit its ceiling
+must not be told to check its Wi-Fi. It appends nothing, since the client has
+already tried three times. **The maintenance arm sits between network and
+client**: a closed platform is neither the caller's fault, a transport failure
+nor a server fault. It relays the sentence and the status URL and **never says
+"try again"**, because the message states when.
 
-There is deliberately no JSON formatter in this module. `--json` serialization
-is `ShipError.toResponse()`, emitted by `error()` in `utils.ts` — a second
-serializer is exactly how the `--json` envelope drifted from the wire's in the
-first place. See "Output Conventions" above.
+There is no JSON formatter in this module: `--json` is `ShipError.toResponse()`
+through `error()` in `utils.ts`, and a second serializer would drift from the
+wire (see "Output Conventions").
 
-## Known Gotchas
+## Credentials and environment
 
-**Deploy token vs API key** — both ride the one `token` slot; the prefix says which population a value belongs to. An API key (`ship-`) is durable and grants full account access; a deploy token (`deploy-`) is scoped to deploys, supports an optional TTL, and is revocable.
+**Deploy token vs API key.** Both ride the one `token` slot; the prefix says
+which. An API key (`ship-`) is durable and grants full account access; a
+deploy token (`deploy-`) is scoped to deploys, may carry a TTL, and is
+revocable.
 
-**Browser file handling** — SDK extracts path from `webkitRelativePath` or falls back to `name`.
-
-**Credential resolution (effective end-to-end):**
+**Credential resolution, end to end:**
 
 | Layer | Where | Reads |
 |---|---|---|
 | **CLI** | `src/node/cli/shiprc.ts` | `~/.shiprc`, or the `--config` path (strict JSON) |
-| **CLI** | `src/node/cli/create-client.ts` `createClient()` | merges flag → env → file via `mergeCliConfig`, hands result to `new Ship({...})` |
-| **CLI** | `src/node/cli/create-client.ts` `resolveCliToken()` | the same chain read for its token alone — the error handler's auth branch, and the `--domain` / `--ttl` preflights |
+| **CLI** | `create-client.ts` `createClient()` | flag → env → file via `mergeCliConfig`, then `new Ship({...})` |
+| **CLI** | `create-client.ts` `resolveCliToken()` | the same chain for the token alone: the auth branch of the error handler, and the `--domain` / `--ttl` preflights |
 | **SDK (Node)** | `src/node/index.ts` constructor | `SHIP_TOKEN`, `SHIP_API_URL` (under any constructor arg) |
-| **SDK (Browser)** | `src/browser/index.ts` constructor | nothing — fully explicit |
+| **SDK (Browser)** | `src/browser/index.ts` constructor | nothing: fully explicit |
 
-For a CLI user who has all three: `--token` flag → env → file, per value. For an embedded SDK consumer: constructor arg → env. There's no path from the SDK to the filesystem.
+A CLI user with all three gets flag → env → file, per value; an embedded SDK
+consumer gets constructor arg → env. There is no path from the SDK to the
+filesystem.
 
-**Two readers of that chain, one file.** `resolveCliToken` sat in `index.ts`
-until 2026-08-12 while `create-client.ts` opened by declaring itself the owner of
-the precedence contract. It stays a SECOND function rather than a shared helper
-with a posture flag, because the two differ in exactly what such a flag would
-have parameterized: a broken config file is SWALLOWED there (it runs inside the
-error handler, where a config that cannot be read must not mask the failure
-being reported), and the merged API URL is NOT judged there (that would raise a
-second error while rendering the first).
+**`resolveCliToken` is a second function, not a shared helper with a posture
+flag**, because the two differ in exactly what the flag would parameterize: a
+broken config file is SWALLOWED there (it runs inside the error handler, where
+an unreadable config must not mask the failure being reported), and the merged
+API URL is not judged there (that would raise a second error while rendering
+the first). Today every caller runs after `createClient` has read the same
+file, so the `catch {}` is unreachable; it stays, because the property belongs
+to the call site, and a caller moved ahead of `createClient` would make the
+hazard live.
 
-**Neither hazard is reachable today, and that was measured rather than
-assumed.** Every caller runs after `createClient` has already read the same
-file — the preflights are inside `withErrorHandling`, and the auth branch needs
-a 401, which needs a client. Deleting the `catch {}` leaves the whole suite
-green. That is a statement about the call graph, not about the guard, and it is
-written at the function so the next reader loses a minute instead of an hour.
-The guard stays because the property belongs to the CALL SITE: move one caller
-ahead of `createClient` — a fourth credential source, an earlier preflight — and
-the hazard is live again with nothing to announce it.
-
-**CLI-only env vars** (read by the CLI but *not* by the SDK constructor):
+**CLI-only env vars** (read by the CLI, not by the SDK constructor):
 
 | Var | Purpose |
 |---|---|
-| `SHIP_PASSWORD` | Default for `--password <password>` on `ship deploy` / `ship deployments upload`. Empty string is normalized to absence (so unset CI variables don't accidentally protect a deploy). |
-| `SHIP_IDEMPOTENCY_KEY` | The SDK's `idempotencyKey` for `ship deploy` / `ship deployments upload`: a re-run is answered with the live deployment the key already made instead of deploying twice (see the Backend Integration table). Empty string is normalized to absence, for the same reason `SHIP_PASSWORD` is: an unset CI variable must not collapse every deploy in a job into one replay. There is **no flag**: this is the whole CLI surface, and it exists for the integrations that wrap the CLI as a subprocess. The GitHub Action derives one key per workflow run, so a re-run is answered with the deployment the first run made rather than creating a second one. A shell user's `--idempotency-key` remains the open product call below. |
-| `SHIP_VIA` | Overrides the deploy `via` field (the CLI sends `'cli'` when unset). Used by integrations that **wrap a first-party executable as a subprocess**: the GitHub Action sets `SHIP_VIA=git` on the CLI, and the Gemini extension sets `SHIP_VIA=gmn` on the stdio MCP bin, which reads the same slot with `mcp` as its own default. Since the name gained that second reader, its owner is `SHIP_VIA_ENV` in `@shipstatic/types` (deliberately beside, not inside, `SHIP_ENV`: the SDK never reads it) and both executables read through the constant. In-process SDK consumers set the same field as a programmatic `via` option on the SDK call (`ship.deployments.upload(..., { via: 'mcp' })`) — same destination, different mechanism. Distinct from the programmatic `caller` option, which is for rate-limit bucketing in multi-tenant orchestrators (see `ShipClientOptions.caller` JSDoc). |
+| `SHIP_PASSWORD` | Default for `--password` on `ship deploy` / `ship deployments upload`. `''` is absence, so an unset CI variable never protects a deploy |
+| `SHIP_IDEMPOTENCY_KEY` | The SDK's `idempotencyKey` for both deploy spellings: a re-run is answered with the live deployment the key already made. `''` is absence, so an unset CI variable never collapses every deploy in a job into one replay. No flag |
+| `SHIP_VIA` | Overrides the deploy `via` field (the CLI sends `cli` when unset) |
+
+- **`SHIP_IDEMPOTENCY_KEY` is for subprocess wrappers**, which compose an argv
+  they do not own and cannot reach an SDK option. The GitHub Action derives one
+  key per workflow run, so a re-run is answered with the first run's
+  deployment. A shell user has the env var too, which is why a
+  `--idempotency-key` flag is a product call (ergonomics, not reach), not a gap.
+- **`SHIP_VIA` is for integrations wrapping a first-party executable**: the
+  GitHub Action sets `git` on the CLI, and the stdio MCP bin reads the same slot
+  with `mcp` as its default. Its owner is `SHIP_VIA_ENV` in `@shipstatic/types`
+  (beside, not inside, `SHIP_ENV`: the SDK never reads it), and both
+  executables read through the constant. In-process consumers pass the `via`
+  option instead. Distinct from the programmatic `caller` option (see the
+  `ShipClientOptions.caller` JSDoc).
 
 **Every deploy names its surface; `via` is never empty by accident.** The
-registry is `DeploymentVia` in `@shipstatic/types` — closed on purpose. Each
-client owns its member (`cli`, `git` for the Action, `mcp`, `vsc`, `web` for
-the web apps, `n8n`, `gpt`), and a direct SDK call falls back to `sdk`,
-applied at the single wire boundary in `api/http.ts` so it cannot differ per
-platform. A closed enum is what makes a surface's attribution the COMPILER's
-business: the vscode extension's `via: 'vsc'` stopped being a lockstep anyone
-had to remember the day the types pin landed there, and a typo'd value cannot
-silently store as `NULL` — `normalizeVia` drops what the vocabulary does not
-name, and the request option refuses it at compile time. Adding a
-distribution surface is a types PR, which is exactly the ceremony a new
-surface deserves. What the `sdk` default buys is that a deploy through this
-SDK is never unattributed — the self-identification Vercel's `source` and
-every comparable client (AWS, Stripe, OpenAI) practise. What a request that
-names nothing is recorded as is the API's own call, not this package's.
+registry is `DeploymentVia` in `@shipstatic/types`, closed on purpose: each
+client owns its member, and a direct SDK call falls back to `sdk`, applied at
+the single wire boundary in `api/http.ts`. A closed enum makes attribution the
+compiler's business: a typo'd value fails to compile, and `normalizeVia` drops
+what the vocabulary does not name. Adding a surface is a types change. What a
+request naming nothing is recorded as is the API's call.
 
-> **Doc placement note:** `SHIP_VIA` and `caller` are intentionally *not* in the public README's CLI Reference / SDK Deploy Options. They're ShipStatic-specific operational levers (analytics origin, rate-limit bucketing) that serve first-party integration code paths and stay in internal-tier surfaces (this file + JSDoc + the integrations submodules). Keep mechanisms of the same shape — platform-tier behavior shaping — in the same tier.
->
-> The `fetch` option is the exception: it's in the public README ("Custom fetch") because transport injection is a convention every comparable SDK ships (Stripe, OpenAI, Anthropic). Rule of thumb: ShipStatic-specific levers stay internal; industry-standard SDK conventions are public.
+**README placement.** `SHIP_VIA` and `caller` stay out of the README's CLI
+Reference and SDK Deploy Options: they are ShipStatic-specific levers for
+first-party integrations, documented here and in JSDoc. The `fetch` option is
+in the README ("Custom fetch"), because every comparable SDK ships it.
+ShipStatic-specific levers stay out of the README; industry conventions go in.
 
-**`getLimits()` asks the server every time, and the request is EARNED.**
-Limits are the account's policy and the server may change them at any time (a
-plan move, an operator's grant), so the client never holds them. `getLimits()`
-issues `GET /limits` on every call, and a deploy reads them once, at its start,
-and hands them to `processInput` (file-size, file-count and blocklist checks).
-Nothing else requests them: `domains list`, `tokens list`, `whoami` and `ping`
-issue their own request and no other.
+**`getLimits()` asks the server every time.** Limits are the account's policy
+and may change at any moment (a plan move, a grant), so the client never holds
+them. `getLimits()` issues `GET /limits` on every call; a deploy reads them
+once, at its start, and hands them to `processInput` (size, count and blocklist
+checks). Nothing else requests them. Holding them is refused: a client can live
+as long as a browser tab, so a memo would judge today's upload by the morning's
+limits and starve the caller's own cache of fresh data. `base-ship-limits.test.ts`
+fences it by request COUNTS and by a server that changes its answer between
+calls.
 
-Holding them is refused, measured on the console: a client lives as long as a
-browser tab, so a memo validated today's upload against the morning's limits,
-and a caller's own cache (the console's TanStack query, `@shipstatic/drop`)
-could refresh nothing beneath it. A CLI command and the hosted MCP make one
-client per operation, so for them the two contracts cost the same one request.
-Fenced by request COUNTS and by a server that changes its answer between calls
-in `base-ship-limits.test.ts`, since the resolved values alone cannot tell a
-fresh read from a stale one.
+**`/limits` carries the platform's extension blocklist.**
+`PlatformLimits.blockedExtensions` is the API's list; `validateFiles` and both
+file pipelines refuse nothing it does not name. The field is **optional, and
+absence is a contract**: an API without it means "no client-side check", never
+"an empty policy", and the API refuses at its boundary. **Never restore a
+compiled-in copy**: `@shipstatic/types` is bundled into `dist`, so a constant
+would pin every published tarball to an old policy, in both directions. The
+`getLimits` row in `tests/contract.ts` is the only thing here that can see the
+API drop the field (its live half).
 
-**`/limits` is also how the platform's extension blocklist reaches the client.**
-`PlatformLimits.blockedExtensions` is the API's list (`cloudflare/api/src/lib/blocklist.ts`);
-`validateFiles` and both file pipelines read it and refuse nothing the platform
-did not name. The field is **optional and the absence is a contract**: an API
-predating it sends none, which means "no client-side check", never "an empty
-policy" — the deploy proceeds and the API refuses the file at the boundary,
-which is where refusal belongs. Never restore a compiled-in copy: `@shipstatic/types`
-is a devDependency **bundled into dist**, so a constant here is baked into every
-published tarball and a user on an old `ship` would enforce a policy the platform
-has moved on from, in both directions. Fenced by the `getLimits` row in
-`tests/contract.ts` — the live half is the only thing in this repo that can see
-the API drop the field.
+### The deploy rules
 
 **The rules are the platform's, and this package renders them.** Every rule a
 deployment's files are held to is one table in `@shipstatic/types` ("Deploy
-rules"): `FILE_RULES` for each file (name, extension, project, path, file size,
-running total) and `SET_RULES` for the deployment as a whole (it has files,
-each path once, no more than the plan allows, and a home page, `index.html` at
-its root). The API
-judges a declaration by the same table, so a refusal reads the same wherever it
-is made, and a rule cannot be added to one judge and not the other. This package
-renders it twice and authors no sentence of its own:
+rules"): `FILE_RULES` per file (name, extension, project, path, file size,
+running total) and `SET_RULES` for the whole (it has files, each path once, no
+more than the plan allows, and an `index.html` at its root). The API judges by
+the same table, so a refusal reads the same wherever it is made. This package
+authors no sentence of its own:
 
-- **The throwing renderer** is `deployRefusal` itself, which the shared
-  pipeline (`core/deploy-files.ts`) calls over every file's path and size
-  before it reads one, so a refused deploy costs no I/O. A refusal is
-  `ShipError.validation`, the API's own type and status for it.
-- **The collecting renderer**, `validateFiles`, which the UI tier (drop) reads:
-  each file's first broken rule, then the set rules, filed under `(N files)`
-  because they name no one file. Its own check is the one about a `File`
-  rather than a deployment (a processing error), and an empty file is
-  excluded with a warning, as the pipelines skip it.
+- **The throwing renderer** is `deployRefusal`, which the shared pipeline
+  (`core/deploy-files.ts`) calls over every file's path and size before reading
+  one: `ShipError.validation`, the API's own type and status.
+- **The collecting renderer** is `validateFiles`, read by drop: each file's
+  first broken rule, then the set rules under `(N files)`. Its own check is
+  about a `File` rather than a deployment (a processing error), and an empty
+  file is excluded with a warning, as the pipelines skip it.
 
-**Every sentence is complete on its own**, names its file once (the set rules
-name none), and ends a limit's sentence with the way forward the API delivered
-(`PlatformLimits.suggestions`), so drop, the console, the CLI and the MCPs show
-it as it is and this package never learns what a plan is. The CLI's
-`plainMessage` lowercases only the opening word and strips only the final
-period.
-
-**What the junk filter does and does not do.** It filters a site's junk and
-judges nothing: a project's files (`node_modules`, `package.json`) are kept,
-even under pnpm's `node_modules/.pnpm/`, so the `project` rule refuses them by
-name. A `..` segment is dot-prefixed, so it is filtered rather than refused.
+**Every sentence is complete on its own**, names its file once (set rules name
+none), and ends a limit's sentence with the way forward the API delivered
+(`PlatformLimits.suggestions`), so every surface shows it as is and this
+package never learns what a plan is.
 
 **The home page.** A deploy with no `index.html` at the top is refused before
-the first request, and the sentence ends with the step that fits what the files
-show (the table's, `npm/types/CLAUDE.md`, "Deploy rules"): the folder to
-publish when the site sits one folder down, the page to rename when there are
-pages but none at the top, or a small `index.html` to add when there is no page
-at all. An empty `index.html` is refused as EMPTY ("The
-index.html at the top of your site is empty."), because both renderers hand the
-set rules the files as sent, empty ones included, and the table decides what is
-published (`isPublishedFile`): an empty file is never published, and never
-refused for itself. `tests/contract.ts` holds the refusal as a
-validation error made with no request (`deployments.upload (no index.html)`).
+the first request, and the sentence names the step that fits the files: the
+folder to publish when the site sits one folder down, the page to rename when
+there are pages but none at the top, or a small `index.html` to add. An empty
+`index.html` is refused as EMPTY ("The index.html at the top of your site is
+empty."), because both renderers hand the set rules the files as sent and the
+table decides what is published (`isPublishedFile`: an empty file never is).
+`tests/contract.ts` holds the refusal as a validation error made with no
+request (`deployments.upload (no index.html)`).
 
 ## Backend Integration
 
 | SDK Method | API Endpoint | Notes |
 |------------|--------------|-------|
-| `deployments.upload()` | `POST /deployments` | The declaration: the manifest, the options (`spa=true` among them unless `spaDetect` is `false`), the root `ship.json` and `index.html`, and any other files. 201 live when it carries every file, 202 pending otherwise |
-| ↳ each further batch | `POST /deployments/:deployment/files` | After a 202, one fill per batch: 202 still pending, 201 live, 200 already live. Files only |
-| ↳ `idempotencyKey` | header `Idempotency-Key` (the declaration only) | Answers the earliest live deployment the key made in your account within 24h, as it stands, instead of deploying twice. An anonymous key is ignored. Key the ATTEMPT (run id, commit sha), never the try. |
-| ↳ CLI `--domain` | *(no endpoint)* | Composed CLIENT-side: this upload, then `domains.set()` with the fresh id. Two wire calls, no new route, no SDK option — see "Composability". |
-| `deployments.list()` | `GET /deployments` | Paginated — `{limit, cursor}` options (`--limit`/`--cursor` on the CLI; text mode prints a rerun hint while `--json` carries `cursor`) |
+| `deployments.upload()` | `POST /deployments` | The declaration: manifest, options (`spa=true` unless `spaDetect` is `false`), root `ship.json` and `index.html`, other files. 201 live when it carries every file, else 202 pending |
+| ↳ each further batch | `POST /deployments/:deployment/files` | After a 202, one fill per batch: 202 pending, 201 live, 200 already live. Files only |
+| ↳ `idempotencyKey` | header `Idempotency-Key` (declaration only) | Answers the earliest live deployment the key made in the account within 24h, as it stands. An anonymous key is ignored. Key the ATTEMPT (run id, commit sha), never the try |
+| ↳ CLI `--domain` | *(no endpoint)* | Composed client-side: this upload, then `domains.set()` (see "Composability") |
+| `deployments.list()` | `GET /deployments` | Paginated `{limit, cursor}` (`--limit`/`--cursor`; text prints a rerun hint, `--json` carries `cursor`) |
 | `deployments.get()` | `GET /deployments/:deployment` | |
 | `deployments.set()` | `PATCH /deployments/:deployment` | Labels only |
-| `deployments.delete()` | `DELETE /deployments/:deployment` | 202 (async) `{deployment, status:'deleting'}` — resolved, so a caller learns the transitional state without a re-read; a repeat answers the same object, since it states where the row is rather than what the call did |
-| `domains.set()` | `PUT /domains/:name` | Upsert — create, repoint, or label |
-| `domains.list()` | `GET /domains` | Paginated — same `{limit, cursor}` contract |
+| `deployments.delete()` | `DELETE /deployments/:deployment` | 202 `{deployment, status:'deleting'}`, resolved; a repeat answers the same object |
+| `domains.set()` | `PUT /domains/:name` | Upsert: create, repoint, or label |
+| `domains.list()` | `GET /domains` | Paginated, same contract |
 | `domains.get()` | `GET /domains/:name` | |
-| `domains.validate()` | `POST /domains/validate` | Pre-flight check — name rides the JSON body, not the path |
-| `domains.verify()` | `POST /domains/:domain/verify` | Wire: 202 `{domain}` — the SDK returns it; the CLI composes its own copy and reads the domain once more to say whether anything is linked |
+| `domains.validate()` | `POST /domains/validate` | Pre-flight; the name rides the JSON body |
+| `domains.verify()` | `POST /domains/:domain/verify` | 202 `{domain}`; the CLI composes its own copy and reads the domain once more for the link step |
 | `domains.dns()` | `GET /domains/:name/dns` | DNS provider information |
 | `domains.records()` | `GET /domains/:name/records` | Required DNS records |
 | `domains.share()` | `GET /domains/:name/share` | Shareable setup hash |
-| `domains.delete()` | `DELETE /domains/:domain` | 200 `{domain}` — resolved, not discarded |
-| `tokens.create()` | `POST /tokens` | Returns 201 |
-| `tokens.list()` | `GET /tokens` | Paginated — same `{limit, cursor}` contract |
-| `tokens.get()` | `GET /tokens/:token` | The same row the listing carries, addressable — `ship tokens get` |
-| `tokens.delete()` | `DELETE /tokens/:token` | 200 `{token}` — resolved, not discarded |
-| `account.get()` | `GET /account` | Resolves `Account`, which names the account it describes (`account`). The SDK itself sends no `X-Account`: a key, a deploy token or an OAuth grant is its account, and a browser host in session mode names the account through its own `fetch` (the console does) |
-| `ping()` | `GET /ping` | Resolves `PingResponse` (`{timestamp}`) — reachability is the absence of a throw, so there is no boolean to read |
-| `getLimits()` | `GET /limits` | Asks the server every time. Carries the plan caps **and** `blockedExtensions` — the platform's hosting blocklist, optional (an older API sends none) |
+| `domains.delete()` | `DELETE /domains/:domain` | 200 `{domain}`, resolved |
+| `tokens.create()` | `POST /tokens` | 201 |
+| `tokens.list()` | `GET /tokens` | Paginated, same contract |
+| `tokens.get()` | `GET /tokens/:token` | The listing's row, addressable |
+| `tokens.delete()` | `DELETE /tokens/:token` | 200 `{token}`, resolved |
+| `account.get()` | `GET /account` | Resolves `Account` (names its `account`). The SDK sends no `X-Account`: a key, deploy token or OAuth grant is its account, and a session-mode browser host names it through its own `fetch` |
+| `ping()` | `GET /ping` | `PingResponse` (`{timestamp}`); reachability is the absence of a throw |
+| `getLimits()` | `GET /limits` | Every call. Plan caps **and** the optional `blockedExtensions` |
 | (internal) | `POST /upload` | Only via the `@internal` `deployEndpoint` option, for the platform's own web apps |
 
-**Deploy requests get their own timeout ceilings: three budgets, one per kind of work.** 30s is right for a metadata read, where anything slower is a fault rather than a payload. A deploy request is bounded by the request ceiling instead: one carries at most `DEPLOY_REQUEST_CONSTRAINTS.MAX_BYTES` (64 MiB), and a larger deployment is sent in several requests, each with a ceiling of its own. `DEFAULT_DEPLOY_TIMEOUT` is 5 minutes: at `UPLOAD_FLOOR_BITS_PER_SECOND` (2.5 Mbit/s, stated beside it) the largest request transfers in about 215 s, which leaves about 85 s for the server's own work on it. `http-timeout.test.ts` holds that sum, so a bigger request cannot silently outrun the ceiling.
+**Three timeout budgets, one per kind of work.** 30s for a metadata read,
+where slower is a fault. A deploy request carries at most
+`DEPLOY_REQUEST_CONSTRAINTS.MAX_BYTES` (64 MiB) and gets
+`DEFAULT_DEPLOY_TIMEOUT`, 5 minutes: at `UPLOAD_FLOOR_BITS_PER_SECOND`
+(2.5 Mbit/s) the largest request transfers in about 215 s, leaving about 85 s
+for the server's work; `http-timeout.test.ts` holds the sum. A **build or
+prerender** deploy waits on server work after the upload, so
+`DEFAULT_DEPLOY_BUILD_TIMEOUT` is derived, `DEFAULT_DEPLOY_TIMEOUT +
+BUILD_SERVICE_BUDGET`, the budget read from `BUILD_TIME_LIMIT_SECONDS` in
+`@shipstatic/types`, the same owner the API reads. `spa` does not qualify.
 
-A **build or prerender** deploy is the third: it waits for work the SERVER does after the upload lands, so `DEFAULT_DEPLOY_BUILD_TIMEOUT` is **derived, not chosen** — written in code as `DEFAULT_DEPLOY_TIMEOUT + BUILD_SERVICE_BUDGET`, so tuning either half carries. Raising that server constant must raise this one; they sit in different repos so nothing fences the pair, and the constraint is stated at both ends. `spa` does NOT qualify: the single-page question is a pure function of one page on the server; only build/prerender reach the build service.
+**Only the DEFAULTS split by operation**: an explicit `timeout` option governs
+every request, deploys included. **The ceiling is per ATTEMPT**: each attempt
+is an honest request, and `maxRetries` bounds how many. A caller wanting a
+wall-clock deadline passes its own `signal` (`AbortSignal.timeout(ms)`), which
+works because the loop never retries past a caller's signal. The long-term
+instrument is an **idle timeout** (reset on progress, independent of payload
+size); it needs upload-progress observation, which browser `fetch` lacks, so it
+is built together with a progress bar.
 
-**Only the DEFAULTS split by operation** — an explicit `timeout` option governs every request including deploys: a caller who names a ceiling asked for a ceiling, not for one with an exception.
+### Routes the API exposes that the SDK does not reach
 
-**And since retries landed, that ceiling is per ATTEMPT.** The sentence above
-was written when one call meant one request, and it has to be reconciled
-rather than quietly contradicted: each attempt is an honest request and
-deserves the ceiling the caller named, while `maxRetries` is the lever on how
-many there may be. A caller who wants a hard WALL-CLOCK deadline passes their
-own `signal` (`AbortSignal.timeout(ms)`) — and that works precisely because
-the loop never retries past a signal the caller supplied. See "Retries" below. The correct long-term instrument is an **idle timeout** — reset on progress, the only formulation independent of payload size — blocked on upload-progress observation, which browser `fetch` cannot provide. Build it when someone wants a progress bar; the timeout falls out of that work for free.
-
-**Routes the API exposes that the SDK does not reach.** Two classes — do not
-conflate them:
-
-*Settled:* first-party and operator routes are not the SDK's to reach; the SDK
-is the client of the public API only.
-
-*Settled by decision:* **`GET /activities` stays out of the SDK** (decided
-2026-07-28). It paginates like every other collection on the API side, but
-the dashboard is its only client — a CLI user reads their audit trail in
-`my`, not through a resource. This is a deliberate absence, not a gap: do
-not add `ship.activities` without a new call.
-
-The argument that reopens it, and why it does not: *"`ActivityListResponse`
-is in `@shipstatic/types` with no `*Resource` to fetch it — a public
-contract with a missing half."* It has both halves; the SDK is simply not
-one of them. The API produces that type and `web/my` consumes it, which is
-two consumers and exactly what earns a place in the shared package. A
-`ActivityResource` interface with no implementation would be the dead
-surface — added, then reverted, on 2026-07-28 for precisely this reason.
-The `*Resource` interfaces describe **the SDK's** contract, not the API's;
-the API's contract is its routes.
-
-*Open product questions (awaiting a call):* `GET /labels` (a real endpoint with no SDK method —
-a CLI user would plausibly want it), and an `--idempotency-key` CLI flag.
-The SDK half of that second one **shipped**: `deploy()` takes
-`idempotencyKey`, validates it through `validateIdempotencyKey`, and sends
-the header (see the Backend Integration table). This paragraph
-claimed "the SDK/CLI never send the header" until 2026-07-30, which was
-true when written and stale thereafter. Neither item is drift, and neither
-should be added without the call.
-
-**The FLAG is still open; the env var is not.** `SHIP_IDEMPOTENCY_KEY`
-landed 2026-08-07 (see "CLI-only env vars") because the two audiences are
-different and only one of them was blocked. A subprocess-wrapping
-integration has no other channel at all — it composes an argv it does not
-own and cannot reach a per-call SDK option — and the GitHub Action is that
-consumer, deriving a key per workflow run so a re-run replays. A shell user
-already has one (`SHIP_IDEMPOTENCY_KEY=… ship ./dist`), which is why the
-flag stays a product call rather than a gap: it would be a second way to
-say what the tier already says, and the reason to add it is ergonomics for
-humans, not reach. (List pagination, formerly in this list, shipped
-2026-07-27 as F1 and reached the last collection — tokens — on 2026-07-28;
-see the Backend Integration table.)
+- **First-party and operator routes are not the SDK's to reach**; the SDK is
+  the client of the public API only.
+- **`GET /activities` stays out of the SDK.** The dashboard is its only
+  client; a CLI user reads their audit trail in the console. Do not add
+  `ship.activities` without a new decision. `ActivityListResponse` lives in
+  `@shipstatic/types` because the API produces it and the console consumes it;
+  the SDK is not one of its halves. **The `*Resource` interfaces describe the
+  SDK's contract, not the API's**, so an `ActivityResource` with no
+  implementation would be dead surface.
+- **Open product calls, not drift:** `GET /labels` (an endpoint with no SDK
+  method) and a `--idempotency-key` CLI flag (the SDK option and the env var
+  exist). Neither is added without the call.
 
 ### Domain Write Semantics
 
-`PUT /domains/:name` is a merge-upsert: omitted fields are preserved on update, defaulted on create. Supports: reserve (omit deployment), link, atomic deployment switch, label update.
+`PUT /domains/:name` is a merge-upsert: omitted fields are preserved on
+update, defaulted on create. It covers reserve (omit deployment), link, an
+atomic deployment switch, and label update.
 
-**No unlinking (by design).** `{ deployment: null }` returns 400. Reservation (forward-looking: "claiming domain, will link soon") is valid; unlinking (backward-looking: "what does this serve now?") is not. To take a site offline, deploy a maintenance page. To clean up, delete the domain.
+**No unlinking, by design.** `{ deployment: null }` returns 400. Reservation
+(forward-looking) is valid; unlinking (backward-looking) is not. To take a
+site offline, deploy a maintenance page; to clean up, delete the domain.
 
-**Why PUT not PATCH?** Domains are mutable routing records identified by natural key — PUT upsert is one endpoint for create, repoint, and label. Deployments use PATCH because they're immutable artifacts with labels as the only mutable annotation.
+**PUT, not PATCH**, because a domain is a mutable routing record identified by
+a natural key, so one upsert covers create, repoint and label. Deployments use
+PATCH: they are immutable artifacts with labels as the only mutable
+annotation.
 
 ### Domain Normalization
 
-The SDK is a transparent pipe — zero domain validation or normalization. It URL-encodes names in API paths (`encodeURIComponent`) and passes everything else as-is. The API owns all domain semantics: it accepts liberal input (any case, Unicode), normalizes to canonical form, validates, and returns the normalized name.
+The SDK is a transparent pipe: no domain validation or normalization. It
+URL-encodes names in paths (`encodeURIComponent`) and passes everything else
+as is. The API owns domain semantics: it accepts liberal input (any case,
+Unicode), normalizes, validates, and returns the normalized name.
 
 ---
 
