@@ -13,7 +13,7 @@ import { buildProgram } from '../../src/node/cli/index';
  * Why this exists. `package.json` ships its markdown docs, so they are API
  * surface, and for an agent a published doc IS the API surface: it is the
  * file read before a command is typed. On 2026-07-29 the platform standardised
- * destruction on `delete` (root `CLAUDE.md`, "One operation, one verb"). Every
+ * destruction on `delete` (`@shipstatic/types`, "One operation, one verb"). Every
  * source file, every test and README were swept; `SKILL.md` was not, and
  * `2.0.0-beta.8` shipped teaching three commands the CLI does not have —
  * `deployments remove`, `domains remove`, `tokens remove` — with no alias to
