@@ -12,12 +12,10 @@
  *
  * Strict JSON. An empty file is an ABSENT config, not a broken one.
  *
- * A project-level search (`./.shiprc`, `package.json` `"ship"`, walking up)
- * used to sit in front of both, via cosmiconfig. It was deleted in 2.0.0
- * because its only capability was the anti-pattern: a repository-controlled
- * file supplying credentials. See CLAUDE.md, "no repository file is ever
- * read", for the two verified exploits and why patching them was the wrong
- * shape of fix.
+ * There is no project-level search (`./.shiprc`, `package.json` `"ship"`,
+ * walking up): its only capability is a repository-controlled file supplying
+ * credentials or an API URL, so the refusal is of the surface, never of one
+ * field. See CLAUDE.md, "No repository file is ever read".
  */
 
 import { existsSync, readFileSync } from 'node:fs';

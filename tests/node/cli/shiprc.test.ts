@@ -147,15 +147,13 @@ describe('CLI shiprc loader', () => {
   });
 
   describe('no repository file is ever read', () => {
-    // The reason the project search is gone, stated as behavior. Two exploits
-    // were verified against the real binary before this change (CLAUDE.md
-    // carries the transcripts): a cloned repo's `package.json` could redirect
-    // `apiUrl` and receive the user's bearer token, and — worse, because it
-    // survived the first patch — a repo's `token` outranked `~/.shiprc`
-    // entirely, so `ship ./dist` deployed to the repo owner's account.
+    // Why there is no project search, stated as behavior. With one, a cloned
+    // repo's `package.json` could redirect `apiUrl` and receive the user's
+    // bearer token, and a repo's `token` could outrank `~/.shiprc`, so
+    // `ship ./dist` would deploy to the repo owner's account.
     //
-    // Both were properties of the SURFACE, not of any particular field, which
-    // is why the fix is a deletion rather than a rule.
+    // Both are properties of the SURFACE, not of any particular field, which
+    // is why there is no search at all rather than a rule about its fields.
     const planted = {
       token: apiKey('b'),
       apiUrl: 'http://127.0.0.1:1',

@@ -73,7 +73,8 @@ jobs:
   # A red run on a push or a schedule reaches the operator's alerts channel; a
   # pull request's red already has a reader, its author. The webhook lives in
   # this job alone, which runs nothing but curl, and an unset secret fails the
-  # job rather than skipping it. Root CLAUDE.md, "CI notifications".
+  # job rather than skipping it.
+  # The platform's release rules hold this for every repo.
   notify:
     needs: [e2e]
     if: failure() && github.event_name != 'pull_request'

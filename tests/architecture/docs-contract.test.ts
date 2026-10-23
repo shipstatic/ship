@@ -32,9 +32,9 @@ import { buildProgram } from '../../src/node/cli/index';
  *   3. does every SDK call the docs show name real members?
  *   4. does every response key the docs print exist on a published type?
  *
- * `helpText()` — the hand-curated front page (`npm/ship/CLAUDE.md`, "Two help
- * scopes") — is covered too, but on its own terms: curation is legitimate
- * there, so a command may be left off PROVIDED the omission is recorded with a
+ * `helpText()` — the hand-curated front page (`CLAUDE.md`, "The front page
+ * may curate, but not forget") — is covered too, but on its own terms:
+ * curation is legitimate there, so a command may be left off PROVIDED the omission is recorded with a
  * reason. Silent omission is not curation, it is forgetting; the page was
  * missing `ping`, `account get` and `tokens get` when this was written, none of
  * it decided.

@@ -153,7 +153,7 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
       // nothing until it is run, including about itself.
       //
       // The transitional state is also the contract worth pinning here, since
-      // it is what makes the CLI say "deleting — served until cleanup
+      // it is what makes the CLI say "deleting: served until cleanup
       // completes" instead of a completed past tense over a live site.
       const acknowledgement = await ship.deployments.delete(deployed.deployment);
       expect(acknowledgement.status).toBe('deleting');

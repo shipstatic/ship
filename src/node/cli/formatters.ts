@@ -127,7 +127,7 @@ function announce(result: CLIResult, context: OutputContext): string | null {
 
   const state = readField(result, 'status');
   const consequence = typeof state === 'string' ? IN_FLIGHT[state] : undefined;
-  return `${key} ${resource} ${consequence ? `${state} — ${consequence}` : predicate}`;
+  return `${key} ${resource} ${consequence ? `${state}: ${consequence}` : predicate}`;
 }
 
 /**
@@ -536,7 +536,7 @@ const keyOf = (context: OutputContext): OutputKey =>
  * resource methods. Exported for that fence and for the suite, which pins its
  * per-row cases against this list rather than against itself.
  *
- * See CLAUDE.md, "formatOutput Router", for how it got here.
+ * See CLAUDE.md, "`formatOutput` Router: one table, both channels".
  */
 export const OUTPUTS: Partial<Record<OutputKey, Output>> = {
   // ─── deployments ───
@@ -612,8 +612,7 @@ export const OUTPUTS: Partial<Record<OutputKey, Output>> = {
   'token.create': row<TokenCreateResponse>({
     // The SECRET rather than the id, deliberately: it is shown once and never
     // again, so `ship tokens create -q >> .env` is why this channel exists
-    // here. Under the old shape-router this needed `secret` to be probed
-    // before `token`; now it is simply a different row.
+    // here. It is its own row, so no ordering rule sets it apart from `token`.
     quiet: (r) => [r.secret],
     text: formatToken,
   }),

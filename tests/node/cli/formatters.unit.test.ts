@@ -299,7 +299,7 @@ describe('formatOutput router', () => {
       );
 
       expect(out()).toContain(
-        'happy-cat-abc1234.shipstatic.com deployment deleting — served until cleanup completes',
+        'happy-cat-abc1234.shipstatic.com deployment deleting: served until cleanup completes',
       );
       expect(out()).not.toContain('deployment deleted');
     });

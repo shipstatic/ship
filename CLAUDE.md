@@ -416,7 +416,7 @@ alone composes copy.
 **The tense is the response's.** `DELETE /deployments/:deployment` answers 202
 with `status: 'deleting'`, and the files stay served until the platform's
 cleanup finishes, so text says
-`<host> deployment deleting — served until cleanup completes`. A hard delete
+`<host> deployment deleting: served until cleanup completes`. A hard delete
 (`{domain}`, `{token}`) says `deleted`, because the row is gone. The gate is the
 transitional-state MAP in `formatters.ts` (`IN_FLIGHT`), never the presence of
 a `status`: `Deployment` and `Domain` carry statuses of their own, so keying on
@@ -495,7 +495,7 @@ www.example.com domain created            (…updated)
 tok0001 token created
 www.example.com domain verification queued
 www.example.com domain deleted
-brave-otter-a1b2c3d.shipstatic.com deployment deleting — served until cleanup completes
+brave-otter-a1b2c3d.shipstatic.com deployment deleting: served until cleanup completes
 www.example.com domain is valid
 ```
 
@@ -740,43 +740,44 @@ the response.
 
 ### `formatOutput` Router: one table, both channels
 
-`SHAPES` in `formatters.ts` lists every response shape the CLI can receive, in
-resolution order, each stated ONCE with what both channels need: the key `-q`
-pipes forward, and the formatter text renders.
+`OUTPUTS` in `formatters.ts` holds every command's output, **keyed by what the
+command declared** (`resource.operation`, or `ping`), never by what the
+response looks like. Each row states once what both channels need: the key
+`-q` pipes forward, and the formatter text renders. Sniffing the payload would
+make resolution order load-bearing (`token` and `secret` overlap, and so do
+`domain` and `deployment`); keyed by identity, those ties cannot be written.
 
-| Discriminant | `-q` emits | Text |
+| Key | `-q` emits | Text |
 |---|---|---|
-| `deployments` | one id per row | `formatDeploymentsList` |
-| `domains` | one name per row | `formatDomainsList` |
-| `tokens` | one id per row | `formatTokensList` |
-| `records` | `<type> <name> <value>` per row | `formatDomainRecords` |
-| `hash` | the setup URL | `formatDomainShare` |
-| `dns` | the provider name, if resolved | `formatDomainDns` |
-| `domain` | the name | `formatDomain` (plain or `EnrichedDomain`), with the standing's next step per `DOMAIN_NEXT_STEP` |
-| `domain` (verify) | the name | `formatDomainVerify`: where to read the verdict, and the link step when nothing is linked. Not the standing's step |
-| `deployment` | the id | `formatDeployment` |
-| `secret` | the SECRET, shown once | `formatToken` |
-| `token` | the id | `formatToken` |
-| `email` | the address | `formatAccount` |
-| `valid` | the normalized name, or nothing | `formatDomainValidate` |
+| `deployment.list` | one id per row | `formatDeploymentsList` |
+| `deployment.upload`, `.get`, `.set` | the id | `formatDeployment` |
+| `domain.list` | one name per row | `formatDomainsList` |
+| `domain.get`, `.set` | the name | `formatDomain` (plain or `EnrichedDomain`), with the standing's next step per `DOMAIN_NEXT_STEP` |
+| `domain.verify` | the name | `formatDomainVerify`: where to read the verdict, and the link step when nothing is linked. Not the standing's step |
+| `domain.validate` | the normalized name, or nothing | `formatDomainValidate` |
+| `domain.records` | `<type> <name> <value>` per row | `formatDomainRecords` |
+| `domain.dns` | the provider name, if resolved | `formatDomainDns` |
+| `domain.share` | the setup URL | `formatDomainShare` |
+| `token.list` | one id per row | `formatTokensList` |
+| `token.create` | the SECRET, shown once | `formatToken` |
+| `token.get` | the id | `formatToken` |
+| `account.get` | the address | `formatAccount` |
+| `ping` | nothing | `api reachable` |
+| `*.delete` | the key | nothing: the sentence is the whole answer |
 
-Plus `(operation: 'ping')`, answered before the table: text says
-`api reachable`, `--json` transmits `{ timestamp }`, `-q` says nothing.
+`--json` is answered before the table, once, for every command: it emits the
+wire's own shape and never a sentence. In text, a mutation announces its
+sentence, then its row renders the entity it produced.
 
-**Order is load-bearing in two places, both ties:** `Domain` carries a
-`deployment` field, so `domain` precedes `deployment`; a token creation carries
-`token` and `secret`, so `secret` precedes `token`.
+`OUTPUTS` is **exported for two fences**. `tests/node/cli/formatters.unit.test.ts`
+pins a hand-written case per row, then asserts its own keys equal
+`Object.keys(OUTPUTS)`; `tests/architecture/sdk-cli-parity.test.ts` holds the
+table against the SDK's resource methods. **A fence quantifies over PRODUCTION
+and pins expectations by hand**; both sides hand-written is a mirror.
 
-`SHAPES` is **exported for the suite**: `tests/node/cli/formatters.unit.test.ts`
-pins a hand-written case per row, then asserts its own list deep-equals
-`SHAPES.map(s => s.on)`, which also enforces both ties. **A fence quantifies
-over PRODUCTION and pins expectations by hand**; both sides hand-written is a
-mirror.
-
-A shape with no row falls through to `formatDetails`, so a new response shape
-shows its content on the first run. A deletion short-circuits ahead of the
-table **in text mode only**; in `--json` it falls through to the one JSON exit,
-and `-q`'s quiet branch has already printed the key.
+A command with no row falls through to `formatDetails`, so it shows what
+arrived rather than the word "success"; the parity fence goes red before an
+unmapped command can be run.
 
 ### One step per standing
 
@@ -1268,7 +1269,7 @@ tests-browser/        # Capability tier: real Chromium (pnpm test:browser)
 - **New SDK method:** `@shipstatic/types` (interface) → `resources.ts` (path,
   verb, body, response type) → fixture → tests.
 - **New CLI command:** `cli/index.ts` (command + `withErrorHandling`) →
-  `cli/formatters.ts` (a `SHAPES` row or formatter if needed) → `cli/types.ts`
+  `cli/formatters.ts` (an `OUTPUTS` row, and a formatter if needed) → `cli/types.ts`
   (`CLIResult` union if needed) → tests.
 - **New shared utility:** `src/shared/lib/` → export from `lib/index.ts` if
   public → unit tests.

@@ -833,7 +833,7 @@ describe('CLI command tree (in-process)', () => {
       const result = await runProgram(['deployments', 'delete', SEEDED_SLUG]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe(
-        `${SEEDED} deployment deleting — served until cleanup completes\n\n`,
+        `${SEEDED} deployment deleting: served until cleanup completes\n\n`,
       );
     });
 
