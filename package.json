@@ -1,6 +1,6 @@
 {
   "name": "@shipstatic/ship",
-  "version": "3.10.0",
+  "version": "3.10.1-beta.0",
   "description": "CLI and SDK for ShipStatic. Deploy static websites, landing pages, and prototypes instantly from the terminal or code. Free, no account needed.",
   "type": "module",
   "main": "./dist/index.cjs",
