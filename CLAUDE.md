@@ -328,7 +328,9 @@ name as the body carries it, plus `PART_OVERHEAD`; one more `PART_OVERHEAD`
 is the closing delimiter. Text values are counted with line breaks as CRLF
 and filenames with their quote, CR and LF escaped, the HTML standard's
 multipart rules, so the count is a ceiling on what any runtime's `FormData`
-emits and a 413 on a planned request means the arithmetic is wrong.
+emits and a 413 on a planned request means the arithmetic is wrong. **The
+recorded break:** a CLI from before 3.7 sending a request between 64 and 100
+MiB meets the 413 whose sentence names the update.
 `bodyBytes` is the one count, read by the planner and by its fixture: the
 rows in `deploy-plan.test.ts` hold it against a real `FormData` on node and
 on Chromium, and two of them hold the value and the name counts EXACTLY, by
@@ -1831,7 +1833,7 @@ existing `ShipError`s through unchanged).
   fault, and each neighbouring arm would mis-serve it. It relays the sentence
   and appends the status URL but **never "try again"** — that advice belongs to
   the 5xx arm, which has nothing better to say, whereas a maintenance message
-  states when. See root `plan-maintenance-mode.md`.
+  states when.
 
 There is deliberately no JSON formatter in this module. `--json` serialization
 is `ShipError.toResponse()`, emitted by `error()` in `utils.ts` — a second
