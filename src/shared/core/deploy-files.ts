@@ -110,7 +110,7 @@ function requireLimits(platformLimits?: PlatformLimits): PlatformLimits {
   if (!platformLimits) {
     throw ShipError.config(
       'Platform limits not provided. Deploy-mode validation requires the limits ' +
-        'argument — pass `ship.getLimits()` result.',
+        'argument: pass the result of `ship.getLimits()`.',
     );
   }
   return platformLimits;

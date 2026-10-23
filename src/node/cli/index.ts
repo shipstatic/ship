@@ -354,7 +354,7 @@ function assertFlagsApply(program: Command, actionCommand: Command): void {
     const owners = ownersOf(program, long).map((p) => `ship ${p}`);
     throw usageError(
       `option '${long}' does not apply to 'ship ${pathOf(actionCommand)}'${
-        owners.length ? ` — it belongs to ${owners.join(', ')}` : ''
+        owners.length ? `: it belongs to ${owners.join(', ')}` : ''
       }`,
     );
   }
@@ -874,7 +874,7 @@ export function buildProgram(): Command {
       .option('--domain <domain>', 'Serve this deployment at a domain (needs a token)')
       .option('--label <label>', 'Label to add (can be repeated)', collect, [])
       .option('--password <password>', 'Password-protect this deployment')
-      .option('--ttl <duration>', 'Expire after this long — 3600, 1h, 7d (needs a token)', parseTtl)
+      .option('--ttl <duration>', 'Expire after this long: 3600, 1h, 7d (needs a token)', parseTtl)
       .option('--no-path-detect', 'Disable automatic path optimization and flattening')
       .option('--no-spa-detect', "Don't let the platform set up routing for a single-page app");
 
@@ -887,7 +887,7 @@ export function buildProgram(): Command {
 
   deploymentsCmd
     .command('list')
-    .description('List deployments (one page — see --limit and --cursor)')
+    .description('List deployments (one page; see --limit and --cursor)')
     .option('--limit <count>', 'Maximum number of results per page', parseInteger)
     .option('--cursor <cursor>', "Continue from a previous page's cursor")
     .action(
@@ -955,7 +955,7 @@ export function buildProgram(): Command {
 
   domainsCmd
     .command('list')
-    .description('List domains (one page — see --limit and --cursor)')
+    .description('List domains (one page; see --limit and --cursor)')
     .option('--limit <count>', 'Maximum number of results per page', parseInteger)
     .option('--cursor <cursor>', "Continue from a previous page's cursor")
     .action(
@@ -1105,7 +1105,7 @@ export function buildProgram(): Command {
 
   tokensCmd
     .command('list')
-    .description('List deploy tokens (one page — see --limit and --cursor)')
+    .description('List deploy tokens (one page; see --limit and --cursor)')
     .option('--limit <count>', 'Maximum number of results per page', parseInteger)
     .option('--cursor <cursor>', "Continue from a previous page's cursor")
     .action(
@@ -1119,7 +1119,7 @@ export function buildProgram(): Command {
   tokensCmd
     .command('create')
     .description('Create a new deploy token')
-    .option('--ttl <duration>', 'Expire after this long — 3600, 1h, 7d', parseTtl)
+    .option('--ttl <duration>', 'Expire after this long: 3600, 1h, 7d', parseTtl)
     .option(
       '--label <label>',
       'Label for the token and every deployment it uploads (can be repeated)',
@@ -1223,7 +1223,7 @@ export function buildProgram(): Command {
         // name. The report is gone; the wizard is all this is.
         if (options.json) {
           throw usageError(
-            'ship config is interactive — run it without --json (it shows the token already saved)',
+            'ship config is interactive: run it without --json (it shows the token already saved)',
           );
         }
         await runConfig({

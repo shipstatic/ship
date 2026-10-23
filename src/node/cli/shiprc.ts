@@ -85,7 +85,7 @@ function validateConfig(config: unknown, filepath: string): Partial<ShipClientOp
         if (legacy.length > 0) {
           const keys = legacy.map((key) => `"${key}"`).join(' and ');
           throw ShipError.config(
-            `Invalid config in ${filepath}: ${keys} ${legacy.length > 1 ? 'are' : 'is'} no longer supported — the key is now "token". Run \`ship config\` to rewrite it.`,
+            `Invalid config in ${filepath}: ${keys} ${legacy.length > 1 ? 'are' : 'is'} no longer supported. The key is now "token". Run \`ship config\` to rewrite it.`,
           );
         }
       }

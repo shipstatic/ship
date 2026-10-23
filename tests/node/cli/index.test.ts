@@ -775,7 +775,7 @@ describe('CLI command tree (in-process)', () => {
       await runProgram(['--json', DEMO_SITE]);
       const result = await runProgram(['deployments', 'list', '--limit', '1']);
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('more results available — rerun with --cursor');
+      expect(result.stdout).toContain('more results available: rerun with --cursor');
     });
 
     it('text mode prints no hint on the last page', async () => {

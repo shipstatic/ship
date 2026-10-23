@@ -189,7 +189,7 @@ describe('a file it cannot read is a file it must not replace', () => {
     // to read ship config …" vs "Invalid config in …: expected a mapping"),
     // and both are the reader's sentences. The clause this command adds is the
     // one fact only it can state.
-    await expect(runConfig({ noColor: true })).rejects.toThrow(/the file was left unchanged/);
+    await expect(runConfig({ noColor: true })).rejects.toThrow(/The file was left unchanged\./);
     expect(readFileSync(configPath, 'utf-8')).toBe(contents);
     expect(out.join('\n')).not.toContain('saved to');
   });

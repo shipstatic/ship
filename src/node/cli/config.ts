@@ -89,7 +89,7 @@ function readExistingConfig(configPath: string): Record<string, unknown> {
     return parseShipFile(configPath);
   } catch (err) {
     if (!isShipError(err)) throw err;
-    throw ShipError.config(`${err.message} — the file was left unchanged`);
+    throw ShipError.config(`${err.message.replace(/\.$/, '')}. The file was left unchanged.`);
   }
 }
 
@@ -146,7 +146,7 @@ export async function runConfig(
 
   if (dropped.length > 0) {
     warn(
-      `dropped ${dropped.map((key) => `"${key}"`).join(', ')} — a ship config holds only ${ALLOWED_KEYS.join(' and ')}`,
+      `dropped ${dropped.map((key) => `"${key}"`).join(', ')}: a ship config holds only ${ALLOWED_KEYS.join(' and ')}`,
       false,
       noColor,
     );

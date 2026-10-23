@@ -236,7 +236,7 @@ export function formatDeploymentsList(
  */
 function printCursorHint(cursor: string | null | undefined, noColor?: boolean): void {
   if (cursor) {
-    info(`more results available — rerun with --cursor ${cursor}`, false, noColor);
+    info(`more results available: rerun with --cursor ${cursor}`, false, noColor);
   }
 }
 

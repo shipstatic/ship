@@ -94,7 +94,7 @@ const fileTriggers = (program: Command): string[] => [
 ];
 
 const HEADER = (comment: string) =>
-  `${comment} ship shell completion — GENERATED from the command tree.\n` +
+  `${comment} ship shell completion, GENERATED from the command tree.\n` +
   `${comment} Do not edit: rendered by src/node/cli/completions.ts at install time,\n` +
   `${comment} so this file always matches the binary that wrote it.\n`;
 

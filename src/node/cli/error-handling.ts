@@ -129,7 +129,7 @@ export function getUserMessage(err: ShipError, options?: ErrorOptions): string {
   // advises a retry because it has nothing better to say, and here the message
   // itself says when.
   if (err.isType(ErrorType.Maintenance)) {
-    return `${err.message.replace(/\.$/, '')} — check https://status.shipstatic.com`;
+    return `${err.message.replace(/\.$/, '')}. Check https://status.shipstatic.com`;
   }
 
   // Client-attributable — a client-fault type, or any 4xx status (the guard
@@ -149,5 +149,5 @@ export function getUserMessage(err: ShipError, options?: ErrorOptions): string {
   // "server error: please try again" — the platform authored a message for the
   // user and one surface threw it away. The CLI ADDS the one thing it knows and
   // the server does not: where to look when it keeps happening.
-  return `${err.message.replace(/\.$/, '')} — try again, or check https://status.shipstatic.com`;
+  return `${err.message.replace(/\.$/, '')}. Try again, or check https://status.shipstatic.com`;
 }

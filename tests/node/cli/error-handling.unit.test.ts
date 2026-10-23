@@ -106,7 +106,7 @@ describe('CLI Error Handling', () => {
         const gateway = new ShipError(ErrorType.Api, 'Upstream timed out', 504);
 
         expect(getUserMessage(gateway)).toBe(
-          'Upstream timed out — try again, or check https://status.shipstatic.com',
+          'Upstream timed out. Try again, or check https://status.shipstatic.com',
         );
       });
     });
@@ -184,7 +184,7 @@ describe('CLI Error Handling', () => {
         const message = getUserMessage(err);
 
         expect(message).toBe(
-          'Internal server error — try again, or check https://status.shipstatic.com',
+          'Internal server error. Try again, or check https://status.shipstatic.com',
         );
       });
 
@@ -212,7 +212,7 @@ describe('CLI Error Handling', () => {
         const message = getUserMessage(err);
 
         expect(message).toBe(
-          'ShipStatic is briefly down for scheduled maintenance and will be back shortly — check https://status.shipstatic.com',
+          'ShipStatic is briefly down for scheduled maintenance and will be back shortly. Check https://status.shipstatic.com',
         );
         expect(message).not.toContain('try again');
       });
@@ -231,7 +231,7 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe('Error — try again, or check https://status.shipstatic.com');
+        expect(message).toBe('Error. Try again, or check https://status.shipstatic.com');
       });
 
       it('should handle error with null details', () => {
@@ -239,7 +239,7 @@ describe('CLI Error Handling', () => {
 
         const message = getUserMessage(err);
 
-        expect(message).toBe('Error — try again, or check https://status.shipstatic.com');
+        expect(message).toBe('Error. Try again, or check https://status.shipstatic.com');
       });
 
       it("a cancellation is the caller's own action, never a server fault", () => {

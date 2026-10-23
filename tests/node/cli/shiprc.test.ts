@@ -233,7 +233,7 @@ describe('CLI shiprc loader', () => {
       process.chdir(dirs.project);
 
       expect(() => loadShipFile()).toThrow(
-        /"apiKey" is no longer supported — the key is now "token"/,
+        /"apiKey" is no longer supported. The key is now "token"/,
       );
     });
 
