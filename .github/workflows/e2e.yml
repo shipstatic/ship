@@ -19,8 +19,8 @@
 # secrets, never in this tracked file (the public-value law).
 #
 # One caveat worth knowing before hand-dispatching in a burst: the
-# anonymous-ttl row spends a slot of the dev API's anonymous issuance budget
-# per run (agent: 5/hr per IP), because the limiter runs before the
+# anonymous-ttl row spends a slot of the dev API's anonymous budget per run,
+# because the limiter runs before the
 # orchestrator refuses. The daily cadence is far inside it; several dispatches
 # inside one hour turn that row's `Forbidden` into a `RateLimit`. The row's own
 # comment in `tests/contract.ts` carries the signature.

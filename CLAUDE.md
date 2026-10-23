@@ -110,7 +110,7 @@ ship.whoami()                  // → account.get()
 
 // Top-level
 ship.ping()                    // returns PingResponse ({ timestamp })
-ship.getLimits()               // returns PlatformLimits (cached after init)
+ship.getLimits()               // returns PlatformLimits (asks the server every time)
 ship.setToken(token)           // any platform token, or a TokenProvider
 ship.setHeaders(headers)       // global headers on every request (lowest priority)
 ship.clearHeaders()
@@ -365,16 +365,16 @@ When `build` or `prerender` is set on `DeploymentUploadOptions`, the SDK delegat
 - **`deployFields`** appends `build=true` / `prerender=true` to the declaration
 
 **Only browser callers set them, and that asymmetry lives in the CALLERS.**
-`web/my` and `web/www` are browser apps and reach `/upload`; Node has no such
-caller, and its own unbuilt-marker precheck would refuse a project folder before
+The platform's own web apps are browser apps and reach `/upload`; Node has no
+such caller, and its own unbuilt-marker precheck would refuse a project folder before
 the walk in any case. The browser processor carried a whole second copy of the
 per-file loop for this mode until 2026-08-12 — a third statement of "skip empty,
 checksum, push" — which is what the shared pipeline deleted. What did not move
 is which platform's users can set the flags.
 
-These are `@internal` flags — only used by `web/my` and `web/www` via the `/upload` endpoint. External clients (SDK, CLI, integrations) never set them. They deploy through `/deployments`, which builds nothing: builds happen locally before upload.
+These are `@internal` flags, used only by the platform's own web apps through `/upload`. External clients (SDK, CLI, integrations) never set them. They deploy through `/deployments`, which builds nothing: builds happen locally before upload.
 
-`captcha` rides the same internal tier: `web/www`'s public uploader passes the reCAPTCHA proof as a deploy option, the body creators append it as a form field, and the API grants the public-account agent identity per request. First-party only — every other anonymous deploy is the credential-less `/deployments` path, which needs no proof.
+`captcha` rides the same internal tier: the platform's public uploader passes its proof as a deploy option and the body creators append it as a form field. First-party only; every other anonymous deploy is the credential-less `/deployments` path, which needs no proof.
 
 ## CLI Patterns
 
@@ -428,8 +428,8 @@ the key, **`--json`** transmits the shape through the single JSON exit in
 carries the resource's own state field only where the resource survived
 mid-transition, so that field is how a surface knows whether to speak in the
 past. `DELETE /deployments/:deployment` answers **202**, marks the row
-`deleting`, and queues the cleanup; the router serves from KV with no status
-gate, so the files stay public until the queue drains (~26s measured). The CLI
+`deleting`, and queues the cleanup; the files stay served until the
+platform's cleanup finishes. The CLI
 read the acknowledgement's key, discarded its `status`, and said "deleted"
 anyway — a completed past tense over a live site, which is precisely backwards
 for someone deleting a deployment BECAUSE it exposed something. `--json` was
@@ -1605,7 +1605,7 @@ Two mechanical notes. The failure notice sits in its own job under
 alerts webhook must never sit beside it (root `CLAUDE.md`, the
 one-job-one-credential law and "CI notifications"). And a burst of hand dispatches can flip the
 anonymous-ttl row's `Forbidden` into a `RateLimit`: each run spends a slot of
-the dev API's anonymous issuance budget (agent: 5/hr per IP), since the limiter
+the dev API's anonymous budget, since the limiter
 runs before the orchestrator refuses. The daily cadence is far inside it; that
 row's own comment in `tests/contract.ts` carries the signature.
 
@@ -1650,7 +1650,7 @@ is not named here by full basename.
 | Module | Files | Why |
 |---|---|---|
 | `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-events`, `http-rate-limit`, `http-retry`, `http-timeout` | The transport's cross-cutting concerns, one file each. `http.test.ts` is the anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler. It was three files longer until 2026-08-12 — `http-domains`, `http-tokens` and `http-browser` named halves of an endpoint table that has since folded down into `resources.ts`, and they moved with their subject. |
-| `src/shared/base-ship.ts` | `base-ship`, `base-ship-credentials`, `base-ship-lifecycle`, `base-ship-limits` | Three separable doctrines on one class: the credential slot, the init/auth lifecycle, and the one-shot `/limits` cache. |
+| `src/shared/base-ship.ts` | `base-ship`, `base-ship-credentials`, `base-ship-lifecycle`, `base-ship-limits` | Three separable doctrines on one class: the credential slot, the init/auth lifecycle, and `getLimits`, which asks the server every time. |
 | `src/shared/resources.ts` | `resources-account`, `resources-deployments`, `resources-domains`, `resources-paths`, `resources-tokens` | One file per resource factory — a single file would be a grab bag with no reason to read any part of it — plus `resources-paths`, which is not a resource but the one thing none of them can assert: the URL each builds. The four resource files drive a real `Ship` against the wire-truth handler, and a mock server that ROUTED a request has already forgiven whatever the client did to the URL on the way in, so path encoding and pagination serialization need a stubbed `fetch` and a string comparison. |
 | `src/shared/types.ts` | `types-reexport` | Not a test of the module's own types but of the **freshness** of what it re-exports — a bundled-dependency fence. |
 
@@ -2004,8 +2004,8 @@ validation error made with no request (`deployments.upload (no index.html)`).
 | `tokens.delete()` | `DELETE /tokens/:token` | 200 `{token}` — resolved, not discarded |
 | `account.get()` | `GET /account` | Resolves `Account`, which names the account it describes (`account`). The SDK itself sends no `X-Account`: a key, a deploy token or an OAuth grant is its account, and a browser host in session mode names the account through its own `fetch` (the console does) |
 | `ping()` | `GET /ping` | Resolves `PingResponse` (`{timestamp}`) — reachability is the absence of a throw, so there is no boolean to read |
-| `getLimits()` | `GET /limits` | Cached after init. Carries the plan caps **and** `blockedExtensions` — the platform's hosting blocklist, optional (an older API sends none) |
-| (internal) | `POST /upload` | Only via the `@internal` `deployEndpoint` option (`web/my`, `web/www`) |
+| `getLimits()` | `GET /limits` | Asks the server every time. Carries the plan caps **and** `blockedExtensions` — the platform's hosting blocklist, optional (an older API sends none) |
+| (internal) | `POST /upload` | Only via the `@internal` `deployEndpoint` option, for the platform's own web apps |
 
 **Deploy requests get their own timeout ceilings: three budgets, one per kind of work.** 30s is right for a metadata read, where anything slower is a fault rather than a payload. A deploy request is bounded by the request ceiling instead: one carries at most `DEPLOY_REQUEST_CONSTRAINTS.MAX_BYTES` (64 MiB), and a larger deployment is sent in several requests, each with a ceiling of its own. `DEFAULT_DEPLOY_TIMEOUT` is 5 minutes: at `UPLOAD_FLOOR_BITS_PER_SECOND` (2.5 Mbit/s, stated beside it) the largest request transfers in about 215 s, which leaves about 85 s for the server's own work on it. `http-timeout.test.ts` holds that sum, so a bigger request cannot silently outrun the ceiling.
 
@@ -2024,10 +2024,8 @@ the loop never retries past a signal the caller supplied. See "Retries" below. T
 **Routes the API exposes that the SDK does not reach.** Two classes — do not
 conflate them:
 
-*Settled (first-party or operator surfaces; the SDK is not their client):*
-`/billing/*`, `/admin/*`, `/setup`, `/webhooks/*`, `/auth/*`,
-`PUT /account/key`, `POST /account/claim`, `DELETE /account`,
-`GET /deployments/:deployment/config`, `GET /domains/:domain/propagation`.
+*Settled:* first-party and operator routes are not the SDK's to reach; the SDK
+is the client of the public API only.
 
 *Settled by decision:* **`GET /activities` stays out of the SDK** (decided
 2026-07-28). It paginates like every other collection on the API side, but
