@@ -30,7 +30,7 @@ import { getMockServerUrl, resetMockServer } from '../mocks/server';
 const DEPLOYMENT = deploymentId();
 /** A platform domain: `<label>.shipstatic.com`. */
 const PLATFORM = platformDomain('preview-site');
-/** Anything not under the platform domain is custom. */
+/** Anything not under the serve domain is custom. */
 const CUSTOM = 'www.example.com';
 
 describe('domain operations', () => {
