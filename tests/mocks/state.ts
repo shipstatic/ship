@@ -22,6 +22,7 @@ import type {
 } from '@shipstatic/types';
 import {
   claimUrl,
+  DOMAIN,
   deploymentId,
   deployToken,
   FREE_PLAN_LIMITS,
@@ -29,7 +30,6 @@ import {
   makeDeployment,
   makeDomain,
   makeToken,
-  PLATFORM_DOMAIN,
   PUBLIC_TTL_SECONDS,
   platformDomain,
   timestamps,
@@ -117,7 +117,7 @@ export function createMockState(
       // Deterministic and shaped like the real thing: `word-word-alnum7`.
       const slug = `mock-deploy-${String(deploymentCounter).padStart(3, '0')}`;
       const deployment = makeDeployment({
-        deployment: `${slug}.${PLATFORM_DOMAIN}`,
+        deployment: `${slug}.${DOMAIN}`,
         created: now,
         // The real orchestrator persists the form's labels/via/password and
         // echoes them on the response. wire: lib/deployment-orchestrator.ts

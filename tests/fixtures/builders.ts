@@ -31,11 +31,14 @@ import { API_KEY, DEPLOY_TOKEN, OAUTH_TOKEN } from '@shipstatic/types';
 // PLATFORM CONSTANTS (wire truth)
 // =============================================================================
 
-/** The mock platform's domain. Production is the only public value. */
-export const PLATFORM_DOMAIN = 'shipstatic.com';
+/**
+ * The mock platform's `env.DOMAIN`: its serve domain and its control plane's.
+ * Production is the only public value.
+ */
+export const DOMAIN = 'shipstatic.com';
 
 /** `getCnameTarget(env.DOMAIN)` — wire: cloudflare/shared/domain.ts:18 */
-export const CNAME_TARGET = `cname.${PLATFORM_DOMAIN}`;
+export const CNAME_TARGET = `cname.${DOMAIN}`;
 
 /** The platform's real A record. wire: wrangler.{dev,prod}.jsonc `A_RECORD_IP` */
 export const A_RECORD_IP = '15.204.149.253';
@@ -130,7 +133,7 @@ export const timestamps = {
  * `isDeployment` in `@shipstatic/types` requires `word-word-alnum7`. Anything
  * else is an impossible input — `PUT /domains/:d` rejects it at the schema.
  */
-export const deploymentId = (slug = 'brave-otter-a1b2c3d') => `${slug}.${PLATFORM_DOMAIN}`;
+export const deploymentId = (slug = 'brave-otter-a1b2c3d') => `${slug}.${DOMAIN}`;
 
 /**
  * The three prefixed credential populations, built from their own shape
@@ -161,13 +164,13 @@ export const oauthToken = (fill = 'c') =>
  * it carries no population prefix. wire: deployment-orchestrator.ts
  */
 export const claimUrl = (code = 'c'.repeat(API_KEY.HEX_LENGTH)) =>
-  `https://my.${PLATFORM_DOMAIN}/claim/${code}`;
+  `https://my.${DOMAIN}/claim/${code}`;
 
 /** A platform domain label must be at least 6 chars. wire: createDomainCreateSchema */
-export const platformDomain = (label = 'staging-site') => `${label}.${PLATFORM_DOMAIN}`;
+export const platformDomain = (label = 'staging-site') => `${label}.${DOMAIN}`;
 
 /** Suffix match, exactly like `isCustomDomain` — NOT `name.includes('.')`. */
-export const isCustomDomain = (domain: string) => !domain.endsWith(`.${PLATFORM_DOMAIN}`);
+export const isCustomDomain = (domain: string) => !domain.endsWith(`.${DOMAIN}`);
 
 // =============================================================================
 // BUILDERS
@@ -188,7 +191,7 @@ export function makeDeployment(overrides: Partial<Deployment> = {}): Deployment 
     via: null,
     created: timestamps.jan2022,
     expires: null,
-    screenshot: `https://screenshots.${PLATFORM_DOMAIN}/${slug}/0123456789abcdef`,
+    screenshot: `https://screenshots.${DOMAIN}/${slug}/0123456789abcdef`,
     ...overrides,
   } satisfies Deployment;
 }
