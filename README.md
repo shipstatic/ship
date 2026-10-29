@@ -30,7 +30,7 @@ const result = await new Ship().deploy('./dist');
 
 ## Keep your sites with a free account
 
-Everything above works with no account. A free account keeps your sites for good, lets you use your own domain, and shows you everything you've published in one place.
+Everything above works with no account. A free account keeps your sites for good, gives you a ShipStatic domain like `yourname.shipstatic.com`, and shows you everything you've published in one place. A custom domain like `www.example.com` needs a paid plan.
 
 Get your free API key at [my.shipstatic.com/api-key](https://my.shipstatic.com/api-key), then save it once:
 
