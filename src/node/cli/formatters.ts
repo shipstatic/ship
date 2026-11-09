@@ -59,7 +59,7 @@ function readField(source: object, field: string): unknown {
  * `DeploymentDeleteResponse`); a hard delete has no state left to state.
  *
  * The tense is not a style question. `DELETE /deployments/:deployment` answers
- * **202**, marks the row `deleting`, and queues the cleanup; the router serves
+ * **202**, marks the row `deleting`, and queues the cleanup; the serving worker serves
  * from KV with no status gate, so the files stay public until that queue
  * drains (~26s measured). Saying "deleted" is exactly backwards for someone
  * deleting a deployment BECAUSE it exposed something.
