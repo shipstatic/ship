@@ -126,8 +126,8 @@ describe('bodyBytes: a ceiling on what the runtime serializes', () => {
     ],
     [
       'the longest non-ASCII deploy path',
-      // 333 three-byte characters and one more byte: 1000 bytes, the path ceiling.
-      [real(`${'é'.repeat(499)}x`, 'x'), real(`${'日'.repeat(333)}a`, 'y')],
+      // 331 three-byte characters and three more bytes: 996 bytes, the path ceiling.
+      [real(`${'é'.repeat(497)}xx`, 'x'), real(`${'日'.repeat(331)}abc`, 'y')],
       { labels: ['env:production', 'team:web'], via: 'cli' as const, ttl: 3600 },
     ],
   ])('holds for %s', async (_case, files, context) => {
