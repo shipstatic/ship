@@ -206,10 +206,10 @@ describe('CLI command tree (in-process)', () => {
       expect(result.stdout).toContain('status:');
     });
 
-    it('a nonexistent path that looks like a path reports "path does not exist"', async () => {
+    it('a nonexistent path that looks like a path is reported as not found, by name', async () => {
       const result = await runProgram(['./no-such-directory-here']);
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('path does not exist');
+      expect(result.stderr).toContain('couldn\'t find "./no-such-directory-here"');
     });
 
     it('accepts --no-path-detect and --no-spa-detect', async () => {

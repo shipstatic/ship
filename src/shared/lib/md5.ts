@@ -1,55 +1,44 @@
 /**
- * @file MD5 utility for Blob, Buffer, or file path inputs.
+ * @file MD5 of a file's bytes: the digest a deployment's manifest names for
+ * each file, which storage holds the file's bytes to.
  */
-import { ShipError } from '@shipstatic/types';
 
-export interface MD5Result {
-  md5: string;
+const SLICE_BYTES = 2 * 1024 * 1024;
+
+/** A running MD5: it takes bytes, then answers the digest in hex. */
+interface Hash {
+  update(bytes: ArrayBuffer): void;
+  digest(): string;
 }
 
-async function md5Blob(blob: Blob): Promise<MD5Result> {
-  const SparkMD5 = (await import('spark-md5')).default;
-  const spark = new SparkMD5.ArrayBuffer();
-  const chunkSize = 2097152; // 2 MB
-  for (let start = 0; start < blob.size; start += chunkSize) {
-    const end = Math.min(start + chunkSize, blob.size);
-    spark.append(await blob.slice(start, end).arrayBuffer());
+/**
+ * The runtime's own MD5 where it has one, and `spark-md5` where it does not:
+ * Node has `crypto`, and a browser has no MD5 at all. The browser build
+ * resolves `crypto` to an empty module, so the same question is asked of both.
+ */
+async function createHash(): Promise<Hash> {
+  // biome-ignore lint/style/useNodejsImportProtocol: the browser build aliases the bare specifier to an empty module, and `node:` would bypass the alias (tsup.config.ts)
+  const { createHash: nodeHash } = await import('crypto');
+  if (nodeHash) {
+    const hash = nodeHash('md5');
+    return {
+      update: (bytes) => void hash.update(new Uint8Array(bytes)),
+      digest: () => hash.digest('hex'),
+    };
   }
-  return { md5: spark.end() };
+  const { default: SparkMD5 } = await import('spark-md5');
+  const spark = new SparkMD5.ArrayBuffer();
+  return { update: (bytes) => void spark.append(bytes), digest: () => spark.end() };
 }
 
-async function md5Buffer(buffer: Buffer): Promise<MD5Result> {
-  // biome-ignore lint/style/useNodejsImportProtocol: the browser build shims bare specifiers only — `node:` bypasses esbuild alias resolution (see tsup.config.ts)
-  const { createHash } = await import('crypto');
-  const hash = createHash('md5');
-  hash.update(buffer);
-  return { md5: hash.digest('hex') };
-}
-
-async function md5Path(path: string): Promise<MD5Result> {
-  // biome-ignore lint/style/useNodejsImportProtocol: see md5Buffer — bare specifier is load-bearing for the browser shim
-  const { createHash } = await import('crypto');
-  // biome-ignore lint/style/useNodejsImportProtocol: see md5Buffer — bare specifier is load-bearing for the browser shim
-  const { createReadStream } = await import('fs');
-  return new Promise((resolve, reject) => {
-    const hash = createHash('md5');
-    const stream = createReadStream(path);
-    // A local read that failed — no request was made and no server rule was
-    // being mirrored, so there is no status to report and this is the `File`
-    // type by definition (see CLAUDE.md, "What a status means"). The path
-    // rides `details`, per the factory's own convention, rather than being
-    // spelled into prose twice.
-    stream.on('error', (err) =>
-      reject(ShipError.file(`Failed to read file for MD5: ${err.message}`, { filePath: path })),
-    );
-    stream.on('data', (chunk) => hash.update(chunk));
-    stream.on('end', () => resolve({ md5: hash.digest('hex') }));
-  });
-}
-
-export async function calculateMD5(input: Blob | Buffer | string): Promise<MD5Result> {
-  if (input instanceof Blob) return md5Blob(input);
-  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(input)) return md5Buffer(input);
-  if (typeof input === 'string') return md5Path(input);
-  throw ShipError.business('Invalid input for MD5 calculation');
+/**
+ * The MD5 of a file's bytes, as 32 lowercase hex characters. Read one slice
+ * at a time, so a file is never held whole to be hashed.
+ */
+export async function calculateMD5(content: Blob): Promise<string> {
+  const hash = await createHash();
+  for (let start = 0; start < content.size; start += SLICE_BYTES) {
+    hash.update(await content.slice(start, start + SLICE_BYTES).arrayBuffer());
+  }
+  return hash.digest();
 }

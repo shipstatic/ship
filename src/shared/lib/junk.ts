@@ -1,123 +1,59 @@
 /**
- * @file Utility for filtering out junk files and directories from file paths
- *
- * This module provides functionality to filter out common system junk files and directories
- * from a list of file paths. It uses the 'junk' package to identify junk filenames and
- * a custom list to filter out common junk directories.
+ * @file A site's junk: the files a tool or an operating system leaves in a
+ * folder, which are set aside before a deployment's files are named or judged.
  */
 
 import { hasUnbuiltMarker } from '@shipstatic/types';
 import { isJunk } from 'junk';
 
 /**
- * List of directory names considered as junk
- *
- * Files within these directories (at any level in the path hierarchy) will be excluded.
- * The comparison is case-insensitive for cross-platform compatibility.
+ * Folders an operating system adds beside a person's files. A file inside one,
+ * at any depth, is junk. Compared without case.
  *
  * @internal
  */
 export const JUNK_DIRECTORIES = ['__MACOSX', '.Trashes', '.fseventsd', '.Spotlight-V100'] as const;
 
 /**
- * Filters an array of file paths, removing those considered junk
+ * The paths that are not junk, in order.
  *
- * Throws if any path contains an unbuilt project marker (e.g. `node_modules`, `package.json`).
- * This check runs first because the dot-file filter below would strip paths like
- * `node_modules/.pnpm/...`, destroying the evidence.
+ * A path is junk when:
+ * 1. its file name is one the `junk` package knows (`.DS_Store`, `Thumbs.db`);
+ * 2. any of its segments starts with a dot (`.env`, `.git/`), since those
+ *    hold configuration or are not meant to be served. `.well-known` is kept
+ *    (RFC 8615);
+ * 3. any of its folders is in {@link JUNK_DIRECTORIES}.
  *
- * A path is filtered out if any of these conditions are met:
- * 1. The basename is identified as junk by the 'junk' package (e.g., .DS_Store, Thumbs.db)
- * 2. Any path segment starts with a dot (e.g., .env, .git, .htaccess)
- *    Exception: `.well-known` is allowed (RFC 8615 — ACME, security.txt, app links)
- * 3. Any path segment exceeds 255 characters (filesystem limit)
- * 4. Any directory segment in the path matches an entry in JUNK_DIRECTORIES (case-insensitive)
+ * It sets aside and judges nothing. A project's files (`node_modules`,
+ * `package.json`) are kept even under a dot folder such as pnpm's
+ * `node_modules/.pnpm/`, so the deploy rules refuse an unbuilt project by
+ * name; and a path that cannot be published for any other reason (a segment
+ * too long, a name with unsafe characters) is kept for those rules to refuse
+ * in words. Dropping it here would publish the site without the file and tell
+ * nobody.
  *
- * All path separators are normalized to forward slashes for consistent cross-platform behavior.
- *
- * Dot files are filtered for security — they typically contain sensitive configuration
- * (.env, .git) or are not meant to be served publicly. This matches server-side filtering.
- *
- * It judges a SITE's files. A project sent for building is never filtered
- * here: its source is decided by `@shipstatic/drop`'s `projectSource`, and
- * a dot file a build reads is source rather than junk.
- *
- * @param filePaths - An array of file path strings to filter
- * @returns A new array containing only non-junk file paths
+ * It reads a SITE's files. A project sent for building is never filtered: its
+ * source is decided by `@shipstatic/drop`, and a dot file a build reads is
+ * source.
  *
  * @example
- * ```typescript
- * import { filterJunk } from '@shipstatic/ship';
- *
- * // Filter an array of file paths
- * const paths = ['index.html', '.DS_Store', '.gitattributes', '__MACOSX/file.txt', 'app.js'];
- * const clean = filterJunk(paths);
- * // Result: ['index.html', 'app.js']
- * ```
- *
- * @example
- * ```typescript
- * // Use with browser File objects
- * import { filterJunk } from '@shipstatic/ship';
- *
- * const files: File[] = [...]; // From input or drag-drop
- *
- * // Extract paths from File objects
- * const filePaths = files.map(f => f.webkitRelativePath || f.name);
- *
- * // Filter out junk paths
- * const validPaths = new Set(filterJunk(filePaths));
- *
- * // Filter the original File array
- * const validFiles = files.filter(f =>
- *   validPaths.has(f.webkitRelativePath || f.name)
- * );
- * ```
+ * filterJunk(['index.html', '.DS_Store', '.gitattributes', '__MACOSX/file.txt', 'app.js']);
+ * // ['index.html', 'app.js']
  */
 export function filterJunk(filePaths: string[]): string[] {
-  if (!filePaths || filePaths.length === 0) {
-    return [];
-  }
-
   return filePaths.filter((filePath) => {
-    if (!filePath) {
-      return false; // Exclude null or undefined paths
-    }
-
-    // A project's files are not junk: they are kept for the deploy rules to
-    // refuse by name ("project"). pnpm keeps them under node_modules/.pnpm/,
-    // which the dot-file filter below would otherwise drop, taking the only
-    // sign of an unbuilt project with it.
+    if (!filePath) return false;
     if (hasUnbuiltMarker(filePath)) return true;
 
-    // Normalize path separators to forward slashes and split into segments
-    const parts = filePath.replace(/\\/g, '/').split('/').filter(Boolean);
-    if (parts.length === 0) return true;
+    const segments = filePath.replace(/\\/g, '/').split('/').filter(Boolean);
+    const folders = segments.slice(0, -1);
+    const isJunkFolder = (folder: string) =>
+      JUNK_DIRECTORIES.some((junk) => junk.toLowerCase() === folder.toLowerCase());
 
-    // Check if the basename is a junk file (using junk package)
-    const basename = parts[parts.length - 1];
-    if (isJunk(basename)) {
-      return false;
-    }
-
-    // Filter out dot files and directories (security: prevents .env, .git, etc.)
-    // .well-known is not junk — it's a standard directory (RFC 8615)
-    // Path position constraints enforced at upload (buildFileKey) and serving (isBlockedDotFile)
-    for (const part of parts) {
-      if (part === '.well-known') continue;
-      if (part.startsWith('.') || part.length > 255) {
-        return false;
-      }
-    }
-
-    // Check if any directory segment is in our junk directories list
-    const directorySegments = parts.slice(0, -1);
-    for (const segment of directorySegments) {
-      if (JUNK_DIRECTORIES.some((junkDir) => segment.toLowerCase() === junkDir.toLowerCase())) {
-        return false;
-      }
-    }
-
-    return true;
+    return !(
+      isJunk(segments.at(-1) ?? '') ||
+      segments.some((segment) => segment.startsWith('.') && segment !== '.well-known') ||
+      folders.some(isJunkFolder)
+    );
   });
 }

@@ -8,6 +8,7 @@ export { ErrorType, ShipError } from '@shipstatic/types';
 export * from './api/http.js';
 export { Ship } from './base-ship.js';
 export * from './core/constants.js';
+export { unreadable } from './core/deploy-files.js';
 export * from './lib/deploy-paths.js';
 export * from './lib/env.js';
 export * from './lib/file-validation.js';

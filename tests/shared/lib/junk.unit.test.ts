@@ -4,12 +4,8 @@ import { filterJunk } from '../../../src/shared/lib/junk';
 // The filterJunk function itself uses it internally.
 
 describe('filterJunk', () => {
-  it('should return an empty array if input is empty or null', () => {
+  it('answers nothing for no paths', () => {
     expect(filterJunk([])).toEqual([]);
-    // @ts-expect-error testing null explicitly
-    expect(filterJunk(null)).toEqual([]);
-    // @ts-expect-error testing undefined explicitly
-    expect(filterJunk(undefined)).toEqual([]);
   });
 
   it('should filter files based on junk.isJunk() for basenames', () => {
@@ -156,24 +152,15 @@ describe('filterJunk', () => {
     expect(filterJunk(files)).toEqual(['.well-known/security.txt']);
   });
 
-  it('should filter path segments exceeding 255 characters', () => {
-    // Path segments (directory or filename) are checked individually
-    // Each segment must be <= 255 characters
-    const okSegment = 'a'.repeat(255); // 255 chars - OK
-    const tooLongSegment = 'b'.repeat(256); // 256 chars - filtered
-
-    const files = [
+  it('keeps a name that is too long: the deploy rules refuse it in words', () => {
+    // Left out here, the site would go live without the file and nobody
+    // would be told.
+    const tooLong = `${'b'.repeat(256)}.js`;
+    expect(filterJunk(['index.html', tooLong, `dir/${tooLong}`])).toEqual([
       'index.html',
-      `${okSegment}.txt`, // Filename "aaa...aaa.txt" = 259 chars - filtered (> 255)
-      `dir/${okSegment}/file.txt`, // Directory "aaa...aaa" = 255 chars - OK
-      `dir/${tooLongSegment}/file.txt`, // Directory "bbb...bbb" = 256 chars - filtered
-    ];
-
-    const expected = [
-      'index.html',
-      `dir/${okSegment}/file.txt`, // Only this passes (all segments <= 255)
-    ];
-    expect(filterJunk(files)).toEqual(expected);
+      tooLong,
+      `dir/${tooLong}`,
+    ]);
   });
 });
 

@@ -306,6 +306,27 @@ describe('the idempotent request option', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('does not send a file that changed under the request again', async () => {
+    // What Node's fetch rejects with when a file in the body changed after it
+    // was picked. Read as transport, a fill would be sent three times and the
+    // person told to check their connection.
+    const unreadable = Object.assign(new Error('The blob could not be read'), {
+      name: 'NotReadableError',
+    });
+    const fetchImpl = vi.fn(async () => {
+      throw Object.assign(new TypeError('fetch failed'), { cause: unreadable });
+    });
+
+    const error = await transport(fetchImpl)
+      .request('/x', { method: 'POST', idempotent: true }, 'Deploy')
+      .catch((e: ShipError) => e);
+
+    if (!(error instanceof ShipError)) throw new Error('expected a refusal');
+    expect(error.type).toBe(ErrorType.File);
+    expect(error.message).toBe('A file changed while it was being uploaded. Deploy again.');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('is this client’s word, so it never reaches fetch', async () => {
     const fetchImpl = vi.fn(async (_url: unknown, _init?: RequestInit) => ok({}));
     await transport(fetchImpl).request('/x', { method: 'POST', idempotent: true }, 'Op');

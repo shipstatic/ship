@@ -1,120 +1,150 @@
 /**
  * @file The Node half of the deploy pipeline: finding files on a filesystem.
  *
- * Everything after the finding is shared (`shared/core/deploy-files.ts`) —
- * path optimization, junk filtering, the platform's rules, the digests.
- * What is genuinely Node here is a directory walk with symlink-cycle
- * protection, a content path computed against the upload root, and the fact
- * that a Node user can point at a project folder and mean `dist/`.
+ * Everything after the finding is shared (`shared/core/deploy-files.ts`).
+ * What is Node's own is a walk that follows no link, a path for each file
+ * relative to the path the person typed, and the fact that a person can type
+ * a project folder and mean the folder its build makes.
  */
 
-import * as fs from 'node:fs';
+import { openAsBlob } from 'node:fs';
+import { lstat, readdir, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import type { PlatformLimits } from '@shipstatic/types';
-import { isShipError, ShipError, UNBUILT_PROJECT_MARKERS } from '@shipstatic/types';
-import { type DeploySource, processDeployFiles } from '../../shared/core/deploy-files.js';
+import { ShipError, UNBUILT_PROJECT_MARKERS } from '@shipstatic/types';
+import { type DeploySource, processDeployFiles, reading } from '../../shared/core/deploy-files.js';
 import { getENV } from '../../shared/lib/env.js';
-import { findCommonParent } from '../../shared/lib/path.js';
 import type { DeploymentOptions, StaticFile } from '../../shared/types.js';
 
-/** A file the walk found, carrying the size the walk already had to ask for. */
+/** An entry the walk found, with the size the filesystem states for it. */
 interface FoundFile {
   absPath: string;
   size: number;
+  /** A link is found and never followed. */
+  link: boolean;
+}
+
+/** What one typed path gives the deploy: its files, and the folder they are named from. */
+interface Found {
+  base: string;
+  files: FoundFile[];
 }
 
 /**
- * Walk a directory and return every file under it.
+ * Every file under a folder, and every link, which is found as an entry and
+ * never followed. Anything else a folder can hold (a socket, a pipe) is not a
+ * file and is not found.
  *
- * Sizes come from the `statSync` this walk performs anyway to tell a
- * directory from a file, which is what lets the shared processor skip empty
- * files without opening one. The pipeline used to stat every file a SECOND
- * time to learn the same number.
- *
- * @param dirPath - Directory to traverse
- * @param visited - Real paths already walked, so a symlink cycle terminates
+ * The walk reads no link, so it cannot leave the folder it was given and
+ * cannot go round. A folder someone else made can hold a link to anywhere on
+ * this computer, and following it would publish files the person never chose,
+ * under a name the dot-file rule cannot see through.
  */
-function findAllFiles(dirPath: string, visited: Set<string> = new Set()): FoundFile[] {
-  const results: FoundFile[] = [];
-
-  // Resolve the real path to detect symlink cycles.
-  const realPath = fs.realpathSync(dirPath);
-  if (visited.has(realPath)) return results;
-  visited.add(realPath);
-
-  for (const entry of fs.readdirSync(dirPath)) {
-    const fullPath = path.join(dirPath, entry);
-    const stats = fs.statSync(fullPath);
-
-    if (stats.isDirectory()) results.push(...findAllFiles(fullPath, visited));
-    else if (stats.isFile()) results.push({ absPath: fullPath, size: stats.size });
+async function findFiles(folder: string): Promise<FoundFile[]> {
+  const files: FoundFile[] = [];
+  for (const entry of await readdir(folder, { withFileTypes: true })) {
+    const absPath = path.join(folder, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await reading(absPath, () => findFiles(absPath))));
+    } else if (entry.isFile() || entry.isSymbolicLink()) {
+      const { size } = await reading(absPath, () => lstat(absPath));
+      files.push({ absPath, size, link: entry.isSymbolicLink() });
+    }
   }
-
-  return results;
+  return files;
 }
 
-/**
- * Read a file's bytes, naming it if the filesystem refuses.
- *
- * The wrap spans the filesystem call and nothing else. It used to span the
- * whole per-file body, which meant it caught the typed refusals too and had to
- * re-raise them — an `isShipError(error)` line whose only job was to undo the
- * catch's own overreach. A local read that failed is `ShipError.file` by
- * definition: no request was made and no server rule was being mirrored, so
- * there is no status to report (see CLAUDE.md, "What a status means").
- */
-async function readContent(filePath: string): Promise<Buffer> {
-  try {
-    return fs.readFileSync(filePath);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw ShipError.file(`Failed to read file "${filePath}": ${message}`, { filePath });
-  }
+/** A link is refused by name where the deploy would open it. */
+async function refuseLink(absPath: string): Promise<never> {
+  throw ShipError.file(
+    `"${absPath}" is a link, and we don't publish links. Copy what it points to into the folder, then try again.`,
+    { filePath: absPath },
+  );
 }
 
 /**
  * Refuse a project folder before walking it.
  *
- * Node-only, and the reason is the input: a Node user types a path and can
- * plausibly type the repository root, where the walk would then enumerate
- * `node_modules`. A browser user picks files. The junk filter refuses the same
- * mistake one step later for the paths it can see; this catches it at the
- * cheapest possible moment, which for a large monorepo is the difference
- * between an immediate answer and a long one.
+ * Node's alone, because of the input: a person types a path and can type the
+ * repository root, where the walk would read all of `node_modules` before the
+ * deploy rules refused the same mistake.
  */
-function refuseUnbuiltProjects(paths: string[]): void {
-  for (const p of paths) {
-    const absPath = path.resolve(p);
-    try {
-      if (fs.statSync(absPath).isDirectory()) {
-        const marker = fs.readdirSync(absPath).find((e) => UNBUILT_PROJECT_MARKERS.has(e));
-        if (marker) {
-          throw ShipError.validation(
-            `"${p}" is a project that isn't built yet: it has ${marker}. Build it, then publish the folder the build makes, like dist.`,
-          );
-        }
-      }
-    } catch (e) {
-      if (isShipError(e)) throw e;
-      // Path errors are reported by the discovery walk below, which names the
-      // input the user actually typed.
-    }
+async function refuseUnbuiltProject(folder: string, typed: string): Promise<void> {
+  const marker = (await readdir(folder)).find((entry) => UNBUILT_PROJECT_MARKERS.has(entry));
+  if (marker) {
+    throw ShipError.validation(
+      `"${typed}" is a project that isn't built yet: it has ${marker}. Build it, then publish the folder the build makes, like dist.`,
+    );
   }
 }
 
 /**
- * Processes Node.js file and directory paths into an array of StaticFile objects ready for deploy.
- * Computes content paths relative to the upload root before filtering, so only the deployed
- * directory structure is evaluated — not the user's filesystem above it.
+ * What one typed path holds: a folder's files, or the one file it names. A
+ * typed path is taken as typed, so one that is a link is read through.
+ */
+async function find(typed: string): Promise<Found> {
+  const absPath = path.resolve(typed);
+  const stats = await reading(absPath, async () => {
+    try {
+      return await stat(absPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      throw ShipError.file(`We couldn't find "${typed}". Check the path, then try again.`, {
+        filePath: typed,
+      });
+    }
+  });
+
+  if (stats.isFile()) {
+    return { base: path.dirname(absPath), files: [{ absPath, size: stats.size, link: false }] };
+  }
+  if (!stats.isDirectory()) {
+    throw ShipError.file(`"${typed}" isn't a file or a folder.`, { filePath: typed });
+  }
+  return reading(absPath, async () => {
+    await refuseUnbuiltProject(absPath, typed);
+    return { base: absPath, files: await findFiles(absPath) };
+  });
+}
+
+/**
+ * What the paths a person typed hold, as the shared pipeline takes it. It
+ * needs no limits and makes no request, so a path that is not there, a
+ * project that is not built and a folder that cannot be read are each refused
+ * before the deploy asks the platform anything.
  *
- * @param paths - File or directory paths to scan and process.
- * @param options - Processing options (pathDetect, etc.).
- * @param platformLimits - The platform limits (file-size / count /
- *   total-size caps and the blocked extensions) the deploy read from
- *   `GET /limits` at its start. Passed in, never held, so a validation always
- *   meets the limits the server states now.
- * @returns Promise resolving to an array of StaticFile objects.
- * @throws {ShipError} If called outside Node.js or if fs/path modules fail.
+ * Each typed path names its own files: a folder's are relative to the folder,
+ * and a file is its own name. So `ship ./dist` publishes what is in `dist`,
+ * and what a path holds never changes where another's files land. A file
+ * reached by two typed paths is one source, named by the first.
+ */
+export async function findSources(paths: string[]): Promise<DeploySource[]> {
+  const sources = new Map<string, DeploySource>();
+  for (const { base, files } of await Promise.all(paths.map(find))) {
+    for (const { absPath, size, link } of files) {
+      if (sources.has(absPath)) continue;
+      sources.set(absPath, {
+        path: path.relative(base, absPath),
+        size,
+        // The file itself, as a `Blob`: nothing is read until it is hashed or
+        // sent. A link is a source like any file, so one inside what the
+        // deploy sets aside is set aside with it, and one the deploy would
+        // publish is refused when the deploy opens it.
+        read: link ? () => refuseLink(absPath) : () => openAsBlob(absPath),
+      });
+    }
+  }
+  return [...sources.values()];
+}
+
+/**
+ * The files under the paths a person typed, ready to deploy.
+ *
+ * @param paths - File or folder paths
+ * @param options - Deploy options (`pathDetect` and the rest)
+ * @param platformLimits - The limits the deploy read from `GET /limits`.
+ *   Passed in, never held, so a deploy is always judged by the limits the
+ *   server states now.
  */
 export async function processFilesForNode(
   paths: string[],
@@ -124,60 +154,5 @@ export async function processFilesForNode(
   if (getENV() !== 'node') {
     throw ShipError.business('processFilesForNode can only be called in Node.js environment.');
   }
-
-  refuseUnbuiltProjects(paths);
-
-  // 1. Discover every file under the inputs, deduplicated by absolute path
-  //    (two inputs may overlap, and two symlinks may reach one target).
-  const found = paths.flatMap((p) => {
-    const absPath = path.resolve(p);
-    try {
-      const stats = fs.statSync(absPath);
-      return stats.isDirectory() ? findAllFiles(absPath) : [{ absPath, size: stats.size }];
-    } catch (_error) {
-      throw ShipError.file(`Path does not exist: ${p}`, { filePath: p });
-    }
-  });
-  const unique = new Map(found.map((file) => [file.absPath, file.size]));
-
-  // 2. The upload root comes from the INPUT paths, not the discovered files:
-  //    `ship ./dist` deploys the contents of `dist`, whatever it happens to
-  //    contain, so a tree with one deep branch does not strip that branch.
-  const inputBasePath = findCommonParent(
-    paths
-      .map((p) => path.resolve(p))
-      .map((p) => {
-        try {
-          return fs.statSync(p).isDirectory() ? p : path.dirname(p);
-        } catch {
-          return path.dirname(p);
-        }
-      }),
-  );
-
-  // 3. Hand the shared processor a source per file. Sizes ride along from the
-  //    walk; the bytes are read only if the file survives that far.
-  const sources: DeploySource[] = [...unique].map(([absPath, size]) => ({
-    path: contentPath(absPath, inputBasePath),
-    size,
-    read: () => readContent(absPath),
-  }));
-
-  return processDeployFiles(sources, options, platformLimits);
-}
-
-/**
- * The path a file should have relative to the upload root, in web form.
- * Anything the root does not contain falls back to its basename — a file
- * reached through a symlink that points outside the deploy is still deployed,
- * just flat.
- */
-function contentPath(absPath: string, inputBasePath: string): string {
-  if (inputBasePath && inputBasePath.length > 0) {
-    const rel = path.relative(inputBasePath, absPath);
-    if (rel && typeof rel === 'string' && !rel.startsWith('..')) {
-      return rel.replace(/\\/g, '/');
-    }
-  }
-  return path.basename(absPath);
+  return processDeployFiles(await findSources(paths), options, platformLimits);
 }

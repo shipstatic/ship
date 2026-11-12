@@ -199,7 +199,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
       const fetchImpl = hangingFetch();
       global.fetch = fetchImpl as any;
 
-      const files = [{ path: 'a.txt', content: Buffer.from('a'), size: 1, md5: 'x' }];
+      const files = [{ path: 'a.txt', content: new Blob(['a']), size: 1, md5: 'x' }];
       const pending = deploy(hangingApi(), files, { signal: controller.signal });
       pending.catch(() => {});
       controller.abort();
@@ -248,7 +248,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
       (global.fetch as any).mockRejectedValue(abortError);
 
-      const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
+      const files = [{ path: 'test.txt', content: new Blob(['test']), size: 4, md5: 'abc' }];
 
       try {
         await deploy(apiHttp, files);
@@ -291,7 +291,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         }),
       );
 
-      const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
+      const files = [{ path: 'test.txt', content: new Blob(['test']), size: 4, md5: 'abc' }];
 
       await deploy(apiHttp, files, { signal: userController.signal });
 
@@ -315,7 +315,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         fetch: hanging as any,
       });
       const userController = new AbortController();
-      const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
+      const files = [{ path: 'test.txt', content: new Blob(['test']), size: 4, md5: 'abc' }];
 
       const pending = deploy(api, files, { signal: userController.signal });
       const settled = vi.fn();
@@ -337,7 +337,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
         maxRetries: 0,
         fetch: hangingFetch() as any,
       });
-      const files = [{ path: 'test.txt', content: Buffer.from('test'), size: 4, md5: 'abc' }];
+      const files = [{ path: 'test.txt', content: new Blob(['test']), size: 4, md5: 'abc' }];
 
       await expect(deploy(api, files, { signal: AbortSignal.abort() })).rejects.toMatchObject({
         type: 'operation_cancelled',
@@ -360,7 +360,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
     });
 
     const files = [
-      { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
+      { path: 'index.html', content: new Blob(['<html></html>']), md5: 'abc123', size: 13 },
     ];
 
     it('does not abort a deploy at the 30s read default', async () => {

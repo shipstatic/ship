@@ -1,133 +1,89 @@
 /**
- * @file Subject: `src/shared/lib/md5.ts` — one entry point, three backends
- * chosen by input type: spark-md5 for a `Blob`, node crypto for a `Buffer`,
- * a streaming node crypto hash for a path.
+ * @file Subject: `src/shared/lib/md5.ts`, one function with two hashes
+ * behind it: Node's own, and `spark-md5` where the runtime has none.
  *
- * **No mocks.** Every backend is exercised for real against published MD5
- * vectors. The previous revision mocked all three and asserted that
- * `'mocked-spark-md5-hash'` came back — which meant a wrong algorithm, a
- * truncated read, or a chunking bug would all have passed. The whole value of
- * a checksum test is that the number is checkable, so this file checks it.
+ * **No mocks of the hashes.** Both are run for real against published MD5
+ * vectors: a wrong algorithm, a truncated read or a slicing bug would each
+ * give a plausible digest, and the whole value of a checksum test is that the
+ * number can be checked.
  *
- * Node environment, not jsdom, deliberately: jsdom has no
- * `Blob.prototype.arrayBuffer`, so `tests/setup.ts` polyfills it through
- * `FileReader` — and then the Blob path would be testing the polyfill rather
- * than the production code path every real browser takes.
+ * Node environment, not jsdom, on purpose: jsdom has no
+ * `Blob.prototype.arrayBuffer`, so `tests/setup.ts` polyfills it, and the
+ * rows below would then test the polyfill.
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { openAsBlob } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ErrorType, ShipError } from '@shipstatic/types';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { calculateMD5 } from '../../../src/shared/lib/md5';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-/** Published MD5 vectors — verifiable against any independent implementation. */
+/** Published MD5 vectors, checkable against any independent implementation. */
 const EMPTY = 'd41d8cd98f00b204e9800998ecf8427e';
 const HELLO = '5d41402abc4b2a76b9719d911017c592';
 const ABC = '900150983cd24fb0d6963f7d28e17f72';
-/** Every byte 0x00–0xFF once, in order — catches text-coercion of binary input. */
+/** Every byte 0x00 to 0xFF once, in order: catches bytes read as text. */
 const ALL_BYTES = 'e2c865db4162bed963bfaa9ef6ac18f0';
 const allBytes = new Uint8Array(Array.from({ length: 256 }, (_, i) => i));
+/** Three megabytes of `A`: more than one slice, so the loop's bounds are in the digest. */
+const THREE_MEGABYTES = 'dce339bccbe03338086bb3432034a345';
+const threeMegabytes = new Uint8Array(3 * 1024 * 1024).fill(0x41);
 
-let dir: string;
+/** The module, loaded fresh so each block meets the `crypto` it set up. */
+const load = async () => (await import('../../../src/shared/lib/md5')).calculateMD5;
 
-beforeAll(() => {
-  dir = mkdtempSync(join(tmpdir(), 'ship-md5-'));
+afterEach(() => {
+  vi.doUnmock('crypto');
+  vi.resetModules();
 });
 
-afterAll(() => {
-  rmSync(dir, { recursive: true, force: true });
+describe.each([
+  ['with the runtime’s own hash, as in Node', () => {}],
+  // The browser build resolves `crypto` to an empty module (tsup.config.ts),
+  // which is how the same source finds no hash there.
+  [
+    'with spark-md5, as where the runtime has none',
+    () => vi.doMock('crypto', () => ({ createHash: undefined })),
+  ],
+])('calculateMD5 %s', (_which, arrange) => {
+  it.each([
+    ['empty', '', EMPTY],
+    ['hello', 'hello', HELLO],
+    ['abc', 'abc', ABC],
+  ])('hashes a %s blob', async (_name, content, expected) => {
+    arrange();
+    const calculateMD5 = await load();
+
+    expect(await calculateMD5(new Blob([content]))).toBe(expected);
+  });
+
+  it('hashes binary content as bytes, never as text', async () => {
+    arrange();
+    const calculateMD5 = await load();
+
+    expect(await calculateMD5(new Blob([allBytes]))).toBe(ALL_BYTES);
+  });
+
+  it('hashes across the slice boundary', async () => {
+    arrange();
+    const calculateMD5 = await load();
+
+    expect(await calculateMD5(new Blob([threeMegabytes]))).toBe(THREE_MEGABYTES);
+  });
 });
 
-describe('calculateMD5', () => {
-  describe('Blob (spark-md5)', () => {
-    it.each([
-      ['empty', '', EMPTY],
-      ['hello', 'hello', HELLO],
-      ['abc', 'abc', ABC],
-    ])('hashes a %s blob', async (_name, content, expected) => {
-      expect((await calculateMD5(new Blob([content]))).md5).toBe(expected);
-    });
+describe('calculateMD5 over a file on disk', () => {
+  it('hashes the file Node hands the pipeline, which is read only as it is hashed', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ship-md5-'));
+    try {
+      await writeFile(join(dir, 'bytes.bin'), allBytes);
+      await writeFile(join(dir, 'large.bin'), threeMegabytes);
+      const calculateMD5 = await load();
 
-    it('hashes binary content without text coercion', async () => {
-      expect((await calculateMD5(new Blob([allBytes]))).md5).toBe(ALL_BYTES);
-    });
-
-    it('hashes across the 2 MB chunk boundary', async () => {
-      // md5Blob slices in 2 MB chunks and appends each; an off-by-one in the
-      // loop bounds produces a plausible-looking but wrong digest, which only
-      // an input LARGER than one chunk can reveal.
-      const threeMegabytes = new Uint8Array(3 * 1024 * 1024).fill(0x41);
-      expect((await calculateMD5(new Blob([threeMegabytes]))).md5).toBe(
-        'dce339bccbe03338086bb3432034a345',
-      );
-    });
-  });
-
-  describe('Buffer (node crypto)', () => {
-    it.each([
-      ['empty', Buffer.alloc(0), EMPTY],
-      ['hello', Buffer.from('hello'), HELLO],
-      ['binary', Buffer.from(allBytes), ALL_BYTES],
-    ])('hashes a %s buffer', async (_name, buffer, expected) => {
-      expect((await calculateMD5(buffer)).md5).toBe(expected);
-    });
-
-    it('agrees with the Blob backend on identical bytes', async () => {
-      // The two backends serve the same wire contract: the API verifies the
-      // client's checksum on R2 put, so a browser upload and a Node upload of
-      // the same file must present the same digest.
-      const bytes = Buffer.from(allBytes);
-      const fromBuffer = await calculateMD5(bytes);
-      const fromBlob = await calculateMD5(new Blob([bytes]));
-
-      expect(fromBuffer.md5).toBe(fromBlob.md5);
-    });
-  });
-
-  describe('file path (streaming node crypto)', () => {
-    it('hashes a file off disk', async () => {
-      const file = join(dir, 'hello.txt');
-      writeFileSync(file, 'hello');
-
-      expect((await calculateMD5(file)).md5).toBe(HELLO);
-    });
-
-    it('hashes an empty file', async () => {
-      const file = join(dir, 'empty.txt');
-      writeFileSync(file, '');
-
-      expect((await calculateMD5(file)).md5).toBe(EMPTY);
-    });
-
-    it('hashes binary content identically to the in-memory backends', async () => {
-      const file = join(dir, 'bytes.bin');
-      writeFileSync(file, Buffer.from(allBytes));
-
-      expect((await calculateMD5(file)).md5).toBe(ALL_BYTES);
-    });
-
-    it('rejects with a File error naming the read failure and the path', async () => {
-      const missing = join(dir, 'does-not-exist');
-
-      // A local read that failed mirrors no server rule, so it carries no
-      // status — it was `business` (and a fabricated 400) until 2026-07-29.
-      // The path rides `details`, not a second copy in the prose.
-      const err: ShipError = await calculateMD5(missing).catch((e) => e);
-
-      expect(err.type).toBe(ErrorType.File);
-      expect(err.status).toBeUndefined();
-      expect(err.message).toMatch(/Failed to read file for MD5/);
-      expect(err.details).toEqual({ filePath: missing });
-    });
-  });
-
-  describe('invalid input', () => {
-    it('throws for inputs that are neither Blob, Buffer, nor string', async () => {
-      await expect(calculateMD5(42 as never)).rejects.toThrow(
-        ShipError.business('Invalid input for MD5 calculation'),
-      );
-    });
+      expect(await calculateMD5(await openAsBlob(join(dir, 'bytes.bin')))).toBe(ALL_BYTES);
+      expect(await calculateMD5(await openAsBlob(join(dir, 'large.bin')))).toBe(THREE_MEGABYTES);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

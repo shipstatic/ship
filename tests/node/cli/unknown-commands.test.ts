@@ -55,7 +55,9 @@ describe('unknown commands', () => {
       const result = await runProgram(['./nonexistent/path']);
 
       expect(result.exitCode).toBe(1);
-      expect(plain(result.stderr)).toBe('[error] ./nonexistent/path path does not exist\n\n');
+      expect(plain(result.stderr)).toBe(
+        '[error] we couldn\'t find "./nonexistent/path". Check the path, then try again\n\n',
+      );
     });
 
     it('treats a bare word as a command, not a path', async () => {

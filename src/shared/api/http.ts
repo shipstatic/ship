@@ -435,9 +435,9 @@ export class ApiHttp extends SimpleEvents implements Transport {
   }
 
   /**
-   * The same, plus the HTTP status — for the one operation where the status IS
-   * the answer: a domain upsert says create-or-update in its 201/200 and
-   * nowhere else in the response.
+   * The same, plus the HTTP status, for the two operations where the status
+   * is part of the answer: a domain upsert says create or update in its 201
+   * or 200, and a deploy request says live or still pending in its 201 or 202.
    */
   async requestWithStatus<T>(
     path: string,

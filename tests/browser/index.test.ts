@@ -18,7 +18,7 @@ vi.mock('../../src/browser/core/browser-files', () => ({
   processFilesForBrowser: vi.fn().mockResolvedValue([
     {
       path: 'index.html',
-      content: Buffer.from('<html></html>'),
+      content: new Blob(['<html></html>']),
       size: 13,
       md5: 'a'.repeat(32),
     },
@@ -278,7 +278,7 @@ describe('Ship - Browser Implementation', () => {
       const mockProcessInput = vi
         .fn()
         .mockResolvedValue([
-          { path: 'test.txt', content: new ArrayBuffer(4), size: 4, md5: 'test-hash' },
+          { path: 'test.txt', content: new Blob(['test']), size: 4, md5: 'test-hash' },
         ]);
 
       (ship as any).processInput = mockProcessInput;
@@ -303,11 +303,11 @@ describe('Ship - Browser Implementation', () => {
       await ship.deploy(mockFiles, options);
 
       // Verify options were passed to processInput
-      expect(mockProcessInput).toHaveBeenCalledWith(mockFiles, expect.objectContaining(options), {
-        maxFileSize: 10485760,
-        maxFilesCount: 1000,
-        maxTotalSize: 52428800,
-      });
+      expect(mockProcessInput).toHaveBeenCalledWith(
+        mockFiles,
+        expect.objectContaining(options),
+        expect.any(Function),
+      );
     });
 
     it('should handle File objects with different MIME types', async () => {

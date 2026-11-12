@@ -84,6 +84,13 @@ export interface DeployPlan {
 export const BUILD_TOO_LARGE = `We can build projects up to ${formatFileSize(MAX_BYTES)}. Build this one on your computer and upload the built folder instead.`;
 
 /**
+ * What a site is told when the files that configure it do not fit one
+ * request together. They ride the declaration and are never split, so no
+ * count of requests can carry them.
+ */
+export const DECLARATION_TOO_LARGE = `${DEPLOYMENT_INDEX_FILENAME} and ${DEPLOYMENT_CONFIG_FILENAME} are too large to send together. One request carries at most ${formatFileSize(MAX_BYTES)}.`;
+
+/**
  * The files that configure a deployment ride its declaration: the root
  * `ship.json`, which the API compiles there, and the root `index.html`, which
  * the single-page question is asked of. The API refuses a declaration that
@@ -94,7 +101,10 @@ const configures = (file: StaticFile) =>
 
 /**
  * Plan a deploy: one request when everything fits, otherwise a bare
- * declaration and as many fills as the files need.
+ * declaration and as many fills as the files need. Every request it returns
+ * is counted, so none meets the server's ceiling: the declaration here, and
+ * each fill as it is packed. A single file always fits a fill, because the
+ * platform allows no file larger than one request carries.
  *
  * A build or a prerender reads every file in the request that asks for it,
  * so it is never split; the plan reads that from the fields rather than from
@@ -109,6 +119,10 @@ export function planDeploy(files: StaticFile[], fields: DeployField[]): DeployPl
   }
 
   const declaration = files.filter(configures);
+  if (bodyBytes(declaration, fields) > MAX_BYTES) {
+    throw ShipError.validation(DECLARATION_TOO_LARGE);
+  }
+
   const fills: StaticFile[][] = [];
   let batch: StaticFile[] = [];
   let size = PART_OVERHEAD;

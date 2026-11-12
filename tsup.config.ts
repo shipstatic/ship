@@ -116,11 +116,11 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     esbuildPlugins: [writeMetafile('browser')],
     esbuildOptions(options, _context) {
       // Build-time aliasing for Node.js modules. esbuild aliases match BARE
-      // specifiers only (`node:`-prefixed ones bypass alias resolution), so
-      // node-builtin imports in shared source must use the bare form — the
-      // two md5.ts sites carry biome-ignore comments for exactly this, and
-      // the post-build fence (scripts/post-build.cjs) fails the build if any
-      // builtin survives into dist/browser.js.
+      // specifiers only (`node:`-prefixed ones bypass alias resolution), so a
+      // Node built-in imported by shared source uses the bare form: `md5.ts`
+      // asks `crypto` for a hash and carries a biome-ignore for exactly this.
+      // The post-build fence (scripts/post-build.cjs) fails the build if any
+      // built-in survives into dist/browser.js.
       options.alias = {
         ...options.alias,
         fs: path.resolve('./build-shims/empty.cjs'),

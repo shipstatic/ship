@@ -4,7 +4,7 @@
  * Core types come from @shipstatic/types, while SDK-specific types are defined here.
  */
 
-import type { DeploymentUploadOptions, DeploymentViaType } from '@shipstatic/types';
+import type { DeploymentUploadOptions } from '@shipstatic/types';
 
 // Re-export all types from @shipstatic/types for convenience.
 export * from '@shipstatic/types';
@@ -33,54 +33,6 @@ export interface DeploymentOptions extends DeploymentUploadOptions {
 }
 
 export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
-
-/**
- * Context passed to the deploy body creator — everything that becomes a
- * form field alongside the files themselves.
- */
-export interface DeployBodyContext {
-  /**
-   * Deployment labels, each a word (`production`) or a key and a value
-   * (`env:production`), already through `validateLabels`.
-   */
-  labels?: string[];
-  /**
-   * Which client is deploying — the same closed vocabulary the public option
-   * carries, not a second `string`. This context receives an already-narrowed
-   * value and passed it on widened, which made the narrowing stop one seam
-   * short of the wire.
-   */
-  via?: DeploymentViaType;
-  /**
-   * Optional plaintext password to protect the deployment, already through
-   * `validatePassword`, which trims it: the body sends the value the rule
-   * judged, and the API trims and judges it the same way.
-   */
-  password?: string;
-  /**
-   * Requested lifetime in SECONDS — a duration, never an instant, bounded by
-   * `TTL_CONSTRAINTS`. The API stamps the expiry against its own clock.
-   */
-  ttl?: number;
-  /**
-   * Whether the platform asks the single-page question of the files
-   * (`DEPLOY_FIELDS.SPA`, `spa`). It asks only when asked, so only `true` is
-   * sent, and the deploy's own `spaDetect` default decides it.
-   */
-  spaDetect?: boolean;
-  /**
-   * @internal The server-side build flags, and the two build settings that
-   * qualify `build` (the command to run, the folder the site lands in).
-   */
-  flags?: {
-    build?: boolean;
-    prerender?: boolean;
-    buildCommand?: string;
-    outputDir?: string;
-  };
-  /** @internal reCAPTCHA proof for the anonymous human deploy channel (/upload). */
-  captcha?: string;
-}
 
 // =============================================================================
 // CLIENT CONFIGURATION
@@ -139,13 +91,13 @@ export interface ShipClientOptions {
    * Retried: transport failures (including a timeout — nothing was exchanged
    * either way) and 500/502/503/504, with full-jitter exponential backoff.
    *
-   * NOT retried, each deliberately: a maintenance 503 (a state, not a fault —
+   * NOT retried, each deliberately: a maintenance 503 (a state, not a fault:
    * its message says when to come back), 429 (the rate limiter has just
    * answered), anything stopped by a `signal` you supplied, and any request
-   * that cannot be safely repeated — `PUT`/`DELETE` are excluded outright, and
-   * other non-`GET` methods retry only when they carry an `Idempotency-Key`,
-   * which is what lets a deploy replay its stored result instead of creating a
-   * second one.
+   * that cannot be safely repeated. A read is repeated; a write only when it
+   * is known to be safe: every request that fills a deployment, and a deploy
+   * that carries an `idempotencyKey`, which replays its stored result rather
+   * than creating a second one.
    */
   maxRetries?: number | undefined;
   /**
@@ -195,11 +147,9 @@ export interface ShipClientOptions {
   /**
    * Override the deploy endpoint path. Defaults to `/deployments`.
    *
-   * @internal First-party hook used by `web/my` and `web/www` to target the
-   * `/upload` route (which runs server-side build / SPA detection). External
-   * SDK consumers must not set this — the `/deployments` endpoint is the
-   * stable public contract. See `cloudflare/api/CLAUDE.md` for why the two
-   * endpoints exist and what `/upload` does that `/deployments` doesn't.
+   * @internal The platform's own browser apps point it at `/upload`, the one
+   * endpoint that builds a project. External SDK consumers must not set this:
+   * `/deployments` is the stable public contract.
    */
   deployEndpoint?: string | undefined;
 }

@@ -33,7 +33,7 @@ const MD5 = 'c83301425b2ad1d496473a5ff3d9ecca';
 /** A file the planner sees: it reads the path and the size, never the bytes. */
 const sized = (path: string, size: number): StaticFile => ({
   path,
-  content: Buffer.alloc(0),
+  content: new Blob([]),
   size,
   md5: MD5,
 });
@@ -41,7 +41,7 @@ const sized = (path: string, size: number): StaticFile => ({
 /** A file whose bytes are real, for the serialized fixture. */
 const real = (path: string, text: string): StaticFile => ({
   path,
-  content: Buffer.from(text),
+  content: new Blob([text]),
   size: Buffer.byteLength(text),
   md5: MD5,
 });
@@ -66,7 +66,7 @@ describe('planDeploy', () => {
     ];
 
     // The same whether or not the deploy asks: the planner holds no condition.
-    for (const context of [{}, { spaDetect: true }]) {
+    for (const context of [{}, { spa: true }]) {
       const plan = planDeploy(files, deployFields(deployManifest(files), context));
 
       expect(plan.declaration.map((f) => f.path)).toEqual(['index.html', 'ship.json']);
@@ -86,7 +86,7 @@ describe('planDeploy', () => {
 
   it('refuses a prerender that does not fit one request, as it refuses a build', () => {
     const files = [sized('src/a.ts', 40 * MiB), sized('src/b.ts', 40 * MiB)];
-    const fields = deployFields(deployManifest(files), { flags: { prerender: true } });
+    const fields = deployFields(deployManifest(files), { prerender: true });
 
     expect(() => planDeploy(files, fields)).toThrow('We can build projects up to 64 MB.');
   });
@@ -98,10 +98,24 @@ describe('planDeploy', () => {
     expect(plan.fills.map((fill) => fill.map((f) => f.path))).toEqual([['a.png'], ['b.png']]);
   });
 
+  it('counts the declaration too: files that configure a site and cannot ride together are refused', () => {
+    // No plan sells a file this large; a grant can. The declaration is never
+    // split, so the planner says so rather than send what the server refuses.
+    const files = [
+      sized('index.html', 60 * MiB),
+      sized('ship.json', 5 * MiB),
+      sized('a.png', 10 * MiB),
+    ];
+
+    expect(() => planDeploy(files, deployFields(deployManifest(files)))).toThrow(
+      'index.html and ship.json are too large to send together. One request carries at most 64 MB.',
+    );
+  });
+
   it('refuses a build that does not fit one request, before a byte is sent', () => {
     const files = [sized('src/a.ts', 40 * MiB), sized('src/b.ts', 40 * MiB)];
 
-    const fields = deployFields(deployManifest(files), { flags: { build: true } });
+    const fields = deployFields(deployManifest(files), { build: true });
 
     expect(() => planDeploy(files, fields)).toThrow(
       'We can build projects up to 64 MB. Build this one on your computer and upload the built folder instead.',
@@ -122,7 +136,7 @@ describe('bodyBytes: a ceiling on what the runtime serializes', () => {
     [
       'build source names carrying quotes and line breaks',
       [real('src/"quoted".ts', 'a'), real('src/line\nbreak.ts', 'b'), real('src/cr\rhere.ts', 'c')],
-      { flags: { build: true } },
+      { build: true },
     ],
     [
       'the longest non-ASCII deploy path',

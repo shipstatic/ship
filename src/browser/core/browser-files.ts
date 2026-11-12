@@ -1,15 +1,10 @@
 /**
  * @file The browser half of the deploy pipeline: reading paths off `File`s.
  *
- * Everything after is shared (`shared/core/deploy-files.ts`) — path
- * optimization, junk filtering, the platform's rules, the digests. What is
- * genuinely browser here is one line: a directory drop carries
- * `webkitRelativePath`, a file picker does not.
- *
- * There is no size to look up and no content to fetch, because a `File`
- * already is both. That is the whole of this platform's collection step, and
- * it is why the seam the Node side needs (`size` before `read()`) costs
- * nothing on this one.
+ * Everything after is shared (`shared/core/deploy-files.ts`). What is the
+ * browser's own is one line: a folder drop carries `webkitRelativePath`, and a
+ * file picker does not. A `File` already is its size and its bytes, so there
+ * is nothing to look up and nothing to open.
  */
 import type { PlatformLimits } from '@shipstatic/types';
 import { ShipError } from '@shipstatic/types';
@@ -18,20 +13,14 @@ import { getENV } from '../../shared/lib/env.js';
 import type { DeploymentOptions, StaticFile } from '../../shared/types.js';
 
 /**
- * Processes browser files into an array of StaticFile objects ready for deploy.
+ * The files a person picked or dropped, ready to deploy.
  *
- * For server-processed uploads (`build`/`prerender`), the shared processor
- * skips deploy validation — the build service produces and validates the
- * actual deployment output. Those flags are `@internal` and this is their only
- * platform: `web/my` and `web/www` set them through `/upload`.
- *
- * @param browserFiles - File[] to process for deploy.
- * @param options - Processing options including pathDetect for automatic path optimization.
- * @param platformLimits - The platform limits (file-size / count / total-size caps and
- *   the blocked extensions) the deploy read from `GET /limits` at its start. Passed in,
- *   never held, so a validation always meets the limits the server states now.
- * @returns Promise resolving to an array of StaticFile objects.
- * @throws {ShipError} If called outside a browser or with invalid input.
+ * @param browserFiles - The `File`s
+ * @param options - Deploy options (`pathDetect`, and the build flags the
+ *   platform's own apps set)
+ * @param platformLimits - The limits the deploy read from `GET /limits`.
+ *   Passed in, never held, so a deploy is always judged by the limits the
+ *   server states now.
  */
 export async function processFilesForBrowser(
   browserFiles: File[],
@@ -44,12 +33,10 @@ export async function processFilesForBrowser(
 
   return processDeployFiles(
     browserFiles.map((file) => ({
-      // A directory drop or `<input webkitdirectory>` carries the relative
-      // path; a plain file picker leaves it empty and the name is the path.
+      // A folder drop or `<input webkitdirectory>` carries the relative path;
+      // a plain file picker leaves it empty and the name is the path.
       path: file.webkitRelativePath || file.name,
       size: file.size,
-      // Already in hand — a `File` IS the bytes, and a lazy read here would be
-      // a promise wrapping a value the browser handed us at drop time.
       read: async () => file,
     })),
     options,

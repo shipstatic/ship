@@ -7,8 +7,8 @@
  *
  * Platform limits are the account's policy, and the server may change them at
  * any time (a plan move, an operator's grant), so the client never holds them:
- * `getLimits()` asks every time, and each deploy reads them once, at its start,
- * for its own validation. A client that lives as long as a browser tab would
+ * `getLimits()` asks every time, and each deploy reads them once, when it has
+ * found its files, for its own validation. A client that lives as long as a browser tab would
  * otherwise validate today's upload against the limits of the morning, and the
  * only calls that pay the request are the two that read the answer.
  *
@@ -122,23 +122,26 @@ export abstract class Ship {
       // The platform limits are read HERE, at the one seam that uses them,
       // once per deploy: the file-size, file-count and blocklist checks run
       // inside `processInput` against the limits the server states now.
-      // No other resource method reads them, so none pays the request. The
-      // read carries the deploy's own signal, so a cancelled deploy stops
-      // here too, not only at its final POST.
-      processInput: async (input, opts) =>
-        this.processInput(input, opts, await this.getLimits({ signal: opts.signal })),
+      // They are handed over as the question, asked once the files are
+      // found, so input that is refused on its own (a path that is not
+      // there, a project that is not built) costs no request. No other
+      // resource method reads them, so none pays the request. The read
+      // carries the deploy's own signal, so a cancelled deploy stops here
+      // too, not only at its final POST.
+      processInput: (input, opts) =>
+        this.processInput(input, opts, () => this.getLimits({ signal: opts.signal })),
     });
     this.domains = createDomainResource(ctx);
     this.account = createAccountResource(ctx);
     this.tokens = createTokenResource(ctx);
   }
 
-  // Environment-specific behavior: collect and validate the files, against
-  // the limits this deploy read.
+  // Environment-specific behavior: find the files, then ask for the limits
+  // and judge the files against them.
   protected abstract processInput(
     input: DeployInput,
     options: DeploymentOptions,
-    limits: PlatformLimits,
+    limits: () => Promise<PlatformLimits>,
   ): Promise<StaticFile[]>;
 
   /**

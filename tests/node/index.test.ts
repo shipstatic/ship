@@ -22,12 +22,13 @@ vi.mock('../../src/shared/api/http', () => ({
   }),
 }));
 
-// Mock Node.js file processing
+// The filesystem walk answers one fixed file; the shared pipeline is real.
 vi.mock('../../src/node/core/node-files', () => ({
-  processFilesForNode: vi
+  processFilesForNode: vi.fn(),
+  findSources: vi
     .fn()
     .mockResolvedValue([
-      { path: 'index.html', content: Buffer.from('<html></html>'), size: 13, md5: 'abc123' },
+      { path: 'index.html', size: 13, read: async () => new Blob(['<html></html>']) },
     ]),
 }));
 
@@ -212,7 +213,7 @@ describe('Ship - Node.js Implementation', () => {
       const mockProcessInput = vi
         .fn()
         .mockResolvedValue([
-          { path: 'file.txt', content: Buffer.from('content'), size: 7, md5: 'hash' },
+          { path: 'file.txt', content: new Blob(['content']), size: 7, md5: 'hash' },
         ]);
 
       (ship as any).processInput = mockProcessInput;
@@ -226,11 +227,12 @@ describe('Ship - Node.js Implementation', () => {
 
       await ship.deploy(['./dist/index.html', './dist/style.css']);
 
-      // The third argument is the limits this deploy read from the server.
+      // The third argument asks the server for the limits, once the files
+      // are found.
       expect(mockProcessInput).toHaveBeenCalledWith(
         ['./dist/index.html', './dist/style.css'],
         expect.any(Object),
-        {},
+        expect.any(Function),
       );
     });
 
@@ -292,8 +294,8 @@ describe('Ship - Node.js Implementation', () => {
       const ship = new Ship({ token: 'test-key' });
 
       const mockProcessInput = vi.fn().mockResolvedValue([
-        { path: 'index.html', content: Buffer.from('<html></html>'), size: 13, md5: 'hash1' },
-        { path: 'style.css', content: Buffer.from('body {}'), size: 7, md5: 'hash2' },
+        { path: 'index.html', content: new Blob(['<html></html>']), size: 13, md5: 'hash1' },
+        { path: 'style.css', content: new Blob(['body {}']), size: 7, md5: 'hash2' },
       ]);
 
       (ship as any).processInput = mockProcessInput;
@@ -306,9 +308,11 @@ describe('Ship - Node.js Implementation', () => {
 
       const result = await ship.deploy('./dist');
 
-      expect(mockProcessInput).toHaveBeenCalledWith('./dist', expect.any(Object), {
-        maxFileSize: 10485760,
-      });
+      expect(mockProcessInput).toHaveBeenCalledWith(
+        './dist',
+        expect.any(Object),
+        expect.any(Function),
+      );
       expect(result).toEqual({
         id: 'dep_dir_123',
         url: 'https://dep_dir_123.shipstatic.com',
@@ -323,7 +327,7 @@ describe('Ship - Node.js Implementation', () => {
       const mockProcessInput = vi.fn().mockResolvedValue([
         {
           path: 'index.html',
-          content: Buffer.from('<html></html>'),
+          content: new Blob(['<html></html>']),
           size: 13,
           md5: 'a'.repeat(32),
         },
@@ -347,7 +351,7 @@ describe('Ship - Node.js Implementation', () => {
       expect(mockProcessInput).toHaveBeenCalledWith(
         ['./src/index.html'],
         expect.objectContaining(options),
-        {},
+        expect.any(Function),
       );
     });
   });
@@ -377,8 +381,8 @@ describe('Ship - Node.js Implementation', () => {
       // machine's directory layout into every deployed URL.
       const ship = new Ship({ token: 'test-key' });
       (ship as any).processInput = vi.fn().mockResolvedValue([
-        { path: 'file1.txt', content: Buffer.from('a'), md5: 'm1', size: 1 },
-        { path: 'nested/file2.txt', content: Buffer.from('b'), md5: 'm2', size: 1 },
+        { path: 'file1.txt', content: new Blob(['a']), md5: 'm1', size: 1 },
+        { path: 'nested/file2.txt', content: new Blob(['b']), md5: 'm2', size: 1 },
       ]);
 
       await ship.deploy(['/base/folder/file1.txt', '/base/folder/nested/file2.txt'], {

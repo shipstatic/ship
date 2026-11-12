@@ -15,7 +15,7 @@ const NO_HOME =
 
 // Mock MD5 calculation for browser files
 vi.mock('../../../src/shared/lib/md5', () => ({
-  calculateMD5: vi.fn().mockResolvedValue({ md5: 'mock-browser-hash' }),
+  calculateMD5: vi.fn().mockResolvedValue('mock-browser-hash'),
 }));
 
 describe('Browser File Processing', () => {

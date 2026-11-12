@@ -16,7 +16,7 @@
  * things, and only the first of these can tell them apart.
  */
 
-import { IDEMPOTENCY_KEY_CONSTRAINTS } from '@shipstatic/types';
+import { IDEMPOTENCY_KEY_CONSTRAINTS, ShipError } from '@shipstatic/types';
 import type { Mock } from 'vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Transport } from '../../src/shared/api/http';
@@ -83,8 +83,8 @@ describe('Deployment Resource', () => {
     // drift into fictional wire shapes (the audit found an `{id, url}`
     // deployment here; the real field is `deployment`).
     mockProcessInput = vi.fn().mockResolvedValue([
-      { path: 'index.html', content: Buffer.from('<html></html>'), size: 13, md5: 'a'.repeat(32) },
-      { path: 'style.css', content: Buffer.from('body {}'), size: 7, md5: 'b'.repeat(32) },
+      { path: 'index.html', content: new Blob(['<html></html>']), size: 13, md5: 'a'.repeat(32) },
+      { path: 'style.css', content: new Blob(['body {}']), size: 7, md5: 'b'.repeat(32) },
     ]);
 
     deploymentResource = createDeploymentResource({
@@ -113,27 +113,21 @@ describe('Deployment Resource', () => {
       expect(mockProcessInput.mock.calls[0][1]).toEqual(options);
     });
 
-    it('refuses without a processInput — there is nothing to collect with', async () => {
-      const broken = createDeploymentResource({
-        getApi: () => transport,
-        processInput: undefined as never,
-      });
+    it.each([
+      ['a ttl', { ttl: 0 }],
+      ['a password', { password: 'short' }],
+      ['labels', { labels: ['not a label!'] }],
+      ['an idempotency key', { idempotencyKey: '   ' }],
+      ['a build command', { buildCommand: 'x'.repeat(10_000) }],
+    ])(
+      'checks %s before anything is collected: a refused option opens no file',
+      async (_what, options) => {
+        await expect(upload(options as DeploymentOptions)).rejects.toThrow(ShipError);
 
-      await expect(broken.upload(['./dist'] as unknown as DeployInput, {})).rejects.toThrow(
-        'processInput function is not provided.',
-      );
-    });
-
-    it('refuses a file with no MD5, naming it', async () => {
-      // Built inline rather than through a defaulted helper: a `md5 = 'md5'`
-      // default swallows `undefined` and makes this row assert nothing.
-      mockProcessInput.mockResolvedValue([
-        { path: 'index.html', content: Buffer.from('<html></html>'), size: 13 },
-      ]);
-
-      await expect(upload()).rejects.toThrow('MD5 missing for file: index.html');
-      expect(carried.filter((c) => c.operation === 'Deploy')).toHaveLength(0);
-    });
+        expect(mockProcessInput).not.toHaveBeenCalled();
+        expect(carried).toHaveLength(0);
+      },
+    );
   });
 
   describe('upload — the single-page question is the platform’s', () => {
@@ -270,10 +264,10 @@ describe('Deployment Resource', () => {
   describe('upload: a deploy larger than one request', () => {
     /** A deploy over the request ceiling: two 40 MiB images, a page and a config. */
     const large = () => [
-      { path: 'index.html', content: Buffer.from('<p>'), size: 3, md5: 'a'.repeat(32) },
-      { path: 'a.png', content: Buffer.from('a'), size: 40 * MiB, md5: 'b'.repeat(32) },
-      { path: 'ship.json', content: Buffer.from('{}'), size: 2, md5: 'c'.repeat(32) },
-      { path: 'b.png', content: Buffer.from('b'), size: 40 * MiB, md5: 'd'.repeat(32) },
+      { path: 'index.html', content: new Blob(['<p>']), size: 3, md5: 'a'.repeat(32) },
+      { path: 'a.png', content: new Blob(['a']), size: 40 * MiB, md5: 'b'.repeat(32) },
+      { path: 'ship.json', content: new Blob(['{}']), size: 2, md5: 'c'.repeat(32) },
+      { path: 'b.png', content: new Blob(['b']), size: 40 * MiB, md5: 'd'.repeat(32) },
     ];
     const fills = () => deployCalls().slice(1);
     const names = (call: Carried) =>

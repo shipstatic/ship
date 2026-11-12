@@ -17,7 +17,7 @@ class TestShip extends Ship {
     _options: DeploymentOptions,
   ): Promise<StaticFile[]> {
     return [
-      { path: 'index.html', content: Buffer.from('<html></html>'), size: 13, md5: 'a'.repeat(32) },
+      { path: 'index.html', content: new Blob(['<html></html>']), size: 13, md5: 'a'.repeat(32) },
     ];
   }
 }

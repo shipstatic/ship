@@ -1,22 +1,25 @@
 /**
- * @file Subject: `src/shared/core/deploy-files.ts` — the one deploy pipeline.
+ * @file Subject: `src/shared/core/deploy-files.ts`, the one deploy pipeline.
  *
- * This is the merged mirror of an orchestration that used to be stated twice,
- * in `node-files.ts` and `browser-files.ts`: optimize the paths, drop the
- * junk, refuse what the platform's rules refuse, checksum what survives. The
- * two platform mirrors keep what is genuinely theirs — a real filesystem walk
- * with symlink cycles on one side, `webkitRelativePath` on the other — and
- * every row below is a fact neither of them can state alone.
+ * Set the junk aside and name the paths, refuse what the platform's rules
+ * refuse, open and hash what is left: one sequence for both platforms. The two
+ * collectors keep what is theirs (a filesystem walk on one side,
+ * `webkitRelativePath` on the other), and every row below is a fact neither
+ * of them can state alone.
  *
- * The sources here are synthetic on purpose. A `DeploySource` is a path, an
- * origin, a size and a `read()`, and nothing in this file needs a disk or a
- * browser to produce one — which is itself the evidence that the seam landed
- * in the right place.
+ * The sources here are synthetic on purpose. A `DeploySource` is a path, a
+ * size and a `read()`, and nothing in this file needs a disk or a browser to
+ * make one, which is the evidence that the seam is in the right place.
  */
 
-import type { PlatformLimits } from '@shipstatic/types';
+import { ErrorType, type PlatformLimits, ShipError } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
-import { type DeploySource, processDeployFiles } from '../../../src/shared/core/deploy-files';
+import {
+  type DeploySource,
+  processDeployFiles,
+  reading,
+  unreadable,
+} from '../../../src/shared/core/deploy-files';
 import { FREE_PLAN_LIMITS, LIMITS_WITHOUT_BLOCKLIST } from '../../fixtures/builders';
 
 /** The md5 of `hello` — a digest a truncated or skipped read cannot produce. */
@@ -44,7 +47,7 @@ function src(path: string, content = 'x', size?: number): TrackedSource {
     readCount: 0,
     read: async () => {
       source.readCount += 1;
-      return Buffer.from(content);
+      return new Blob([content]);
     },
   };
   return source;
@@ -115,6 +118,51 @@ describe('processDeployFiles', () => {
       await processDeployFiles([src('site/index.html'), junk], {}, FREE_PLAN_LIMITS);
 
       expect(junk.readCount).toBe(0);
+    });
+
+    it.each([
+      ['a .DS_Store', '.DS_Store'],
+      ["an unpacked archive's __MACOSX", '__MACOSX/site/._index.html'],
+      ['a .git folder', '.git/config'],
+    ])('names a site from its own folder when %s sits beside it', async (_what, junk) => {
+      // Junk beside the site's folder is what keeps that folder from being
+      // stripped while it is still there, so it is set aside first.
+      const result = await processDeployFiles(
+        [src('site/index.html'), src('site/assets/app.js'), src(junk)],
+        {},
+        FREE_PLAN_LIMITS,
+      );
+
+      expect(pathsOf(result)).toEqual(['index.html', 'assets/app.js']);
+    });
+
+    it('never judges the folder a person picked, whatever its name', async () => {
+      // A browser names a picked folder as the first segment of every path.
+      // It is not part of the site, so its dot is no reason to drop the site.
+      const result = await processDeployFiles(
+        [src('.output/index.html'), src('.output/app.js'), src('.output/.DS_Store')],
+        {},
+        FREE_PLAN_LIMITS,
+      );
+
+      expect(pathsOf(result)).toEqual(['index.html', 'app.js']);
+    });
+
+    it('sets junk aside when pathDetect is false, and strips nothing', async () => {
+      const result = await processDeployFiles(
+        [src('index.html'), src('site/app.js'), src('site/.DS_Store')],
+        { pathDetect: false },
+        FREE_PLAN_LIMITS,
+      );
+
+      expect(pathsOf(result)).toEqual(['index.html', 'site/app.js']);
+    });
+
+    it('refuses a file whose name is too long, in words: it is not junk', async () => {
+      const long = `${'a'.repeat(256)}.js`;
+      await expect(
+        processDeployFiles([src('index.html'), src(long)], {}, FREE_PLAN_LIMITS),
+      ).rejects.toThrow(`File "${long}" can't be published`);
     });
 
     it('refuses a deploy that is all junk: there is nothing left to publish', async () => {
@@ -338,19 +386,27 @@ describe('processDeployFiles', () => {
   });
 
   describe('the StaticFile it produces', () => {
-    it('carries the deploy path, the source size, the bytes and a real digest', async () => {
+    it('carries the deploy path, the size, the bytes and a real digest', async () => {
       const [file] = await processDeployFiles(
         [src('dist/index.html', 'hello')],
         {},
         FREE_PLAN_LIMITS,
       );
 
-      expect(file).toEqual({
-        path: 'index.html',
-        content: Buffer.from('hello'),
-        size: 5,
-        md5: HELLO_MD5,
-      });
+      expect(file).toMatchObject({ path: 'index.html', size: 5, md5: HELLO_MD5 });
+      expect(await file.content.text()).toBe('hello');
+    });
+
+    it('declares the size of the content it opened, whatever the source stated', async () => {
+      // A file can change between the walk and the open. What the manifest
+      // states must be what the body carries.
+      const [file] = await processDeployFiles(
+        [src('index.html', 'hello', 3)],
+        {},
+        FREE_PLAN_LIMITS,
+      );
+
+      expect(file).toMatchObject({ size: 5, md5: HELLO_MD5 });
     });
 
     it('refuses no sources at all', async () => {
@@ -374,5 +430,127 @@ describe('processDeployFiles', () => {
         "The index.html at the top of your site is empty. It's the page visitors see first, so it needs content.",
       );
     });
+  });
+
+  describe('a file that cannot be read', () => {
+    const unreadableWhen = (path: string, read: DeploySource['read']): DeploySource => ({
+      path,
+      size: 5,
+      read,
+    });
+    const deploy = (broken: DeploySource) =>
+      processDeployFiles([src('site/index.html'), broken], {}, FREE_PLAN_LIMITS);
+
+    it('is named when it cannot be opened', async () => {
+      const broken = unreadableWhen('site/app.js', async () => {
+        throw new Error('ENOENT');
+      });
+
+      await expect(deploy(broken)).rejects.toMatchObject({
+        type: ErrorType.File,
+        message: `We couldn't read "site/app.js". Make sure it's on this computer, then try again.`,
+        details: { filePath: 'site/app.js' },
+      });
+    });
+
+    it('is named when its bytes cannot be read while they are hashed', async () => {
+      // What a runtime answers for a file that changed or went away after it
+      // was opened: the open succeeds and the read rejects.
+      const changed = new Blob(['hello']);
+      changed.slice = () => {
+        throw new DOMException('The blob could not be read', 'NotReadableError');
+      };
+
+      await expect(
+        deploy(unreadableWhen('site/app.js', async () => changed)),
+      ).rejects.toMatchObject({ type: ErrorType.File, details: { filePath: 'site/app.js' } });
+    });
+
+    it("keeps a refusal the source made in the platform's own words", async () => {
+      const refused = unreadableWhen('site/link', async () => {
+        throw ShipError.file('"site/link" is a link.');
+      });
+
+      await expect(deploy(refused)).rejects.toThrow('"site/link" is a link.');
+    });
+
+    it('is never opened when it is junk, so what it would refuse is never said', async () => {
+      const refused = unreadableWhen('site/.venv/bin/python', async () => {
+        throw ShipError.file('never said');
+      });
+
+      expect(pathsOf(await deploy(refused))).toEqual(['index.html']);
+    });
+  });
+
+  describe('the root ship.json', () => {
+    // Syntax only, by design: the schema changes on the server, so anything
+    // judged here beyond "it parses, and it is an object" could refuse a
+    // config a newer platform accepts. The syntax cases live with the rule
+    // in `@shipstatic/types`; these rows hold which file is read, and when.
+    const deploy = (path: string, config: string, options = {}) =>
+      processDeployFiles([src('index.html'), src(path, config)], options, FREE_PLAN_LIMITS);
+
+    it('passes a well-formed config, keys it does not know included', async () => {
+      expect(pathsOf(await deploy('ship.json', '{"inventedLater":{"a":1}}'))).toEqual([
+        'index.html',
+        'ship.json',
+      ]);
+    });
+
+    it.each([
+      ['text that does not parse', '{"redirects":[],}'],
+      ['JSON that is not an object', '[]'],
+    ])('refuses %s as a Config error, the type the server uses', async (_case, config) => {
+      await expect(deploy('ship.json', config)).rejects.toMatchObject({ type: ErrorType.Config });
+    });
+
+    it('reads only the one at the deploy root: anywhere else it is an ordinary file', async () => {
+      expect(pathsOf(await deploy('config/ship.json', '{ not json'))).toEqual([
+        'index.html',
+        'config/ship.json',
+      ]);
+    });
+
+    it('judges the path as published: a config in the folder a person picked is at the root', async () => {
+      await expect(
+        processDeployFiles(
+          [src('dist/index.html'), src('dist/ship.json', '{ not json')],
+          {},
+          FREE_PLAN_LIMITS,
+        ),
+      ).rejects.toMatchObject({ type: ErrorType.Config });
+    });
+
+    it("checks a project's too", async () => {
+      await expect(deploy('ship.json', '{ not json', { build: true })).rejects.toMatchObject({
+        type: ErrorType.Config,
+      });
+    });
+  });
+});
+
+describe('reading', () => {
+  it('answers what the read answers', async () => {
+    await expect(reading('a.txt', async () => 7)).resolves.toBe(7);
+  });
+
+  it('names what could not be read, as a File error with no status', async () => {
+    const failed = reading('dist/a.txt', async () => {
+      throw new Error('EACCES');
+    });
+
+    await expect(failed).rejects.toMatchObject({
+      type: ErrorType.File,
+      status: undefined,
+      message: unreadable('dist/a.txt'),
+      details: { filePath: 'dist/a.txt' },
+    });
+  });
+
+  it('says the sentence drop shows for the same thing', () => {
+    expect(unreadable('dist/a.txt')).toBe(
+      `We couldn't read "dist/a.txt". Make sure it's on this computer, then try again.`,
+    );
   });
 });

@@ -12,7 +12,13 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import type { DeployInput, DeploymentOptions, Fetch, StaticFile } from '../../src/shared/types';
+import type {
+  DeployInput,
+  DeploymentOptions,
+  Fetch,
+  PlatformLimits,
+  StaticFile,
+} from '../../src/shared/types';
 import { apiKey } from '../fixtures/builders';
 import { type FakeTransport, fakeTransport } from '../mocks/transport';
 
@@ -21,16 +27,20 @@ const TEST_API_KEY = apiKey('a');
 
 const INDEX_HTML: StaticFile = {
   path: 'index.html',
-  content: Buffer.from('<html><body><div id="root"></div></body></html>'),
+  content: new Blob(['<html><body><div id="root"></div></body></html>']),
   size: 47,
   md5: 'test-hash',
 };
 
+// Finds one fixed file and asks for the limits, as both platforms do once
+// their files are found.
 class TestShip extends Ship {
   protected async processInput(
     _input: DeployInput,
     _options: DeploymentOptions,
+    limits: () => Promise<PlatformLimits>,
   ): Promise<StaticFile[]> {
+    await limits();
     return [INDEX_HTML];
   }
 }

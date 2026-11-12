@@ -1,110 +1,132 @@
 /**
- * @file The deploy file pipeline — one processor, two collectors.
+ * @file The deploy file pipeline: one sequence, two collectors.
  *
- * A deploy turns *what a platform found* into *what the API receives*, and
- * only the first half of that sentence is platform-shaped. Node walks a
- * filesystem; a browser is handed `File` objects. Everything after — optimize
- * the paths, drop the junk, refuse what the platform's rules refuse, checksum
- * what survives — is one sequence, stated here once.
+ * A deploy turns what a platform found into what the API receives, and only
+ * the finding is platform-shaped. Node walks a filesystem; a browser is
+ * handed `File` objects. Everything after is one sequence, stated here once:
+ * set the junk aside and name the paths, refuse what the platform's rules
+ * refuse, open and hash what is left.
  *
- * The seam is {@link DeploySource}: a path, where it came from, its size, and
- * a way to read it. That shape is what lets Node answer "how big is this?"
- * from the stat its directory walk already performed, which is how the empty-
- * file skip stays free — and it is why `read()` is a FUNCTION rather than a
- * field. Every deploy rule reads only a path and a size, so the whole
- * deployment is judged before `read()` is called once: a refused deploy opens
- * no file, however many it holds.
+ * The seam is {@link DeploySource}: a path, a size, and a way to open the
+ * file. The size sits beside `read()` so that every deploy rule, which reads
+ * only a path and a size, is judged before anything is opened: a refused
+ * deploy opens no file, however many it holds. What `read()` answers is a
+ * `Blob` on every platform, and in Node that is the file on disk, so a file's
+ * bytes are in memory only while they are hashed and while they are sent.
+ *
+ * This is the only code that reads a file before it is sent, so it is where a
+ * file that cannot be read is named ({@link reading}).
  */
 
 import type { PlatformLimits, StaticFile } from '@shipstatic/types';
-import { deployRefusal, isPublishedFile, ShipError } from '@shipstatic/types';
-import { optimizeDeployPaths } from '../lib/deploy-paths.js';
-import { filterJunk } from '../lib/junk.js';
+import {
+  assertShipJsonSyntax,
+  DEPLOYMENT_CONFIG_FILENAME,
+  deployRefusal,
+  isPublishedFile,
+  isShipError,
+  ShipError,
+} from '@shipstatic/types';
+import { optimizeDeployPaths, sitePaths } from '../lib/deploy-paths.js';
 import { calculateMD5 } from '../lib/md5.js';
 import type { DeploymentOptions } from '../types.js';
 
-/**
- * One file a platform found, before this pipeline has decided anything about
- * it. The only thing a collector owes beyond the bytes is the path they want
- * and how many there are.
- */
+/** One file a platform found, before this pipeline has decided anything about it. */
 export interface DeploySource {
-  /** The path this file wants, as its platform names it — pre-optimization. */
+  /** The path as its platform names it, before the pipeline names it for the site. */
   path: string;
-  /** Byte length, known WITHOUT reading — a stat, or `File.size`. */
+  /** Byte length, known without opening the file: a stat, or `File.size`. */
   size: number;
-  /** Reads the content. Called only for files that survive to the checksum. */
-  read: () => Promise<StaticFile['content']>;
+  /**
+   * Opens the file, or refuses what cannot be published (in Node, a link).
+   * Called only for a file the deploy would publish.
+   */
+  read: () => Promise<Blob>;
+}
+
+/** What a person is told when a file or a folder cannot be read. */
+export function unreadable(path: string): string {
+  return `We couldn't read "${path}". Make sure it's on this computer, then try again.`;
 }
 
 /**
- * Turn collected sources into the `StaticFile[]` a deploy body is built from.
+ * Read what is at `path`, naming it when the read fails. A refusal already in
+ * the platform's words passes through as it is.
+ */
+export async function reading<T>(path: string, read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    if (isShipError(error)) throw error;
+    throw ShipError.file(unreadable(path), { filePath: path });
+  }
+}
+
+/**
+ * Turn what a platform found into the files a deploy sends.
  *
  * @param sources - What the platform found, in the platform's own order
- * @param options - Deploy options; `pathDetect` and the server-processed flags
- *   are the two this pipeline reads
- * @param platformLimits - The caps and the delivered blocklist the deploy read
- *   from `GET /limits` at its start, passed in and never held.
+ * @param options - Deploy options; `pathDetect` and the build flags are the
+ *   ones this pipeline reads
+ * @param platformLimits - The caps and the blocklist the deploy read from
+ *   `GET /limits`, passed in and never held
  */
 export async function processDeployFiles(
   sources: DeploySource[],
   options: DeploymentOptions = {},
   platformLimits?: PlatformLimits,
 ): Promise<StaticFile[]> {
-  // `build` / `prerender` upload a project's SOURCE for the build service to
-  // compile, and which files a source holds was decided once, before this
-  // pipeline ran (drop's `projectSource`: what the repository holds). So this
-  // pipeline carries the set as it is: no junk filter, which would drop the
-  // dot files a build reads (`.npmrc`, `.vitepress/`), no empty-file skip,
-  // since an empty module a build imports is source and the files go into a
-  // zip rather than to storage, and none of the deploy rules, which describe
-  // the build's OUTPUT. Both flags are `@internal` and set only by `web/my`
-  // and `web/www`, which are browser apps; there is no Node caller.
-  const serverProcessed = !!(options.build || options.prerender);
+  // `build` and `prerender` send a project's SOURCE for the build service to
+  // compile. Which files a source holds is decided before this pipeline
+  // (drop's `projectSource`), so it is carried as it is: no junk is set aside,
+  // since a build reads its dot files (`.npmrc`, `.vitepress/`), no empty file
+  // is skipped, since an empty module a build imports is source, and no deploy
+  // rule applies, since the rules describe a build's OUTPUT.
+  const built = Boolean(options.build || options.prerender);
+  const flatten = options.pathDetect !== false;
+  const found = sources.map((source) => source.path);
+  const paths = built
+    ? optimizeDeployPaths(found, { flatten }).map((file) => file.path)
+    : sitePaths(found, { flatten });
 
-  const deployPaths = optimizeDeployPaths(
-    sources.map((source) => source.path),
-    { flatten: options.pathDetect !== false },
-  ).map((file) => file.path);
+  const kept = sources.flatMap((source, index) => {
+    const path = paths[index];
+    return path == null ? [] : [{ source, path }];
+  });
 
-  const surviving = serverProcessed ? null : new Set(filterJunk(deployPaths));
-  const kept = sources
-    .map((source, index) => ({ source, deployPath: deployPaths[index] }))
-    .filter(({ deployPath }) => !surviving || surviving.has(deployPath));
-
-  // The rules, or none. `null` is server-processed mode, the one state where
-  // this pipeline judges nothing, so every check below reads as what it is.
-  const rules = serverProcessed ? null : requireLimits(platformLimits);
-
-  // Every rule the deployment is held to, from the platform's one table, in
-  // the API's order: each published file with its running total, then the
-  // deployment as a whole over the files as sent, empty ones included. All of
-  // them read paths and sizes, which every collector knows before a read.
-  if (rules) {
-    const sent = kept.map(({ source, deployPath }) => ({ path: deployPath, size: source.size }));
-    const refusal = deployRefusal(sent, rules);
+  // Every rule a site is held to, from the platform's one table, over the
+  // files as sent, empty ones included. All of them read paths and sizes.
+  if (!built) {
+    const sent = kept.map(({ source, path }) => ({ path, size: source.size }));
+    const refusal = deployRefusal(sent, requireLimits(platformLimits));
     if (refusal) throw ShipError.validation(refusal);
   }
 
   const files: StaticFile[] = [];
-  for (const { source, deployPath } of kept) {
-    // An empty file is never published (`isPublishedFile`), so it is never read.
-    if (rules && !isPublishedFile(source)) continue;
-    const content = await source.read();
-    const { md5 } = await calculateMD5(content);
-    files.push({ path: deployPath, content, size: source.size, md5 });
+  for (const { source, path } of kept) {
+    // No deployment stores an empty file (`isPublishedFile`), so a site's is
+    // never opened.
+    if (!built && !isPublishedFile(source)) continue;
+    files.push(
+      await reading(source.path, async () => {
+        const content = await source.read();
+        // The one file whose text has a rule: the root `ship.json` must parse
+        // as a JSON object. Its schema is the server's to judge.
+        if (path === DEPLOYMENT_CONFIG_FILENAME) assertShipJsonSyntax(await content.text());
+        // The size declared is the opened content's, so what the manifest
+        // states is what the body carries.
+        return { path, size: content.size, md5: await calculateMD5(content), content };
+      }),
+    );
   }
-
   return files;
 }
 
 /**
- * Deploy-mode validation is only as real as the rules behind it, so their
- * absence is a configuration error rather than a silently permissive pass.
- * Unreachable through `ship.deploy()` — the deploy pipeline awaits the
- * `/limits` fetch before it collects a file — and reachable by a consumer
- * calling the exported platform processors directly, which is who the
- * sentence is written for.
+ * A site is judged by the platform's limits, so their absence is a
+ * configuration error, never a pass. `ship.deploy()` always has them: it
+ * reads `/limits` once its files are found. A caller of the exported
+ * platform processors hands them in, and this sentence is written for them.
  */
 function requireLimits(platformLimits?: PlatformLimits): PlatformLimits {
   if (!platformLimits) {

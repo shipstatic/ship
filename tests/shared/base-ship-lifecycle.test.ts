@@ -18,7 +18,7 @@ class TestShip extends Ship {
     return [
       {
         path: 'test.html',
-        content: Buffer.from('<html>Test</html>'),
+        content: new Blob(['<html>Test</html>']),
         size: 18,
         md5: 'test-hash',
       },

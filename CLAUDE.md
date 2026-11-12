@@ -159,16 +159,18 @@ factory depends only on what it uses. The deployment resource also receives
 Every request flows through `executeRequest` in `src/shared/api/http.ts`,
 which owns header merging, the timeout, retries, events and error mapping.
 `request<T>()` returns data; `requestWithStatus<T>()` returns `{ data, status }`
-for the one operation where the status IS the answer (domain upsert: 201 means
-`isCreate: true`).
+for the two operations where the status is part of the answer: a domain upsert
+(201 means `isCreate: true`) and a deploy request (202 means still pending).
 
 - **Every path parameter is `encodeURIComponent()`-ed.** The SDK does not
   validate identifiers, so this is the whole client-side defence against a
   hostile name forging a sub-route. `resources-paths.test.ts` quantifies over
   every resource method that takes one, because one method forgetting it is
   the whole defect class.
-- **Optional arrays:** test `labels !== undefined`, never `labels?.length`, so
-  "not provided" and "empty" stay distinct.
+- **Optional arrays:** in a JSON body test `labels !== undefined`, never
+  `labels?.length`, so "not provided" and "empty" stay distinct. A deploy's
+  multipart `labels` field is the one place the two mean the same (no labels),
+  so `deployFields` sends none for either.
 - **Internal request options are `ShipRequestInit`**, whose `headers` is
   narrowed to a plain record (see "Retries").
 
@@ -276,43 +278,114 @@ ship.deploy(Array.from(fileInput.files));
 
 `FileList` is not accepted directly (the check is `Array.isArray(input) &&
 input.every(item => item instanceof File)`); convert with `Array.from`.
-`StaticFile` (`{path, content, md5, size}`) is an internal pipeline shape, not
-a public input. In the browser the SDK takes a file's path from
-`webkitRelativePath`, falling back to `name`.
+`StaticFile` (`{path, size, md5, content}`) is what the pipeline produces, not
+a public input.
+
+**Each platform names a file from what the person gave it.** In the browser
+that is `webkitRelativePath`, falling back to `name`. In Node each typed path
+names its own files: a folder's are relative to the folder, and a file is its
+own name, so `ship site extra` keeps the structure inside each folder and what
+one path holds never changes where another's files land. A file two typed
+paths reach is sent once, named by the first.
 
 ### One deploy pipeline, two collectors
 
 **Only the FINDING is platform-shaped.** Node walks a filesystem; a browser is
-handed `File` objects. Everything after (optimize the paths, drop the junk,
-refuse what the deploy rules refuse, checksum what survives) is one sequence
-in `shared/core/deploy-files.ts`; `node-files.ts` and `browser-files.ts` are
-only collectors.
+handed `File` objects. Everything after is one sequence in
+`shared/core/deploy-files.ts`: set the junk aside and name the paths, refuse
+what the deploy rules refuse, open and hash what is left. `node-files.ts` and
+`browser-files.ts` are only collectors.
 
 **The seam is `DeploySource`: a path, a size and a `read()`.** `size` sits
-beside `read()`, filled in Node from the `statSync` the walk already makes, so
-every deploy rule is judged before the first read: a refused deploy opens no
-file, because no rule reads more than a path and a size. The pipeline's tests
-use synthetic sources, needing no disk and no browser.
+beside `read()`, filled in Node from the stat the walk already makes, so every
+deploy rule is judged before the first read: a refused deploy opens no file,
+because no rule reads more than a path and a size. The pipeline's tests use
+synthetic sources, needing no disk and no browser.
+
+**A file's content is a `Blob` on every platform, and in Node it is the file
+itself.** `read()` answers `fs.openAsBlob(path)` there and the `File` in a
+browser, so nothing downstream knows a platform: one MD5 over a `Blob`, one
+`content.text()` for `ship.json`, one `formData.append`. Node reads a file's
+bytes only while they are hashed and while they are sent, so a deployment of
+any size holds nothing in memory, at the price of reading each file twice.
+A file that changes between the two is refused, never sent wrong: the
+runtime rejects the read (`NotReadableError`), which `ShipError.fromFetchError`
+reads as a `File` error ("A file changed while it was being uploaded. Deploy
+again.") that is not retried. `md5.ts` uses the runtime's own hash where it
+has one (`crypto`) and `spark-md5` where it has none; the browser build
+resolves `crypto` to an empty module, so the same question is asked of both.
+
+**The pipeline is the only code that reads a file before it is sent, so it is
+where a file that cannot be read is named.** Opening a file, hashing it and
+checking the root `ship.json` run inside one wrapper, `reading(path, read)`,
+which turns any failure into `ShipError.file` with one sentence (`unreadable`,
+which `@shipstatic/drop` imports for the same thing): a file that vanished,
+one the person may not read, one still in the cloud, one that changed while
+it was hashed. A refusal already in the platform's words passes through. The
+size a `StaticFile` declares is the opened content's (`content.size`), so the
+manifest states what the body carries even when a file changed after the walk
+saw it; the size the walk saw is what the deploy rules judge, before anything
+is opened.
+
+**The paths are named by one function, `sitePaths`** (`lib/deploy-paths.ts`),
+in the one order that names a site the same way wherever its files came from:
+strip the folder every path shares, set the junk aside, strip the folder the
+remaining paths share. The first strip keeps the folder a person picked from
+being judged as part of a path; the second exists because junk beside a
+site's folder (an unpacked archive's `__MACOSX`, a `.DS_Store`) is what kept
+that folder from being stripped the first time. The second strip acts only
+when every remaining path shares a folder, which is a site with no page at its
+top, so it changes no deploy that was already accepted. `pathDetect: false`
+strips nothing and still sets junk aside.
+
+**The Node walk reads no link** (`lstat`, never `stat`), as Vercel's client
+does. A folder someone else made (a cloned repository's `dist`) can hold a
+link to anywhere on the computer, and following it would publish files the
+person never chose, under a name the dot-file rule cannot see through
+(`x -> ~/.aws` deploys as `x/credentials`). So the walk cannot leave the
+folder and cannot go round, and it holds no cycle detection and no question
+of inside or outside. A link is found as an entry and becomes a source whose
+`read()` refuses it by name. Being a source like any file, a link inside what
+the deploy sets aside (`.venv/bin/python`) is set aside with it and refuses
+nothing, and one the deploy would publish is refused when the deploy opens
+it, after the deploy rules have spoken. **Refused: following a link that
+stays inside the folder.** Folders that link to each other are walked again
+under each other's names at every depth (eight folders are 109,601 paths),
+and no bound on that is anything but arbitrary. A path the person typed is
+taken as typed, a link included.
+
+**A typed path has one owner, `find`.** It says which of three things is
+wrong, "We couldn't find", "We couldn't read" or "isn't a file or a folder",
+and the CLI adds no check of its own. The walk needs no limits, so the deploy
+finds its files first and asks for the limits after (`processInput` receives
+them as a function): a path that is not there, a project that is not built
+and a folder that cannot be read cost no request.
 
 Two asymmetries are by design:
 
 - **Only Node pre-checks `UNBUILT_PROJECT_MARKERS` on input directories.** A
   Node user can type a repository root, where the walk would enumerate
-  `node_modules`; refusing before the walk is the cheapest moment. The junk
-  filter would refuse the same mistake one step later.
+  `node_modules`; refusing before the walk is the cheapest moment. The deploy
+  rules would refuse the same mistake one step later.
 - **Only browser callers set `build`/`prerender`** (see "Server-Processed
   Uploads"). The mode is read from the shared options; who sets it is the
   asymmetry.
 
-**What the junk filter does and does not do.** It filters a site's junk and
-judges nothing: a project's files (`node_modules`, `package.json`) are kept,
-even under pnpm's `node_modules/.pnpm/`, so the `project` rule refuses them by
-name. A `..` segment is dot-prefixed, so it is filtered rather than refused.
+**What the junk filter does and does not do.** It sets aside what a tool or
+an operating system leaves in a folder, and judges nothing: a project's files
+(`node_modules`, `package.json`) are kept, even under pnpm's
+`node_modules/.pnpm/`, so the `project` rule refuses them by name, and a path
+that cannot be published for any other reason (a segment over 255 characters,
+unsafe characters) is kept for the rules to refuse in words. Dropping one
+would publish the site without the file and tell nobody. A `..` segment is
+dot-prefixed, so it is set aside rather than refused.
 
 ### A deploy larger than one request
 
 **A deploy is declared, then filled; a deploy that fits one request is the
 case where the declaration carries everything.** `deployments.upload` always
+checks the options first (each check reads nothing but its option, so a
+refused one costs no request and opens no file), then collects the files,
 builds the manifest (`deployManifest`: every file by path, size and MD5) and
 the declaration's fields (`deployFields`, in one fixed order), and asks the
 planner (`shared/core/deploy-plan.ts`) how to send them:
@@ -330,8 +403,11 @@ name as the body carries it, plus `PART_OVERHEAD`, and one more
 `PART_OVERHEAD` closes the body. Text values count line breaks as CRLF and
 filenames count their escaped quote, CR and LF (the HTML standard's multipart
 rules), so the count is a ceiling on what any runtime's `FormData` emits, and
-a 413 on a planned request means the arithmetic is wrong. `bodyBytes` is the
-one count; `deploy-plan.test.ts` holds it against a real `FormData` on Node and
+a 413 on a planned request means the arithmetic is wrong. **Every request the
+planner returns is counted**, the bare declaration included: the files that
+configure a site are never split, so a declaration that cannot fit is refused
+before a byte is sent (`DECLARATION_TOO_LARGE`), which no plan's file size
+reaches and a grant's can. `bodyBytes` is the one count; `deploy-plan.test.ts` holds it against a real `FormData` on Node and
 Chromium, and two rows hold the value and name counts EXACTLY by the runtime's
 own byte difference between two bodies. **The recorded break:** a CLI older
 than 3.7 sending a request between 64 and 100 MiB meets a 413 whose sentence
@@ -361,7 +437,9 @@ builds:
 - **A build or prerender never splits.** The planner refuses a project over
   one request before a byte is sent (`BUILD_TOO_LARGE`), reading the flags from
   the declaration's own fields, so what it plans is what is sent.
-- **`deployFields`** appends `build=true` / `prerender=true`.
+- **`deployFields`** appends `build=true` / `prerender=true`, and the build
+  settings whenever they are set: whether a setting may ride without `build`
+  is the API's to say, and it says so in its own words.
 
 These are `@internal` flags, set only by the platform's own browser apps
 through `/upload`. Node has no such caller (and its unbuilt-marker precheck
@@ -451,8 +529,8 @@ fact about an exchange. So the question is **"what would the wire say?"**:
 `completion.ts` is the worked example: an fs call that threw is `file`,
 everything else there is about the user's shell setup, so `config`. CLI
 grammar errors go through `usageError()` in `index.ts`: `Validation`, no
-status. A failed local file read in `md5.ts` is `ShipError.file` with the path
-in `details`.
+status. A typed path that is not there, a file or folder that cannot be
+read, and a link, are `ShipError.file` with the path in `details`.
 
 **Assertions are a third category, and the rule does not govern them.**
 "processFilesForNode can only be called in Node.js environment" guards a state
@@ -695,9 +773,8 @@ Always call `processOptions(this)` inside action handlers, never
 
 ### `performDeploy` Helper
 
-Shared deploy logic for `ship <path>` and `ship deployments upload`: path
-existence and type checks, the deploy options, an AbortController for Ctrl+C,
-and a spinner (TTY only, suppressed under `--json` and `--no-color`). It takes
+Shared deploy logic for `ship <path>` and `ship deployments upload`: the
+deploy options, an AbortController for Ctrl+C, and a spinner (TTY only, suppressed under `--json` and `--no-color`). It takes
 `(client, deployPath, options)` and nothing else; every deploy flag reaches it
 through Commander's own merge.
 
@@ -840,6 +917,9 @@ suite's "and is RETRIED" holds it.
 - **Any other request its resource did not mark `idempotent`.** The deployment
   resource marks every fill (the API answers a repeat from the deployment) and
   a declaration carrying an `Idempotency-Key`. Everything else is sent once.
+- **A file that changed under the request** (`ErrorType.File`, from a
+  `NotReadableError`): nothing was exchanged, and the same unreadable file
+  cannot be sent differently.
 - **Anything the CALLER's signal stopped.** A caller's `AbortSignal.timeout()`
   classifies as `Timeout`, like the client's own ceiling, so the check reads
   `options.signal.aborted`. **That check alone carries the invariant**, and
@@ -955,10 +1035,14 @@ message instead of a stack, and a fourth entry is covered the day it ships.
 
 **One deploy body, native `FormData`.** `shared/core/deploy-body.ts`'s
 `createDeployBody` returns a bare `FormData`; `fetch` sets the boundary and
-`Content-Type`. Node ≥ 20 has global `FormData`, `File` and a
-multipart-encoding `fetch`, and Node 22 and Bun both keep
-`filename="assets/nested/index.html"` intact, which is the contract: the
-deploy PATH rides `File.name`. Tests read fields (`via`, the captcha proof)
+`Content-Type`. The deploy PATH is the part's filename, which is the whole
+file contract, and it is given to `append(field, blob, path)`, never to a
+`File` built around the content: Bun 1.3 names a `File` built around a file
+on disk by its disk path, and `append` is right on Node 20, Node 22 and Bun.
+Every part is typed `application/octet-stream`, since the API reads a file's
+type from its path. **No suite or CI job runs Bun**, so a release that
+touches the body is walked on it by hand (`bun dist/cli.cjs <folder>` against
+dev, then the deployment's paths read back). Tests read fields (`via`, the captcha proof)
 back off the real `FormData` handed to `fetch`, never assert `append` calls.
 
 ### Two flag tiers, and one place each is read
@@ -1152,8 +1236,8 @@ citations in `tests/mocks/handler.ts` → `pnpm typecheck` guides the rest.
 A change that breaks one of these needs a recorded exception, not a
 workaround:
 
-1. **Pure lib tests mock nothing.** `md5`, `path`, `deploy-paths`,
-   `validation`, `junk` run the real thing on real inputs.
+1. **Pure lib tests mock nothing.** `md5`, `deploy-paths` and `junk` run
+   the real thing on real inputs.
 2. **SDK-level tests run a real `Ship` against the wire-truth handler.** An
    internal module mock needs a recorded reason; today there is one,
    `node:readline/promises` in `config.test.ts`, since stdin cannot be
@@ -1299,10 +1383,9 @@ leaves it unconfigured, and a split declaration carries `index.html`.
 
 ## ship.json: the client checks syntax, the server owns the schema
 
-`deploy()` calls `validateDeployConfig` (`shared/lib/validation.ts`) before it
-builds the body, beside `validatePassword` and `validateLabels`. It finds the
-root `ship.json`, reads it on either platform (`Buffer` in Node, `Blob` in the
-browser), and applies `assertShipJsonSyntax` from `@shipstatic/types`.
+The shared pipeline (`core/deploy-files.ts`) applies `assertShipJsonSyntax`
+from `@shipstatic/types` to the root `ship.json` at the moment it opens that
+file, the one file whose text has a rule.
 
 **The split is deliberate.** The schema and its compiler live on the server,
 so a client judging them would reject configs a newer platform accepts. The
@@ -1398,7 +1481,7 @@ hazard live.
 **Every deploy names its surface; `via` is never empty by accident.** The
 registry is `DeploymentVia` in `@shipstatic/types`, closed on purpose: each
 client owns its member, and a direct SDK call falls back to `sdk`, applied at
-the single wire boundary in `api/http.ts`. A closed enum makes attribution the
+the one place a deploy is declared (`DEPLOY_VIA` in `resources.ts`). A closed enum makes attribution the
 compiler's business: a typo'd value fails to compile, and `normalizeVia` drops
 what the vocabulary does not name. Adding a surface is a types change. What a
 request naming nothing is recorded as is the API's call.
@@ -1412,8 +1495,8 @@ ShipStatic-specific levers stay out of the README; industry conventions go in.
 **`getLimits()` asks the server every time.** Limits are the account's policy
 and may change at any moment (a plan move, a grant), so the client never holds
 them. `getLimits()` issues `GET /limits` on every call; a deploy reads them
-once, at its start, and hands them to `processInput` (size, count and blocklist
-checks). Nothing else requests them. Holding them is refused: a client can live
+once, when `processInput` has found its files and asks (size, count and
+blocklist checks). Nothing else requests them. Holding them is refused: a client can live
 as long as a browser tab, so a memo would judge today's upload by the morning's
 limits and starve the caller's own cache of fresh data. `base-ship-limits.test.ts`
 fences it by request COUNTS and by a server that changes its answer between

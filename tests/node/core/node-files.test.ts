@@ -1,33 +1,23 @@
 /**
- * @file Subject: `src/node/core/node-files.ts` — `processFilesForNode` on
- * REAL temp filesystems. Nothing here can be faked into passing.
+ * @file Subject: `src/node/core/node-files.ts`, `processFilesForNode` on REAL
+ * temp filesystems, with no filesystem mock: real walks, real links, real
+ * permissions and real MD5 digests. Nothing here can be faked into passing.
  *
- * Until 2026-07-27 this file installed a file-scoped `vi.mock('fs')` /
- * `vi.mock('path')` with ~190 lines of hand-rolled fake — the apparatus that
- * kept a `basePath` option that never existed green for months (the fake's
- * `path.relative` carried the expected answers for the test's own inputs).
- * The real-filesystem tier lived beside it as `node-files-walk.test.ts`
- * because `vi.mock` cannot be scoped to a describe. De-mocking dissolved the
- * split: one mirror file, zero filesystem mocking, real md5 digests.
- *
- * Ported honestly rather than literally — three mocked scenarios have no
- * real-filesystem equivalent and are deliberately gone:
- * - backslash-separated INPUT paths (`folder\\sub\\file`): a POSIX filesystem
- *   cannot host them; separator handling is pinned by the fast-check
- *   properties in `path.cross-env.test.ts`, and real Windows behaviour is
- *   the flagged Windows-runner decision (F8).
- * - the statSync call-count choreography ("throw a ShipError on call 3"):
- *   ShipError pass-through is proven by every exact-message validation test.
- * - a thrown STRING from readFileSync: same wrapping arm as the real EACCES
- *   case below, which exercises it against a genuine permission error.
+ * Two things a POSIX filesystem cannot host are held elsewhere:
+ * backslash-separated paths (`tests/shared/lib/deploy-paths.test.ts`), and a
+ * file's content changing under a request (`@shipstatic/types`, the fetch
+ * error classifier).
  */
 
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { ErrorType, type ShipError } from '@shipstatic/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { processFilesForNode } from '../../../src/node/core/node-files';
+import { Ship } from '../../../src/node/index';
 import { __setTestEnvironment } from '../../../src/shared/lib/env';
+import type { Fetch } from '../../../src/shared/types';
 import { FREE_PLAN_LIMITS, LIMITS_WITHOUT_BLOCKLIST } from '../../fixtures/builders';
 
 let root: string;
@@ -98,7 +88,7 @@ describe('processFilesForNode', () => {
 
       expect(result).toHaveLength(2);
       const hello = result.find((f) => f.path === 'hello.txt');
-      expect(hello?.content).toEqual(Buffer.from('hello'));
+      expect(await hello?.content.text()).toBe('hello');
       expect(hello?.size).toBe(5);
       // The digest of bytes this test wrote: a truncated read cannot pass.
       expect(hello?.md5).toBe('5d41402abc4b2a76b9719d911017c592');
@@ -875,7 +865,7 @@ describe('processFilesForNode', () => {
 
       expect(result).toHaveLength(4);
       for (const file of result) {
-        expect(file.content).toBeInstanceOf(Buffer);
+        expect(file.content).toBeInstanceOf(Blob);
         expect(file.size).toBeGreaterThan(0);
       }
     });
@@ -935,35 +925,216 @@ describe('processFilesForNode', () => {
     });
   });
 
-  describe('symlinks', () => {
-    it('walks through a symlink cycle exactly once — no hang, no duplicates', async () => {
-      writeTree({ 'dir_a/index.html': HOME, 'dir_a/file1.txt': 'file1' });
-      fs.mkdirSync(at('dir_a/sub'), { recursive: true });
-      // sub/loop → dir_a: following it would recurse forever.
-      fs.symlinkSync(at('dir_a'), at('dir_a/sub/loop'));
+  describe('several typed paths', () => {
+    it("names each folder's files from that folder, keeping the structure inside it", async () => {
+      writeTree({
+        'site/index.html': HOME,
+        'site/css/app.css': 'body{}',
+        'extra/img/logo.png': 'png',
+      });
 
-      const result = await processFilesForNode([at('dir_a')], {}, FREE_PLAN_LIMITS);
+      const result = await processFilesForNode([at('site'), at('extra')], {}, FREE_PLAN_LIMITS);
 
-      expect(pathsOf(result)).toEqual(['file1.txt', 'index.html']);
+      expect(pathsOf(result)).toEqual(['css/app.css', 'img/logo.png', 'index.html']);
     });
 
-    it('visits a target reachable through two links only once', async () => {
-      writeTree({ 'shared/file.txt': 'shared content', 'site/index.html': '<html>' });
-      fs.symlinkSync(at('shared'), at('site/first'));
-      fs.symlinkSync(at('shared'), at('site/second'));
+    it('sends a file two typed paths reach once, named by the first', async () => {
+      writeTree({ 'site/index.html': HOME, 'site/css/app.css': 'body{}' });
+
+      const result = await processFilesForNode(
+        [at('site'), at('site/css/app.css')],
+        {},
+        FREE_PLAN_LIMITS,
+      );
+
+      expect(pathsOf(result)).toEqual(['css/app.css', 'index.html']);
+    });
+  });
+
+  describe('junk beside the site', () => {
+    it.each([
+      ['a .DS_Store', { '.DS_Store': 'x' }],
+      ["an unpacked archive's __MACOSX", { '__MACOSX/site/._index.html': 'x' }],
+    ])('publishes a site that sits one folder down with %s beside it', async (_what, junk) => {
+      writeTree({ 'dist/site/index.html': HOME, 'dist/site/app.js': '1' });
+      writeTree(Object.fromEntries(Object.entries(junk).map(([k, v]) => [`dist/${k}`, v])));
+
+      const result = await processFilesForNode([at('dist')], {}, FREE_PLAN_LIMITS);
+
+      expect(pathsOf(result)).toEqual(['app.js', 'index.html']);
+    });
+  });
+
+  describe('links', () => {
+    const LINK = (path: string) =>
+      `"${at(path)}" is a link, and we don't publish links. Copy what it points to into the folder, then try again.`;
+
+    const refusal = async (folder: string): Promise<ShipError> =>
+      processFilesForNode([at(folder)], {}, FREE_PLAN_LIMITS).catch((e) => e);
+
+    it.each([
+      ['a file inside the folder', 'site/v2/guide.html', 'start.html'],
+      ['a folder inside the folder', 'site/v2', 'latest'],
+      ['a file outside the folder', 'secrets/key.txt', 'notes.txt'],
+      // The link's name has no dot, so the dot-file rule would not see what
+      // it reaches: following it would publish the folder's files.
+      ['a dot folder outside the folder', 'secrets/.aws', 'x'],
+      ['nothing', 'site/gone.txt', 'dangling.txt'],
+    ])('refuses a link to %s, by name', async (_what, target, link) => {
+      writeTree({
+        'site/index.html': HOME,
+        'site/v2/guide.html': '<p>',
+        'secrets/key.txt': 'key',
+        'secrets/.aws/credentials': 'credentials',
+      });
+      fs.symlinkSync(at(target), at(`site/${link}`));
+
+      const error = await refusal('site');
+
+      expect(error.type).toBe(ErrorType.File);
+      expect(error.message).toBe(LINK(`site/${link}`));
+      expect(error.details).toEqual({ filePath: at(`site/${link}`) });
+    });
+
+    it('sets a link aside with the junk that holds it, and refuses nothing', async () => {
+      // A `.venv` beside a site is full of links out of the folder, and none
+      // of it is published.
+      writeTree({ 'site/index.html': HOME, 'site/.venv/pyvenv.cfg': 'home = /usr/bin' });
+      fs.mkdirSync(at('site/.venv/bin'));
+      fs.symlinkSync('/usr/bin/env', at('site/.venv/bin/python'));
 
       const result = await processFilesForNode([at('site')], {}, FREE_PLAN_LIMITS);
 
-      // The realpath dedup admits the shared directory through ONE of the
-      // links; the second resolves to an already-visited target.
-      expect(result.filter((f) => f.path.endsWith('file.txt'))).toHaveLength(1);
+      expect(pathsOf(result)).toEqual(['index.html']);
+    });
+
+    it('lets the project rule speak first: a nested node_modules is named before any link in it', async () => {
+      writeTree({ 'site/index.html': HOME, 'site/app/node_modules/pkg/index.js': '1' });
+      fs.mkdirSync(at('site/app/node_modules/.bin'));
+      fs.symlinkSync(
+        at('site/app/node_modules/pkg/index.js'),
+        at('site/app/node_modules/.bin/pkg'),
+      );
+
+      const error = await refusal('site');
+
+      expect(error.type).toBe(ErrorType.Validation);
+      expect(error.message).toContain('node_modules');
+    });
+
+    it('never follows a link, so folders that link to each other are walked once', async () => {
+      // Followed, each folder would be walked again under every other's
+      // name, at every depth: eight folders are 109,601 paths.
+      const folders = Array.from({ length: 8 }, (_, i) => `site/.cache/d${i}`);
+      writeTree({ 'site/index.html': HOME });
+      for (const folder of folders) writeTree({ [`${folder}/a.txt`]: 'a' });
+      for (const from of folders) {
+        for (const to of folders) {
+          if (from !== to) fs.symlinkSync(at(to), at(`${from}/to-${path.basename(to)}`));
+        }
+      }
+
+      const result = await processFilesForNode([at('site')], {}, FREE_PLAN_LIMITS);
+
+      expect(pathsOf(result)).toEqual(['index.html']);
+    });
+
+    it('reads a folder the person typed through a link: a typed path is taken as typed', async () => {
+      writeTree({ 'build/index.html': HOME, 'build/app.js': '1' });
+      fs.symlinkSync(at('build'), at('current'));
+
+      const result = await processFilesForNode([at('current')], {}, FREE_PLAN_LIMITS);
+
+      expect(pathsOf(result)).toEqual(['app.js', 'index.html']);
+    });
+
+    it('takes a file the person typed as typed, a link included', async () => {
+      writeTree({ 'elsewhere/page.html': HOME });
+      fs.mkdirSync(at('site'));
+      fs.symlinkSync(at('elsewhere/page.html'), at('site/index.html'));
+
+      const result = await processFilesForNode([at('site/index.html')], {}, FREE_PLAN_LIMITS);
+
+      expect(pathsOf(result)).toEqual(['index.html']);
+    });
+  });
+
+  describe('found before the platform is asked anything', () => {
+    // The walk needs no limits, so what it refuses costs no request: the
+    // deploy reads `/limits` only once its files are found.
+    const deployWith = (input: string) => {
+      const fetch = vi.fn<Fetch>(async () => Response.json({}));
+      const ship = new Ship({ apiUrl: 'http://localhost:13579', fetch });
+      return { fetch, deploy: ship.deploy(input).catch((e: ShipError) => e) };
+    };
+
+    it.each([
+      ['a path that is not there', () => at('nowhere'), "We couldn't find"],
+      [
+        'a project that is not built',
+        () => {
+          writeTree({ 'app/package.json': '{}', 'app/index.html': HOME });
+          return at('app');
+        },
+        "isn't built yet",
+      ],
+    ])('refuses %s with no request', async (_what, input, sentence) => {
+      const { fetch, deploy } = deployWith(input());
+
+      expect(((await deploy) as ShipError).message).toContain(sentence);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('asks for the limits once the files are found', async () => {
+      writeTree({ 'site/about.html': HOME });
+      const { fetch, deploy } = deployWith(at('site'));
+
+      await deploy;
+
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(String(fetch.mock.calls[0]?.[0])).toContain('/limits');
     });
   });
 
   describe('filesystem errors', () => {
-    // Root can read anything; the permission scenario cannot exist for it.
+    it('says a typed path is not there, in the words the person typed', async () => {
+      const error: ShipError = await processFilesForNode(
+        ['./no/such/folder'],
+        {},
+        FREE_PLAN_LIMITS,
+      ).catch((e) => e);
+
+      expect(error.type).toBe(ErrorType.File);
+      expect(error.message).toBe(
+        `We couldn't find "./no/such/folder". Check the path, then try again.`,
+      );
+    });
+
+    it.skipIf(process.platform === 'win32')(
+      'refuses a typed path that is neither a file nor a folder',
+      async () => {
+        await expect(processFilesForNode(['/dev/null'], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+          `"/dev/null" isn't a file or a folder.`,
+        );
+      },
+    );
+
+    // Root can read anything; the permission scenarios cannot exist for it.
+    it.skipIf(process.getuid?.() === 0)('names a folder it cannot read', async () => {
+      writeTree({ 'site/index.html': HOME, 'site/locked/a.txt': 'a' });
+      fs.chmodSync(at('site/locked'), 0o000);
+
+      try {
+        await expect(processFilesForNode([at('site')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+          `We couldn't read "${at('site/locked')}".`,
+        );
+      } finally {
+        fs.chmodSync(at('site/locked'), 0o700);
+      }
+    });
+
     it.skipIf(process.getuid?.() === 0)(
-      'wraps an unreadable file into ShipError.file ("Failed to read file")',
+      'names a file it cannot read, by the path it would be published from, before it is sent',
       async () => {
         // A site the rules accept, so the pipeline reaches the read.
         writeTree({ 'index.html': HOME, 'locked.txt': 'cannot read me' });
@@ -971,7 +1142,7 @@ describe('processFilesForNode', () => {
 
         await expect(
           processFilesForNode([at('index.html'), at('locked.txt')], {}, FREE_PLAN_LIMITS),
-        ).rejects.toThrow('Failed to read file');
+        ).rejects.toThrow(`We couldn't read "locked.txt".`);
       },
     );
   });

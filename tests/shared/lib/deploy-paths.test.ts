@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { optimizeDeployPaths } from '../../../src/shared/lib/deploy-paths';
-import { findCommonParent } from '../../../src/shared/lib/path';
+import { optimizeDeployPaths, sitePaths } from '../../../src/shared/lib/deploy-paths';
+import { filterJunk } from '../../../src/shared/lib/junk';
 
 describe('Deploy Path Optimization', () => {
   describe('Default behavior (flattening enabled)', () => {
@@ -234,26 +234,66 @@ describe('optimizeDeployPaths properties', () => {
   });
 });
 
-describe('findCommonParent properties', () => {
-  it('answers identically whether the input uses posix or Windows separators', () => {
-    // The one property the old "cross-environment" file was written to check
-    // and structurally could not — it passed a separator argument that does
-    // not exist, so both of its describes ran the same code path.
-    fc.assert(
-      fc.property(fc.array(relPath, { minLength: 1, maxLength: 6 }), (paths) => {
-        const posix = findCommonParent(paths);
-        const windows = findCommonParent(paths.map((p) => p.replace(/\//g, '\\')));
-        expect(windows).toEqual(posix);
-      }),
-    );
+describe('sitePaths: where each file of a site is published', () => {
+  it('answers one path per input, in order, and nothing for junk', () => {
+    expect(sitePaths(['dist/index.html', 'dist/.DS_Store', 'dist/assets/app.js'])).toEqual([
+      'index.html',
+      null,
+      'assets/app.js',
+    ]);
   });
 
-  it('always returns a prefix of every input path', () => {
+  it.each([
+    ['a .DS_Store', ['.DS_Store']],
+    ["an unpacked archive's __MACOSX", ['__MACOSX/site/._index.html', '__MACOSX/._site']],
+    ['a dot folder', ['.git/config', '.git/HEAD']],
+  ])('strips the folder a site sits in when %s is beside it', (_what, junk) => {
+    // Named before the junk is set aside, the site would stay one folder
+    // down: the junk is what its files do not share a folder with.
+    expect(sitePaths(['site/index.html', 'site/css/app.css', ...junk])).toEqual([
+      'index.html',
+      'css/app.css',
+      ...junk.map(() => null),
+    ]);
+  });
+
+  it('never judges the folder every path shares, whatever its name', () => {
+    expect(sitePaths(['.output/index.html', '.output/.env', '.output/app.js'])).toEqual([
+      'index.html',
+      null,
+      'app.js',
+    ]);
+  });
+
+  it('leaves a site that already sits at the top as it is', () => {
+    const paths = ['index.html', 'assets/app.js', 'blog/index.html'];
+    expect(sitePaths(paths)).toEqual(paths);
+  });
+
+  it('strips nothing when flatten is false, and still sets junk aside', () => {
+    expect(
+      sitePaths(['site/index.html', 'site/.DS_Store', '.git/config'], { flatten: false }),
+    ).toEqual(['site/index.html', null, null]);
+  });
+
+  it('gives a path named twice the same answer both times', () => {
+    expect(sitePaths(['site/a.txt', 'site/a.txt', 'site/b.txt'])).toEqual([
+      'a.txt',
+      'a.txt',
+      'b.txt',
+    ]);
+  });
+
+  it('answers what stripping once and filtering would, wherever no junk sits beside the site', () => {
+    // The second strip does something only when every path left shares a
+    // folder, which is a site with no page at its top.
     fc.assert(
-      fc.property(fc.array(relPath, { minLength: 1, maxLength: 6 }), (paths) => {
-        const parent = findCommonParent(paths);
-        if (parent === '') return;
-        for (const p of paths) expect(p.startsWith(parent)).toBe(true);
+      fc.property(fc.array(relPath, { minLength: 1, maxLength: 8 }), (paths) => {
+        const rooted = ['index.html', ...paths];
+        const once = optimizeDeployPaths(rooted).map((file) => file.path);
+        expect(sitePaths(rooted)).toEqual(
+          once.map((path) => (filterJunk([path]).length === 1 ? path : null)),
+        );
       }),
     );
   });

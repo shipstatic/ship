@@ -7,15 +7,16 @@
  *      "process boundary" credential source — the industry's one-token
  *      convention. Constructor arguments win over env vars.
  *
- * The SDK does NOT read `~/.shiprc` or `package.json` `"ship"` keys — that's
- * the CLI's job (see `cli/shiprc.ts`). Keeping file resolution out of the SDK
- * is what lets embedded consumers (MCP, n8n, GitHub Action) safely write
+ * The SDK reads no config file: `~/.shiprc` is the CLI's (see
+ * `cli/shiprc.ts`). Keeping file resolution out of the SDK is what lets
+ * embedded consumers (the MCP server, the GitHub Action) safely write
  * `new Ship({})` for anonymous public deployments without inheriting the host
  * developer's personal credentials.
  */
 
 import { type PlatformLimits, ShipError } from '@shipstatic/types';
 import { Ship as BaseShip } from '../shared/base-ship.js';
+import { processDeployFiles } from '../shared/core/deploy-files.js';
 import { getENV } from '../shared/lib/env.js';
 import type {
   DeployInput,
@@ -88,7 +89,7 @@ export class Ship extends BaseShip {
   protected async processInput(
     input: DeployInput,
     options: DeploymentOptions,
-    limits: PlatformLimits,
+    limits: () => Promise<PlatformLimits>,
   ): Promise<StaticFile[]> {
     // Normalize string to string[] and validate.
     const paths = typeof input === 'string' ? [input] : input;
@@ -99,13 +100,15 @@ export class Ship extends BaseShip {
       );
     }
 
-    const { processFilesForNode } = await import('./core/node-files.js');
-    return processFilesForNode(paths, options, limits);
+    // The files are found first: what the walk refuses, it refuses before
+    // the limits are asked for.
+    const { findSources } = await import('./core/node-files.js');
+    return processDeployFiles(await findSources(paths), options, await limits());
   }
 }
 
 // Default export (for `import Ship from '@shipstatic/ship'`)
 export default Ship;
 
-// Node-only utilities (path-walking + MD5 over the local filesystem)
+// Node's own half of the deploy pipeline: the filesystem walk.
 export { processFilesForNode } from './core/node-files.js';

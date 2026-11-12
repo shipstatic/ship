@@ -54,19 +54,19 @@ export class Ship extends BaseShip {
   protected async processInput(
     input: DeployInput,
     options: DeploymentOptions,
-    limits: PlatformLimits,
+    limits: () => Promise<PlatformLimits>,
   ): Promise<StaticFile[]> {
     if (!Array.isArray(input) || !input.every((item) => item instanceof File)) {
       throw ShipError.business('Invalid input type for browser environment. Expected File[].');
     }
 
     const { processFilesForBrowser } = await import('./core/browser-files.js');
-    return processFilesForBrowser(input, options, limits);
+    return processFilesForBrowser(input, options, await limits());
   }
 }
 
 // Default export (for `import Ship from '@shipstatic/ship'`)
 export default Ship;
 
-// Browser-only utilities (validation + MD5 over `File` / `Blob` inputs)
+// The browser's own half of the deploy pipeline: reading `File`s.
 export { processFilesForBrowser } from './core/browser-files.js';

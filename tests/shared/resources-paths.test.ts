@@ -151,7 +151,7 @@ describe('the URLs the resources build', () => {
       (global.fetch as any).mockResolvedValue(json({ deployment: 'd1' }));
 
       await resources().deployments.upload([
-        { path: 'index.html', content: Buffer.from('x'), md5: 'a'.repeat(32), size: 1 },
+        { path: 'index.html', content: new Blob(['x']), md5: 'a'.repeat(32), size: 1 },
       ] as never);
 
       expect(lastUrl()).toBe('https://api.test.com/deployments');
@@ -173,7 +173,7 @@ describe('the URLs the resources build', () => {
       (global.fetch as any).mockResolvedValue(json({ deployment: 'd1' }));
 
       await deployments.upload([
-        { path: 'index.html', content: Buffer.from('x'), md5: 'a'.repeat(32), size: 1 },
+        { path: 'index.html', content: new Blob(['x']), md5: 'a'.repeat(32), size: 1 },
       ] as never);
 
       expect(lastUrl()).toBe('https://api.test.com/upload');

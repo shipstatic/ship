@@ -338,12 +338,12 @@ import Ship from '@shipstatic/ship';
 
 const ship = new Ship({ token: 'ship-your-api-key' });
 
-// From file input
-const deployment = await ship.deploy(fileInput.files);
+// From a file input
+const deployment = await ship.deploy(Array.from(fileInput.files));
 
-// From StaticFile array
+// From content you made in the page
 const deployment = await ship.deploy([
-  { path: 'index.html', content: new Blob(['<html>…</html>']) }
+  new File(['<html>…</html>'], 'index.html')
 ]);
 ```
 

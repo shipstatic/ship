@@ -9,7 +9,7 @@
  * tree.
  */
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import {
   type Deployment,
@@ -431,17 +431,6 @@ async function performDeploy(
   deployPath: string,
   options: EffectiveOptions,
 ): Promise<Deployment> {
-  if (!existsSync(deployPath)) {
-    throw ShipError.file(`${deployPath} path does not exist`, { filePath: deployPath });
-  }
-
-  const stats = statSync(deployPath);
-  if (!stats.isDirectory() && !stats.isFile()) {
-    throw ShipError.file(`${deployPath} path must be a file or directory`, {
-      filePath: deployPath,
-    });
-  }
-
   const deployOptions: {
     via: DeploymentViaType;
     labels?: string[];
@@ -1254,8 +1243,8 @@ export function buildProgram(): Command {
 
     // A nonexistent path with no separators, extension, or `~` reads as a
     // mistyped command ("dist", "build" and friends exist, so they still
-    // deploy). Everything else falls through to performDeploy, whose
-    // "path does not exist" error names the path.
+    // deploy). Everything else falls through to the deploy, where the SDK
+    // says what the path is: not there, unreadable, or not a file or folder.
     if (!existsSync(deployPath)) {
       const looksLikeCommand =
         !deployPath.includes('/') &&

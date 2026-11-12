@@ -1,106 +1,72 @@
 /**
- * @file Deploy path optimization - the core logic that makes Ship deployments clean and intuitive.
- * Automatically strips common parent directories to create clean deployment URLs.
+ * @file The paths a deployment's files are published at: web form, with the
+ * folder they all share stripped, so the deployment's root is the site's root.
  */
 
+import { filterJunk } from './junk.js';
 import { normalizeWebPath } from './path.js';
 
-/**
- * Represents a file ready for deployment with its optimized path
- */
+/** A file's deploy path, beside its own name. */
 export interface DeployFile {
-  /** The clean deployment path (e.g., "assets/style.css") */
+  /** The path the file is published at, for example `assets/style.css`. */
   path: string;
-  /** Original filename */
+  /** The file's own name, the last segment of its path. */
   name: string;
 }
 
 /**
- * Core path optimization logic.
- * Transforms messy local paths into clean deployment paths.
- *
- * @example
- * Input:  ["dist/index.html", "dist/assets/app.js"]
- * Output: ["index.html", "assets/app.js"]
- *
- * @param filePaths - Raw file paths from the local filesystem
- * @param options - Path processing options
+ * Each path in web form, with the folder every path shares stripped:
+ * `dist/index.html` and `dist/assets/app.js` become `index.html` and
+ * `assets/app.js`. `flatten: false` strips nothing.
  */
 export function optimizeDeployPaths(
   filePaths: string[],
   options: { flatten?: boolean } = {},
 ): DeployFile[] {
-  // When flattening is disabled, keep original structure
-  if (options.flatten === false) {
-    return filePaths.map((path) => ({
-      path: normalizeWebPath(path),
-      name: extractFileName(path),
-    }));
-  }
-
-  // Find the common directory prefix to strip
-  const commonPrefix = findCommonDirectory(filePaths);
-
-  return filePaths.map((filePath) => {
-    let deployPath = normalizeWebPath(filePath);
-
-    // Strip the common prefix to create clean deployment paths
-    if (commonPrefix) {
-      const prefixToRemove = commonPrefix.endsWith('/') ? commonPrefix : `${commonPrefix}/`;
-      if (deployPath.startsWith(prefixToRemove)) {
-        deployPath = deployPath.substring(prefixToRemove.length);
-      }
-    }
-
-    // Fallback to filename if path becomes empty
-    if (!deployPath) {
-      deployPath = extractFileName(filePath);
-    }
-
-    return {
-      path: deployPath,
-      name: extractFileName(filePath),
-    };
+  const paths = filePaths.map(normalizeWebPath);
+  const shared = options.flatten === false ? '' : sharedFolder(paths);
+  return paths.map((path) => {
+    const name = path.split('/').pop() ?? path;
+    const stripped = shared && path.startsWith(`${shared}/`) ? path.slice(shared.length + 1) : path;
+    return { path: stripped || name, name };
   });
 }
 
 /**
- * Finds the common directory shared by all file paths.
- * This is what gets stripped to create clean deployment URLs.
+ * Where each file of a site is published: one answer per path, in order, and
+ * `null` for a file that is junk (`filterJunk`).
  *
- * @example
- * ["dist/index.html", "dist/assets/app.js"] → "dist"
- * ["src/components/A.tsx", "src/utils/B.ts"] → "src"
- * ["file1.txt", "file2.txt", "subdir/file3.txt"] → "" (no common directory)
+ * Three steps, in the one order that names a site the same way wherever its
+ * files came from. The folder every path shares is stripped first, so the
+ * folder a person picked is never judged as part of a path. Junk is set aside
+ * next. Then the folder the remaining paths share is stripped, because junk
+ * beside a site's folder (an unpacked archive's `__MACOSX`, a `.DS_Store`) is
+ * what kept that folder from being stripped the first time.
+ *
+ * `flatten: false` strips nothing: paths are published as they are, and junk
+ * is still set aside.
  */
-function findCommonDirectory(filePaths: string[]): string {
-  if (!filePaths.length) return '';
-
-  // Normalize all paths first
-  const normalizedPaths = filePaths.map((path) => normalizeWebPath(path));
-
-  // Find the common prefix among all file paths (not just directories)
-  const pathSegments = normalizedPaths.map((path) => path.split('/'));
-  const commonSegments: string[] = [];
-  const minLength = Math.min(...pathSegments.map((segments) => segments.length));
-
-  // Check each segment level to find the longest common prefix
-  for (let i = 0; i < minLength - 1; i++) {
-    // -1 because we don't want to include the filename
-    const segment = pathSegments[0][i];
-    if (pathSegments.every((segments) => segments[i] === segment)) {
-      commonSegments.push(segment);
-    } else {
-      break;
-    }
-  }
-
-  return commonSegments.join('/');
+export function sitePaths(paths: string[], options: { flatten?: boolean } = {}): (string | null)[] {
+  const named = optimizeDeployPaths(paths, options).map((file) => file.path);
+  const site = [...new Set(filterJunk(named))];
+  const published = new Map(
+    optimizeDeployPaths(site, options).map((file, index) => [site[index], file.path]),
+  );
+  return named.map((path) => published.get(path) ?? null);
 }
 
 /**
- * Extracts just the filename from a file path
+ * The deepest folder every path is inside, or `''` when they share none. A
+ * path's last segment is its file, never a folder, so one file alone shares
+ * its whole folder.
  */
-function extractFileName(path: string): string {
-  return path.split(/[/\\]/).pop() || path;
+function sharedFolder(paths: string[]): string {
+  if (paths.length === 0) return '';
+  const folders = paths.map((path) => path.split('/').slice(0, -1));
+  const [first = []] = folders;
+  let depth = 0;
+  while (depth < first.length && folders.every((segments) => segments[depth] === first[depth])) {
+    depth++;
+  }
+  return first.slice(0, depth).join('/');
 }

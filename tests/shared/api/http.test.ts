@@ -345,7 +345,7 @@ describe('ApiHttp', () => {
       (global.fetch as any).mockResolvedValue(createMockResponse(mockDeployment));
 
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
+        { path: 'index.html', content: new Blob(['<html></html>']), md5: 'abc123', size: 13 },
       ];
 
       const result = await deploymentsOver(apiHttpCookieAuth).upload(
@@ -380,7 +380,7 @@ describe('ApiHttp', () => {
         getAuthHeaders: () => ({}),
       });
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
+        { path: 'index.html', content: new Blob(['<html></html>']), md5: 'abc123', size: 13 },
       ];
       (global.fetch as any).mockResolvedValue(
         createMockResponse({
@@ -400,7 +400,7 @@ describe('ApiHttp', () => {
 
     it('should not include X-Caller header when caller option is not provided', async () => {
       const mockFiles = [
-        { path: 'index.html', content: Buffer.from('<html></html>'), md5: 'abc123', size: 13 },
+        { path: 'index.html', content: new Blob(['<html></html>']), md5: 'abc123', size: 13 },
       ];
       (global.fetch as any).mockResolvedValue(
         createMockResponse({

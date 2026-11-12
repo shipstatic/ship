@@ -1,21 +1,14 @@
 /**
- * @file The SDK's vocabulary — every request it can make, stated once.
+ * @file The SDK's vocabulary: every request it can make, stated once.
  *
- * A resource method IS its endpoint: the path, the verb, the body, the
- * response type. It hands that to the transport, which knows how to carry a
- * request and nothing about what one means.
+ * A resource method IS its endpoint: the path, the verb, the body and the
+ * response type. It hands that to the transport (`api/http.ts`), which knows
+ * how to carry a request and nothing about what one means. The SDK mirrors
+ * the wire one method per endpoint by design, so there is no layer between
+ * the two that could restate either.
  *
- * **These were two layers until 2026-08-12.** `ApiHttp` carried eighteen
- * endpoint methods and every factory below wrapped one of them 1:1 —
- * `get: async (name) => getApi().getDomain(name)` — because this SDK mirrors
- * the wire one method per endpoint BY DESIGN (see CLAUDE.md, "Recorded
- * absences"). That design is exactly what made the second layer a restatement
- * rather than an adapter: the two could not diverge without one of them being
- * wrong. Folding DOWN rather than up is what keeps the public grouping and the
- * transport separate, which was the whole point of having two files.
- *
- * The `*Resource` interfaces come from `@shipstatic/types` and did not move.
- * They are the published contract; this file is how it is met.
+ * The `*Resource` interfaces come from `@shipstatic/types`. They are the
+ * published contract; this file is how it is met.
  */
 
 import type { AccountResource, DeployInput, StaticFile } from '@shipstatic/types';
@@ -46,7 +39,9 @@ import {
   type TokenResource,
   validateBuildCommand,
   validateIdempotencyKey,
+  validateLabels,
   validateOutputDir,
+  validatePassword,
   validateTtl,
 } from '@shipstatic/types';
 
@@ -67,10 +62,9 @@ import {
   deployManifest,
 } from './core/deploy-body.js';
 import { planDeploy } from './core/deploy-plan.js';
-import { validateDeployConfig, validateLabels, validatePassword } from './lib/validation.js';
 import type { DeploymentOptions } from './types.js';
 
-/** JSON in, JSON out — the header every body-carrying request here sends. */
+/** JSON in, JSON out: the header every body-carrying request here sends. */
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 /**
@@ -87,7 +81,7 @@ const DEPLOY_VIA = 'sdk';
 
 /**
  * Serialize pagination options into a query string, or '' when there are
- * none — the paginated list endpoints accept `limit` and `cursor`.
+ * none. The paginated list endpoints accept `limit` and `cursor`.
  */
 function listQuery(options?: ListOptions): string {
   const params = new URLSearchParams();
@@ -100,10 +94,10 @@ function listQuery(options?: ListOptions): string {
 /**
  * Shared context for all resource factories.
  *
- * A factory receives the callbacks it needs and nothing else — which is what
- * lets `getApi()` be a THUNK rather than an instance: the transport is built
- * once in the constructor, but reading it lazily is what keeps the resources
- * constructible before it exists and swappable in tests.
+ * A factory receives the callbacks it needs and nothing else. `getApi()` is
+ * a thunk, read on each call: the transport is built once in the constructor,
+ * and reading it lazily keeps the resources constructible before it exists
+ * and swappable in tests.
  */
 export interface ResourceContext {
   getApi: () => Transport;
@@ -131,58 +125,47 @@ export function createDeploymentResource(
 
   return {
     /**
-     * The whole deploy, in the order it happens: collect the files, validate
-     * the request boundary, plan the requests, send them. The platform asks
-     * the single-page question of the files and writes the routing config
-     * itself when the deploy asks it to: every deploy asks
-     * (`spa=true`) unless `spaDetect` is `false`, which sends nothing.
+     * The whole deploy, in the order it happens: check the options, collect
+     * the files, plan the requests, send them.
      *
      * A deploy is declared, then filled. The manifest always rides the
      * declaration: below the request ceiling the declaration carries every
      * file and answers 201, the whole deploy; above it the declaration is bare
      * (the manifest, the options, the root `ship.json` and the root
-     * `index.html`), answers 202, and
-     * each batch of files follows to `POST /deployments/:deployment/files`.
-     * The first 201 or 200 is the deployment. Splitting is internal: the
-     * signature and the answer are the same either way.
+     * `index.html`), answers 202, and each batch of files follows to
+     * `POST /deployments/:deployment/files`. The first 201 or 200 is the
+     * deployment. Splitting is internal: the signature and the answer are the
+     * same either way.
+     *
+     * The platform asks the single-page question of the files and writes the
+     * routing config itself when the deploy asks it to: every deploy asks
+     * (`spa=true`) unless `spaDetect` is `false`, which sends nothing.
      */
     upload: async (input: DeployInput, options: DeploymentOptions = {}) => {
-      if (!processInput) {
-        throw ShipError.config('processInput function is not provided.');
-      }
+      // The options first: each check reads nothing but its option, so a
+      // value the platform would refuse costs no request and opens no file.
+      const idempotencyKey = validateIdempotencyKey(options.idempotencyKey);
+      const declaration = {
+        labels: validateLabels(options.labels),
+        via: options.via ?? DEPLOY_VIA,
+        password: validatePassword(options.password),
+        ttl: validateTtl(options.ttl),
+        spa: options.spaDetect !== false,
+        build: options.build,
+        prerender: options.prerender,
+        buildCommand: validateBuildCommand(options.buildCommand),
+        outputDir: validateOutputDir(options.outputDir),
+        captcha: options.captcha,
+      };
 
       const http = getApi();
       const files = await processInput(input, options);
-
-      // Fast-fail on definitely-invalid input before constructing a multipart body.
-      const password = validatePassword(options.password);
-      const ttl = validateTtl(options.ttl);
-      const idempotencyKey = validateIdempotencyKey(options.idempotencyKey);
-      const labels = validateLabels(options.labels);
-      await validateDeployConfig(files);
-
-      // The build settings are shape-checked here for the same reason the
-      // password is: the rule is the platform's and lives in types, so the
-      // caller hears about a malformed value before a body is built.
-      const buildCommand = validateBuildCommand(options.buildCommand);
-      const outputDir = validateOutputDir(options.outputDir);
-      const built = Boolean(options.build || options.prerender);
-      const fields = deployFields(deployManifest(files), {
-        labels,
-        via: options.via ?? DEPLOY_VIA,
-        password,
-        ttl,
-        spaDetect: options.spaDetect !== false,
-        flags: built
-          ? { build: options.build, prerender: options.prerender, buildCommand, outputDir }
-          : undefined,
-        captcha: options.captcha,
-      });
+      const fields = deployFields(deployManifest(files), declaration);
       const plan = planDeploy(files, fields);
 
-      // NO Content-Type here, deliberately: `fetch` derives it from the
-      // `FormData` body along with the boundary, and setting one by hand would
-      // name a boundary the body does not use.
+      // No `Content-Type` is set: `fetch` derives it from the `FormData` body
+      // along with the boundary, and one set by hand would name a boundary
+      // the body does not use.
       //
       // The idempotency key rides the declaration's header, readable before
       // the body is parsed: the API answers with the live deployment the key
@@ -201,12 +184,10 @@ export function createDeploymentResource(
           idempotent: idempotencyKey !== undefined,
         },
         'Deploy',
-        // Only `build`/`prerender` reach the build service
-        // (`api/src/lib/upload-processing.ts`); the single-page question is
-        // a pure function of one page, so it does not earn the longer
-        // ceiling. The transport owns both budgets; this is the one place that
-        // knows which applies.
-        built ? http.deploy.buildTimeout : http.deploy.timeout,
+        // A build waits on the build service after the upload lands, so it
+        // has the longer ceiling. The transport owns both numbers; this is
+        // the one place that knows which applies.
+        declaration.build || declaration.prerender ? http.deploy.buildTimeout : http.deploy.timeout,
       );
       if (declared.status !== 202) return declared.data;
 
@@ -369,12 +350,8 @@ export function createTokenResource(ctx: ResourceContext): TokenResource {
 
   return {
     create: async (options: { ttl?: number; labels?: string[] } = {}) => {
-      // Fast-fail on definitely-invalid input, exactly as the deploy boundary
-      // does. This is the half the ttl rule's promotion into `@shipstatic/types`
-      // was FOR: the envelope lived only in the API route until 2026-08-12, so
-      // this call sent whatever it was handed and a bad duration cost a round
-      // trip. Validating here is what makes that claim true rather than a
-      // sentence in a doc.
+      // Checked before the request, as a deploy's options are: the rules are
+      // `@shipstatic/types`' own, so a bad value costs no round trip.
       const ttl = validateTtl(options.ttl);
       const labels = validateLabels(options.labels);
       const body: { ttl?: number; labels?: string[] } = {};
