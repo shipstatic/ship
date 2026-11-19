@@ -1,7 +1,7 @@
 /**
  * @file `File`s as deploy sources, on REAL browser primitives.
  *
- * jsdom carries the bulk of the file-sources suite; what it cannot certify
+ * jsdom carries the bulk of the deploy-input suite; what it cannot certify
  * is the runtime itself: that `webkitRelativePath` behaves as an
  * instance-definable property on real `File` objects (which is exactly how
  * drag-and-drop populates it), and that the full pipeline (path
@@ -12,7 +12,7 @@
 import type { PlatformLimits } from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
 import { processDeployFiles } from '../src/shared/core/deploy-files';
-import { fileSources } from '../src/shared/core/file-sources';
+import { fileSources } from '../src/shared/core/deploy-input';
 import type { DeploymentOptions } from '../src/shared/types';
 
 /** A deploy of `File`s, up to the request: sources, then the one pipeline. */

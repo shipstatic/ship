@@ -15,9 +15,9 @@
  */
 
 import { ShipError } from '@shipstatic/types';
-import { Ship as BaseShip } from '../shared/base-ship.js';
 import type { DeploySource } from '../shared/core/deploy-files.js';
-import { isFiles, isPaths } from '../shared/core/file-sources.js';
+import { isFiles, isPaths } from '../shared/core/deploy-input.js';
+import { Ship as BaseShip } from '../shared/ship.js';
 import type { DeployInput, ShipClientOptions } from '../shared/types.js';
 import { readEnvConfig } from './core/config.js';
 

@@ -1,12 +1,11 @@
 /**
- * @file SDK-specific type definitions
- * Consolidates all Ship SDK types into a single file for clarity.
- * Core types come from @shipstatic/types, while SDK-specific types are defined here.
+ * @file The types this package publishes: the `@shipstatic/types` vocabulary,
+ * re-exported whole, and the SDK's own option and event types.
  */
 
 import type { DeploymentUploadOptions } from '@shipstatic/types';
 
-// Re-export all types from @shipstatic/types for convenience.
+// The whole vocabulary: a consumer installs this package alone.
 export * from '@shipstatic/types';
 
 // =============================================================================
@@ -14,7 +13,7 @@ export * from '@shipstatic/types';
 // =============================================================================
 
 /**
- * Universal deploy options for both Node.js and Browser environments.
+ * A deploy's options, the same on every build.
  * Extends the API contract (DeploymentUploadOptions) with SDK-specific options.
  */
 export interface DeploymentOptions extends DeploymentUploadOptions {

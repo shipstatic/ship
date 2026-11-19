@@ -1,5 +1,5 @@
 /**
- * @file Base Ship SDK class — shared functionality across environments.
+ * @file The `Ship` class: the whole SDK, on every runtime.
  *
  * The constructor is fully synchronous: an `ApiHttp` instance is built immediately
  * with whatever credentials the caller supplied (and, in Node, env vars merged in
@@ -37,15 +37,20 @@ import {
   isFiles,
   isPaths,
   PATHS_NEED_A_FILESYSTEM,
-} from './core/file-sources.js';
+} from './core/deploy-input.js';
 import {
   createAccountResource,
   createDeploymentResource,
   createDomainResource,
   createTokenResource,
-  type DeployInput,
 } from './resources.js';
-import type { DeploymentOptions, ShipClientOptions, ShipEvents, TokenProvider } from './types.js';
+import type {
+  DeployInput,
+  DeploymentOptions,
+  ShipClientOptions,
+  ShipEvents,
+  TokenProvider,
+} from './types.js';
 
 /**
  * The Ship SDK client.
@@ -78,7 +83,7 @@ export class Ship {
     // shell-expansion of unset CI variables, empty form fields in browser
     // apps, and any other path that produces `''` instead of `undefined`.
     // Normalizing once at the SDK boundary covers every entry point: CLI,
-    // Browser SDK, Node SDK, embedded consumers, and direct base-class use.
+    // a browser, a Worker, Node, and every consumer that embeds the SDK.
     options = {
       ...options,
       apiUrl: options.apiUrl || undefined,

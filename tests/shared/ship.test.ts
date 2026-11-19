@@ -1,5 +1,5 @@
 /**
- * @file Subject: `src/shared/base-ship.ts`, the Ship class every runtime
+ * @file Subject: `src/shared/ship.ts`, the Ship class every runtime
  * runs. Owns credential state, the per-deploy `/limits` read, the
  * resource factories, and the `deploy`/`whoami` shortcuts.
  *
@@ -11,8 +11,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Ship } from '../../src/shared/base-ship';
 import type { DeploySource } from '../../src/shared/core/deploy-files';
+import { Ship } from '../../src/shared/ship';
 import type { Fetch } from '../../src/shared/types';
 import { apiKey } from '../fixtures/builders';
 import { type FakeTransport, fakeTransport } from '../mocks/transport';

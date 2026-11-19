@@ -45,15 +45,6 @@ import {
   validateTtl,
 } from '@shipstatic/types';
 
-export type {
-  AccountResource,
-  DeployInput,
-  DeploymentResource,
-  DomainResource,
-  StaticFile,
-  TokenResource,
-};
-
 import type { Transport } from './api/http.js';
 import {
   createDeployBody,
@@ -104,7 +95,9 @@ export interface ResourceContext {
 }
 
 /**
- * Extended context for deployment resource.
+ * What the deployment resource needs beside the transport: the files of a
+ * deploy, ready to send. `Ship` composes it (find the files, read the limits,
+ * judge and hash), because finding is the one step a build can add to.
  */
 export interface DeploymentResourceContext extends ResourceContext {
   processInput: (input: DeployInput, options: DeploymentOptions) => Promise<StaticFile[]>;

@@ -3,7 +3,7 @@
 Claude Code instructions for the **Ship SDK & CLI** package.
 
 **@shipstatic/ship** is the universal SDK and CLI for ShipStatic: a
-`resource.action()` API, identical in Node.js and the browser.
+`resource.action()` API, one class on every runtime.
 **Maturity:** stable; semver applies, so a breaking change needs a major
 version. **The pre-launch exception:** until the platform has external
 consumers, a change to a published type rides a minor under the same
@@ -21,15 +21,17 @@ trusted-publisher registration.
 
 ```
 src/
-├── shared/              # Cross-platform code (most of the package)
+├── shared/              # The SDK, the same on every runtime (most of the package)
+│   ├── index.ts         # What the package publishes beside `Ship`, written out
+│   ├── ship.ts          # The Ship class (credential slot, resources, top-level calls)
 │   ├── api/http.ts      # The transport: headers, retries, timeout, events
-│   ├── base-ship.ts     # Base Ship class (credential slot, resources, top-level calls)
 │   ├── resources.ts     # Resource factories: every endpoint, stated once
-│   ├── types.ts         # Internal SDK types
-│   ├── core/            # constants, credential schema, deploy body, request planner, file pipeline
-│   └── lib/             # Utilities (validation, junk filtering, MD5)
-├── browser/             # The entry for runtimes with no filesystem: the shared SDK, re-exported
+│   ├── types.ts         # The `@shipstatic/types` vocabulary, and the SDK's option and event types
+│   ├── core/            # deploy input, file pipeline, deploy body, request planner, credential schema
+│   └── lib/             # Pure functions: path naming, junk, MD5, validation, text
+├── browser/             # The entry with no filesystem code: `shared/` and nothing more
 └── node/
+    ├── index.ts             # The Node entry: `Ship` with paths and the SHIP_* variables
     ├── core/config.ts       # readEnvConfig: SHIP_* env-var resolution (no filesystem)
     ├── core/node-files.ts   # the filesystem walk (the pipeline itself is shared)
     └── cli/
@@ -95,7 +97,7 @@ change.
 
 ## Core Patterns
 
-### Ship Class Public Surface (base-ship.ts)
+### Ship Class Public Surface (ship.ts)
 
 ```typescript
 // Resources: every collection the SDK reaches. `/activities` is deliberately
@@ -267,7 +269,7 @@ public contract, so the device flow adds no SDK surface, and its spelling joins
 
 **`Ship` deploys `File`s wherever it runs, and Node adds paths.** A browser,
 a Worker, Node, Bun and Deno all have `File`, `Blob`, `FormData` and `fetch`,
-so `shared/base-ship.ts` is the whole SDK on all of them, and `deploy()` has
+so `shared/ship.ts` is the whole SDK on all of them, and `deploy()` has
 one signature and one set of types: `DeployInput`, `File[] | string |
 string[]`. The package's two builds differ in one method. The Node entry's
 `Ship` overrides `sources()` to find the files under a path, and reads
@@ -305,7 +307,7 @@ input.every(item => item instanceof File)`); convert with `Array.from`. It
 is the commonest wrong input in a browser, so the refusal for anything that
 is neither `File`s nor a path says exactly that, and says nothing of paths:
 only a string or a list of strings is told a path needs a filesystem. The
-two shapes and both sentences have one owner, `shared/core/file-sources.ts`.
+two shapes and both sentences have one owner, `shared/core/deploy-input.ts`.
 `StaticFile` (`{path, size, md5, content}`) is what the pipeline produces, not
 a public input.
 
@@ -323,7 +325,7 @@ paths reach is sent once, named by the first.
 `File` already is its size and its bytes. Everything after is one sequence in
 `shared/core/deploy-files.ts`: set the junk aside and name the paths, refuse
 what the deploy rules refuse, open and hash what is left.
-`node/core/node-files.ts` and `shared/core/file-sources.ts` are only
+`node/core/node-files.ts` and `shared/core/deploy-input.ts` are only
 collectors.
 
 **The seam is `DeploySource`: a path, a size and a `read()`.** `size` sits
@@ -390,7 +392,7 @@ a folder", and the CLI adds no check of its own. An empty path is refused
 because it resolves to the folder the process runs in: a variable that was
 never set would publish that folder. The walk needs no limits, so the deploy
 finds its files first and reads the limits after, in the one place that
-composes a deploy (`base-ship.ts`): a path that is not there, a project that
+composes a deploy (`ship.ts`): a path that is not there, a project that
 is not built and a folder that cannot be read cost no request.
 
 Two asymmetries are by design:
@@ -1346,7 +1348,7 @@ fails the suite if a split is not named here by full basename.
 | Module | Files | Why |
 |---|---|---|
 | `src/shared/api/http.ts` | `http`, `http-anonymous`, `http-events`, `http-rate-limit`, `http-retry`, `http-timeout` | The transport's cross-cutting concerns, one file each. `http.test.ts` is the anchor (stubbed `fetch`); the rest drive a real `Ship` against the wire-truth handler |
-| `src/shared/base-ship.ts` | `base-ship`, `base-ship-credentials`, `base-ship-lifecycle`, `base-ship-limits` | Three doctrines on one class: the credential slot, the lifecycle, and `getLimits`, which asks the server every time |
+| `src/shared/ship.ts` | `ship`, `ship-credentials`, `ship-lifecycle`, `ship-limits` | Three doctrines on one class: the credential slot, the lifecycle, and `getLimits`, which asks the server every time |
 | `src/shared/resources.ts` | `resources-account`, `resources-deployments`, `resources-domains`, `resources-paths`, `resources-tokens` | One file per resource factory, plus `resources-paths`: the URL each builds, which a routing mock server would forgive, so it needs a stubbed `fetch` and a string comparison |
 | `src/shared/types.ts` | `types-reexport` | The **freshness** of what the module re-exports: a bundled-dependency fence |
 
@@ -1434,8 +1436,9 @@ tests-browser/        # Capability tier: real Chromium (pnpm test:browser)
 - **New CLI command:** `cli/index.ts` (command + `withErrorHandling`) →
   `cli/formatters.ts` (an `OUTPUTS` row, and a formatter if needed) → `cli/types.ts`
   (`CLIResult` union if needed) → tests.
-- **New shared utility:** `src/shared/lib/` → export from `lib/index.ts` if
-  public → unit tests.
+- **New shared utility:** `src/shared/lib/` → unit tests. It is published
+  only when a consumer reads it, by adding its name to `shared/index.ts` and
+  to the list `tests/package/dist-entries.test.ts` holds.
 
 ## The single-page question
 
@@ -1576,13 +1579,13 @@ and may change at any moment (a plan move, a grant), so the client never holds
 them. `getLimits()` issues `GET /limits` on every call; a deploy reads them
 once, when it has found its files (size, count and blocklist checks). Nothing else requests them. Holding them is refused: a client can live
 as long as a browser tab, so a memo would judge today's upload by the morning's
-limits and starve the caller's own cache of fresh data. `base-ship-limits.test.ts`
+limits and starve the caller's own cache of fresh data. `ship-limits.test.ts`
 fences it by request COUNTS and by a server that changes its answer between
 calls.
 
 **`/limits` carries the platform's extension blocklist.**
-`PlatformLimits.blockedExtensions` is the API's list; `validateFiles` and both
-file pipelines refuse nothing it does not name. The field is **optional, and
+`PlatformLimits.blockedExtensions` is the API's list; `validateFiles` and the
+file pipeline refuse nothing it does not name. The field is **optional, and
 absence is a contract**: an API without it means "no client-side check", never
 "an empty policy", and the API refuses at its boundary. **Never restore a
 compiled-in copy**: `@shipstatic/types` is bundled into `dist`, so a constant

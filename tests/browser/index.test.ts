@@ -10,7 +10,7 @@ import { fakeTransport } from '../mocks/transport';
 
 // The shared pipeline answers one fixed file, so these rows hold what this
 // entry adds around it: jsdom's `Blob` is not the runtime's, and the pipeline
-// on real `File`s is `file-sources.test.ts` here and `tests-browser/` on
+// on real `File`s is `deploy-input.test.ts` here and `tests-browser/` on
 // Chromium.
 vi.mock('../../src/shared/core/deploy-files', async (original) => ({
   ...(await original<typeof import('../../src/shared/core/deploy-files')>()),

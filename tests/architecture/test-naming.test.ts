@@ -169,8 +169,8 @@ describe('test layout law', () => {
     const name = subjectName(rel);
     const srcDir = join(ROOT, dirname(rel).replace(/^tests/, 'src'));
 
-    // Try the longest module prefix first, so `base-ship-credentials`
-    // resolves against `base-ship.ts` rather than failing on the full
+    // Try the longest module prefix first, so `ship-credentials`
+    // resolves against `ship.ts` rather than failing on the full
     // basename.
     const segments = name.split('-');
     let matched = 0;

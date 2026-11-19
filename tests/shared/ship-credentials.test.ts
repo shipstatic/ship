@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Ship } from '../../src/shared/base-ship';
 import type { DeploySource } from '../../src/shared/core/deploy-files';
+import { Ship } from '../../src/shared/ship';
 import { apiKey, deployToken, FREE_PLAN_LIMITS, oauthToken } from '../fixtures/builders';
 import { fakeTransport } from '../mocks/transport';
 

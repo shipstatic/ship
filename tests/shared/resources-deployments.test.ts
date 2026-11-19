@@ -16,11 +16,11 @@
  * things, and only the first of these can tell them apart.
  */
 
-import { IDEMPOTENCY_KEY_CONSTRAINTS, ShipError } from '@shipstatic/types';
+import { type DeploymentResource, IDEMPOTENCY_KEY_CONSTRAINTS, ShipError } from '@shipstatic/types';
 import type { Mock } from 'vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Transport } from '../../src/shared/api/http';
-import { createDeploymentResource, type DeploymentResource } from '../../src/shared/resources';
+import { createDeploymentResource } from '../../src/shared/resources';
 import type { DeployInput, DeploymentOptions } from '../../src/shared/types';
 import { makeDeployment } from '../fixtures/builders';
 
@@ -46,7 +46,7 @@ describe('Deployment Resource', () => {
   /** The status each deploy request answers, in order; 201 once the list runs out. */
   let statuses: number[];
   let mockProcessInput: Mock;
-  // Parameterized exactly as `base-ship` declares it — since types
+  // Parameterized exactly as `ship` declares it — since types
   // 2.5.0-beta.0 the interface admits the SDK's extended options directly.
   let deploymentResource: DeploymentResource<DeploymentOptions>;
 

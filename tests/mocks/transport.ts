@@ -1,7 +1,7 @@
 /**
  * @file A `Transport` test double, answering by OPERATION NAME.
  *
- * Several files stub a `Ship`'s transport rather than run one — `base-ship*`,
+ * Several files stub a `Ship`'s transport rather than run one — `ship*`,
  * the two platform entries — because their subject is what the class does
  * around a request, not the request. They used to stub it as an object of
  * endpoint METHODS (`{ deploy, ping, getLimits, checkSPA, … }`), which stopped

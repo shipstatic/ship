@@ -1,5 +1,5 @@
 /**
- * @file Subject: `src/shared/core/file-sources.ts`, `File`s as deploy sources.
+ * @file Subject: `src/shared/core/deploy-input.ts`, `File`s as deploy sources.
  *
  * Every row hands real `File`s through the shared pipeline, as a deploy
  * does. It runs under jsdom, whose `File` carries `webkitRelativePath`, the
@@ -11,7 +11,7 @@
 import type { PlatformLimits } from '@shipstatic/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { processDeployFiles } from '../../../src/shared/core/deploy-files';
-import { fileSources, isFiles } from '../../../src/shared/core/file-sources';
+import { fileSources, isFiles } from '../../../src/shared/core/deploy-input';
 import type { DeploymentOptions } from '../../../src/shared/types';
 import { FREE_PLAN_LIMITS } from '../../fixtures/builders';
 

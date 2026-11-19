@@ -14,10 +14,10 @@
  * domains. A fake with exactly the surface under test cannot rot that way.
  */
 
-import { API_PATHS } from '@shipstatic/types';
+import { type AccountResource, API_PATHS } from '@shipstatic/types';
 import { describe, expect, it, vi } from 'vitest';
 import type { Transport } from '../../src/shared/api/http';
-import { type AccountResource, createAccountResource } from '../../src/shared/resources';
+import { createAccountResource } from '../../src/shared/resources';
 
 function accountOver(answer: unknown) {
   const request = vi.fn().mockResolvedValue(answer);

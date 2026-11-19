@@ -1,10 +1,13 @@
 /**
- * @file `File`s as deploy sources: the input every runtime takes.
+ * @file What a deploy is handed: `File`s, or a path where there is a
+ * filesystem.
  *
  * A browser, a Worker, Node, Bun and Deno all have `File`, so a deploy of
  * `File`s is the one input that works wherever this SDK runs. A `File`
  * already is its size and its bytes, so there is nothing to look up and
- * nothing to open: the only thing read here is its path.
+ * nothing to open: the only thing read here is its path. This file tells
+ * the two shapes apart, turns `File`s into sources, and holds what a caller
+ * is told when the input is neither, or is a path where none can be read.
  */
 
 import type { DeploySource } from './deploy-files.js';
