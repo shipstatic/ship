@@ -12,5 +12,5 @@
  * ```
  */
 
-export { Ship as default } from '../shared/base-ship.js';
+export { Ship, Ship as default } from '../shared/base-ship.js';
 export * from '../shared/index.js';

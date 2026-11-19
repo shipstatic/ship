@@ -273,7 +273,10 @@ string[]`. The package's two builds differ in one method. The Node entry's
 `Ship` overrides `sources()` to find the files under a path, and reads
 `SHIP_TOKEN` / `SHIP_API_URL`; the `browser` entry is the shared class
 re-exported, and is what a Worker or any runtime without a filesystem
-bundles.
+bundles ("Which build a tool is handed"). `sources()` is `protected` so the
+Node build can override it, and it is marked `@internal`: the seam between
+this package's two builds, never an extension point, free to change in any
+release.
 
 ```typescript
 // Everywhere: File[] (a file input, a drop, content made in memory)
@@ -1022,6 +1025,30 @@ second duration phrase rather than share one.
 - **No ttl on `domains set`**: a link is not a lease.
 - **A replay answers the deployment the key names, as it stands**, with the
   `expires` its commit stamped; the replayed request's ttl is not consulted.
+
+### Which build a tool is handed
+
+**Only `node` selects the build that needs Node. Everything else is handed
+the build with no filesystem code.** The `exports` map tries `browser`, then
+`node` (an import or a require), then `default`, and the first and the last
+name the same file, `dist/browser.js`: it imports no module at all and runs
+wherever `File`, `FormData` and `fetch` exist. The Node build imports `fs`,
+so a tool handed it without being Node fails at its first line. A tool that
+states nothing (a bundler with no conditions of its own, an edge runtime, a
+Worker bundler that sets no `browser`) therefore gets the build that cannot
+fail to load, and TypeScript resolving as a bundler reads that build's types,
+which name the same exports. Node, Bun and Deno set `node`.
+
+Held by `tests/package/dist-entries.test.ts`, which resolves the manifest's
+own map for each tool's conditions and asserts the file by name, and plants
+the map with `import` and `require` at the top to show it sees the defect.
+**Refused: `import` or `require` at the top of the map**, which is that
+defect: it makes the Node build the answer for every tool that never said it
+was Node.
+
+`dist/browser.js` keeps the name the `browser` condition gives it. Deno is
+walked by hand like Bun, on a published version, since it loads a package
+only by name: a folder, `File`s, and a link refused (2.8.3, on 3.12.0-beta.1).
 
 ### The bundle boundary
 

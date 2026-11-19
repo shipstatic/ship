@@ -98,7 +98,9 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     minify: !tsupOptions.watch,
     esbuildPlugins: [writeMetafile('index')],
   },
-  // 2. Browser SDK (ESM, browser entry, with polyfills/shims)
+  // 2. The build with no filesystem code (ESM): what a browser, a Worker and
+  //    any tool that does not say it is Node are handed (package.json
+  //    `exports`). It keeps the name the `browser` condition gives it.
   {
     entry: {
       browser: 'src/browser/index.ts',

@@ -109,3 +109,83 @@ describe('built package entries', () => {
     expect(pkg.devDependencies).toHaveProperty('@shipstatic/types');
   });
 });
+
+/**
+ * Which build a tool is handed, read from the manifest's own `exports` map.
+ *
+ * The package has two builds. One holds no filesystem code and runs wherever
+ * `File`, `FormData` and `fetch` exist. The other adds paths, and imports
+ * `fs`, so it loads only where Node's modules do. A tool states what it is by
+ * its conditions, and a tool that states nothing must get the build that
+ * cannot fail to load: only `node` selects the one that needs Node.
+ *
+ * The resolver below is the standard's own rule and nothing more: an object's
+ * keys are tried in the order written, a key matches when the tool set that
+ * condition or the key is `default`, and a string is the answer.
+ */
+type ExportsEntry = string | { [condition: string]: ExportsEntry };
+
+function resolveExport(entry: ExportsEntry, conditions: string[]): string | undefined {
+  if (typeof entry === 'string') return entry;
+  for (const [condition, target] of Object.entries(entry)) {
+    if (condition !== 'default' && !conditions.includes(condition)) continue;
+    const resolved = resolveExport(target, conditions);
+    if (resolved) return resolved;
+  }
+  return undefined;
+}
+
+const NO_FILESYSTEM = './dist/browser.js';
+const NO_FILESYSTEM_TYPES = './dist/browser.d.ts';
+
+describe('the exports map hands every tool a build it can load', () => {
+  const root: ExportsEntry = require(resolve(DIST, '../package.json')).exports['.'];
+
+  it.each([
+    // What each tool sets is the tool's own documentation, written out.
+    ['Node, an import', ['node', 'import'], './dist/index.js'],
+    ['Node, a require', ['node', 'require'], './dist/index.cjs'],
+    ['Bun', ['bun', 'node', 'import'], './dist/index.js'],
+    ['Deno', ['deno', 'node', 'import'], './dist/index.js'],
+    ['a bundler building for a browser', ['browser', 'import'], NO_FILESYSTEM],
+    ['wrangler, for a Worker', ['workerd', 'worker', 'browser'], NO_FILESYSTEM],
+    ['a Worker bundler that sets no browser condition', ['workerd', 'worker'], NO_FILESYSTEM],
+    ['an edge runtime', ['edge-light', 'import'], NO_FILESYSTEM],
+    ['a bundler that sets nothing of its own', ['import'], NO_FILESYSTEM],
+    ['React Native', ['react-native', 'import'], NO_FILESYSTEM],
+    // A tool that is both, a test runner in a browser environment under
+    // Node, is handed the build every runtime can load.
+    ['a tool that sets browser and node', ['browser', 'node', 'import'], NO_FILESYSTEM],
+  ])('%s', (_tool, conditions, file) => {
+    expect(resolveExport(root, conditions)).toBe(file);
+  });
+
+  it.each([
+    ['TypeScript resolving as a bundler', ['types', 'import'], NO_FILESYSTEM_TYPES],
+    ['TypeScript resolving as Node, an import', ['types', 'node', 'import'], './dist/index.d.ts'],
+    ['TypeScript resolving as Node, a require', ['types', 'node', 'require'], './dist/index.d.cts'],
+  ])('%s reads the types of the build it would load', (_tool, conditions, file) => {
+    expect(resolveExport(root, conditions)).toBe(file);
+  });
+
+  it('the build handed to a tool that states nothing imports no module at all', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(resolve(DIST, 'browser.js'), 'utf-8');
+
+    expect(source.match(/\bfrom\s*["'][^"']+["']|\brequire\(\s*["'][^"']+["']\s*\)/g)).toBeNull();
+  });
+
+  it('the check can see a defect: a map whose fallback is the Node build is named', () => {
+    // The shape this package shipped until 3.12.0: `import` and `require` at
+    // the top, so a tool that set neither `browser` nor `node` was handed the
+    // build that imports `fs`.
+    const fallsBackToNode: ExportsEntry = {
+      browser: { default: './dist/browser.js' },
+      import: { default: './dist/index.js' },
+      require: { default: './dist/index.cjs' },
+    };
+
+    expect(resolveExport(fallsBackToNode, ['edge-light', 'import'])).toBe('./dist/index.js');
+    expect(resolveExport(fallsBackToNode, ['browser', 'import'])).toBe(NO_FILESYSTEM);
+  });
+});

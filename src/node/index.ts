@@ -55,7 +55,11 @@ export class Ship extends BaseShip {
     });
   }
 
-  /** `File`s as everywhere, and the files under a path or a list of paths. */
+  /**
+   * `File`s as everywhere, and the files under a path or a list of paths.
+   *
+   * @internal
+   */
   protected override async sources(input: DeployInput): Promise<DeploySource[]> {
     if (isPaths(input)) {
       const { findSources } = await import('./core/node-files.js');

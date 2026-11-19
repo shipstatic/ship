@@ -1,6 +1,6 @@
 {
   "name": "@shipstatic/ship",
-  "version": "3.12.0-beta.1",
+  "version": "3.12.0-beta.2",
   "description": "CLI and SDK for ShipStatic. Deploy static websites, landing pages, and prototypes instantly from the terminal or code. Free, no account needed.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -13,13 +13,19 @@
         "types": "./dist/browser.d.ts",
         "default": "./dist/browser.js"
       },
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
+      "node": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
       },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
+      "default": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
       }
     },
     "./cli": "./dist/cli.cjs",

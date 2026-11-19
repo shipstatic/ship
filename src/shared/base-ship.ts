@@ -145,6 +145,10 @@ export class Ship {
    * What a deploy's input holds, as the shared pipeline takes it. `File`s
    * are sources wherever this runs. A path needs a filesystem to be read
    * from, which is what Node's `Ship` adds.
+   *
+   * @internal The seam between this package's two builds, and no extension
+   * point: it is `protected` so the Node build can override it, and it may
+   * change in any release.
    */
   protected async sources(input: DeployInput): Promise<DeploySource[]> {
     if (isFiles(input)) return fileSources(input);
