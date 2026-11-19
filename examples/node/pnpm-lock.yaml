@@ -9,13 +9,13 @@ importers:
   .:
     dependencies:
       '@shipstatic/ship':
-        specifier: ^2.3.3
-        version: 2.3.3
+        specifier: ^3.11.0
+        version: 3.11.0
 
 packages:
 
-  '@shipstatic/ship@2.3.3':
-    resolution: {integrity: sha512-8KLFfRfag0fiJmm1vzRRZtfbnsv2E6qqcYJ2NeJYYpQ6ntjmCKNCVLmtUSduAmqVnfdswjyVduVfAyZiXd/IQw==}
+  '@shipstatic/ship@3.11.0':
+    resolution: {integrity: sha512-168Ulyg7Cf888DorvcE8K3nakEk9PrzOm9SYcDMs7e2+JsC6bHWp778fzj1eEvytEGuHD19c53mX5tGhvBfLYw==}
     engines: {node: '>=20.19.0'}
     hasBin: true
 
@@ -31,7 +31,7 @@ packages:
 
 snapshots:
 
-  '@shipstatic/ship@2.3.3':
+  '@shipstatic/ship@3.11.0':
     dependencies:
       junk: 4.0.1
       spark-md5: 3.0.2

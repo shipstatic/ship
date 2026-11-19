@@ -24,56 +24,7 @@ the status box shows a **claim URL** you can open to keep it permanently.
 
 ## Code
 
-```jsx
-import Ship from '@shipstatic/ship';
-import { useRef, useState } from 'react';
-
-// One credential slot. Leave it empty and the deploy still works — the site
-// lands in the public account with a claim URL and an expiry.
-const ship = new Ship({
-  // token: 'deploy-your-token',
-});
-
-export default function App() {
-  const fileInputRef = useRef(null);
-  const [status, setStatus] = useState('');
-  const [isDeploying, setIsDeploying] = useState(false);
-
-  const handleDeploy = async () => {
-    const files = fileInputRef.current?.files;
-    if (!files?.length) {
-      setStatus('Please select files');
-      return;
-    }
-
-    setIsDeploying(true);
-    setStatus('Deploying...');
-
-    try {
-      // `FileList` is not accepted — the SDK takes `File[]`.
-      const result = await ship.deployments.upload(Array.from(files), {
-        labels: ['production', 'v1.0.0'],
-      });
-      setStatus(`Deployed: ${result.url}`);
-    } catch (error) {
-      setStatus(`Error: ${error.message}`);
-    } finally {
-      setIsDeploying(false);
-    }
-  };
-
-  return (
-    <main>
-      <h1>Ship SDK - React Example</h1>
-      <input ref={fileInputRef} type="file" webkitdirectory="" multiple />
-      <button type="button" onClick={handleDeploy} disabled={isDeploying}>
-        {isDeploying ? 'Deploying...' : 'Deploy'}
-      </button>
-      <pre>{status}</pre>
-    </main>
-  );
-}
-```
+The whole example is [`src/App.jsx`](./src/App.jsx).
 
 ## Notes
 

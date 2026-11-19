@@ -1,13 +1,13 @@
 # Ship SDK Examples
 
 Minimal examples demonstrating Ship SDK usage across different environments.
-Every one runs against `@shipstatic/ship` 2.x and deploys for real without an
-account.
+Every one deploys for real without an account.
 
 ## Available Examples
 
 ### [Node.js](./node/)
-Deploy a directory from a script. Node takes paths and walks them recursively.
+Deploy a directory from a script. In Node a deploy also takes paths, and walks
+a folder recursively.
 ```js
 const result = await ship.deployments.upload(['./dist']);
 ```
@@ -46,7 +46,7 @@ import Ship from '@shipstatic/ship';
 //    they land in the public account with a claim URL and an expiry.
 const ship = new Ship({ token: 'ship-your-api-key' });   // or 'deploy-your-token'
 
-// 2. Deploy. Node takes paths; browsers take File[].
+// 2. Deploy. `File` objects work everywhere; Node also takes paths.
 const result = await ship.deployments.upload(input, {
   labels: ['production', 'v1.0.0'],
 });
@@ -76,12 +76,11 @@ deploys, revocable, and can carry a TTL. Both ride the same `token` slot.
 ## Two things that trip people up
 
 - **`FileList` is not `File[]`.** In the browser, pass `Array.from(input.files)`.
-  A raw `FileList` is rejected with
-  `Invalid input type for browser environment. Expected File[].`
+  A raw `FileList` is refused with
+  `A deploy takes a list of File objects. To publish the files of a file input, pass Array.from(input.files).`
 - **There is no upload-progress callback.** `fetch` cannot observe upload
-  progress, so the SDK does not pretend to — a deploy is one multipart POST. To
-  bound it, pass `timeout` to the constructor or your own `signal` to the
-  deploy.
+  progress, so the SDK does not pretend to. To bound a deploy, pass your own
+  `signal` to it; `timeout` on the constructor bounds each request.
 
 ---
 

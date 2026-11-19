@@ -33,44 +33,13 @@ an *API key*, and every slot that carries it is called the *token*.
 
 ## Code
 
-```javascript
-import Ship from '@shipstatic/ship';
-
-// One credential slot. Leave it empty and the deploy still works — the site
-// lands in the public account with a claim URL and an expiry. Set SHIP_TOKEN
-// in the environment and the SDK picks it up on its own.
-const ship = new Ship({
-  // token: 'ship-your-api-key',
-});
-
-const directory = process.argv[2] ?? '.';
-
-try {
-  console.log(`Deploying ${directory}...`);
-
-  const result = await ship.deployments.upload([directory], {
-    labels: ['production', 'v1.0.0'],
-  });
-
-  console.log(`Deployed: ${result.url}`);
-  console.log(`Files:    ${result.files}`);
-  console.log(`Labels:   ${result.labels?.join(', ') || 'none'}`);
-
-  // Present only on an anonymous deploy — the URL that keeps the site.
-  if (result.claim) {
-    console.log(`Claim:    ${result.claim}`);
-  }
-} catch (error) {
-  console.error(`Error: ${error.message}`);
-  process.exitCode = 1;
-}
-```
+The whole example is [`index.js`](./index.js).
 
 ## Notes
 
 - **There is no upload-progress callback.** `fetch` cannot observe upload
-  progress, so the SDK does not pretend to — a deploy is one multipart POST.
-  To bound it, pass `timeout` to the constructor or your own `signal` to the
-  deploy.
-- **Node input is a path or paths** (`string | string[]`); directories are
-  walked recursively. The browser SDK takes `File[]` instead.
+  progress, so the SDK does not pretend to. To bound a deploy, pass your own
+  `signal` to it; `timeout` on the constructor bounds each request.
+- **In Node the input can be a path or paths** (`string | string[]`);
+  directories are walked recursively. `File` objects work here too, as they do
+  everywhere the SDK runs.

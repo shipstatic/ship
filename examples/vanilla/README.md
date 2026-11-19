@@ -33,46 +33,7 @@ the status box shows a **claim URL** you can open to keep it permanently.
 
 ## Code
 
-```javascript
-import Ship from './ship.js';
-
-const fileInput = document.getElementById('fileInput');
-const deployButton = document.getElementById('deployButton');
-const statusEl = document.getElementById('status');
-
-function setStatus(text) {
-  statusEl.textContent = text;
-}
-
-// One credential slot. Leave it empty and the deploy still works — the site
-// lands in the public account with a claim URL and an expiry.
-const ship = new Ship({
-  // token: 'deploy-your-token',
-});
-
-deployButton?.addEventListener('click', async () => {
-  const files = fileInput?.files;
-  if (!files?.length) {
-    setStatus('Please select files');
-    return;
-  }
-
-  deployButton.disabled = true;
-  setStatus('Deploying...');
-
-  try {
-    // `FileList` is not accepted — the SDK takes `File[]`.
-    const result = await ship.deployments.upload(Array.from(files), {
-      labels: ['production', 'v1.0.0'],
-    });
-    setStatus(`Deployed: ${result.url}`);
-  } catch (error) {
-    setStatus(`Error: ${error.message}`);
-  } finally {
-    deployButton.disabled = false;
-  }
-});
-```
+The whole example is [`main.js`](./main.js).
 
 ## Notes
 
@@ -82,7 +43,7 @@ deployButton?.addEventListener('click', async () => {
   `token` slot — the prefix is what tells them apart.
 - **`Array.from(files)` is required**, and this is the one mistake this example
   exists to prevent: `deployments.upload()` takes `File[]`, and a `FileList` is
-  not an array. Passing one raises
-  `Invalid input type for browser environment. Expected File[].`
+  not an array. Passing one is refused with
+  `A deploy takes a list of File objects. To publish the files of a file input, pass Array.from(input.files).`
 - **There is no upload-progress callback.** `fetch` cannot observe upload
   progress, so the SDK does not pretend to.

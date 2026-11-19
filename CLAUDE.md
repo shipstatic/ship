@@ -224,7 +224,7 @@ inexpressible.
 `~/.shiprc` and `--config` are CLI-only, so the SDK cannot leak a developer's
 dotfile credential into an anonymous public deploy. The single env var
 follows the one-token idiom (`GITHUB_TOKEN`, `NPM_TOKEN`, `VERCEL_TOKEN`).
-Browser `Ship` has no ambient source at all.
+The build with no filesystem code has no ambient source at all.
 
 **Lifetime dominance: storage must not outlive the credential.** A dotfile is
 indefinite, so `.shiprc` holds durable tokens. An env var lives as long as the
@@ -1523,12 +1523,11 @@ revocable.
 | **CLI** | `src/node/cli/shiprc.ts` | `~/.shiprc`, or the `--config` path (strict JSON) |
 | **CLI** | `create-client.ts` `createClient()` | flag → env → file via `mergeCliConfig`, then `new Ship({...})` |
 | **CLI** | `create-client.ts` `resolveCliToken()` | the same chain for the token alone: the auth branch of the error handler, and the `--domain` / `--ttl` preflights |
-| **SDK (Node)** | `src/node/index.ts` constructor | `SHIP_TOKEN`, `SHIP_API_URL` (under any constructor arg) |
-| **SDK (Browser)** | `src/browser/index.ts` constructor | nothing: fully explicit |
+| **SDK, the Node build** | `src/node/index.ts` constructor | `SHIP_TOKEN`, `SHIP_API_URL` (under any constructor arg) |
+| **SDK, the build with no filesystem code** | `src/shared/ship.ts` constructor | nothing: fully explicit |
 
 A CLI user with all three gets flag → env → file, per value; an embedded SDK
-consumer gets constructor arg → env. There is no path from the SDK to the
-filesystem.
+consumer gets constructor arg → env. The SDK reads no config file.
 
 **`resolveCliToken` is a second function, not a shared helper with a posture
 flag**, because the two differ in exactly what the flag would parameterize: a

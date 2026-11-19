@@ -7,7 +7,7 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@shipstatic/ship": "^2.3.3"
+    "@shipstatic/ship": "^3.11.0"
   },
   "engines": {
     "node": ">=20.19.0"
