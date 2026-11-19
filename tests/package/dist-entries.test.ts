@@ -97,6 +97,30 @@ describe('built package entries', () => {
     }
   });
 
+  it('publishes six names of its own beside the vocabulary, the same six on both builds', async () => {
+    // Everything else a consumer can import is the `@shipstatic/types`
+    // vocabulary, which rides the star above. A name joins this list when a
+    // consumer reads it, and the transport, the resource factories and the
+    // helpers the pipeline keeps to itself are no part of it.
+    const own = [
+      'Ship',
+      'optimizeDeployPaths',
+      'pluralize',
+      'sitePaths',
+      'unreadable',
+      'validateFiles',
+    ];
+    const vocabulary = new Set(Object.keys(await import('@shipstatic/types')));
+    const published = (mod: object) =>
+      Object.keys(mod)
+        .filter((name) => name !== 'default' && !vocabulary.has(name))
+        .sort();
+
+    expect(published(await import(pathToFileURL(resolve(DIST, 'index.js')).href))).toEqual(own);
+    expect(published(await import(pathToFileURL(resolve(DIST, 'browser.js')).href))).toEqual(own);
+    expect(published(require(resolve(DIST, 'index.cjs')))).toEqual(own);
+  });
+
   it('@shipstatic/types is NEVER a runtime dependency', () => {
     // The manifest half of the same 2026-08-07 escape: tsup auto-externalizes
     // `dependencies`, so a types entry there flips the bundler from "inline

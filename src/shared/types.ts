@@ -32,8 +32,6 @@ export interface DeploymentOptions extends DeploymentUploadOptions {
   pathDetect?: boolean;
 }
 
-export type ApiDeployOptions = Omit<DeploymentOptions, 'pathDetect'>;
-
 // =============================================================================
 // CLIENT CONFIGURATION
 // =============================================================================

@@ -2,15 +2,13 @@
  * Tests for file validation utilities
  */
 
-import type { PlatformLimits } from '@shipstatic/types';
-import { describe, expect, it } from 'vitest';
 import {
-  allValidFilesReady,
-  FILE_VALIDATION_STATUS,
-  getValidFiles,
+  FileValidationStatus as FILE_VALIDATION_STATUS,
+  type PlatformLimits,
   type ValidatableFile,
-  validateFiles,
-} from '../../../src/shared/lib/file-validation.js';
+} from '@shipstatic/types';
+import { describe, expect, it } from 'vitest';
+import { validateFiles } from '../../../src/shared/lib/file-validation.js';
 
 /**
  * The blocklist a client is GIVEN, not one it knows.
@@ -562,65 +560,6 @@ describe('File Validation', () => {
       expect(result.validFiles).toHaveLength(4);
       expect(result.canDeploy).toBe(true);
       expect(result.errors).toHaveLength(0);
-    });
-  });
-
-  describe('getValidFiles', () => {
-    it('should return only files with READY status', () => {
-      const files = [
-        { ...createMockFile('file1.txt', 100), status: FILE_VALIDATION_STATUS.READY },
-        { ...createMockFile('file2.txt', 100), status: FILE_VALIDATION_STATUS.VALIDATION_FAILED },
-        { ...createMockFile('file3.txt', 100), status: FILE_VALIDATION_STATUS.READY },
-      ];
-
-      const valid = getValidFiles(files);
-      expect(valid).toHaveLength(2);
-      expect(valid[0].name).toBe('file1.txt');
-      expect(valid[1].name).toBe('file3.txt');
-    });
-
-    it('should return empty array for empty input', () => {
-      const valid = getValidFiles([]);
-      expect(valid).toEqual([]);
-    });
-
-    it('should return empty array when no files are READY', () => {
-      const files = [
-        { ...createMockFile('file1.txt', 100), status: FILE_VALIDATION_STATUS.VALIDATION_FAILED },
-      ];
-
-      const valid = getValidFiles(files);
-      expect(valid).toEqual([]);
-    });
-  });
-
-  describe('allValidFilesReady', () => {
-    it('should return true when valid files exist', () => {
-      const files = [{ ...createMockFile('file1.txt', 100), status: FILE_VALIDATION_STATUS.READY }];
-
-      expect(allValidFilesReady(files)).toBe(true);
-    });
-
-    it('should return false when no valid files exist', () => {
-      const files = [
-        { ...createMockFile('file1.txt', 100), status: FILE_VALIDATION_STATUS.VALIDATION_FAILED },
-      ];
-
-      expect(allValidFilesReady(files)).toBe(false);
-    });
-
-    it('should return false for empty array', () => {
-      expect(allValidFilesReady([])).toBe(false);
-    });
-  });
-
-  describe('FILE_VALIDATION_STATUS constants', () => {
-    it('should export all status constants', () => {
-      expect(FILE_VALIDATION_STATUS.PENDING).toBe('pending');
-      expect(FILE_VALIDATION_STATUS.PROCESSING_ERROR).toBe('processing_error');
-      expect(FILE_VALIDATION_STATUS.EXCLUDED).toBe('excluded');
-      expect(FILE_VALIDATION_STATUS.VALIDATION_FAILED).toBe('validation_failed');
-      expect(FILE_VALIDATION_STATUS.READY).toBe('ready');
     });
   });
 

@@ -17,15 +17,6 @@ import {
   isPublishedFile,
 } from '@shipstatic/types';
 
-// The platform's one reading of a byte count, re-exported so this package's
-// consumers keep reading it from here.
-export { formatFileSize } from '@shipstatic/types';
-// Re-exported because it constrains three exported generics (validateFiles,
-// getValidFiles, allValidFilesReady) — a consumer cannot name the bound
-// otherwise, which is why the tests were inventing their own copy.
-export type { ValidatableFile };
-export { FILE_VALIDATION_STATUS };
-
 /**
  * Validate files against the platform's deploy rules, listing every refusal.
  *
@@ -136,20 +127,4 @@ export function validateFiles<T extends ValidatableFile>(
     warnings,
     canDeploy,
   };
-}
-
-/**
- * Get only the valid files from validation results
- */
-export function getValidFiles<T extends ValidatableFile>(files: T[]): T[] {
-  return files.filter((f) => f.status === FILE_VALIDATION_STATUS.READY);
-}
-
-/**
- * Check if all valid files have required properties for upload
- * (Can be extended to check for MD5, etc.)
- */
-export function allValidFilesReady<T extends ValidatableFile>(files: T[]): boolean {
-  const validFiles = getValidFiles(files);
-  return validFiles.length > 0;
 }

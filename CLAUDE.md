@@ -1050,6 +1050,23 @@ was Node.
 walked by hand like Bun, on a published version, since it loads a package
 only by name: a folder, `File`s, and a link refused (2.8.3, on 3.12.0-beta.1).
 
+### What the package publishes
+
+**Six names of its own, and the `@shipstatic/types` vocabulary.** `Ship`,
+and five helpers a consumer shows a person before a deploy exactly as the
+deploy does: `sitePaths`, `optimizeDeployPaths`, `validateFiles`,
+`unreadable` and `pluralize`. `shared/index.ts` writes the list out, with one
+star, over `shared/types.ts`, which carries the vocabulary and this SDK's
+option types. Both builds publish the same names, held by
+`tests/package/dist-entries.test.ts` against the list written out.
+
+**A name is published because a consumer reads it.** The transport
+(`ApiHttp`), the resource factories and their contexts, the hash and the junk
+filter are this package's own: a consumer that needs what one of them
+decides is handed the decision (`sitePaths` for junk and naming), never the
+part. **Refused: a star over a module in `shared/index.ts`**, which publishes
+whatever that module exports next.
+
 ### The bundle boundary
 
 **What this package bundles and what it asks a consumer to install is one
