@@ -22,10 +22,10 @@ import { FREE_PLAN_LIMITS, LIMITS_WITHOUT_BLOCKLIST } from '../../fixtures/build
 
 // What a deploy does with the paths a person typed: the walk, then the
 // shared pipeline, judged by the limits the deploy read.
-const processFilesForNode = async (
+const deployFrom = async (
   paths: string[],
   options: DeploymentOptions = {},
-  limits?: PlatformLimits,
+  limits: PlatformLimits = FREE_PLAN_LIMITS,
 ) => processDeployFiles(await findSources(paths), options, limits);
 
 let root: string;
@@ -73,12 +73,12 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-describe('processFilesForNode', () => {
+describe('a deploy from paths', () => {
   describe('default path flattening', () => {
     it('reads real bytes and attaches a real md5 and byte-accurate size', async () => {
       writeTree({ 'project/index.html': HOME, 'project/hello.txt': 'hello' });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at('project/index.html'), at('project/hello.txt')],
         {},
         FREE_PLAN_LIMITS,
@@ -100,7 +100,7 @@ describe('processFilesForNode', () => {
         'dir/subdir/file3.txt': 'content3',
       });
 
-      const result = await processFilesForNode([at('dir')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('dir')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['file1.txt', 'file2.txt', 'index.html', 'subdir/file3.txt']);
       expect(result.every((f) => MD5_HEX.test(f.md5 ?? ''))).toBe(true);
@@ -114,7 +114,7 @@ describe('processFilesForNode', () => {
         'nested/asdf/js/dark-mode': 'js',
       });
 
-      const result = await processFilesForNode([at('nested/asdf')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('nested/asdf')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual([
         'README.md',
@@ -132,7 +132,7 @@ describe('processFilesForNode', () => {
         'parent/sub2/file3.txt': 'content3',
       });
 
-      const result = await processFilesForNode([at('parent')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('parent')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual([
         'index.html',
@@ -153,7 +153,7 @@ describe('processFilesForNode', () => {
         'components/ui/forms/input.tsx': 'export default {};',
       });
 
-      const files = await processFilesForNode([root], { pathDetect: false }, FREE_PLAN_LIMITS);
+      const files = await deployFrom([root], { pathDetect: false }, FREE_PLAN_LIMITS);
 
       expect(pathsOf(files)).toEqual([
         'assets/css/main.css',
@@ -176,11 +176,7 @@ describe('processFilesForNode', () => {
         'dist/vite.svg': '<svg>',
       });
 
-      const files = await processFilesForNode(
-        [at('dist')],
-        { pathDetect: false },
-        FREE_PLAN_LIMITS,
-      );
+      const files = await deployFrom([at('dist')], { pathDetect: false }, FREE_PLAN_LIMITS);
 
       expect(pathsOf(files)).toEqual([
         'assets/index-8ac629b0.css',
@@ -200,11 +196,7 @@ describe('processFilesForNode', () => {
         'build/manifest.json': '{"name": "test"}',
       });
 
-      const files = await processFilesForNode(
-        [at('build')],
-        { pathDetect: false },
-        FREE_PLAN_LIMITS,
-      );
+      const files = await deployFrom([at('build')], { pathDetect: false }, FREE_PLAN_LIMITS);
 
       expect(pathsOf(files)).toEqual([
         'index.html',
@@ -222,7 +214,7 @@ describe('processFilesForNode', () => {
         'src/utils/api/endpoints/v1/users.ts': 'export const userAPI = {};',
       });
 
-      const files = await processFilesForNode([root], { pathDetect: false }, FREE_PLAN_LIMITS);
+      const files = await deployFrom([root], { pathDetect: false }, FREE_PLAN_LIMITS);
 
       expect(pathsOf(files)).toEqual([
         'index.html',
@@ -243,7 +235,7 @@ describe('processFilesForNode', () => {
         'docs/api.yml': 'openapi: 3.0.0',
       });
 
-      const files = await processFilesForNode([root], { pathDetect: false }, FREE_PLAN_LIMITS);
+      const files = await deployFrom([root], { pathDetect: false }, FREE_PLAN_LIMITS);
 
       expect(pathsOf(files)).toEqual([
         'docs/README.md',
@@ -265,7 +257,7 @@ describe('processFilesForNode', () => {
         'index.html': HOME,
       });
 
-      const files = await processFilesForNode(
+      const files = await deployFrom(
         [
           at('some/deep/path/single-file.txt'),
           at('another/different/path/other-file.txt'),
@@ -293,7 +285,7 @@ describe('processFilesForNode', () => {
         'docs/api.md': '# API Documentation',
       });
 
-      const files = await processFilesForNode(
+      const files = await deployFrom(
         [at('frontend/dist'), at('backend/build'), at('docs/api.md')],
         { pathDetect: false },
         FREE_PLAN_LIMITS,
@@ -313,7 +305,7 @@ describe('processFilesForNode', () => {
         'assets/css/styles.css': 'body { margin: 0 }',
       });
 
-      const files = await processFilesForNode([root], { pathDetect: true }, FREE_PLAN_LIMITS);
+      const files = await deployFrom([root], { pathDetect: true }, FREE_PLAN_LIMITS);
 
       expect(pathsOf(files)).toEqual(['assets/css/styles.css', 'assets/js/app.js', 'index.html']);
     });
@@ -324,7 +316,7 @@ describe('processFilesForNode', () => {
         'dist/assets/app.js': 'console.log("app");',
       });
 
-      const files = await processFilesForNode([at('dist')], { pathDetect: true }, FREE_PLAN_LIMITS);
+      const files = await deployFrom([at('dist')], { pathDetect: true }, FREE_PLAN_LIMITS);
 
       expect(pathsOf(files)).toEqual(['assets/app.js', 'index.html']);
     });
@@ -334,9 +326,7 @@ describe('processFilesForNode', () => {
     it('resolves cwd-relative inputs (the CLI contract: `ship ./dist`)', async () => {
       writeTree({ 'dist/index.html': '<html></html>', 'dist/assets/app.js': 'js' });
 
-      const files = await withCwd(root, () =>
-        processFilesForNode(['./dist'], {}, FREE_PLAN_LIMITS),
-      );
+      const files = await withCwd(root, () => deployFrom(['./dist'], {}, FREE_PLAN_LIMITS));
 
       expect(pathsOf(files)).toEqual(['assets/app.js', 'index.html']);
     });
@@ -345,7 +335,7 @@ describe('processFilesForNode', () => {
       writeTree({ 'index.html': HOME, 'parent-file.txt': 'Parent file', 'child/.keep': 'x' });
 
       const files = await withCwd(at('child'), () =>
-        processFilesForNode(
+        deployFrom(
           ['../index.html', '../parent-file.txt'],
           { pathDetect: false },
           FREE_PLAN_LIMITS,
@@ -362,9 +352,7 @@ describe('processFilesForNode', () => {
         '.app/dist/style.css': 'body {}',
       });
 
-      const files = await withCwd(at('.app'), () =>
-        processFilesForNode(['./dist'], {}, FREE_PLAN_LIMITS),
-      );
+      const files = await withCwd(at('.app'), () => deployFrom(['./dist'], {}, FREE_PLAN_LIMITS));
 
       expect(pathsOf(files)).toEqual(['index.html', 'style.css']);
     });
@@ -377,7 +365,7 @@ describe('processFilesForNode', () => {
       });
 
       const files = await withCwd(at('node_modules/my-tool'), () =>
-        processFilesForNode(['./dist'], {}, FREE_PLAN_LIMITS),
+        deployFrom(['./dist'], {}, FREE_PLAN_LIMITS),
       );
 
       expect(pathsOf(files)).toEqual(['app.js', 'index.html']);
@@ -392,7 +380,7 @@ describe('processFilesForNode', () => {
         'myproject/src/app.js': 'x',
       });
 
-      await expect(processFilesForNode([at('myproject')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+      await expect(deployFrom([at('myproject')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
         `"${at('myproject')}" is a project that isn't built yet: it has node_modules. Build it, then publish the folder the build makes, like dist.`,
       );
     });
@@ -403,7 +391,7 @@ describe('processFilesForNode', () => {
         'myproject/package.json': '{}',
       });
 
-      await expect(processFilesForNode([at('myproject')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+      await expect(deployFrom([at('myproject')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
         `"${at('myproject')}" is a project that isn't built yet: it has package.json. Build it, then publish the folder the build makes, like dist.`,
       );
     });
@@ -411,7 +399,7 @@ describe('processFilesForNode', () => {
     it('accepts a build output directory without markers', async () => {
       writeTree({ 'dist/index.html': '<html>' });
 
-      const result = await processFilesForNode([at('dist')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('dist')], {}, FREE_PLAN_LIMITS);
       expect(result).toHaveLength(1);
     });
   });
@@ -420,9 +408,7 @@ describe('processFilesForNode', () => {
     it('refuses a directory with no index.html at its root', async () => {
       writeTree({ 'site/about.html': HOME, 'site/app.js': 'js' });
 
-      await expect(processFilesForNode([at('site')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        NO_INDEX,
-      );
+      await expect(deployFrom([at('site')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(NO_INDEX);
     });
 
     it('names the folder that holds it when the site sits one folder down', async () => {
@@ -432,7 +418,7 @@ describe('processFilesForNode', () => {
         'project/README.md': 'read me',
       });
 
-      await expect(processFilesForNode([at('project')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+      await expect(deployFrom([at('project')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
         `${NO_INDEX} There's one in dist/. If that's your site, publish that folder instead.`,
       );
     });
@@ -450,7 +436,7 @@ describe('processFilesForNode', () => {
         [`folder/${kept}`]: 'content',
       });
 
-      const result = await processFilesForNode([at('folder')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('folder')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual([kept, 'index.html'].sort());
     });
@@ -465,7 +451,7 @@ describe('processFilesForNode', () => {
         'archive/real.txt': 'content',
       });
 
-      const result = await processFilesForNode([at('archive')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('archive')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['index.html', 'real.txt']);
       expect(result.some((f) => f.path.includes(dirName))).toBe(false);
@@ -479,7 +465,7 @@ describe('processFilesForNode', () => {
         'normal.txt': 'content',
       });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at('.env'), at('.gitignore'), at('index.html'), at('normal.txt')],
         {},
         FREE_PLAN_LIMITS,
@@ -495,7 +481,7 @@ describe('processFilesForNode', () => {
         'dist/.env': 'SECRET=x',
       });
 
-      const result = await processFilesForNode([at('dist')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('dist')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['index.html']);
     });
@@ -508,7 +494,7 @@ describe('processFilesForNode', () => {
         '.output/assets/style.css': 'body {}',
       });
 
-      const result = await processFilesForNode([at('.output')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('.output')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['assets/style.css', 'index.html']);
     });
@@ -522,7 +508,7 @@ describe('processFilesForNode', () => {
         'tmpdir/home/node/.n8n-files/dist/assets/style.css': 'body {}',
       });
 
-      const result = await processFilesForNode([at('tmpdir')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('tmpdir')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['assets/style.css', 'index.html']);
     });
@@ -532,7 +518,7 @@ describe('processFilesForNode', () => {
     it.each(['virus.exe', 'installer.msi'])('rejects the blocked extension of %s', async (name) => {
       writeTree({ [name]: 'payload' });
 
-      await expect(processFilesForNode([at(name)], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+      await expect(deployFrom([at(name)], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
         'has an extension that is not allowed',
       );
     });
@@ -546,7 +532,7 @@ describe('processFilesForNode', () => {
 
       const limits = { ...FREE_PLAN_LIMITS, blockedExtensions: ['dmg'] };
       await expect(
-        processFilesForNode([at('index.html'), at('virus.exe')], {}, limits),
+        deployFrom([at('index.html'), at('virus.exe')], {}, limits),
       ).resolves.toHaveLength(2);
     });
 
@@ -557,7 +543,7 @@ describe('processFilesForNode', () => {
       writeTree({ 'index.html': HOME, 'virus.exe': 'payload' });
 
       await expect(
-        processFilesForNode([at('index.html'), at('virus.exe')], {}, LIMITS_WITHOUT_BLOCKLIST),
+        deployFrom([at('index.html'), at('virus.exe')], {}, LIMITS_WITHOUT_BLOCKLIST),
       ).resolves.toHaveLength(2);
     });
 
@@ -566,7 +552,7 @@ describe('processFilesForNode', () => {
       async (name) => {
         writeTree({ [name]: 'content' });
 
-        await expect(processFilesForNode([at(name)], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+        await expect(deployFrom([at(name)], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
           'unsafe characters',
         );
       },
@@ -577,11 +563,7 @@ describe('processFilesForNode', () => {
       async (name) => {
         writeTree({ 'index.html': HOME, [name]: 'content' });
 
-        const result = await processFilesForNode(
-          [at('index.html'), at(name)],
-          {},
-          FREE_PLAN_LIMITS,
-        );
+        const result = await deployFrom([at('index.html'), at(name)], {}, FREE_PLAN_LIMITS);
         expect(result).toHaveLength(2);
       },
     );
@@ -589,7 +571,7 @@ describe('processFilesForNode', () => {
     it('rejects Windows reserved names', async () => {
       writeTree({ 'CON.txt': 'reserved' });
 
-      await expect(processFilesForNode([at('CON.txt')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+      await expect(deployFrom([at('CON.txt')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
         'reserved system name',
       );
     });
@@ -597,7 +579,7 @@ describe('processFilesForNode', () => {
     it('rejects filenames ending with dots', async () => {
       writeTree({ 'file.': 'trailing dot' });
 
-      await expect(processFilesForNode([at('file.')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+      await expect(deployFrom([at('file.')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
         'cannot end with dots',
       );
     });
@@ -605,7 +587,7 @@ describe('processFilesForNode', () => {
     it('allows ordinary web extensions', async () => {
       writeTree({ 'index.html': '<html>', 'style.css': 'body {}', 'data.json': '{}' });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at('index.html'), at('style.css'), at('data.json')],
         {},
         FREE_PLAN_LIMITS,
@@ -620,7 +602,7 @@ describe('processFilesForNode', () => {
         'folder.name/file.txt': 'nested',
       });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at('index.html'), at('file.test.spec.ts'), at('folder.name/file.txt')],
         {},
         FREE_PLAN_LIMITS,
@@ -637,28 +619,28 @@ describe('processFilesForNode', () => {
     it('rejects a single file over maxFileSize', async () => {
       writeTree({ 'large.txt': 'x'.repeat(101) });
 
-      await expect(processFilesForNode([at('large.txt')], {}, limits)).rejects.toThrow('too large');
+      await expect(deployFrom([at('large.txt')], {}, limits)).rejects.toThrow('too large');
     });
 
     it('accepts a file exactly at maxFileSize', async () => {
       writeTree({ ...page, 'exact.txt': 'x'.repeat(100) });
 
-      const result = await processFilesForNode([at('index.html'), at('exact.txt')], {}, limits);
+      const result = await deployFrom([at('index.html'), at('exact.txt')], {}, limits);
       expect(result.find((f) => f.path === 'exact.txt')?.size).toBe(100);
     });
 
     it('rejects a cumulative size over maxTotalSize', async () => {
       writeTree({ 'file1.txt': 'x'.repeat(80), 'file2.txt': 'x'.repeat(80) });
 
-      await expect(
-        processFilesForNode([at('file1.txt'), at('file2.txt')], {}, limits),
-      ).rejects.toThrow('Files add up to');
+      await expect(deployFrom([at('file1.txt'), at('file2.txt')], {}, limits)).rejects.toThrow(
+        'Files add up to',
+      );
     });
 
     it('accepts a cumulative size exactly at maxTotalSize', async () => {
       writeTree({ ...page, 'file1.txt': 'x'.repeat(75), 'file2.txt': 'x'.repeat(74) });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at('index.html'), at('file1.txt'), at('file2.txt')],
         {},
         limits,
@@ -672,7 +654,7 @@ describe('processFilesForNode', () => {
       writeTree(spec);
 
       await expect(
-        processFilesForNode(
+        deployFrom(
           Object.keys(spec).map((rel) => at(rel)),
           {},
           { ...limits, maxTotalSize: 10_000 },
@@ -688,7 +670,7 @@ describe('processFilesForNode', () => {
         'real.txt': 'b',
       });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at('empty1.txt'), at('empty2.txt'), at('index.html'), at('real.txt')],
         {},
         { maxFileSize: 100, maxFilesCount: 2, maxTotalSize: 1000 },
@@ -710,7 +692,7 @@ describe('processFilesForNode', () => {
         'index.html': HOME,
       });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [
           at('index.html'),
           at('测试文件.txt'),
@@ -742,7 +724,7 @@ describe('processFilesForNode', () => {
         README: 'hi',
       });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at('index.html'), at('Dockerfile'), at('Makefile'), at('LICENSE'), at('README')],
         {},
         FREE_PLAN_LIMITS,
@@ -760,7 +742,7 @@ describe('processFilesForNode', () => {
         'index.html': HOME,
       });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [
           at('index.html'),
           at('file with spaces.txt'),
@@ -780,14 +762,14 @@ describe('processFilesForNode', () => {
       fs.mkdirSync(at('another-empty'));
 
       await expect(
-        processFilesForNode([at('empty-dir'), at('another-empty')], {}, FREE_PLAN_LIMITS),
+        deployFrom([at('empty-dir'), at('another-empty')], {}, FREE_PLAN_LIMITS),
       ).rejects.toThrow('There are no files to publish.');
     });
 
     it('skips empty files entirely', async () => {
       writeTree({ 'index.html': HOME, 'empty.txt': '', 'another-empty': '', 'zero.html': '' });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at('index.html'), at('empty.txt'), at('another-empty'), at('zero.html')],
         {},
         FREE_PLAN_LIMITS,
@@ -799,7 +781,7 @@ describe('processFilesForNode', () => {
       writeTree({ 'index.html': '', 'app.js': 'js' });
 
       await expect(
-        processFilesForNode([at('index.html'), at('app.js')], {}, FREE_PLAN_LIMITS),
+        deployFrom([at('index.html'), at('app.js')], {}, FREE_PLAN_LIMITS),
       ).rejects.toThrow(
         "The index.html at the top of your site is empty. It's the page visitors see first, so it needs content.",
       );
@@ -814,7 +796,7 @@ describe('processFilesForNode', () => {
         'index.html': HOME,
       });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at('single-file.txt'), at('directory'), at('another-single.html'), at('index.html')],
         {},
         FREE_PLAN_LIMITS,
@@ -839,7 +821,7 @@ describe('processFilesForNode', () => {
       });
 
       await expect(
-        processFilesForNode(
+        deployFrom(
           [at('dir1/config.json'), at('dir2/config.json'), at('index.html')],
           {},
           FREE_PLAN_LIMITS,
@@ -855,7 +837,7 @@ describe('processFilesForNode', () => {
         'index.html': HOME,
       });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at('unix.txt'), at('windows.txt'), at('oldmac.txt'), at('index.html')],
         {},
         FREE_PLAN_LIMITS,
@@ -876,7 +858,7 @@ describe('processFilesForNode', () => {
       spec['index.html'] = HOME;
       writeTree(spec);
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         Object.keys(spec).map((rel) => at(rel)),
         {},
         FREE_PLAN_LIMITS,
@@ -894,9 +876,9 @@ describe('processFilesForNode', () => {
       const home = at('index.html');
 
       const results = await Promise.all([
-        processFilesForNode([home, ...all.slice(0, 17)], {}, FREE_PLAN_LIMITS),
-        processFilesForNode([home, ...all.slice(17, 34)], {}, FREE_PLAN_LIMITS),
-        processFilesForNode([home, ...all.slice(34, 50)], {}, FREE_PLAN_LIMITS),
+        deployFrom([home, ...all.slice(0, 17)], {}, FREE_PLAN_LIMITS),
+        deployFrom([home, ...all.slice(17, 34)], {}, FREE_PLAN_LIMITS),
+        deployFrom([home, ...all.slice(34, 50)], {}, FREE_PLAN_LIMITS),
       ]);
 
       expect(results.map((r) => r.length)).toEqual([18, 18, 17]);
@@ -907,7 +889,7 @@ describe('processFilesForNode', () => {
       const longName = `${'a'.repeat(200)}.txt`;
       writeTree({ [deep]: 'deep content', [longName]: 'long name', 'index.html': HOME });
 
-      const result = await processFilesForNode(
+      const result = await deployFrom(
         [at(deep), at(longName), at('index.html')],
         { pathDetect: false },
         FREE_PLAN_LIMITS,
@@ -918,7 +900,7 @@ describe('processFilesForNode', () => {
 
     it('rejects nonexistent inputs', async () => {
       await expect(
-        processFilesForNode([at('non-existent-file.txt')], {}, FREE_PLAN_LIMITS),
+        deployFrom([at('non-existent-file.txt')], {}, FREE_PLAN_LIMITS),
       ).rejects.toThrow();
     });
   });
@@ -931,7 +913,7 @@ describe('processFilesForNode', () => {
         'extra/img/logo.png': 'png',
       });
 
-      const result = await processFilesForNode([at('site'), at('extra')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('site'), at('extra')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['css/app.css', 'img/logo.png', 'index.html']);
     });
@@ -939,11 +921,7 @@ describe('processFilesForNode', () => {
     it('sends a file two typed paths reach once, named by the first', async () => {
       writeTree({ 'site/index.html': HOME, 'site/css/app.css': 'body{}' });
 
-      const result = await processFilesForNode(
-        [at('site'), at('site/css/app.css')],
-        {},
-        FREE_PLAN_LIMITS,
-      );
+      const result = await deployFrom([at('site'), at('site/css/app.css')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['css/app.css', 'index.html']);
     });
@@ -957,7 +935,7 @@ describe('processFilesForNode', () => {
       writeTree({ 'dist/site/index.html': HOME, 'dist/site/app.js': '1' });
       writeTree(Object.fromEntries(Object.entries(junk).map(([k, v]) => [`dist/${k}`, v])));
 
-      const result = await processFilesForNode([at('dist')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('dist')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['app.js', 'index.html']);
     });
@@ -969,7 +947,7 @@ describe('processFilesForNode', () => {
       `"${path}" is a link, and we don't publish links. Copy what it points to into the folder, then try again.`;
 
     const refusal = async (folder: string): Promise<ShipError> =>
-      processFilesForNode([at(folder)], {}, FREE_PLAN_LIMITS).catch((e) => e);
+      deployFrom([at(folder)], {}, FREE_PLAN_LIMITS).catch((e) => e);
 
     it.each([
       ['a file inside the folder', 'site/v2/guide.html', 'start.html'],
@@ -1002,7 +980,7 @@ describe('processFilesForNode', () => {
       fs.mkdirSync(at('site/.venv/bin'));
       fs.symlinkSync('/usr/bin/env', at('site/.venv/bin/python'));
 
-      const result = await processFilesForNode([at('site')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('site')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['index.html']);
     });
@@ -1033,7 +1011,7 @@ describe('processFilesForNode', () => {
         }
       }
 
-      const result = await processFilesForNode([at('site')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('site')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['index.html']);
     });
@@ -1042,7 +1020,7 @@ describe('processFilesForNode', () => {
       writeTree({ 'build/index.html': HOME, 'build/app.js': '1' });
       fs.symlinkSync(at('build'), at('current'));
 
-      const result = await processFilesForNode([at('current')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('current')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['app.js', 'index.html']);
     });
@@ -1052,7 +1030,7 @@ describe('processFilesForNode', () => {
       fs.mkdirSync(at('site'));
       fs.symlinkSync(at('elsewhere/page.html'), at('site/index.html'));
 
-      const result = await processFilesForNode([at('site/index.html')], {}, FREE_PLAN_LIMITS);
+      const result = await deployFrom([at('site/index.html')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['index.html']);
     });
@@ -1102,9 +1080,7 @@ describe('processFilesForNode', () => {
       writeTree({ 'index.html': HOME });
       const cwd = vi.spyOn(process, 'cwd').mockReturnValue(at('.'));
 
-      const error: ShipError = await processFilesForNode([''], {}, FREE_PLAN_LIMITS).catch(
-        (e) => e,
-      );
+      const error: ShipError = await deployFrom([''], {}, FREE_PLAN_LIMITS).catch((e) => e);
       cwd.mockRestore();
 
       expect(error.type).toBe(ErrorType.File);
@@ -1112,11 +1088,9 @@ describe('processFilesForNode', () => {
     });
 
     it('says a typed path is not there, in the words the person typed', async () => {
-      const error: ShipError = await processFilesForNode(
-        ['./no/such/folder'],
-        {},
-        FREE_PLAN_LIMITS,
-      ).catch((e) => e);
+      const error: ShipError = await deployFrom(['./no/such/folder'], {}, FREE_PLAN_LIMITS).catch(
+        (e) => e,
+      );
 
       expect(error.type).toBe(ErrorType.File);
       expect(error.message).toBe(
@@ -1127,7 +1101,7 @@ describe('processFilesForNode', () => {
     it.skipIf(process.platform === 'win32')(
       'refuses a typed path that is neither a file nor a folder',
       async () => {
-        await expect(processFilesForNode(['/dev/null'], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+        await expect(deployFrom(['/dev/null'], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
           `"/dev/null" isn't a file or a folder.`,
         );
       },
@@ -1139,7 +1113,7 @@ describe('processFilesForNode', () => {
       fs.chmodSync(at('site/locked'), 0o000);
 
       try {
-        await expect(processFilesForNode([at('site')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
+        await expect(deployFrom([at('site')], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
           `We couldn't read "${at('site/locked')}".`,
         );
       } finally {
@@ -1155,7 +1129,7 @@ describe('processFilesForNode', () => {
         fs.chmodSync(at('locked.txt'), 0o000);
 
         await expect(
-          processFilesForNode([at('index.html'), at('locked.txt')], {}, FREE_PLAN_LIMITS),
+          deployFrom([at('index.html'), at('locked.txt')], {}, FREE_PLAN_LIMITS),
         ).rejects.toThrow(`We couldn't read "locked.txt".`);
       },
     );

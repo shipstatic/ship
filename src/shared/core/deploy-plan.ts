@@ -31,8 +31,8 @@ import {
   DEPLOYMENT_INDEX_FILENAME,
   formatFileSize,
   ShipError,
+  type StaticFile,
 } from '@shipstatic/types';
-import type { StaticFile } from '../types.js';
 import type { DeployField } from './deploy-body.js';
 
 const { MAX_BYTES, PART_OVERHEAD } = DEPLOY_REQUEST_CONSTRAINTS;

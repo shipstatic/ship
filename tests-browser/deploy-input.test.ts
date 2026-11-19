@@ -16,7 +16,7 @@ import { fileSources } from '../src/shared/core/deploy-input';
 import type { DeploymentOptions } from '../src/shared/types';
 
 /** A deploy of `File`s, up to the request: sources, then the one pipeline. */
-const deployFiles = (files: File[], options?: DeploymentOptions, limits?: PlatformLimits) =>
+const deployFiles = (files: File[], options: DeploymentOptions, limits: PlatformLimits) =>
   processDeployFiles(fileSources(files), options, limits);
 
 /** A real File carrying the relative path drag-and-drop would give it. */

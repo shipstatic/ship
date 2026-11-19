@@ -7,13 +7,11 @@
  * carries the `@shipstatic/types` vocabulary and this SDK's option types.
  */
 
-export type { Account, Deployment, Domain, PingResponse } from '@shipstatic/types';
-export { ErrorType, ShipError } from '@shipstatic/types';
 // What a person is told when a file cannot be read: `@shipstatic/drop` says it too.
 export { unreadable } from './core/deploy-files.js';
 // How a site's files are named and judged, which `@shipstatic/drop` shows
 // before a deploy exactly as the deploy does.
-export { type DeployFile, optimizeDeployPaths, sitePaths } from './lib/deploy-paths.js';
+export { optimizeDeployPaths, sitePaths } from './lib/deploy-paths.js';
 export { validateFiles } from './lib/file-validation.js';
 export { pluralize } from './lib/text.js';
 export * from './types.js';

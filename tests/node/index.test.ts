@@ -1,16 +1,23 @@
+/**
+ * @file Subject: `src/node/index.ts`, the Node entry: what `Ship` adds where
+ * there is a filesystem and a process. The `SHIP_*` variables fill what the
+ * constructor left out, and a deploy takes paths as well as `File`s. What
+ * the class does everywhere is `tests/shared/ship*.test.ts`.
+ */
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { findSources } from '../../src/node/core/node-files';
-import { Ship } from '../../src/node/index';
+import NodeDefault, { Ship } from '../../src/node/index';
+import { Ship as SharedShip } from '../../src/shared/ship';
+import { FREE_PLAN_LIMITS } from '../fixtures/builders';
 import { fakeTransport } from '../mocks/transport';
 
 // Mock the ApiHttp class to prevent real network calls. Keyed by OPERATION,
 // because a transport has two methods since the endpoint tier folded down —
 // see `tests/mocks/transport.ts`.
 const mockApiClient = fakeTransport({
-  Ping: { success: true, timestamp: 1_700_000_000 },
   Deploy: { deployment: 'dep_123', url: 'https://dep_123.shipstatic.com' },
-  'Get account': { email: 'test@example.com' },
-  'Get limits': { maxFileSize: 10485760 },
+  'Get limits': FREE_PLAN_LIMITS,
 });
 
 // `function`, not an arrow: vitest 4 invokes constructor mocks with `new`,
@@ -38,16 +45,15 @@ vi.mock('../../src/node/core/config', () => ({
   readEnvConfig: vi.fn(() => ({})),
 }));
 
-describe('Ship - Node.js Implementation', () => {
+describe('the Node entry', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('constructor', () => {
-    it('should create Ship instance in Node.js environment', () => {
-      const ship = new Ship({ token: 'test-key' });
-      expect(ship).toBeInstanceOf(Ship);
-    });
+  it('is the shared class with one method overridden, by name and as the default', () => {
+    expect(NodeDefault).toBe(Ship);
+    expect(Object.getPrototypeOf(Ship)).toBe(SharedShip);
+    expect(Object.getOwnPropertyNames(Ship.prototype).sort()).toEqual(['constructor', 'sources']);
   });
 
   describe('env-var resolution', () => {
@@ -129,226 +135,60 @@ describe('Ship - Node.js Implementation', () => {
     });
   });
 
-  describe('deploy functionality', () => {
-    it('should process directory paths correctly', async () => {
-      const ship = new Ship({ token: 'test-key' });
+  describe("a deploy's input", () => {
+    /** The names the last deploy sent its files under. */
+    const sent = () => {
+      const body = mockApiClient.carriedFor('Deploy').at(-1)?.init.body as FormData;
+      return (body.getAll('files[]') as File[]).map((file) => file.name);
+    };
 
-      // Mock the API client
-      (ship as any).http = fakeTransport({
-        Deploy: vi.fn().mockResolvedValue({
-          id: 'dep_123',
-          url: 'https://dep_123.shipstatic.com',
-        }),
-        'Get limits': vi.fn().mockResolvedValue({}),
-      });
-
-      const result = await ship.deploy('./dist');
-
-      expect(result).toEqual({
-        id: 'dep_123',
-        url: 'https://dep_123.shipstatic.com',
-      });
-    });
-
-    it('should handle file arrays', async () => {
-      // Update the global mock to return the expected value for this test
-      mockApiClient.answer('Deploy', {
-        id: 'dep_456',
-        url: 'https://dep_456.shipstatic.com',
-      });
-
-      const ship = new Ship({ token: 'test-key' });
-      const result = await ship.deploy(['./index.html', './style.css']);
-
-      expect(result).toEqual({
-        id: 'dep_456',
-        url: 'https://dep_456.shipstatic.com',
-      });
-    });
-  });
-
-  describe('resource functionality', () => {
-    it('should provide access to all resources', () => {
-      const ship = new Ship({ token: 'test-key' });
-
-      expect(ship.deployments).toBeDefined();
-      expect(ship.domains).toBeDefined();
-      expect(ship.account).toBeDefined();
-    });
-  });
-
-  describe('Node.js deployment edge cases (migrated from node-sdk.test.ts)', () => {
     it.each([
       ['a path', './dist', ['./dist']],
-      [
-        'a list of paths',
-        ['./dist/index.html', './dist/style.css'],
-        ['./dist/index.html', './dist/style.css'],
-      ],
+      ['a list of paths', ['./dist', './extra'], ['./dist', './extra']],
     ])('walks %s', async (_what, input, walked) => {
-      const ship = new Ship({ token: 'test-key' });
-
-      await ship.deploy(input);
+      await new Ship({ token: 'test-key' }).deploy(input);
 
       expect(findSources).toHaveBeenCalledWith(walked);
+      expect(sent()).toEqual(['index.html']);
     });
 
     it('takes Files as every runtime does, and walks nothing', async () => {
-      const ship = new Ship({ token: 'test-key' });
-
-      await ship.deploy([new File(['<html></html>'], 'index.html')]);
+      await new Ship({ token: 'test-key' }).deploy([new File(['<html></html>'], 'index.html')]);
 
       expect(findSources).not.toHaveBeenCalled();
-      const body = mockApiClient.carriedFor('Deploy').at(-1)?.init.body as FormData;
-      expect((body.getAll('files[]') as File[]).map((f) => f.name)).toEqual(['index.html']);
+      expect(sent()).toEqual(['index.html']);
     });
 
-    it('should throw error for FileList input in Node.js (browser-only input)', async () => {
-      const ship = new Ship({ token: 'test-key' });
-
-      const mockFileList = {
-        0: new File(['content'], 'test.txt'),
-        length: 1,
-        item: () => null,
-      } as any;
-
-      // This should fail because FileList is not supported in Node.js
-      await expect(ship.deploy(mockFileList)).rejects.toThrow();
-    });
-
-    it('should throw error for HTMLInputElement in Node.js (browser-only input)', async () => {
-      const ship = new Ship({ token: 'test-key' });
-
-      const mockInput = {
-        tagName: 'INPUT',
-        type: 'file',
-        files: null,
-      } as any;
-
-      // This should fail because HTMLInputElement is not supported in Node.js
-      await expect(ship.deploy(mockInput)).rejects.toThrow();
-    });
-
-    it('should prioritize constructor options over environment variables', async () => {
-      // Set environment variables
-      process.env.SHIP_API_URL = 'https://env.example.com';
-      process.env.SHIP_TOKEN = 'env-token';
-
-      const ship = new Ship({
-        apiUrl: 'https://constructor.example.com',
-        token: 'constructor-token',
-      });
-
-      // Constructor options should take precedence
-      expect((ship as any).clientOptions.apiUrl).toBe('https://constructor.example.com');
-      expect((ship as any).clientOptions.token).toBe('constructor-token');
-
-      // Clean up
-      delete process.env.SHIP_API_URL;
-      delete process.env.SHIP_TOKEN;
-    });
-  });
-
-  describe('deploy option passthrough (migrated from node-sdk.test.ts)', () => {
-    it('passes labels through to the wire', async () => {
-      const ship = new Ship({ token: 'test-key' });
-
-      await ship.deploy(['./dist/app.js'], { labels: ['production', 'v2.1.0'] });
-
-      const body = mockApiClient.carriedFor('Deploy').at(-1)?.init.body as FormData;
-      expect(JSON.parse(body.get('labels') as string)).toEqual(['production', 'v2.1.0']);
-    });
-
-    it('passes password through to the wire', async () => {
-      const ship = new Ship({ token: 'test-key' });
-
-      await ship.deploy(['./dist/app.js'], { password: 'secret123' });
-
-      const body = mockApiClient.carriedFor('Deploy').at(-1)?.init.body as FormData;
-      expect(body.get('password')).toBe('secret123');
-    });
-
-    it('uploads the paths the pipeline named, never a host-absolute prefix', async () => {
-      // The common parent is stripped during processing; nothing downstream may
-      // re-prefix it back on. A regression here would leak the deploying
-      // machine's directory layout into every deployed URL.
-      const ship = new Ship({ token: 'test-key' });
+    it('publishes what a path holds under the names the pipeline gave it', async () => {
+      // The folder every file shares is stripped, and nothing downstream may
+      // put it back: that would show the deploying machine's layout in every
+      // URL of the site.
       vi.mocked(findSources).mockResolvedValueOnce([
         { path: 'folder/index.html', size: 1, read: async () => new Blob(['a']) },
         { path: 'folder/nested/file2.txt', size: 1, read: async () => new Blob(['b']) },
       ]);
 
-      await ship.deploy(['/base/folder']);
+      await new Ship({ token: 'test-key' }).deploy(['/base/folder']);
 
-      const body = mockApiClient.carriedFor('Deploy').at(-1)?.init.body as FormData;
-      const names = (body.getAll('files[]') as File[]).map((f) => f.name);
-      expect(names).toEqual(['index.html', 'nested/file2.txt']);
+      expect(sent()).toEqual(['index.html', 'nested/file2.txt']);
     });
-  });
 
-  describe('standardized error handling', () => {
-    it('should reject FileList input with consistent error message', async () => {
-      const ship = new Ship({ token: 'test-key' });
+    it.each([
+      [
+        "a file input's FileList",
+        { 0: new File(['x'], 'index.html'), length: 1, item: () => null },
+      ],
+      ['a file input', { tagName: 'INPUT', type: 'file', files: null }],
+      ['a list that mixes Files and paths', [new File(['x'], 'index.html'), './dist']],
+      ['nothing', undefined],
+    ])('refuses %s in words, with no request', async (_what, input) => {
+      const asked = mockApiClient.carriedFor('Get limits').length;
 
-      const mockFileList = {
-        0: new File(['content'], 'test.txt'),
-        length: 1,
-        item: () => null,
-      } as any;
-
-      await expect(ship.deploy(mockFileList)).rejects.toThrow(
+      await expect(new Ship({ token: 'test-key' }).deploy(input as any)).rejects.toThrow(
         'A deploy takes a list of File objects, a path, or a list of paths.',
       );
-    });
-
-    it('should reject HTMLInputElement input with consistent error message', async () => {
-      const ship = new Ship({ token: 'test-key' });
-
-      const mockInput = {
-        tagName: 'INPUT',
-        type: 'file',
-        files: null,
-      } as any;
-
-      await expect(ship.deploy(mockInput)).rejects.toThrow(
-        'A deploy takes a list of File objects, a path, or a list of paths.',
-      );
-    });
-
-    it('should reject invalid object types with consistent error message', async () => {
-      const ship = new Ship({ token: 'test-key' });
-
-      await expect(ship.deploy({ invalid: 'object' } as any)).rejects.toThrow(
-        'A deploy takes a list of File objects, a path, or a list of paths.',
-      );
-    });
-
-    it('should handle network errors consistently', async () => {
-      // Set up the global mock to reject with network error
-      mockApiClient.answer('Deploy', () => {
-        throw new Error('Request timeout after 30000ms');
-      });
-
-      const ship = new Ship({ token: 'test-key' });
-
-      await expect(ship.deploy(['./test.html'])).rejects.toThrow('Request timeout after 30000ms');
-    });
-
-    it('should handle API errors consistently', async () => {
-      // Set up the global mock to reject with API error
-      mockApiClient.answer('Deploy', () => {
-        throw new Error('API key is invalid');
-      });
-
-      const ship = new Ship({ token: 'invalid-key' });
-
-      await expect(ship.deploy(['./test.html'])).rejects.toThrow('API key is invalid');
-    });
-
-    it('should handle configuration errors consistently', async () => {
-      // Test with missing API key - constructor should succeed
-      const ship = new Ship({} as any);
-      expect(ship).toBeDefined(); // Constructor allows empty config, API calls will validate
+      expect(findSources).not.toHaveBeenCalled();
+      expect(mockApiClient.carriedFor('Get limits')).toHaveLength(asked);
     });
   });
 });

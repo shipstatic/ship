@@ -14,14 +14,18 @@
  * developer's personal credentials.
  */
 
-import { ShipError } from '@shipstatic/types';
+import { type DeployInput, ShipError } from '@shipstatic/types';
 import type { DeploySource } from '../shared/core/deploy-files.js';
 import { isFiles, isPaths } from '../shared/core/deploy-input.js';
 import { Ship as BaseShip } from '../shared/ship.js';
-import type { DeployInput, ShipClientOptions } from '../shared/types.js';
+import type { ShipClientOptions } from '../shared/types.js';
 import { readEnvConfig } from './core/config.js';
 
 export * from '../shared/index.js';
+
+/** What a deploy is told here when its input is no list of `File`s and no path. */
+const FILES_OR_PATHS_EXPECTED =
+  'A deploy takes a list of File objects, a path, or a list of paths.';
 
 /**
  * Ship SDK client for Node.js.
@@ -69,9 +73,5 @@ export class Ship extends BaseShip {
     throw ShipError.business(FILES_OR_PATHS_EXPECTED);
   }
 }
-
-/** What a deploy is told here when its input is no list of `File`s and no path. */
-const FILES_OR_PATHS_EXPECTED =
-  'A deploy takes a list of File objects, a path, or a list of paths.';
 
 export default Ship;

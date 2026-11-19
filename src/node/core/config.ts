@@ -7,8 +7,8 @@
  * the one-token idiom used across the industry (`GITHUB_TOKEN`, `NPM_TOKEN`,
  * `VERCEL_TOKEN`). Constructor arguments win over env vars.
  *
- * File-based config (`~/.shiprc`, `package.json` `"ship"` key) is the CLI's
- * responsibility — see `src/node/cli/shiprc.ts`. The SDK does not read files,
+ * File-based config (`~/.shiprc`, or the file `--config` names) is the CLI's
+ * responsibility: see `src/node/cli/shiprc.ts`. The SDK does not read files,
  * which is what lets embedded consumers (MCP, the VS Code extension, GitHub
  * Action) construct `new Ship({})` for anonymous deployments without leaking
  * the host developer's personal credentials.
@@ -16,8 +16,8 @@
 
 import { SHIP_ENV, ShipError } from '@shipstatic/types';
 import { z } from 'zod';
-import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
 import type { ShipClientOptions } from '../../shared/types.js';
+import { CREDENTIAL_FIELDS } from './credential-schema.js';
 
 // `.strict()` matches the file-config schema. The `raw` object below is
 // constructed from a fixed set of keys, so .strict() doesn't catch user

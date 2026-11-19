@@ -6,30 +6,19 @@
 import { filterJunk } from './junk.js';
 import { normalizeWebPath } from './path.js';
 
-/** A file's deploy path, beside its own name. */
-export interface DeployFile {
-  /** The path the file is published at, for example `assets/style.css`. */
-  path: string;
-  /** The file's own name, the last segment of its path. */
-  name: string;
-}
-
 /**
  * Each path in web form, with the folder every path shares stripped:
  * `dist/index.html` and `dist/assets/app.js` become `index.html` and
- * `assets/app.js`. `flatten: false` strips nothing.
+ * `assets/app.js`. One answer per path, in order. `flatten: false` strips
+ * nothing.
  */
 export function optimizeDeployPaths(
   filePaths: string[],
   options: { flatten?: boolean } = {},
-): DeployFile[] {
+): string[] {
   const paths = filePaths.map(normalizeWebPath);
   const shared = options.flatten === false ? '' : sharedFolder(paths);
-  return paths.map((path) => {
-    const name = path.split('/').pop() ?? path;
-    const stripped = shared && path.startsWith(`${shared}/`) ? path.slice(shared.length + 1) : path;
-    return { path: stripped || name, name };
-  });
+  return shared ? paths.map((path) => path.slice(shared.length + 1)) : paths;
 }
 
 /**
@@ -47,10 +36,10 @@ export function optimizeDeployPaths(
  * is still set aside.
  */
 export function sitePaths(paths: string[], options: { flatten?: boolean } = {}): (string | null)[] {
-  const named = optimizeDeployPaths(paths, options).map((file) => file.path);
+  const named = optimizeDeployPaths(paths, options);
   const site = [...new Set(filterJunk(named))];
   const published = new Map(
-    optimizeDeployPaths(site, options).map((file, index) => [site[index], file.path]),
+    optimizeDeployPaths(site, options).map((path, index) => [site[index], path]),
   );
   return named.map((path) => published.get(path) ?? null);
 }

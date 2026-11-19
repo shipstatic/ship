@@ -23,8 +23,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { ShipError } from '@shipstatic/types';
 import { z } from 'zod';
-import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
 import type { ShipClientOptions } from '../../shared/types.js';
+import { CREDENTIAL_FIELDS } from '../core/credential-schema.js';
 
 // `.strict()` rejects unknown keys — catches typos like `apikey` (lowercase)
 // in user-authored `.shiprc` files. The env reader doesn't need this because

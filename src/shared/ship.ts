@@ -1,26 +1,26 @@
 /**
- * @file The `Ship` class: the whole SDK, on every runtime.
+ * @file The `Ship` class: the whole SDK, wherever it runs.
  *
- * The constructor is fully synchronous: an `ApiHttp` instance is built immediately
- * with whatever credentials the caller supplied (and, in Node, env vars merged in
- * by the subclass before `super()`).
+ * A browser, a Worker, Node and Bun all have `File`, so this class deploys
+ * `File`s on every one of them. The one thing a runtime can add is another
+ * way to find a deploy's files, by overriding `sources()`: Node's `Ship` adds
+ * paths on a filesystem, and nothing else differs between the two.
  *
- * Platform limits are the account's policy, and the server may change them at
- * any time (a plan move, an operator's grant), so the client never holds them:
- * `getLimits()` asks every time, and each deploy reads them once, when it has
- * found its files, for its own validation. A client that lives as long as a browser tab would
- * otherwise validate today's upload against the limits of the morning, and the
- * only calls that pay the request are the two that read the answer.
+ * The constructor is synchronous: the transport is built at once from the
+ * credential the caller supplied (in Node, with the `SHIP_*` variables
+ * merged in by the subclass before `super()`).
  *
- * This class is the whole SDK wherever it runs: a browser, a Worker, Node,
- * Bun. It deploys `File`s, which every one of them has. The one thing a
- * runtime can add is another way to find a deploy's files, by overriding
- * `sources()`: Node's `Ship` adds paths on a filesystem, and nothing else
- * differs between the two.
+ * Platform limits are the account's policy, and the server may change them
+ * at any time (a plan move, an operator's grant), so the client never holds
+ * them: `getLimits()` asks every time, and each deploy reads them once, when
+ * it has found its files. A client that lives as long as a browser tab would
+ * otherwise judge today's upload by the limits of the morning, and the only
+ * calls that pay the request are the two that read the answer.
  */
 
 import type {
   AccountResource,
+  DeployInput,
   DeploymentCreateResponse,
   DeploymentResource,
   DomainResource,
@@ -44,13 +44,7 @@ import {
   createDomainResource,
   createTokenResource,
 } from './resources.js';
-import type {
-  DeployInput,
-  DeploymentOptions,
-  ShipClientOptions,
-  ShipEvents,
-  TokenProvider,
-} from './types.js';
+import type { DeploymentOptions, ShipClientOptions, ShipEvents, TokenProvider } from './types.js';
 
 /**
  * The Ship SDK client.

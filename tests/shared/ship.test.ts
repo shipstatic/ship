@@ -3,18 +3,17 @@
  * runs. Owns credential state, the per-deploy `/limits` read, the
  * resource factories, and the `deploy`/`whoami` shortcuts.
  *
- * The ordering block absorbs `mixed-core/initialization-order.test.ts`. It runs
- * the REAL `ApiHttp` against an injected `fetch` rather than reassigning
- * `globalThis.fetch`: the `fetch` option is a published contract
- * (`ShipClientOptions.fetch`), so the test dogfoods it, and nothing global is
- * mutated for other files to trip over.
+ * The ordering rows run the real `ApiHttp` against an injected `fetch`
+ * rather than reassigning `globalThis.fetch`: the `fetch` option is a
+ * published contract (`ShipClientOptions.fetch`), so the test uses it, and
+ * nothing global is mutated for other files to trip over.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DeploySource } from '../../src/shared/core/deploy-files';
 import { Ship } from '../../src/shared/ship';
 import type { Fetch } from '../../src/shared/types';
-import { apiKey } from '../fixtures/builders';
+import { apiKey, FREE_PLAN_LIMITS } from '../fixtures/builders';
 import { type FakeTransport, fakeTransport } from '../mocks/transport';
 
 /** An API key in the platform's canonical shape, built from its constants. */
@@ -88,6 +87,53 @@ describe('The Ship class', () => {
         url: 'https://brave-otter-a1b2c3d.shipstatic.com',
       });
       expect(transport.carriedFor('Deploy')).toHaveLength(1);
+    });
+  });
+
+  describe("a deploy's input, where there is no filesystem", () => {
+    let plain: Ship;
+    let carried: FakeTransport;
+
+    beforeEach(() => {
+      plain = new Ship({ apiUrl: 'https://test-api.com', token: TEST_API_KEY });
+      carried = fakeTransport({ Deploy: mockApiDeploy, 'Get limits': FREE_PLAN_LIMITS });
+      (plain as any).http = carried;
+    });
+
+    it('sends Files under their names, judged by the limits it read once', async () => {
+      await plain.deploy([new File([PAGE], 'index.html'), new File(['body {}'], 'css/app.css')]);
+
+      expect(carried.carriedFor('Get limits')).toHaveLength(1);
+      const body = carried.carriedFor('Deploy')[0].init.body as FormData;
+      expect((body.getAll('files[]') as File[]).map((file) => file.name)).toEqual([
+        'index.html',
+        'css/app.css',
+      ]);
+    });
+
+    it.each([
+      ['a path', '/path/to/site'],
+      ['a list of paths', ['/path/to/site']],
+    ])('refuses %s in words, with no request', async (_what, input) => {
+      await expect(plain.deploy(input)).rejects.toThrow(
+        'A deploy takes File objects here. Publishing from a path needs Node.js or Bun.',
+      );
+      expect(carried.carriedFor('Get limits')).toHaveLength(0);
+    });
+
+    it.each([
+      // The commonest wrong input in a browser: `input.files` is no array.
+      [
+        "a file input's FileList",
+        { 0: new File(['x'], 'index.html'), length: 1, item: () => null },
+      ],
+      ['a list that mixes Files and paths', [new File(['x'], 'index.html'), './dist']],
+      ['nothing', undefined],
+    ])('tells %s how to become a list, and says nothing of paths', async (_what, input) => {
+      await expect(plain.deploy(input as any)).rejects.toThrow(
+        'A deploy takes a list of File objects. To publish the files of a file input, pass Array.from(input.files).',
+      );
+      expect(carried.carriedFor('Get limits')).toHaveLength(0);
     });
   });
 

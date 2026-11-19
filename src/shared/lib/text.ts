@@ -1,14 +1,10 @@
 /**
- * Utility functions for string manipulation.
+ * @file `pluralize`: a count beside its word.
  */
 
 /**
- * Simple utility to pluralize a word based on a count.
- * @param count The number to determine pluralization.
- * @param singular The singular form of the word.
- * @param plural The plural form of the word.
- * @param includeCount Whether to include the count in the returned string. Defaults to true.
- * @returns A string with the count and the correctly pluralized word.
+ * The word in the form the count asks for, after the count: `1 file`,
+ * `3 files`. `includeCount: false` answers the word alone.
  */
 export function pluralize(
   count: number,

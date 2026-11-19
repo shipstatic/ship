@@ -1,6 +1,6 @@
 /**
- * @file File validation utilities for Ship SDK
- * Provides client-side validation for file uploads before deployment
+ * @file `validateFiles`: every refusal a set of files would meet, listed
+ * before a deploy.
  */
 
 import type {
@@ -12,7 +12,7 @@ import type {
 } from '@shipstatic/types';
 import {
   brokenSetRule,
-  FileValidationStatus as FILE_VALIDATION_STATUS,
+  FileValidationStatus,
   firstBrokenRule,
   isPublishedFile,
 } from '@shipstatic/types';
@@ -48,23 +48,23 @@ export function validateFiles<T extends ValidatableFile>(
 
   let totalSize = 0;
   for (const file of files) {
-    let fileStatus: FileValidationStatusType = FILE_VALIDATION_STATUS.READY;
+    let fileStatus: FileValidationStatusType = FileValidationStatus.READY;
     let statusMessage = 'Ready for upload';
 
-    if (file.status === FILE_VALIDATION_STATUS.PROCESSING_ERROR) {
-      fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
+    if (file.status === FileValidationStatus.PROCESSING_ERROR) {
+      fileStatus = FileValidationStatus.VALIDATION_FAILED;
       statusMessage = file.statusMessage || `File "${file.name}" could not be read.`;
       errors.push({ file: file.name, message: statusMessage });
     } else if (!isPublishedFile(file)) {
       // Excluded, not refused: the deployment goes on without it.
-      fileStatus = FILE_VALIDATION_STATUS.EXCLUDED;
+      fileStatus = FileValidationStatus.EXCLUDED;
       statusMessage = `File "${file.name}" is empty, so it is excluded.`;
       warnings.push({ file: file.name, message: statusMessage });
     } else {
       const input = { path: file.name, size: file.size, totalSize: totalSize + file.size };
       const broken = firstBrokenRule(input, config);
       if (broken) {
-        fileStatus = FILE_VALIDATION_STATUS.VALIDATION_FAILED;
+        fileStatus = FileValidationStatus.VALIDATION_FAILED;
         statusMessage = broken.sentence(input, config);
         // The total rule refuses the deployment, not the file that tipped it.
         errors.push({
@@ -96,16 +96,16 @@ export function validateFiles<T extends ValidatableFile>(
   if (errors.length > 0) {
     fileStatuses = fileStatuses.map((file) => {
       // Keep EXCLUDED files as-is (they're warnings, not errors)
-      if (file.status === FILE_VALIDATION_STATUS.EXCLUDED) {
+      if (file.status === FileValidationStatus.EXCLUDED) {
         return file;
       }
 
       // Mark ALL other files as VALIDATION_FAILED (atomic deployment)
       return {
         ...file,
-        status: FILE_VALIDATION_STATUS.VALIDATION_FAILED,
+        status: FileValidationStatus.VALIDATION_FAILED,
         statusMessage:
-          file.status === FILE_VALIDATION_STATUS.VALIDATION_FAILED
+          file.status === FileValidationStatus.VALIDATION_FAILED
             ? file.statusMessage // Keep original error message for the file that actually failed
             : 'Deployment failed due to validation errors in bundle',
       };
@@ -115,9 +115,7 @@ export function validateFiles<T extends ValidatableFile>(
   // Build atomic result
   // validFiles is empty if ANY errors exist (all-or-nothing)
   const validFiles =
-    errors.length === 0
-      ? fileStatuses.filter((f) => f.status === FILE_VALIDATION_STATUS.READY)
-      : [];
+    errors.length === 0 ? fileStatuses.filter((f) => f.status === FileValidationStatus.READY) : [];
   const canDeploy = errors.length === 0;
 
   return {

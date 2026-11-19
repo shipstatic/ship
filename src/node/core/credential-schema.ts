@@ -1,8 +1,8 @@
 /**
  * @file Single source of truth for ambient-config field validation.
  *
- * Both the SDK env reader (`node/core/config.ts`) and the CLI file loader
- * (`node/cli/shiprc.ts`) import these — if we tighten or relax a rule,
+ * Both the SDK env reader (`config.ts`) and the CLI file loader
+ * (`../cli/shiprc.ts`) import these — if we tighten or relax a rule,
  * both layers update together. The `token` field accepts any platform token;
  * strict prefix-classified format validation happens once, at the `Ship`
  * constructor boundary, for every source uniformly.

@@ -74,9 +74,6 @@ const writeMetafile = (name: string): EsbuildPlugin => ({
  */
 const nodeExternals = ['junk', 'spark-md5', 'zod'];
 
-// Dependencies to be bundled into the browser build
-const browserBundleDeps = ['spark-md5', 'junk', 'zod', '@shipstatic/types'];
-
 export default defineConfig((tsupOptions: Options): Options[] => [
   // 1. SDK for Node.js (ESM and CJS, main entry)
   {
@@ -86,7 +83,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     outDir: 'dist',
     format: ['esm', 'cjs'],
     platform: 'node',
-    target: 'node18',
+    target: 'node20',
     // `@shipstatic/types` is a devDependency bundled into the artifact — the
     // declaration files must inline it too, or consumers get a runtime surface
     // whose types reference a package they don't have.
@@ -113,7 +110,8 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     sourcemap: true,
     splitting: false,
     clean: false,
-    noExternal: browserBundleDeps,
+    // Everything is bundled: this build imports no module at all.
+    noExternal: [/.*/],
     minify: !tsupOptions.watch,
     esbuildPlugins: [writeMetafile('browser')],
     esbuildOptions(options, _context) {
@@ -144,7 +142,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
     outDir: 'dist',
     format: ['cjs'],
     platform: 'node',
-    target: 'node18',
+    target: 'node20',
     sourcemap: true,
     clean: false,
     // The CLI bundles EVERYTHING — no `external` at all, so `dist/cli.cjs`

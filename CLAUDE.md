@@ -27,12 +27,13 @@ src/
 │   ├── api/http.ts      # The transport: headers, retries, timeout, events
 │   ├── resources.ts     # Resource factories: every endpoint, stated once
 │   ├── types.ts         # The `@shipstatic/types` vocabulary, and the SDK's option and event types
-│   ├── core/            # deploy input, file pipeline, deploy body, request planner, credential schema
+│   ├── core/            # deploy input, file pipeline, deploy body, request planner
 │   └── lib/             # Pure functions: path naming, junk, MD5, validation, text
 ├── browser/             # The entry with no filesystem code: `shared/` and nothing more
 └── node/
     ├── index.ts             # The Node entry: `Ship` with paths and the SHIP_* variables
     ├── core/config.ts       # readEnvConfig: SHIP_* env-var resolution (no filesystem)
+    ├── core/credential-schema.ts # the fields a credential source may hold (env and ~/.shiprc)
     ├── core/node-files.ts   # the filesystem walk (the pipeline itself is shared)
     └── cli/
         ├── bin.ts           # THE EXECUTABLE (dist/cli.cjs), the only file with side effects
@@ -52,7 +53,7 @@ src/
 tree has no side effects, which is what lets the suite and the completion
 renderer read it.
 
-**The SDK has no filesystem dependency.** Its only ambient credential source
+**The SDK reads no config file.** Its only ambient credential source
 is `SHIP_*` env vars. File config (`~/.shiprc`, or a `--config` path) lives
 entirely in `cli/shiprc.ts`, which is what makes `new Ship({})` safe in
 embedded hosts (MCP, the GitHub Action): it never reads the host's
@@ -290,12 +291,12 @@ ship.deploy('./dist');
 ship.deploy(['./dist/index.html', './dist/app']);
 ```
 
-**The build is the platform decision, and nothing checks it again at run
-time.** A build that cannot read a path refuses one in words ("A deploy takes
+**The build is the one decision about where the SDK runs, and nothing checks
+it again at run time.** A build that cannot read a path refuses one in words ("A deploy takes
 File objects here. Publishing from a path needs Node.js or Bun."), with no
 request.
-**Refused: a run-time platform check** (reading `process` or `window` to
-decide what the SDK is). It disagrees with the build wherever a runtime is
+**Refused: a run-time check** (reading `process` or `window` to decide what
+the SDK is). It disagrees with the build wherever a runtime is
 both: a Worker with `nodejs_compat` has a `process`, and a test runner is
 Node running browser code. The check then refuses input the build can take,
 and needs a published hook to switch it off in tests. Because the Node build
@@ -334,9 +335,9 @@ deploy rule is judged before the first read: a refused deploy opens no file,
 because no rule reads more than a path and a size. The pipeline's tests use
 synthetic sources, needing no disk and no browser.
 
-**A file's content is a `Blob` on every platform, and in Node it is the file
-itself.** `read()` answers `fs.openAsBlob(path)` there and the `File` in a
-browser, so nothing downstream knows a platform: one MD5 over a `Blob`, one
+**A file's content is a `Blob` on every runtime, and for a path it is the file
+itself.** `read()` answers `fs.openAsBlob(path)` for a path and the `File` it
+was handed otherwise, so nothing downstream knows which: one MD5 over a `Blob`, one
 `content.text()` for `ship.json`, one `formData.append`. Node reads a file's
 bytes only while they are hashed and while they are sent, so a deployment of
 any size holds nothing in memory, at the price of reading each file twice.
@@ -1056,8 +1057,8 @@ only by name: a folder, `File`s, and a link refused (2.8.3, on 3.12.0-beta.1).
 
 **Six names of its own, and the `@shipstatic/types` vocabulary.** `Ship`,
 and five helpers a consumer shows a person before a deploy exactly as the
-deploy does: `sitePaths`, `optimizeDeployPaths`, `validateFiles`,
-`unreadable` and `pluralize`. `shared/index.ts` writes the list out, with one
+deploy does: `sitePaths` and `optimizeDeployPaths` (each answers one path per
+path it was given), `validateFiles`, `unreadable` and `pluralize`. `shared/index.ts` writes the list out, with one
 star, over `shared/types.ts`, which carries the vocabulary and this SDK's
 option types. Both builds publish the same names, held by
 `tests/package/dist-entries.test.ts` against the list written out.
@@ -1083,8 +1084,8 @@ an artifact tier that reads the BUILT bytes:
 `dependencies` is the SDK's three: `zod`, `spark-md5`, `junk`. The CLI's four
 (`commander`, `columnify`, `yocto-spinner`, `yoctocolors`) are devDependencies
 bundled into `dist/cli.cjs`, so an embedded SDK consumer installs nothing it
-never executes. `build-shims/empty.cjs` shims Node builtins for the browser
-bundle.
+never executes. The browser bundle bundles everything it reaches and imports
+no module; `build-shims/empty.cjs` stands in for `crypto` there.
 
 **A check is a function of its inputs, and it runs its own counterexamples.**
 A hand drill is evidence that evaporates, so the three checks take their

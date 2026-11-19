@@ -11,32 +11,36 @@
  * published contract; this file is how it is met.
  */
 
-import type { AccountResource, DeployInput, StaticFile } from '@shipstatic/types';
+import type {
+  Account,
+  AccountResource,
+  DeployInput,
+  Deployment,
+  DeploymentCreateResponse,
+  DeploymentDeleteResponse,
+  DeploymentListResponse,
+  DeploymentResource,
+  Domain,
+  DomainDeleteResponse,
+  DomainDnsResponse,
+  DomainListResponse,
+  DomainRecordsResponse,
+  DomainResource,
+  DomainShareResponse,
+  DomainValidateResponse,
+  DomainVerifyResponse,
+  ListOptions,
+  StaticFile,
+  Token,
+  TokenCreateResponse,
+  TokenDeleteResponse,
+  TokenListResponse,
+  TokenResource,
+} from '@shipstatic/types';
 import {
-  type Account,
   API_PATHS,
-  type Deployment,
-  type DeploymentCreateResponse,
-  type DeploymentDeleteResponse,
-  type DeploymentListResponse,
-  type DeploymentResource,
-  type Domain,
-  type DomainDeleteResponse,
-  type DomainDnsResponse,
-  type DomainListResponse,
-  type DomainRecordsResponse,
-  type DomainResource,
-  type DomainShareResponse,
-  type DomainValidateResponse,
-  type DomainVerifyResponse,
   IDEMPOTENCY_KEY_CONSTRAINTS,
-  type ListOptions,
   ShipError,
-  type Token,
-  type TokenCreateResponse,
-  type TokenDeleteResponse,
-  type TokenListResponse,
-  type TokenResource,
   validateBuildCommand,
   validateIdempotencyKey,
   validateLabels,
@@ -44,7 +48,6 @@ import {
   validatePassword,
   validateTtl,
 } from '@shipstatic/types';
-
 import type { Transport } from './api/http.js';
 import {
   createDeployBody,
@@ -65,8 +68,8 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
  * Action `git`, the MCP server `mcp`, the VS Code extension `vsc`, the web
  * apps `web`. A direct SDK call is `sdk`.
  *
- * Applied at this one boundary, so `via` is populated on every deploy from
- * every platform: a deploy through this SDK is never unattributed.
+ * Applied at this one boundary, so a deploy through this SDK is never
+ * unattributed.
  */
 const DEPLOY_VIA = 'sdk';
 

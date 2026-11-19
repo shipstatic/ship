@@ -33,7 +33,7 @@ import {
   validateToken,
 } from '@shipstatic/types';
 import { dim, green } from 'yoctocolors';
-import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
+import { CREDENTIAL_FIELDS } from '../core/credential-schema.js';
 import { parseShipFile } from './shiprc.js';
 import { warn } from './utils.js';
 

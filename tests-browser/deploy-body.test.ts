@@ -6,10 +6,9 @@
  * contain exactly the content that went in, under the exact part name and
  * filename the API multipart parser expects.
  *
- * The subject is the ONE builder both platforms now share
- * (`src/shared/core/deploy-body.ts`) — this tier is what says the shared
- * implementation is right on a real browser's primitives, which was the whole
- * premise of retiring the browser-local copy.
+ * The subject is the one builder every runtime uses
+ * (`src/shared/core/deploy-body.ts`): this tier is what says it is right on
+ * a real browser's primitives.
  */
 
 import { describe, expect, it } from 'vitest';

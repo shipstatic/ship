@@ -1,9 +1,10 @@
 /**
- * @file Subject: `src/shared/core/deploy-input.ts`, `File`s as deploy sources.
+ * @file Subject: `src/shared/core/deploy-input.ts`: the two shapes a deploy
+ * is handed, and `File`s as deploy sources.
  *
- * Every row hands real `File`s through the shared pipeline, as a deploy
- * does. It runs under jsdom, whose `File` carries `webkitRelativePath`, the
- * one thing a browser's `File` has that no other runtime's does.
+ * The deploy rows hand real `File`s through the pipeline, as a deploy does.
+ * It runs under jsdom, whose `File` carries `webkitRelativePath`, the one
+ * thing a browser's `File` has that no other runtime's does.
  *
  * @vitest-environment jsdom
  */
@@ -11,13 +12,16 @@
 import type { PlatformLimits } from '@shipstatic/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { processDeployFiles } from '../../../src/shared/core/deploy-files';
-import { fileSources, isFiles } from '../../../src/shared/core/deploy-input';
+import { fileSources, isFiles, isPaths } from '../../../src/shared/core/deploy-input';
 import type { DeploymentOptions } from '../../../src/shared/types';
 import { FREE_PLAN_LIMITS } from '../../fixtures/builders';
 
 /** A deploy of `File`s, up to the request: sources, then the one pipeline. */
-const deployFiles = (files: File[], options?: DeploymentOptions, limits?: PlatformLimits) =>
-  processDeployFiles(fileSources(files), options, limits);
+const deployFiles = (
+  files: File[],
+  options: DeploymentOptions = {},
+  limits: PlatformLimits = FREE_PLAN_LIMITS,
+) => processDeployFiles(fileSources(files), options, limits);
 
 /** The home page every deployment carries at its root. */
 const home = () => new File(['<html></html>'], 'index.html', { type: 'text/html' });
@@ -27,7 +31,7 @@ const NO_HOME =
 
 // The digest is the pipeline's own subject (`md5.test.ts`), so it is fixed here.
 vi.mock('../../../src/shared/lib/md5', () => ({
-  calculateMD5: vi.fn().mockResolvedValue('mock-browser-hash'),
+  calculateMD5: vi.fn().mockResolvedValue('fixed-md5'),
 }));
 
 describe('isFiles', () => {
@@ -40,6 +44,19 @@ describe('isFiles', () => {
     ['nothing', undefined, false],
   ])('answers for %s', (_what, input, expected) => {
     expect(isFiles(input)).toBe(expected);
+  });
+});
+
+describe('isPaths', () => {
+  it.each([
+    ['a path', './dist', true],
+    ['a list of paths', ['./dist', './extra'], true],
+    ['an empty list, which is no input', [], false],
+    ['a list of Files', [new File(['x'], 'a.txt')], false],
+    ['a list that mixes the two', ['./dist', new File(['x'], 'a.txt')], false],
+    ['nothing', undefined, false],
+  ])('answers for %s', (_what, input, expected) => {
+    expect(isPaths(input)).toBe(expected);
   });
 });
 
@@ -62,13 +79,13 @@ describe('a deploy of Files', () => {
         path: 'index.html',
         content: expect.any(File),
         size: expect.any(Number),
-        md5: 'mock-browser-hash',
+        md5: 'fixed-md5',
       });
       expect(result[1]).toEqual({
         path: 'style.css',
         content: expect.any(File),
         size: expect.any(Number),
-        md5: 'mock-browser-hash',
+        md5: 'fixed-md5',
       });
     });
 
@@ -106,7 +123,7 @@ describe('a deploy of Files', () => {
     });
 
     it('should preserve file content correctly', async () => {
-      const testContent = '<html><body>Browser Test</body></html>';
+      const testContent = '<html><body>Test</body></html>';
       const mockFile = new File([testContent], 'index.html', { type: 'text/html' });
 
       const result = await deployFiles([mockFile], {}, FREE_PLAN_LIMITS);
@@ -115,7 +132,7 @@ describe('a deploy of Files', () => {
       expect(result[0].path).toBe('index.html');
       expect(result[0].size).toBe(testContent.length);
 
-      // Verify content is preserved as File (impossible simplicity!)
+      // The content is the `File` itself: nothing is copied.
       expect(result[0].content).toBeInstanceOf(File);
     });
 
@@ -140,18 +157,6 @@ describe('a deploy of Files', () => {
       ]);
     });
 
-    it('should handle large files efficiently', async () => {
-      // Create a larger test file (1KB)
-      const largeContent = 'x'.repeat(1024);
-      const mockFile = new File([largeContent], 'large-file.txt', { type: 'text/plain' });
-
-      const result = await deployFiles([home(), mockFile], {}, FREE_PLAN_LIMITS);
-
-      expect(result).toHaveLength(2);
-      expect(result[1].size).toBe(1024);
-      expect(result[1].path).toBe('large-file.txt');
-    });
-
     it('should work with mixed file types', async () => {
       const mockFiles = [
         new File(['<html></html>'], 'index.html', { type: 'text/html' }),
@@ -174,9 +179,8 @@ describe('a deploy of Files', () => {
     });
   });
 
-  describe('browser-specific edge cases', () => {
-    it('should handle very large files efficiently', async () => {
-      // Create a 5MB file to test memory efficiency
+  describe('names, sizes and content', () => {
+    it('carries a large file as the File it is', async () => {
       const largeContent = new ArrayBuffer(5 * 1024 * 1024);
       const mockFile = new File([largeContent], 'large-file.bin', {
         type: 'application/octet-stream',
@@ -213,7 +217,7 @@ describe('a deploy of Files', () => {
       ]);
     });
 
-    it('should skip empty files (aligned with Node — R2 cannot store zero-byte objects)', async () => {
+    it('skips empty files: no deployment stores one', async () => {
       const emptyFiles = [
         home(),
         new File([], 'empty.txt'),
@@ -223,7 +227,6 @@ describe('a deploy of Files', () => {
 
       const result = await deployFiles(emptyFiles, {}, FREE_PLAN_LIMITS);
 
-      // Empty files are skipped, the same as in Node: only the home page remains
       expect(result.map((f) => f.path)).toEqual(['index.html']);
     });
 
@@ -344,10 +347,8 @@ describe('a deploy of Files', () => {
     });
 
     it('does not flatten a Vite assets folder dropped as a directory', async () => {
-      // Merged from mixed-core/directory-structure-browser.test.ts. The
-      // browser half of the same regression the Node tier pins: Vite emits
-      // every hashed asset into one `assets/` directory, and flattening them
-      // breaks every `/assets/...` reference in index.html.
+      // Vite emits every hashed asset into one `assets/` directory, and
+      // flattening them breaks every `/assets/...` reference in index.html.
       const drop = (name: string, relativePath: string) => {
         const file = new File(['x'], name);
         Object.defineProperty(file, 'webkitRelativePath', {
@@ -396,31 +397,6 @@ describe('a deploy of Files', () => {
       expect(result.map((f) => f.path).sort()).toEqual(['app.js', 'index.html']);
     });
 
-    it('should handle concurrent file processing', async () => {
-      const files = [
-        home(),
-        ...Array.from({ length: 50 }, (_, i) => new File([`content ${i}`], `file-${i}.txt`)),
-      ];
-
-      const result = await deployFiles(files, {}, FREE_PLAN_LIMITS);
-
-      expect(result).toHaveLength(51);
-      expect(result.every((f) => f.md5 === 'mock-browser-hash')).toBe(true);
-    });
-
-    it('should preserve file timestamps', async () => {
-      const now = Date.now();
-      const fileWithTimestamp = new File(['content'], 'timed-file.txt', {
-        lastModified: now - 1000,
-      });
-
-      const result = await deployFiles([home(), fileWithTimestamp], {}, FREE_PLAN_LIMITS);
-
-      expect(result).toHaveLength(2);
-      // The timestamp might not be preserved in StaticFile format, but processing should succeed
-      expect(result[1].path).toBe('timed-file.txt');
-    });
-
     it('refuses files that name one path, as the API does', async () => {
       const duplicateFiles = [
         home(),
@@ -452,7 +428,7 @@ describe('a deploy of Files', () => {
       const result = await deployFiles(files, { build: true });
 
       expect(result).toHaveLength(3);
-      expect(result.every((f) => f.md5 === 'mock-browser-hash')).toBe(true);
+      expect(result.every((f) => f.md5 === 'fixed-md5')).toBe(true);
     });
 
     it('should skip validation when prerender=true', async () => {
@@ -593,36 +569,6 @@ describe('a deploy of Files', () => {
 
       const result = await deployFiles(validFiles, {}, FREE_PLAN_LIMITS);
       expect(result).toHaveLength(4);
-    });
-  });
-
-  describe('browser memory and performance edge cases', () => {
-    it('should handle processing without memory leaks', async () => {
-      // Process multiple batches to test for memory leaks
-      for (let batch = 0; batch < 10; batch++) {
-        const files = [
-          home(),
-          ...Array.from(
-            { length: 10 },
-            (_, i) => new File([`batch ${batch} file ${i}`], `batch-${batch}-file-${i}.txt`),
-          ),
-        ];
-
-        const result = await deployFiles(files, {}, FREE_PLAN_LIMITS);
-        expect(result).toHaveLength(11);
-      }
-    });
-
-    it('should handle File preservation edge cases', async () => {
-      // Test that Files are kept as Files (impossible simplicity!)
-      const typedArray = new Uint8Array([72, 101, 108, 108, 111]); // "Hello"
-      const fileFromTypedArray = new File([typedArray], 'typed-array.bin');
-
-      const result = await deployFiles([home(), fileFromTypedArray], {}, FREE_PLAN_LIMITS);
-
-      expect(result).toHaveLength(2);
-      expect(result[1].content).toBeInstanceOf(File);
-      expect(result[1].size).toBe(5);
     });
   });
 });

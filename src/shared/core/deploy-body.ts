@@ -1,5 +1,5 @@
 /**
- * @file The deploy request bodies: one builder, both platforms.
+ * @file The deploy request bodies: one builder, on every runtime.
  *
  * A deploy is declared, then filled: the declaration carries the manifest,
  * the deployment's options and any of its files, and each fill carries more

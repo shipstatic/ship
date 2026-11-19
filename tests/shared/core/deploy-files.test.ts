@@ -297,12 +297,6 @@ describe('processDeployFiles', () => {
         ),
       ).rejects.toThrow('Too many files (3). Maximum 2 files allowed. Upgrade to Pro for more.');
     });
-
-    it('refuses to validate against rules it was not given', async () => {
-      await expect(processDeployFiles([src('index.html')], {})).rejects.toThrow(
-        'Platform limits not provided',
-      );
-    });
   });
 
   describe('server-processed uploads (build / prerender)', () => {
@@ -331,10 +325,12 @@ describe('processDeployFiles', () => {
       );
     });
 
-    it('applies no deploy rule, and needs no limits to say so', async () => {
-      const result = await processDeployFiles([src('virus.exe'), src('huge.txt', 'aaaaaaaaaa')], {
-        build: true,
-      });
+    it('applies no deploy rule, whatever the limits say', async () => {
+      const result = await processDeployFiles(
+        [src('virus.exe'), src('huge.txt', 'aaaaaaaaaa')],
+        { build: true },
+        limitsWith({ maxFileSize: 3, maxFilesCount: 1 }),
+      );
 
       expect(pathsOf(result)).toEqual(['virus.exe', 'huge.txt']);
     });
@@ -352,6 +348,7 @@ describe('processDeployFiles', () => {
           src('src/App.css', ''),
         ],
         { build: true },
+        FREE_PLAN_LIMITS,
       );
 
       expect(pathsOf(result)).toEqual([
@@ -379,7 +376,11 @@ describe('processDeployFiles', () => {
     });
 
     it('still hashes what it keeps', async () => {
-      const result = await processDeployFiles([src('index.html', 'hello')], { prerender: true });
+      const result = await processDeployFiles(
+        [src('index.html', 'hello')],
+        { prerender: true },
+        FREE_PLAN_LIMITS,
+      );
 
       expect(result[0].md5).toBe(HELLO_MD5);
     });
