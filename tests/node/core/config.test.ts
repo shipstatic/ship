@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock dependencies
-vi.mock('../../../src/shared/lib/env', () => ({
-  getENV: vi.fn(() => 'node'),
-}));
-
 describe('Node.js SDK env-var resolution', () => {
   let config: typeof import('../../../src/node/core/config');
   let originalEnv: NodeJS.ProcessEnv;
@@ -17,9 +12,6 @@ describe('Node.js SDK env-var resolution', () => {
     delete process.env.SHIP_API_URL;
     delete process.env.SHIP_TOKEN;
 
-    const { getENV } = await import('../../../src/shared/lib/env');
-    (getENV as any).mockReturnValue('node');
-
     config = await import('../../../src/node/core/config');
   });
 
@@ -28,13 +20,6 @@ describe('Node.js SDK env-var resolution', () => {
   });
 
   describe('readEnvConfig', () => {
-    it('returns empty object outside Node.js', async () => {
-      const { getENV } = await import('../../../src/shared/lib/env');
-      (getENV as any).mockReturnValue('browser');
-
-      expect(config.readEnvConfig()).toEqual({});
-    });
-
     it('reads SHIP_* env vars', () => {
       process.env.SHIP_API_URL = 'https://api.example.com';
       process.env.SHIP_TOKEN = 'env-token';

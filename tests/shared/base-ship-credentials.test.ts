@@ -1,24 +1,21 @@
 import type { Mock } from 'vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import type { DeployInput, DeploymentOptions, StaticFile } from '../../src/shared/types';
-import { apiKey, deployToken, oauthToken } from '../fixtures/builders';
+import type { DeploySource } from '../../src/shared/core/deploy-files';
+import { apiKey, deployToken, FREE_PLAN_LIMITS, oauthToken } from '../fixtures/builders';
 import { fakeTransport } from '../mocks/transport';
 
 const TEST_API_KEY = apiKey('a');
 const TEST_DEPLOY_TOKEN = deployToken('b');
 const TEST_OAUTH_TOKEN = oauthToken('c');
 
-// Concrete test implementation: `processInput` answers a fixed file, so these
-// tests focus on the credential lifecycle rather than on file collection.
+const PAGE = '<html><body><div id="root"></div></body></html>';
+
+// One fixed page, so these rows hold the client and never the finding of
+// files: the shared pipeline is real from here on.
 class TestShip extends Ship {
-  protected async processInput(
-    _input: DeployInput,
-    _options: DeploymentOptions,
-  ): Promise<StaticFile[]> {
-    return [
-      { path: 'index.html', content: new Blob(['<html></html>']), size: 13, md5: 'a'.repeat(32) },
-    ];
+  protected override async sources(): Promise<DeploySource[]> {
+    return [{ path: 'index.html', size: PAGE.length, read: async () => new Blob([PAGE]) }];
   }
 }
 
@@ -34,7 +31,7 @@ describe('The credential slot', () => {
     it('deploys with no credential — the request simply carries no Authorization header', async () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com' });
 
-      (ship as any).http = fakeTransport({ Deploy: mockApiDeploy });
+      (ship as any).http = fakeTransport({ Deploy: mockApiDeploy, 'Get limits': FREE_PLAN_LIMITS });
       await ship.deploy(['test'] as any);
 
       expect(mockApiDeploy).toHaveBeenCalled();
@@ -133,7 +130,7 @@ describe('The credential slot', () => {
 
     it('deploys with the cookie session', async () => {
       const ship = new TestShip({ apiUrl: 'https://test-api.com', session: true });
-      (ship as any).http = fakeTransport({ Deploy: mockApiDeploy });
+      (ship as any).http = fakeTransport({ Deploy: mockApiDeploy, 'Get limits': FREE_PLAN_LIMITS });
       await ship.deploy(['test'] as any);
       expect(mockApiDeploy).toHaveBeenCalled();
     });

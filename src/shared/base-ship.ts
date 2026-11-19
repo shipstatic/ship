@@ -12,16 +12,11 @@
  * otherwise validate today's upload against the limits of the morning, and the
  * only calls that pay the request are the two that read the answer.
  *
- * Subclasses only override what genuinely differs per environment:
- *   - `processInput()` — Node reads paths from disk; Browser handles `File[]`
- *
- * That is the whole list, and it was two entries until 2026-08-12: a
- * `getDeployBodyCreator()` sat beside it, overridden identically in both
- * subclasses to return the one builder they now share. A seam with the same
- * answer on both sides is not a seam.
- *
- * Everything else (the credential slot, resources, events, lazy platform-limits)
- * lives here.
+ * This class is the whole SDK wherever it runs: a browser, a Worker, Node,
+ * Bun. It deploys `File`s, which every one of them has. The one thing a
+ * runtime can add is another way to find a deploy's files, by overriding
+ * `sources()`: Node's `Ship` adds paths on a filesystem, and nothing else
+ * differs between the two.
  */
 
 import type {
@@ -31,11 +26,12 @@ import type {
   DomainResource,
   PingResponse,
   PlatformLimits,
-  StaticFile,
   TokenResource,
 } from '@shipstatic/types';
 import { API_PATHS, ShipError, validateCaller, validateToken } from '@shipstatic/types';
 import { ApiHttp } from './api/http.js';
+import { type DeploySource, processDeployFiles } from './core/deploy-files.js';
+import { fileSources, isFiles } from './core/file-sources.js';
 import {
   createAccountResource,
   createDeploymentResource,
@@ -46,9 +42,9 @@ import {
 import type { DeploymentOptions, ShipClientOptions, ShipEvents, TokenProvider } from './types.js';
 
 /**
- * Abstract base class for Ship SDK implementations.
+ * The Ship SDK client.
  */
-export abstract class Ship {
+export class Ship {
   // Resource handles, created once at construction. Each is a thin facade
   // bound to `this.http`.
   // Parameterized with the SDK's extended options (timeout, callbacks,
@@ -59,9 +55,9 @@ export abstract class Ship {
   public readonly account: AccountResource;
   public readonly tokens: TokenResource;
 
-  // The HTTP client and merged options are private — subclasses interact
-  // with the base class through the abstract methods below, never by
-  // reaching into these fields. Tests bypass via `(ship as any).http = ...`.
+  // The HTTP client and merged options are private: a subclass meets this
+  // class through `sources()` and never by reaching into these fields.
+  // Tests bypass via `(ship as any).http = ...`.
   private readonly http: ApiHttp;
   private readonly clientOptions: ShipClientOptions;
 
@@ -119,30 +115,37 @@ export abstract class Ship {
 
     this.deployments = createDeploymentResource({
       ...ctx,
-      // The platform limits are read HERE, at the one seam that uses them,
-      // once per deploy: the file-size, file-count and blocklist checks run
-      // inside `processInput` against the limits the server states now.
-      // They are handed over as the question, asked once the files are
-      // found, so input that is refused on its own (a path that is not
-      // there, a project that is not built) costs no request. No other
-      // resource method reads them, so none pays the request. The read
-      // carries the deploy's own signal, so a cancelled deploy stops here
-      // too, not only at its final POST.
-      processInput: (input, opts) =>
-        this.processInput(input, opts, () => this.getLimits({ signal: opts.signal })),
+      // A deploy's files, in the order it happens: find them, read the
+      // platform limits, judge and hash. The limits are read HERE, once per
+      // deploy and after the finding, so input that is refused on its own
+      // (a path that is not there, a project that is not built) costs no
+      // request, and the files are judged by the limits the server states
+      // now. No other resource method reads them, so none pays the request.
+      // The read carries the deploy's own signal, so a cancelled deploy
+      // stops here too, not only at its final POST.
+      processInput: async (input, opts) =>
+        processDeployFiles(
+          await this.sources(input),
+          opts,
+          await this.getLimits({ signal: opts.signal }),
+        ),
     });
     this.domains = createDomainResource(ctx);
     this.account = createAccountResource(ctx);
     this.tokens = createTokenResource(ctx);
   }
 
-  // Environment-specific behavior: find the files, then ask for the limits
-  // and judge the files against them.
-  protected abstract processInput(
-    input: DeployInput,
-    options: DeploymentOptions,
-    limits: () => Promise<PlatformLimits>,
-  ): Promise<StaticFile[]>;
+  /**
+   * What a deploy's input holds, as the shared pipeline takes it. `File`s
+   * are sources wherever this runs. A path needs a filesystem to be read
+   * from, which is what Node's `Ship` adds.
+   */
+  protected async sources(input: DeployInput): Promise<DeploySource[]> {
+    if (isFiles(input)) return fileSources(input);
+    throw ShipError.business(
+      'A deploy takes File objects here. Publishing from a path needs Node.js.',
+    );
+  }
 
   /**
    * Ping the API server, resolving its answer: `{ success, timestamp }`, where
@@ -159,7 +162,8 @@ export abstract class Ship {
   }
 
   /**
-   * Deploy project (convenience shortcut to `ship.deployments.upload()`).
+   * Deploy `File`s, or in Node a path or a list of paths (a shortcut to
+   * `ship.deployments.upload()`).
    */
   async deploy(input: DeployInput, options?: DeploymentOptions): Promise<DeploymentCreateResponse> {
     return this.deployments.upload(input, options);

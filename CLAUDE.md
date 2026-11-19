@@ -28,7 +28,7 @@ src/
 │   ├── types.ts         # Internal SDK types
 │   ├── core/            # constants, credential schema, deploy body, request planner, file pipeline
 │   └── lib/             # Utilities (validation, junk filtering, MD5)
-├── browser/             # Browser Ship class + the `webkitRelativePath` read
+├── browser/             # The entry for runtimes with no filesystem: the shared SDK, re-exported
 └── node/
     ├── core/config.ts       # readEnvConfig: SHIP_* env-var resolution (no filesystem)
     ├── core/node-files.ts   # the filesystem walk (the pipeline itself is shared)
@@ -152,7 +152,8 @@ the `*Resource` interfaces' business, and those live in `@shipstatic/types`.
 Resources are factory functions that receive a `ResourceContext` (`getApi`, a
 thunk resolving the `Transport`) instead of the whole Ship instance, so a
 factory depends only on what it uses. The deployment resource also receives
-`processInput`.
+`processInput`, which the `Ship` class composes: find the sources, read the
+limits, run the pipeline.
 
 ### HTTP Client Architecture
 
@@ -262,27 +263,47 @@ permitted); the access tokens it mints are short-lived and ride a
 public contract, so the device flow adds no SDK surface, and its spelling joins
 `CREDENTIAL_HINT`.
 
-### Cross-Platform File Input
+### One class, one contract, every runtime
 
-`DeployInput` is `File[] | string | string[]`. Each platform's `deploy()`
-narrows to its shape; anything else throws at runtime.
+**`Ship` deploys `File`s wherever it runs, and Node adds paths.** A browser,
+a Worker, Node, Bun and Deno all have `File`, `Blob`, `FormData` and `fetch`,
+so `shared/base-ship.ts` is the whole SDK on all of them, and `deploy()` has
+one signature and one set of types: `DeployInput`, `File[] | string |
+string[]`. The package's two builds differ in one method. The Node entry's
+`Ship` overrides `sources()` to find the files under a path, and reads
+`SHIP_TOKEN` / `SHIP_API_URL`; the `browser` entry is the shared class
+re-exported, and is what a Worker or any runtime without a filesystem
+bundles.
 
 ```typescript
-// Node: file/directory paths; directories walked recursively
+// Everywhere: File[] (a file input, a drop, content made in memory)
+ship.deploy(Array.from(fileInput.files));
+ship.deploy([new File(['<h1>Hi</h1>'], 'index.html')]);
+
+// Node, as well: file and folder paths; folders walked recursively
 ship.deploy('./dist');
 ship.deploy(['./dist/index.html', './dist/app']);
-
-// Browser: File[] (from <input type="file"> or drag-and-drop)
-ship.deploy(Array.from(fileInput.files));
 ```
+
+**The build is the platform decision, and nothing checks it again at run
+time.** A build that cannot read a path refuses one in words ("A deploy takes
+File objects here. Publishing from a path needs Node.js."), with no request.
+**Refused: a run-time platform check** (reading `process` or `window` to
+decide what the SDK is). It disagrees with the build wherever a runtime is
+both: a Worker with `nodejs_compat` has a `process`, and a test runner is
+Node running browser code. The check then refuses input the build can take,
+and needs a published hook to switch it off in tests. Because the Node build
+takes `File`s too, a suite that runs browser code in Node needs neither a
+build swap nor a hook.
 
 `FileList` is not accepted directly (the check is `Array.isArray(input) &&
 input.every(item => item instanceof File)`); convert with `Array.from`.
 `StaticFile` (`{path, size, md5, content}`) is what the pipeline produces, not
 a public input.
 
-**Each platform names a file from what the person gave it.** In the browser
-that is `webkitRelativePath`, falling back to `name`. In Node each typed path
+**A file is named from what the person gave.** A `File` is named by its
+`webkitRelativePath`, which a folder drop carries, falling back to its `name`,
+which may hold folders (`css/app.css`). In Node each typed path
 names its own files: a folder's are relative to the folder, and a file is its
 own name, so `ship site extra` keeps the structure inside each folder and what
 one path holds never changes where another's files land. A file two typed
@@ -290,11 +311,12 @@ paths reach is sent once, named by the first.
 
 ### One deploy pipeline, two collectors
 
-**Only the FINDING is platform-shaped.** Node walks a filesystem; a browser is
-handed `File` objects. Everything after is one sequence in
+**Only the FINDING differs by input.** A path is walked on a filesystem; a
+`File` already is its size and its bytes. Everything after is one sequence in
 `shared/core/deploy-files.ts`: set the junk aside and name the paths, refuse
-what the deploy rules refuse, open and hash what is left. `node-files.ts` and
-`browser-files.ts` are only collectors.
+what the deploy rules refuse, open and hash what is left.
+`node/core/node-files.ts` and `shared/core/file-sources.ts` are only
+collectors.
 
 **The seam is `DeploySource`: a path, a size and a `read()`.** `size` sits
 beside `read()`, filled in Node from the stat the walk already makes, so every
@@ -357,14 +379,14 @@ taken as typed, a link included.
 **A typed path has one owner, `find`.** It says which of three things is
 wrong, "We couldn't find", "We couldn't read" or "isn't a file or a folder",
 and the CLI adds no check of its own. The walk needs no limits, so the deploy
-finds its files first and asks for the limits after (`processInput` receives
-them as a function): a path that is not there, a project that is not built
-and a folder that cannot be read cost no request.
+finds its files first and reads the limits after, in the one place that
+composes a deploy (`base-ship.ts`): a path that is not there, a project that
+is not built and a folder that cannot be read cost no request.
 
 Two asymmetries are by design:
 
-- **Only Node pre-checks `UNBUILT_PROJECT_MARKERS` on input directories.** A
-  Node user can type a repository root, where the walk would enumerate
+- **Only a path is pre-checked for `UNBUILT_PROJECT_MARKERS`.** A person can
+  type a repository root, where the walk would enumerate
   `node_modules`; refusing before the walk is the cheapest moment. The deploy
   rules would refuse the same mistake one step later.
 - **Only browser callers set `build`/`prerender`** (see "Server-Processed
@@ -535,12 +557,13 @@ the deploy would publish is named by its path under what the person typed
 (`"assets/logo.png"`), a link included; a typed path is named as typed, and a
 folder the walk cannot read by its path on disk, since it fails before
 anything under it has a name. A read that failed carries what the runtime
-rejected with as `details.cause`: the sentence is one for every reason.
+rejected with as its `cause` (`error.cause`, which no serializer reaches, so
+`--json` never prints it): the sentence is one for every reason.
 
-**Assertions are a third category, and the rule does not govern them.**
-"processFilesForNode can only be called in Node.js environment" guards a state
-a correct caller cannot reach, so its type and status are no contract. Leave
-them.
+**Wrong input is a third category.** "A deploy takes File objects, a path, or
+a list of paths" answers a call the types already refuse, so it is
+`Business`, the type for a caller's mistake, and carries no contract beyond
+its sentence.
 
 **Local commands throw; they never report.** `completion` and `config` make no
 request, so neither uses `withErrorHandling` (it builds a `Ship`). Each action
@@ -1328,7 +1351,7 @@ Ctrl+C must end now, with the shell's 128+SIGINT convention.
 
 `tests-browser/` runs on **real Chromium** via `pnpm test:browser` (vitest
 browser mode, playwright provider), certifying what jsdom only approximates:
-native `getENV()` detection, `webkitRelativePath` as Chromium defines it, real
+`webkitRelativePath` as Chromium defines it, real
 `File`/`FormData` bytes through `createDeployBody`, spark-md5 digests (the same
 published vectors as the Node tier, since the platform checks every stored file
 against the manifest's digests), and the planner's count against Chromium's
@@ -1500,8 +1523,7 @@ ShipStatic-specific levers stay out of the README; industry conventions go in.
 **`getLimits()` asks the server every time.** Limits are the account's policy
 and may change at any moment (a plan move, a grant), so the client never holds
 them. `getLimits()` issues `GET /limits` on every call; a deploy reads them
-once, when `processInput` has found its files and asks (size, count and
-blocklist checks). Nothing else requests them. Holding them is refused: a client can live
+once, when it has found its files (size, count and blocklist checks). Nothing else requests them. Holding them is refused: a client can live
 as long as a browser tab, so a memo would judge today's upload by the morning's
 limits and starve the caller's own cache of fresh data. `base-ship-limits.test.ts`
 fences it by request COUNTS and by a server that changes its answer between

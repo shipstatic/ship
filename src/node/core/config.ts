@@ -17,7 +17,6 @@
 import { SHIP_ENV, ShipError } from '@shipstatic/types';
 import { z } from 'zod';
 import { CREDENTIAL_FIELDS } from '../../shared/core/credential-schema.js';
-import { getENV } from '../../shared/lib/env.js';
 import type { ShipClientOptions } from '../../shared/types.js';
 
 // `.strict()` matches the file-config schema. The `raw` object below is
@@ -46,13 +45,8 @@ const ENV_VAR_BY_FIELD: Record<string, string> = {
  * Empty strings (CI/Docker often sets env vars to `""` instead of unsetting them)
  * are normalized to `undefined` before validation, so they don't trigger zod's
  * "min length 1" check or accidentally override a valid constructor argument.
- *
- * Returns an empty object outside Node.js — browser/edge runtimes have no
- * `process.env` we should reach into.
  */
 export function readEnvConfig(): Partial<ShipClientOptions> {
-  if (getENV() !== 'node') return {};
-
   const raw = {
     apiUrl: process.env[SHIP_ENV.API_URL] || undefined,
     token: process.env[SHIP_ENV.TOKEN] || undefined,

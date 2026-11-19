@@ -94,9 +94,6 @@ export default defineConfig({
         // excluded — a zero that is explained is worth more than a file
         // quietly missing from the report. The smoke tier runs it for real.
         'src/node/cli/bin.ts': { statements: 0, branches: 0, functions: 0, lines: 0 },
-        // Browser/unknown-runtime detection arms cannot execute in a Node
-        // process; the browser tier certifies that side.
-        'src/shared/lib/env.ts': { statements: 70, branches: 54 },
         // The config-file error fallthrough. This floor was 50 because the
         // module held four statements and one uncovered arm halved the number;
         // `resolveCliToken` moved in beside `createClient` on 2026-08-12 —

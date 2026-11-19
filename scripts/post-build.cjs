@@ -6,7 +6,7 @@ const path = require('node:path');
  *
  * Transforms the tsup-generated CommonJS bundle to support axios-style imports:
  * - `const Ship = require('@shipstatic/ship')` returns the Ship constructor
- * - Named exports are available as properties: Ship.ShipError, Ship.getENV, etc.
+ * - Named exports are available as properties: Ship.ShipError, Ship.ErrorType, etc.
  * - Maintains ESM compatibility with Ship.default
  */
 const cjsFilePath = path.resolve(__dirname, '../dist/index.cjs');

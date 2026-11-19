@@ -542,13 +542,17 @@ describe('reading', () => {
     });
 
     // The sentence is one for every reason a read fails, so the reason
-    // itself rides along.
+    // itself is the cause, and stays off the wire.
     await expect(failed).rejects.toMatchObject({
       type: ErrorType.File,
       status: undefined,
       message: unreadable('dist/a.txt'),
-      details: { filePath: 'dist/a.txt', cause: denied },
+      details: { filePath: 'dist/a.txt' },
+      cause: denied,
     });
+    const error = await failed.catch((e: ShipError) => e);
+    expect(error.details).toEqual({ filePath: 'dist/a.txt' });
+    expect(JSON.stringify(error.toResponse())).not.toContain('EACCES');
   });
 
   it('says the sentence drop shows for the same thing', () => {

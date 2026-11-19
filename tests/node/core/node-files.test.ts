@@ -16,7 +16,6 @@ import { ErrorType, type ShipError } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { processFilesForNode } from '../../../src/node/core/node-files';
 import { Ship } from '../../../src/node/index';
-import { __setTestEnvironment } from '../../../src/shared/lib/env';
 import type { Fetch } from '../../../src/shared/types';
 import { FREE_PLAN_LIMITS, LIMITS_WITHOUT_BLOCKLIST } from '../../fixtures/builders';
 
@@ -63,19 +62,9 @@ beforeEach(() => {
 
 afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
-  __setTestEnvironment(null);
 });
 
 describe('processFilesForNode', () => {
-  describe('environment guard', () => {
-    it('throws ShipError.business outside a Node environment', async () => {
-      __setTestEnvironment('browser');
-      await expect(processFilesForNode([root], {}, FREE_PLAN_LIMITS)).rejects.toThrow(
-        'processFilesForNode can only be called in Node.js environment.',
-      );
-    });
-  });
-
   describe('default path flattening', () => {
     it('reads real bytes and attaches a real md5 and byte-accurate size', async () => {
       writeTree({ 'project/index.html': HOME, 'project/hello.txt': 'hello' });

@@ -10,7 +10,6 @@ export { Ship } from './base-ship.js';
 export * from './core/constants.js';
 export { unreadable } from './core/deploy-files.js';
 export * from './lib/deploy-paths.js';
-export * from './lib/env.js';
 export * from './lib/file-validation.js';
 export * from './lib/junk.js';
 // Shared utilities

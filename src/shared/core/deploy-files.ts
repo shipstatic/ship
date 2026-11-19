@@ -52,7 +52,7 @@ export function unreadable(path: string): string {
 /**
  * Read what is at `path`, naming it when the read fails. A refusal already in
  * the platform's words passes through as it is. What the runtime rejected
- * with rides along as the cause: the sentence is the same for a file that is
+ * with is the error's `cause`, which no serializer reaches: the sentence is the same for a file that is
  * locked, gone or still in the cloud, and the cause says which.
  */
 export async function reading<T>(path: string, read: () => Promise<T>): Promise<T> {
@@ -60,7 +60,7 @@ export async function reading<T>(path: string, read: () => Promise<T>): Promise<
     return await read();
   } catch (error) {
     if (isShipError(error)) throw error;
-    throw ShipError.file(unreadable(path), { filePath: path, cause: error });
+    throw ShipError.file(unreadable(path), { filePath: path }, { cause: error });
   }
 }
 

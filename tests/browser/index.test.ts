@@ -3,19 +3,18 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import BrowserDefault, { Ship } from '../../src/browser/index';
-import { __setTestEnvironment } from '../../src/shared/lib/env';
+import { processDeployFiles } from '../../src/shared/core/deploy-files';
 import type { Fetch } from '../../src/shared/types';
 import { deployToken, FREE_PLAN_LIMITS } from '../fixtures/builders';
 import { fakeTransport } from '../mocks/transport';
 
-// Mock browser file processing.
-//
-// The content is a `Buffer`, a shape `StaticFile` admits and the body builder
-// reads, rather than the `Blob`/`File` the browser pipeline really produces:
-// jsdom's `Blob` is not the runtime's, and the browser shapes are certified on
-// real Chromium in `tests-browser/`.
-vi.mock('../../src/browser/core/browser-files', () => ({
-  processFilesForBrowser: vi.fn().mockResolvedValue([
+// The shared pipeline answers one fixed file, so these rows hold what this
+// entry adds around it: jsdom's `Blob` is not the runtime's, and the pipeline
+// on real `File`s is `file-sources.test.ts` here and `tests-browser/` on
+// Chromium.
+vi.mock('../../src/shared/core/deploy-files', async (original) => ({
+  ...(await original<typeof import('../../src/shared/core/deploy-files')>()),
+  processDeployFiles: vi.fn().mockResolvedValue([
     {
       path: 'index.html',
       content: new Blob(['<html></html>']),
@@ -31,7 +30,6 @@ const TEST_DEPLOY_TOKEN = deployToken('a');
 describe('Ship - Browser Implementation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    __setTestEnvironment('browser'); // Ensure we're in browser environment for tests
   });
 
   describe('constructor', () => {
@@ -184,19 +182,11 @@ describe('Ship - Browser Implementation', () => {
   });
 
   describe('exported utilities', () => {
-    it('should export browser-specific utilities', async () => {
-      const browserModule = await import('../../src/browser/index');
-
-      expect(browserModule.processFilesForBrowser).toBeDefined();
-    });
-
     it('should re-export shared utilities', async () => {
       const browserModule = await import('../../src/browser/index');
 
       // These come from shared exports
       expect(browserModule.ShipError).toBeDefined();
-      expect(browserModule.getENV).toBeDefined();
-      expect(browserModule.__setTestEnvironment).toBeDefined();
     });
   });
 
@@ -238,11 +228,9 @@ describe('Ship - Browser Implementation', () => {
   });
 
   describe('deployment edge cases (migrated from browser-sdk.test.ts)', () => {
-    it('hands the hydrated platform limits to the file processor', async () => {
-      // The limits are an argument, not a module singleton — two Ships against
-      // different APIs must not clobber each other's caps. This is the seam
-      // where that argument is threaded.
-      const { processFilesForBrowser } = await import('../../src/browser/core/browser-files');
+    it('hands the Files, as sources, and the limits it read to the pipeline', async () => {
+      // The limits are an argument, never a module singleton: two Ships
+      // against different APIs must not clobber each other's caps.
       const ship = new Ship({ token: TEST_DEPLOY_TOKEN, apiUrl: 'https://api.example.com' });
       (ship as any).http = fakeTransport({
         Deploy: vi.fn().mockResolvedValue({ deployment: 'brave-otter-a1b2c3d' }),
@@ -251,22 +239,29 @@ describe('Ship - Browser Implementation', () => {
 
       await ship.deploy([new File(['x'], 'index.html')]);
 
-      expect(processFilesForBrowser).toHaveBeenCalledWith(
-        [expect.any(File)],
+      expect(processDeployFiles).toHaveBeenCalledWith(
+        [{ path: 'index.html', size: 1, read: expect.any(Function) }],
         expect.any(Object),
         FREE_PLAN_LIMITS,
       );
     });
 
-    it('should throw error for invalid input type in browser', async () => {
-      const ship = new Ship({
-        token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.shipstatic.com',
-      });
+    it.each([
+      ['a path', '/path/to/site'],
+      ['a list of paths', ['/path/to/site']],
+    ])(
+      'refuses %s in words, with no request: there is no filesystem here',
+      async (_what, input) => {
+        const ship = new Ship({ token: TEST_DEPLOY_TOKEN, apiUrl: 'https://api.shipstatic.com' });
+        const transport = fakeTransport({});
+        (ship as any).http = transport;
 
-      // Should reject string paths (Node.js only input)
-      await expect(ship.deploy('/path/to/file' as any)).rejects.toThrow();
-    });
+        await expect(ship.deploy(input)).rejects.toThrow(
+          'A deploy takes File objects here. Publishing from a path needs Node.js.',
+        );
+        expect(transport.carriedFor('Get limits')).toHaveLength(0);
+      },
+    );
 
     it('should pass deployment options correctly', async () => {
       const ship = new Ship({
@@ -274,14 +269,6 @@ describe('Ship - Browser Implementation', () => {
         apiUrl: 'https://api.shipstatic.com',
       });
 
-      // Mock the API and processInput to verify options are passed
-      const mockProcessInput = vi
-        .fn()
-        .mockResolvedValue([
-          { path: 'test.txt', content: new Blob(['test']), size: 4, md5: 'test-hash' },
-        ]);
-
-      (ship as any).processInput = mockProcessInput;
       (ship as any).http = fakeTransport({
         Deploy: vi.fn().mockResolvedValue({
           id: 'dep_options_123',
@@ -302,11 +289,10 @@ describe('Ship - Browser Implementation', () => {
 
       await ship.deploy(mockFiles, options);
 
-      // Verify options were passed to processInput
-      expect(mockProcessInput).toHaveBeenCalledWith(
-        mockFiles,
+      expect(processDeployFiles).toHaveBeenCalledWith(
+        expect.any(Array),
         expect.objectContaining(options),
-        expect.any(Function),
+        expect.any(Object),
       );
     });
 
@@ -346,45 +332,7 @@ describe('Ship - Browser Implementation', () => {
   });
 
   describe('standardized error handling', () => {
-    it('should reject string paths with consistent error message', async () => {
-      const ship = new Ship({
-        token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.shipstatic.com',
-      });
-
-      (ship as any).http = fakeTransport({
-        'Get limits': vi.fn().mockResolvedValue({
-          maxFileSize: 10485760,
-          maxFilesCount: 1000,
-          maxTotalSize: 52428800,
-        }),
-      });
-
-      await expect(ship.deploy('/path/to/file' as any)).rejects.toThrow(
-        'Invalid input type for browser environment. Expected File[].',
-      );
-    });
-
-    it('should reject Node.js-style string arrays with consistent error message', async () => {
-      const ship = new Ship({
-        token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.shipstatic.com',
-      });
-
-      (ship as any).http = fakeTransport({
-        'Get limits': vi.fn().mockResolvedValue({
-          maxFileSize: 10485760,
-          maxFilesCount: 1000,
-          maxTotalSize: 52428800,
-        }),
-      });
-
-      await expect(ship.deploy(['./file1.html', './file2.css'] as any)).rejects.toThrow(
-        'Invalid input type for browser environment. Expected File[].',
-      );
-    });
-
-    it('should reject invalid object types with consistent error message', async () => {
+    it('refuses input that is neither Files nor a path', async () => {
       const ship = new Ship({
         token: TEST_DEPLOY_TOKEN,
         apiUrl: 'https://api.shipstatic.com',
@@ -399,7 +347,7 @@ describe('Ship - Browser Implementation', () => {
       });
 
       await expect(ship.deploy({ invalid: 'object' } as any)).rejects.toThrow(
-        'Invalid input type for browser environment. Expected File[].',
+        'A deploy takes File objects here. Publishing from a path needs Node.js.',
       );
     });
 

@@ -1,11 +1,11 @@
 /**
- * @file Ship SDK for Node.js environments.
+ * @file Ship SDK for Node.js, and the runtimes that speak its API (Bun).
  *
- * The Node-side `Ship` adds two things on top of the base class:
- *   1. Environment detection — refuses to construct outside Node.
- *   2. `SHIP_TOKEN` / `SHIP_API_URL` env-var resolution as the universal
- *      "process boundary" credential source — the industry's one-token
- *      convention. Constructor arguments win over env vars.
+ * The shared SDK, with the two things a process on a computer adds:
+ *   1. Paths. A deploy takes a file or folder path, or a list of them, as
+ *      well as the `File`s it takes everywhere.
+ *   2. `SHIP_TOKEN` / `SHIP_API_URL`, the one-token convention of a process
+ *      boundary. Constructor arguments win over them.
  *
  * The SDK reads no config file: `~/.shiprc` is the CLI's (see
  * `cli/shiprc.ts`). Keeping file resolution out of the SDK is what lets
@@ -14,53 +14,39 @@
  * developer's personal credentials.
  */
 
-import { type PlatformLimits, ShipError } from '@shipstatic/types';
+import { ShipError } from '@shipstatic/types';
 import { Ship as BaseShip } from '../shared/base-ship.js';
-import { processDeployFiles } from '../shared/core/deploy-files.js';
-import { getENV } from '../shared/lib/env.js';
-import type {
-  DeployInput,
-  DeploymentCreateResponse,
-  DeploymentOptions,
-  ShipClientOptions,
-  StaticFile,
-} from '../shared/types.js';
+import type { DeploySource } from '../shared/core/deploy-files.js';
+import { isFiles } from '../shared/core/file-sources.js';
+import type { DeployInput, ShipClientOptions } from '../shared/types.js';
 import { readEnvConfig } from './core/config.js';
 
-// Export all shared functionality
 export * from '../shared/index.js';
 
 /**
- * Ship SDK Client for Node.js environments.
+ * Ship SDK client for Node.js.
  *
  * @example
  * ```typescript
- * // Authenticated — explicit token (API key, deploy token, or OAuth bearer)
+ * // Authenticated: an explicit token (API key, deploy token, or OAuth bearer)
  * const ship = new Ship({ token: 'ship-your-api-key' });
  *
- * // Authenticated — picks up SHIP_TOKEN from env
- * const ship = new Ship({});
+ * // Authenticated from SHIP_TOKEN, or anonymous when there is none
+ * const ship = new Ship();
  *
- * // Anonymous public deploy — works when neither constructor nor env provides a token
- * const ship = new Ship({});
  * await ship.deploy('./dist');
  * ```
  */
 export class Ship extends BaseShip {
   constructor(options: ShipClientOptions = {}) {
-    if (getENV() !== 'node') {
-      throw ShipError.business('Node.js Ship class can only be used in Node.js environment.');
-    }
-
-    // Layer env vars under constructor options. The merged result is what the
-    // base class sees, so the credential and the HTTP client are fully formed
-    // by the time the constructor returns — no async config phase needed.
+    // Env vars sit under constructor options, so the credential and the HTTP
+    // client are fully formed when the constructor returns.
     //
     // Truthiness (not `??`) is deliberate: an empty-string token is absence
-    // (shell expansion of unset CI variables), so `token: ''` falls through
-    // to `SHIP_TOKEN` instead of locking in a phantom credential. A client
-    // constructed with `session: true` has chosen its identity — the ambient
-    // token does not ride along.
+    // (shell expansion of an unset CI variable), so `token: ''` falls through
+    // to `SHIP_TOKEN` and never locks in a phantom credential. A client
+    // constructed with `session: true` has chosen its identity, so the
+    // ambient token does not ride along.
     const env = readEnvConfig();
     super({
       ...options,
@@ -69,45 +55,25 @@ export class Ship extends BaseShip {
     });
   }
 
-  /**
-   * Deploy file or directory paths to ShipStatic. Convenience shortcut for
-   * `ship.deployments.upload()`.
-   *
-   * Wrong-platform inputs (e.g. `File[]`) fail at compile time. For
-   * platform-neutral code, use `ship.deployments.upload()`, which accepts
-   * the wider `DeployInput` and validates at runtime — that asymmetry is
-   * intentional: the convenience shortcut narrows; the resource-layer
-   * contract stays platform-neutral.
-   */
-  async deploy(
-    input: string | string[],
-    options?: DeploymentOptions,
-  ): Promise<DeploymentCreateResponse> {
-    return super.deploy(input, options);
-  }
-
-  protected async processInput(
-    input: DeployInput,
-    options: DeploymentOptions,
-    limits: () => Promise<PlatformLimits>,
-  ): Promise<StaticFile[]> {
-    // Normalize string to string[] and validate.
+  /** `File`s as everywhere, and the files under a path or a list of paths. */
+  protected override async sources(input: DeployInput): Promise<DeploySource[]> {
     const paths = typeof input === 'string' ? [input] : input;
-
-    if (!Array.isArray(paths) || !paths.every((p) => typeof p === 'string')) {
-      throw ShipError.business(
-        'Invalid input type for Node.js environment. Expected string or string[].',
-      );
+    if (isPaths(paths)) {
+      const { findSources } = await import('./core/node-files.js');
+      return findSources(paths);
     }
-
-    // The files are found first: what the walk refuses, it refuses before
-    // the limits are asked for.
-    const { findSources } = await import('./core/node-files.js');
-    return processDeployFiles(await findSources(paths), options, await limits());
+    if (isFiles(input)) return super.sources(input);
+    throw ShipError.business('A deploy takes File objects, a path, or a list of paths.');
   }
 }
 
-// Default export (for `import Ship from '@shipstatic/ship'`)
+/** Whether a deploy's input is a list of paths. An empty list is no input. */
+function isPaths(input: DeployInput): input is string[] {
+  return (
+    Array.isArray(input) && input.length > 0 && input.every((item) => typeof item === 'string')
+  );
+}
+
 export default Ship;
 
 // Node's own half of the deploy pipeline: the filesystem walk.

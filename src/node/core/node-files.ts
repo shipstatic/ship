@@ -13,7 +13,6 @@ import * as path from 'node:path';
 import type { PlatformLimits } from '@shipstatic/types';
 import { ShipError, UNBUILT_PROJECT_MARKERS } from '@shipstatic/types';
 import { type DeploySource, processDeployFiles, reading } from '../../shared/core/deploy-files.js';
-import { getENV } from '../../shared/lib/env.js';
 import type { DeploymentOptions, StaticFile } from '../../shared/types.js';
 
 /** An entry the walk found, with the size the filesystem states for it. */
@@ -155,8 +154,5 @@ export async function processFilesForNode(
   options: DeploymentOptions = {},
   platformLimits?: PlatformLimits,
 ): Promise<StaticFile[]> {
-  if (getENV() !== 'node') {
-    throw ShipError.business('processFilesForNode can only be called in Node.js environment.');
-  }
   return processDeployFiles(await findSources(paths), options, platformLimits);
 }

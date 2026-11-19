@@ -10,11 +10,9 @@
  */
 import * as types from '@shipstatic/types';
 import { describe, expect, it } from 'vitest';
-import * as env from '../src/shared/lib/env';
 
 describe('Main SDK Index (src/index.ts)', () => {
   it('exports the Node Ship class', async () => {
-    env.__setTestEnvironment('node');
     const index = await import('../src/index');
 
     expect(index.Ship).toBeDefined();
@@ -22,7 +20,6 @@ describe('Main SDK Index (src/index.ts)', () => {
   });
 
   it('exports Ship as the default export as well', async () => {
-    env.__setTestEnvironment('node');
     const index = await import('../src/index');
 
     expect(index.default).toBe(index.Ship);
@@ -36,12 +33,5 @@ describe('Main SDK Index (src/index.ts)', () => {
 
     expect(index.ShipError).toBe(types.ShipError);
     expect(index.ErrorType).toBe(types.ErrorType);
-  });
-
-  it('re-exports the SAME env helpers as src/shared/lib/env', async () => {
-    const index = await import('../src/index');
-
-    expect(index.getENV).toBe(env.getENV);
-    expect(index.__setTestEnvironment).toBe(env.__setTestEnvironment);
   });
 });

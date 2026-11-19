@@ -15,7 +15,6 @@ import type { PlatformLimits } from '@shipstatic/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship as BrowserShip } from '../../src/browser/index';
 import { Ship as NodeShip } from '../../src/node/index';
-import { __setTestEnvironment } from '../../src/shared/lib/env';
 import { deployToken, FREE_PLAN_LIMITS } from '../fixtures/builders';
 import { fakeTransport } from '../mocks/transport';
 
@@ -34,8 +33,7 @@ describe('platform limits: asked every time, never held', () => {
     ['browser', () => new BrowserShip({ token: TEST_DEPLOY_TOKEN })],
   ] as const)(
     'getLimits() in %s answers what the server states now, one request each',
-    async (env, make) => {
-      __setTestEnvironment(env);
+    async (_runtime, make) => {
       const ship = make();
       const transport = fakeTransport({ 'Get limits': { ...mockLimits, maxFileSize: 20 * MB } });
       (ship as any).http = transport;
@@ -49,7 +47,6 @@ describe('platform limits: asked every time, never held', () => {
   );
 
   it('a deploy reads the limits once, at its start, and validates against them', async () => {
-    __setTestEnvironment('node');
     const ship = new NodeShip({ token: TEST_DEPLOY_TOKEN });
     const transport = fakeTransport({
       'Get limits': { ...mockLimits, maxFileSize: 1 },
@@ -69,7 +66,6 @@ describe('platform limits: asked every time, never held', () => {
   });
 
   it('a failed read fails only its own call, and the next call asks again', async () => {
-    __setTestEnvironment('node');
     const ship = new NodeShip({ token: TEST_DEPLOY_TOKEN });
     let first = true;
     const transport = fakeTransport({

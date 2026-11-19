@@ -1,6 +1,6 @@
 /**
- * @file Subject: `src/shared/base-ship.ts` — the abstract Ship both platform
- * entries extend. Owns credential state, the per-deploy `/limits` read, the
+ * @file Subject: `src/shared/base-ship.ts`, the Ship class every runtime
+ * runs. Owns credential state, the per-deploy `/limits` read, the
  * resource factories, and the `deploy`/`whoami` shortcuts.
  *
  * The ordering block absorbs `mixed-core/initialization-order.test.ts`. It runs
@@ -12,36 +12,21 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/base-ship';
-import type {
-  DeployInput,
-  DeploymentOptions,
-  Fetch,
-  PlatformLimits,
-  StaticFile,
-} from '../../src/shared/types';
+import type { DeploySource } from '../../src/shared/core/deploy-files';
+import type { Fetch } from '../../src/shared/types';
 import { apiKey } from '../fixtures/builders';
 import { type FakeTransport, fakeTransport } from '../mocks/transport';
 
 /** An API key in the platform's canonical shape, built from its constants. */
 const TEST_API_KEY = apiKey('a');
 
-const INDEX_HTML: StaticFile = {
-  path: 'index.html',
-  content: new Blob(['<html><body><div id="root"></div></body></html>']),
-  size: 47,
-  md5: 'test-hash',
-};
+const PAGE = '<html><body><div id="root"></div></body></html>';
 
-// Finds one fixed file and asks for the limits, as both platforms do once
-// their files are found.
+// One fixed page, so these rows hold the client and never the finding of
+// files: the shared pipeline is real from here on.
 class TestShip extends Ship {
-  protected async processInput(
-    _input: DeployInput,
-    _options: DeploymentOptions,
-    limits: () => Promise<PlatformLimits>,
-  ): Promise<StaticFile[]> {
-    await limits();
-    return [INDEX_HTML];
+  protected override async sources(): Promise<DeploySource[]> {
+    return [{ path: 'index.html', size: PAGE.length, read: async () => new Blob([PAGE]) }];
   }
 }
 
@@ -51,7 +36,7 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-describe('Base Ship Class (Abstract)', () => {
+describe('The Ship class', () => {
   let ship: TestShip;
   let mockApiDeploy: ReturnType<typeof vi.fn>;
   let transport: FakeTransport;

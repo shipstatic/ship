@@ -60,7 +60,8 @@ describe('built package entries', () => {
     const mod = await import(pathToFileURL(resolve(DIST, 'browser.js')).href);
 
     expect(typeof mod.Ship).toBe('function');
-    expect(mod.processFilesForBrowser).toBeDefined();
+    expect(mod.default).toBe(mod.Ship);
+    expect(new mod.Ship({ token: `deploy-${'a'.repeat(32)}` })).toBeInstanceOf(mod.Ship);
   });
 
   it('bundles @shipstatic/types rather than depending on it', () => {

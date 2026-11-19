@@ -331,21 +331,27 @@ await ship.deploy('./dist', { password: 'your-passphrase' });
 
 The CLI also reads `SHIP_PASSWORD` from the environment when `--password` is not given.
 
-### Browser usage
+### Deploying files you hold in memory
+
+`deploy()` takes `File` objects everywhere the SDK runs: a browser, a Worker,
+Node, Bun. A file's name is its path, and it may include folders.
 
 ```javascript
 import Ship from '@shipstatic/ship';
 
 const ship = new Ship({ token: 'ship-your-api-key' });
 
-// From a file input
+// From a file input, in a browser
 const deployment = await ship.deploy(Array.from(fileInput.files));
 
-// From content you made in the page
+// From content you made, anywhere
 const deployment = await ship.deploy([
-  new File(['<html>…</html>'], 'index.html')
+  new File(['<html>…</html>'], 'index.html'),
+  new File(['body { margin: 0 }'], 'css/app.css')
 ]);
 ```
+
+Publishing from a path (`ship.deploy('./dist')`) needs Node.js or Bun.
 
 ### Events
 
