@@ -17,7 +17,7 @@
 import { ShipError } from '@shipstatic/types';
 import { Ship as BaseShip } from '../shared/base-ship.js';
 import type { DeploySource } from '../shared/core/deploy-files.js';
-import { isFiles } from '../shared/core/file-sources.js';
+import { isFiles, isPaths } from '../shared/core/file-sources.js';
 import type { DeployInput, ShipClientOptions } from '../shared/types.js';
 import { readEnvConfig } from './core/config.js';
 
@@ -57,24 +57,17 @@ export class Ship extends BaseShip {
 
   /** `File`s as everywhere, and the files under a path or a list of paths. */
   protected override async sources(input: DeployInput): Promise<DeploySource[]> {
-    const paths = typeof input === 'string' ? [input] : input;
-    if (isPaths(paths)) {
+    if (isPaths(input)) {
       const { findSources } = await import('./core/node-files.js');
-      return findSources(paths);
+      return findSources(typeof input === 'string' ? [input] : input);
     }
     if (isFiles(input)) return super.sources(input);
-    throw ShipError.business('A deploy takes File objects, a path, or a list of paths.');
+    throw ShipError.business(FILES_OR_PATHS_EXPECTED);
   }
 }
 
-/** Whether a deploy's input is a list of paths. An empty list is no input. */
-function isPaths(input: DeployInput): input is string[] {
-  return (
-    Array.isArray(input) && input.length > 0 && input.every((item) => typeof item === 'string')
-  );
-}
+/** What a deploy is told here when its input is no list of `File`s and no path. */
+const FILES_OR_PATHS_EXPECTED =
+  'A deploy takes a list of File objects, a path, or a list of paths.';
 
 export default Ship;
-
-// Node's own half of the deploy pipeline: the filesystem walk.
-export { processFilesForNode } from './core/node-files.js';

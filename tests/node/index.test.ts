@@ -24,7 +24,6 @@ vi.mock('../../src/shared/api/http', () => ({
 
 // The filesystem walk answers one fixed file; the shared pipeline is real.
 vi.mock('../../src/node/core/node-files', () => ({
-  processFilesForNode: vi.fn(),
   findSources: vi
     .fn()
     .mockResolvedValue([
@@ -168,14 +167,6 @@ describe('Ship - Node.js Implementation', () => {
     });
   });
 
-  describe('exported utilities', () => {
-    it('should export Node.js specific utilities', async () => {
-      const nodeModule = await import('../../src/node/index');
-
-      expect(nodeModule.processFilesForNode).toBeDefined();
-    });
-  });
-
   describe('resource functionality', () => {
     it('should provide access to all resources', () => {
       const ship = new Ship({ token: 'test-key' });
@@ -306,7 +297,7 @@ describe('Ship - Node.js Implementation', () => {
       } as any;
 
       await expect(ship.deploy(mockFileList)).rejects.toThrow(
-        'A deploy takes File objects, a path, or a list of paths.',
+        'A deploy takes a list of File objects, a path, or a list of paths.',
       );
     });
 
@@ -320,7 +311,7 @@ describe('Ship - Node.js Implementation', () => {
       } as any;
 
       await expect(ship.deploy(mockInput)).rejects.toThrow(
-        'A deploy takes File objects, a path, or a list of paths.',
+        'A deploy takes a list of File objects, a path, or a list of paths.',
       );
     });
 
@@ -328,7 +319,7 @@ describe('Ship - Node.js Implementation', () => {
       const ship = new Ship({ token: 'test-key' });
 
       await expect(ship.deploy({ invalid: 'object' } as any)).rejects.toThrow(
-        'A deploy takes File objects, a path, or a list of paths.',
+        'A deploy takes a list of File objects, a path, or a list of paths.',
       );
     });
 

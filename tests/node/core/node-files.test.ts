@@ -1,5 +1,5 @@
 /**
- * @file Subject: `src/node/core/node-files.ts`, `processFilesForNode` on REAL
+ * @file Subject: `src/node/core/node-files.ts`, the walk and the shared pipeline on REAL
  * temp filesystems, with no filesystem mock: real walks, real links, real
  * permissions and real MD5 digests. Nothing here can be faked into passing.
  *
@@ -12,12 +12,21 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { ErrorType, type ShipError } from '@shipstatic/types';
+import { ErrorType, type PlatformLimits, type ShipError } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { processFilesForNode } from '../../../src/node/core/node-files';
+import { findSources } from '../../../src/node/core/node-files';
 import { Ship } from '../../../src/node/index';
-import type { Fetch } from '../../../src/shared/types';
+import { processDeployFiles } from '../../../src/shared/core/deploy-files';
+import type { DeploymentOptions, Fetch } from '../../../src/shared/types';
 import { FREE_PLAN_LIMITS, LIMITS_WITHOUT_BLOCKLIST } from '../../fixtures/builders';
+
+// What a deploy does with the paths a person typed: the walk, then the
+// shared pipeline, judged by the limits the deploy read.
+const processFilesForNode = async (
+  paths: string[],
+  options: DeploymentOptions = {},
+  limits?: PlatformLimits,
+) => processDeployFiles(await findSources(paths), options, limits);
 
 let root: string;
 
@@ -1087,6 +1096,21 @@ describe('processFilesForNode', () => {
   });
 
   describe('filesystem errors', () => {
+    it('refuses an empty path, and never reads the folder the process runs in', async () => {
+      // An empty string resolves to the working folder. Here that folder is
+      // a whole site, so a walk of it would succeed.
+      writeTree({ 'index.html': HOME });
+      const cwd = vi.spyOn(process, 'cwd').mockReturnValue(at('.'));
+
+      const error: ShipError = await processFilesForNode([''], {}, FREE_PLAN_LIMITS).catch(
+        (e) => e,
+      );
+      cwd.mockRestore();
+
+      expect(error.type).toBe(ErrorType.File);
+      expect(error.message).toBe('The path to publish is empty. Check the path, then try again.');
+    });
+
     it('says a typed path is not there, in the words the person typed', async () => {
       const error: ShipError = await processFilesForNode(
         ['./no/such/folder'],

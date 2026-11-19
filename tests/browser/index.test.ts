@@ -257,11 +257,24 @@ describe('Ship - Browser Implementation', () => {
         (ship as any).http = transport;
 
         await expect(ship.deploy(input)).rejects.toThrow(
-          'A deploy takes File objects here. Publishing from a path needs Node.js.',
+          'A deploy takes File objects here. Publishing from a path needs Node.js or Bun.',
         );
         expect(transport.carriedFor('Get limits')).toHaveLength(0);
       },
     );
+
+    it("tells a file input's FileList how to become a list, and says nothing of paths", async () => {
+      // The commonest wrong input in a browser: `input.files` is no array.
+      const ship = new Ship({ token: TEST_DEPLOY_TOKEN, apiUrl: 'https://api.shipstatic.com' });
+      const transport = fakeTransport({});
+      (ship as any).http = transport;
+      const fileList = { 0: new File(['x'], 'index.html'), length: 1, item: () => null };
+
+      await expect(ship.deploy(fileList as any)).rejects.toThrow(
+        'A deploy takes a list of File objects. To publish the files of a file input, pass Array.from(input.files).',
+      );
+      expect(transport.carriedFor('Get limits')).toHaveLength(0);
+    });
 
     it('should pass deployment options correctly', async () => {
       const ship = new Ship({
@@ -346,8 +359,9 @@ describe('Ship - Browser Implementation', () => {
         }),
       });
 
+      // No path was passed, so the answer says nothing about paths.
       await expect(ship.deploy({ invalid: 'object' } as any)).rejects.toThrow(
-        'A deploy takes File objects here. Publishing from a path needs Node.js.',
+        'A deploy takes a list of File objects. To publish the files of a file input, pass Array.from(input.files).',
       );
     });
 

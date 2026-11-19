@@ -31,7 +31,13 @@ import type {
 import { API_PATHS, ShipError, validateCaller, validateToken } from '@shipstatic/types';
 import { ApiHttp } from './api/http.js';
 import { type DeploySource, processDeployFiles } from './core/deploy-files.js';
-import { fileSources, isFiles } from './core/file-sources.js';
+import {
+  FILES_EXPECTED,
+  fileSources,
+  isFiles,
+  isPaths,
+  PATHS_NEED_A_FILESYSTEM,
+} from './core/file-sources.js';
 import {
   createAccountResource,
   createDeploymentResource,
@@ -142,9 +148,7 @@ export class Ship {
    */
   protected async sources(input: DeployInput): Promise<DeploySource[]> {
     if (isFiles(input)) return fileSources(input);
-    throw ShipError.business(
-      'A deploy takes File objects here. Publishing from a path needs Node.js.',
-    );
+    throw ShipError.business(isPaths(input) ? PATHS_NEED_A_FILESYSTEM : FILES_EXPECTED);
   }
 
   /**

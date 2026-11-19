@@ -10,10 +10,8 @@
 import { openAsBlob } from 'node:fs';
 import { lstat, readdir, stat } from 'node:fs/promises';
 import * as path from 'node:path';
-import type { PlatformLimits } from '@shipstatic/types';
 import { ShipError, UNBUILT_PROJECT_MARKERS } from '@shipstatic/types';
-import { type DeploySource, processDeployFiles, reading } from '../../shared/core/deploy-files.js';
-import type { DeploymentOptions, StaticFile } from '../../shared/types.js';
+import { type DeploySource, reading } from '../../shared/core/deploy-files.js';
 
 /** An entry the walk found, with the size the filesystem states for it. */
 interface FoundFile {
@@ -85,6 +83,13 @@ async function refuseUnbuiltProject(folder: string, typed: string): Promise<void
  * typed path is taken as typed, so one that is a link is read through.
  */
 async function find(typed: string): Promise<Found> {
+  // An empty path is no path. Resolved, it would be the folder the process
+  // runs in, and a variable that was never set would publish that folder.
+  if (!typed) {
+    throw ShipError.file('The path to publish is empty. Check the path, then try again.', {
+      filePath: typed,
+    });
+  }
   const absPath = path.resolve(typed);
   const stats = await reading(absPath, async () => {
     try {
@@ -138,21 +143,4 @@ export async function findSources(paths: string[]): Promise<DeploySource[]> {
     }
   }
   return [...sources.values()];
-}
-
-/**
- * The files under the paths a person typed, ready to deploy.
- *
- * @param paths - File or folder paths
- * @param options - Deploy options (`pathDetect` and the rest)
- * @param platformLimits - The limits the deploy read from `GET /limits`.
- *   Passed in, never held, so a deploy is always judged by the limits the
- *   server states now.
- */
-export async function processFilesForNode(
-  paths: string[],
-  options: DeploymentOptions = {},
-  platformLimits?: PlatformLimits,
-): Promise<StaticFile[]> {
-  return processDeployFiles(await findSources(paths), options, platformLimits);
 }

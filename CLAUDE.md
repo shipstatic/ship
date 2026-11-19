@@ -287,7 +287,8 @@ ship.deploy(['./dist/index.html', './dist/app']);
 
 **The build is the platform decision, and nothing checks it again at run
 time.** A build that cannot read a path refuses one in words ("A deploy takes
-File objects here. Publishing from a path needs Node.js."), with no request.
+File objects here. Publishing from a path needs Node.js or Bun."), with no
+request.
 **Refused: a run-time platform check** (reading `process` or `window` to
 decide what the SDK is). It disagrees with the build wherever a runtime is
 both: a Worker with `nodejs_compat` has a `process`, and a test runner is
@@ -297,7 +298,11 @@ takes `File`s too, a suite that runs browser code in Node needs neither a
 build swap nor a hook.
 
 `FileList` is not accepted directly (the check is `Array.isArray(input) &&
-input.every(item => item instanceof File)`); convert with `Array.from`.
+input.every(item => item instanceof File)`); convert with `Array.from`. It
+is the commonest wrong input in a browser, so the refusal for anything that
+is neither `File`s nor a path says exactly that, and says nothing of paths:
+only a string or a list of strings is told a path needs a filesystem. The
+two shapes and both sentences have one owner, `shared/core/file-sources.ts`.
 `StaticFile` (`{path, size, md5, content}`) is what the pipeline produces, not
 a public input.
 
@@ -376,9 +381,11 @@ under each other's names at every depth (eight folders are 109,601 paths),
 and no bound on that is anything but arbitrary. A path the person typed is
 taken as typed, a link included.
 
-**A typed path has one owner, `find`.** It says which of three things is
-wrong, "We couldn't find", "We couldn't read" or "isn't a file or a folder",
-and the CLI adds no check of its own. The walk needs no limits, so the deploy
+**A typed path has one owner, `find`.** It says which of four things is
+wrong, "is empty", "We couldn't find", "We couldn't read" or "isn't a file or
+a folder", and the CLI adds no check of its own. An empty path is refused
+because it resolves to the folder the process runs in: a variable that was
+never set would publish that folder. The walk needs no limits, so the deploy
 finds its files first and reads the limits after, in the one place that
 composes a deploy (`base-ship.ts`): a path that is not there, a project that
 is not built and a folder that cannot be read cost no request.
@@ -560,8 +567,8 @@ anything under it has a name. A read that failed carries what the runtime
 rejected with as its `cause` (`error.cause`, which no serializer reaches, so
 `--json` never prints it): the sentence is one for every reason.
 
-**Wrong input is a third category.** "A deploy takes File objects, a path, or
-a list of paths" answers a call the types already refuse, so it is
+**Wrong input is a third category.** "A deploy takes a list of File objects,
+a path, or a list of paths" answers a call the types already refuse, so it is
 `Business`, the type for a caller's mistake, and carries no contract beyond
 its sentence.
 
