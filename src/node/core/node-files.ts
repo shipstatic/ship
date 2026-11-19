@@ -54,11 +54,14 @@ async function findFiles(folder: string): Promise<FoundFile[]> {
   return files;
 }
 
-/** A link is refused by name where the deploy would open it. */
-async function refuseLink(absPath: string): Promise<never> {
+/**
+ * A link is refused where the deploy would open it, named as a file that
+ * cannot be read is named there: by the path the walk gave its source.
+ */
+async function refuseLink(path: string): Promise<never> {
   throw ShipError.file(
-    `"${absPath}" is a link, and we don't publish links. Copy what it points to into the folder, then try again.`,
-    { filePath: absPath },
+    `"${path}" is a link, and we don't publish links. Copy what it points to into the folder, then try again.`,
+    { filePath: path },
   );
 }
 
@@ -123,14 +126,15 @@ export async function findSources(paths: string[]): Promise<DeploySource[]> {
   for (const { base, files } of await Promise.all(paths.map(find))) {
     for (const { absPath, size, link } of files) {
       if (sources.has(absPath)) continue;
+      const name = path.relative(base, absPath);
       sources.set(absPath, {
-        path: path.relative(base, absPath),
+        path: name,
         size,
         // The file itself, as a `Blob`: nothing is read until it is hashed or
         // sent. A link is a source like any file, so one inside what the
         // deploy sets aside is set aside with it, and one the deploy would
         // publish is refused when the deploy opens it.
-        read: link ? () => refuseLink(absPath) : () => openAsBlob(absPath),
+        read: link ? () => refuseLink(name) : () => openAsBlob(absPath),
       });
     }
   }

@@ -966,8 +966,9 @@ describe('processFilesForNode', () => {
   });
 
   describe('links', () => {
+    // Named by its path under the folder, as a file that cannot be read is.
     const LINK = (path: string) =>
-      `"${at(path)}" is a link, and we don't publish links. Copy what it points to into the folder, then try again.`;
+      `"${path}" is a link, and we don't publish links. Copy what it points to into the folder, then try again.`;
 
     const refusal = async (folder: string): Promise<ShipError> =>
       processFilesForNode([at(folder)], {}, FREE_PLAN_LIMITS).catch((e) => e);
@@ -992,8 +993,8 @@ describe('processFilesForNode', () => {
       const error = await refusal('site');
 
       expect(error.type).toBe(ErrorType.File);
-      expect(error.message).toBe(LINK(`site/${link}`));
-      expect(error.details).toEqual({ filePath: at(`site/${link}`) });
+      expect(error.message).toBe(LINK(link));
+      expect(error.details).toEqual({ filePath: link });
     });
 
     it('sets a link aside with the junk that holds it, and refuses nothing', async () => {

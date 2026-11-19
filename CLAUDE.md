@@ -530,7 +530,12 @@ fact about an exchange. So the question is **"what would the wire say?"**:
 everything else there is about the user's shell setup, so `config`. CLI
 grammar errors go through `usageError()` in `index.ts`: `Validation`, no
 status. A typed path that is not there, a file or folder that cannot be
-read, and a link, are `ShipError.file` with the path in `details`.
+read, and a link, are `ShipError.file` with the path in `details`. A file
+the deploy would publish is named by its path under what the person typed
+(`"assets/logo.png"`), a link included; a typed path is named as typed, and a
+folder the walk cannot read by its path on disk, since it fails before
+anything under it has a name. A read that failed carries what the runtime
+rejected with as `details.cause`: the sentence is one for every reason.
 
 **Assertions are a third category, and the rule does not govern them.**
 "processFilesForNode can only be called in Node.js environment" guards a state

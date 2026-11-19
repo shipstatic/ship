@@ -536,15 +536,18 @@ describe('reading', () => {
   });
 
   it('names what could not be read, as a File error with no status', async () => {
+    const denied = new Error('EACCES');
     const failed = reading('dist/a.txt', async () => {
-      throw new Error('EACCES');
+      throw denied;
     });
 
+    // The sentence is one for every reason a read fails, so the reason
+    // itself rides along.
     await expect(failed).rejects.toMatchObject({
       type: ErrorType.File,
       status: undefined,
       message: unreadable('dist/a.txt'),
-      details: { filePath: 'dist/a.txt' },
+      details: { filePath: 'dist/a.txt', cause: denied },
     });
   });
 
