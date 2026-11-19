@@ -309,6 +309,9 @@ is the commonest wrong input in a browser, so the refusal for anything that
 is neither `File`s nor a path says exactly that, and says nothing of paths:
 only a string or a list of strings is told a path needs a filesystem. The
 two shapes and both sentences have one owner, `shared/core/deploy-input.ts`.
+The Node build takes both shapes, so it has one sentence of its own for input
+that is neither ("A deploy takes a list of File objects, a path, or a list of
+paths.", `node/index.ts`).
 `StaticFile` (`{path, size, md5, content}`) is what the pipeline produces, not
 a public input.
 
