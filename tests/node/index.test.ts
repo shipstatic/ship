@@ -12,9 +12,8 @@ import { Ship as SharedShip } from '../../src/shared/ship';
 import { FREE_PLAN_LIMITS } from '../fixtures/builders';
 import { fakeTransport } from '../mocks/transport';
 
-// Mock the ApiHttp class to prevent real network calls. Keyed by OPERATION,
-// because a transport has two methods since the endpoint tier folded down —
-// see `tests/mocks/transport.ts`.
+// The transport is a double, keyed by operation name
+// (`tests/mocks/transport.ts`), so no row reaches the network.
 const mockApiClient = fakeTransport({
   Deploy: { deployment: 'dep_123', url: 'https://dep_123.shipstatic.com' },
   'Get limits': FREE_PLAN_LIMITS,
@@ -123,7 +122,7 @@ describe('the Node entry', () => {
 
     it('does not read the filesystem (no .shiprc lookup in SDK)', async () => {
       // Regression: this is the credential-isolation contract that embedded
-      // consumers (MCP, n8n, GitHub Action) depend on. The SDK must never
+      // consumers (MCP, the GitHub Action) depend on. The SDK must never
       // reach into the host's ~/.shiprc — file resolution is the CLI's job.
       const { readEnvConfig } = await import('../../src/node/core/config');
       (readEnvConfig as any).mockReturnValue({});

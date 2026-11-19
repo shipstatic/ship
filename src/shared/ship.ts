@@ -51,10 +51,9 @@ import type { DeploymentOptions, ShipClientOptions, ShipEvents, TokenProvider } 
  */
 export class Ship {
   // Resource handles, created once at construction. Each is a thin facade
-  // bound to `this.http`.
-  // Parameterized with the SDK's extended options (timeout, callbacks,
-  // signal…) — the interface's documented extension point, so typed
-  // consumers can pass them without casts.
+  // bound to `this.http`. The deployment resource is parameterized with the
+  // SDK's own deploy options (`signal`, `pathDetect`), the interface's
+  // extension point, so a typed consumer passes them without a cast.
   public readonly deployments: DeploymentResource<DeploymentOptions>;
   public readonly domains: DomainResource;
   public readonly account: AccountResource;

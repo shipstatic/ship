@@ -393,8 +393,10 @@ const ship = new Ship({
 
 ### Error handling
 
+The error types come with `@shipstatic/ship`, so there's nothing else to install.
+
 ```javascript
-import { isShipError, ErrorType } from '@shipstatic/types';
+import { isShipError, ErrorType } from '@shipstatic/ship';
 
 try {
   await ship.deploy('./dist');
@@ -442,8 +444,10 @@ SHIP_TOKEN=ship-your-api-key ship deployments list
 ## TypeScript
 
 ```typescript
-import type { ShipClientOptions, DeploymentOptions, ShipEvents } from '@shipstatic/ship';
-import type { Deployment, Domain, Account, StaticFile } from '@shipstatic/types';
+import type {
+  ShipClientOptions, DeploymentOptions, ShipEvents,
+  Deployment, Domain, Account,
+} from '@shipstatic/ship';
 ```
 
 ## AI agents

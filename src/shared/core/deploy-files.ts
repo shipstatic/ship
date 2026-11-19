@@ -39,8 +39,8 @@ export interface DeploySource {
   /** Byte length, known without opening the file: a stat, or `File.size`. */
   size: number;
   /**
-   * Opens the file, or refuses what cannot be published (on a filesystem, a link).
-   * Called only for a file the deploy would publish.
+   * Opens the file, or refuses what cannot be published (on a filesystem, a
+   * link). Called only for a file the deploy would publish.
    */
   read: () => Promise<Blob>;
 }

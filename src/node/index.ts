@@ -20,6 +20,7 @@ import { isFiles, isPaths } from '../shared/core/deploy-input.js';
 import { Ship as BaseShip } from '../shared/ship.js';
 import type { ShipClientOptions } from '../shared/types.js';
 import { readEnvConfig } from './core/config.js';
+import { findSources } from './core/node-files.js';
 
 export * from '../shared/index.js';
 
@@ -65,10 +66,7 @@ export class Ship extends BaseShip {
    * @internal
    */
   protected override async sources(input: DeployInput): Promise<DeploySource[]> {
-    if (isPaths(input)) {
-      const { findSources } = await import('./core/node-files.js');
-      return findSources(typeof input === 'string' ? [input] : input);
-    }
+    if (isPaths(input)) return findSources(typeof input === 'string' ? [input] : input);
     if (isFiles(input)) return super.sources(input);
     throw ShipError.business(FILES_OR_PATHS_EXPECTED);
   }
