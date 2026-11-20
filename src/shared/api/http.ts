@@ -399,7 +399,11 @@ export class ApiHttp extends SimpleEvents implements Transport {
       const response = await this.fetch(url, fetchOptions);
 
       if (!response.ok) {
-        throw await ShipError.fromHttpResponse(response, operationName);
+        const refusal = await ShipError.fromHttpResponse(response, operationName);
+        // An error answer that was stopped while it arrived is the stop, as
+        // an answer that parsed would be: the status alone is half a refusal.
+        timeout.signal.throwIfAborted();
+        throw refusal;
       }
 
       // A copy is parsed, so a listener is handed a response it can still read.

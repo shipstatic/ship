@@ -95,6 +95,23 @@ describe('Credential Lifecycle', () => {
       expect((await sentHeaders())['X-Custom']).toBe('value');
     });
 
+    it.each([
+      // One client, one identity: a header would ride with a session's
+      // cookies, or be joined to the token's own header.
+      ['Authorization'],
+      ['authorization'],
+      ['AUTHORIZATION'],
+    ])('refuses %s: the credential is the token or the session, never a header', async (name) => {
+      const { ship, sentHeaders } = client({ session: true });
+
+      expect(() => ship.setHeaders({ [name]: `Bearer ${TEST_API_KEY}` })).toThrow(
+        '`Authorization` is set with `token` or `setToken()`, not a header.',
+      );
+      expect(Object.keys(await sentHeaders()).map((sent) => sent.toLowerCase())).not.toContain(
+        'authorization',
+      );
+    });
+
     it('should clear them', async () => {
       const { ship, sentHeaders } = client();
 

@@ -257,7 +257,7 @@ const ship = new Ship({ token: () => mintToken() });
 
 // Cookie session: the platform's own apps, where every account request names its account
 const ship = new Ship({ session: true });
-ship.setHeaders({ 'X-Account': account });
+ship.setHeaders({ 'X-Account': account });  // any header but Authorization, which is the token's
 
 // Set or rotate the token after construction
 ship.setToken('ship-your-api-key');
@@ -333,8 +333,8 @@ The CLI also reads `SHIP_PASSWORD` from the environment when `--password` is not
 
 ### Deploying files you hold in memory
 
-`deploy()` takes `File` objects everywhere the SDK runs: a browser, a Worker,
-Node, Bun. A file's name is its path, and it may include folders.
+`deploy()` takes `File` objects everywhere the SDK runs. A file's name is its
+path, and it may include folders.
 
 ```javascript
 import Ship from '@shipstatic/ship';
@@ -351,7 +351,9 @@ const deployment = await ship.deploy([
 ]);
 ```
 
-Publishing from a path (`ship.deploy('./dist')`) needs Node.js, Bun or Deno.
+Publishing from a path (`ship.deploy('./dist')`) needs Node.js, Bun or Deno. Publish a
+folder nothing is writing to: a deploy stops when a file is replaced while
+it is being read.
 
 ### Events
 

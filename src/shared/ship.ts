@@ -198,10 +198,16 @@ export class Ship {
   }
 
   /**
-   * Set global headers included in every request.
-   * Useful for injecting custom headers (e.g. for admin impersonation).
+   * Set global headers included in every request, such as the account a
+   * cookie session acts for. The credential is no header: it is the token or
+   * the session, so `Authorization` is refused here in any spelling.
    */
   setHeaders(headers: Record<string, string>): void {
+    // One client, one identity: a header beside the credential would be a
+    // second one, sent with a session's cookies or joined to the token.
+    if (Object.keys(headers).some((name) => name.toLowerCase() === 'authorization')) {
+      throw ShipError.config('`Authorization` is set with `token` or `setToken()`, not a header.');
+    }
     this.http.setGlobalHeaders(headers);
   }
 

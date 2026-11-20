@@ -112,7 +112,7 @@ ship.whoami()                  // → account.get()
 ship.ping()                    // returns PingResponse ({ timestamp })
 ship.getLimits()               // returns PlatformLimits (asks the server every time)
 ship.setToken(token)           // any platform token, or a TokenProvider
-ship.setHeaders(headers)       // global headers on every request (lowest priority)
+ship.setHeaders(headers)       // global headers on every request (lowest priority); never Authorization
 ship.clearHeaders()
 ship.on(event, handler)
 ship.off(event, handler)
@@ -204,10 +204,20 @@ of the loop, so an attempt cannot name its own failure. `attempt` counts from
 arrive.** The timeout and the caller's signal stay on the request until the
 body has parsed (`attemptOnce` cleans up in `finally`), so a server that sends
 headers and stalls is timed out like one that sends nothing, and `response`
-is emitted for an answer that parsed: one that does not is an `error`. The
+is emitted for an answer that parsed: one that does not is an `error`. An
+error answer is read under the same two: a refusal whose body is stopped
+while it arrives is reported as the timeout or the cancel that stopped it,
+never as its status with the words missing. The
 SDK parses a copy, so a listener is handed a response it can still read.
 `http-timeout.test.ts` holds the stalled body against a real server, since
 only a real response body is tied to the request's signal.
+
+**The deadline is the request's, and starts with it.** A token provider is
+the caller's own function and answers before the request exists, so its wait
+is the caller's to bound; a cancel made meanwhile ends the attempt as soon as
+the provider answers. **Refused: racing the provider
+against the deadline**, which puts a second wait and an abandoned promise on
+every request for a function this SDK did not write.
 
 ### Authentication Flow
 
@@ -223,9 +233,10 @@ a new token population needs no SDK change. A bearer with no known prefix
 still rides the slot; the server refuses it. A `TokenProvider` function in
 the same slot supplies the token per request: minting and refresh live with
 the caller. `session: true` is the cookie-session identity for first-party
-browser apps; `token` + `session` together is a config error. **There is no
-credential precedence anywhere in the SDK**: one slot makes multiplicity
-inexpressible.
+browser apps; `token` + `session` together is a config error, and
+`setHeaders` refuses `Authorization` in any spelling, since a header beside
+the slot would be a second identity. **There is no credential precedence
+anywhere in the SDK**: one slot makes multiplicity inexpressible.
 
 **Token resolution (Node, in order):** the constructor argument, then
 `SHIP_TOKEN` (plus `SHIP_API_URL`). That is the whole SDK contract.
@@ -307,7 +318,10 @@ ship.deploy(['./dist/index.html', './dist/app']);
 **The build is the one decision about where the SDK runs, and nothing checks
 it again at run time.** A build that cannot read a path refuses one in words ("A deploy takes
 File objects here. Publishing from a path needs Node.js, Bun or Deno."), with no
-request.
+request. **A `File` is one made where the SDK runs** (`instanceof File`, in
+`isFiles`). **Refused: knowing a `File` of another realm by its tag** (an
+iframe's, a test environment's own class): it would pass the guard and fail
+at the request, in the runtime's words where the guard has ours.
 **Refused: a run-time check** (reading `process` or `window` to decide what
 the SDK is). It disagrees with the build wherever a runtime is
 both: a Worker with `nodejs_compat` has a `process`, and a test runner is
@@ -413,8 +427,10 @@ deploy by name ("changed while we were reading it. Deploy again."). A file
 whose content changed in place is still that file, and is read. **The limit
 is Node's**: it has no way to open a path relative to an open folder, so two
 steps by path cannot be made one, and a folder rewritten in the instant
-between them is not covered. What is covered is every change that lasts
-longer than that instant, the limits read included. **Refused: reading each
+between them is not covered. The walk has the same instant, between finding a
+folder as an entry and listing it. What is covered is every change that lasts
+longer than that instant, the limits read included, and what the public guide
+asks for is a folder nothing is writing to. **Refused: reading each
 file into memory from a handle**, which closes that instant and makes a
 deployment's size its memory. **Refused: following a link that
 stays inside the folder.** Folders that link to each other are walked again

@@ -495,11 +495,14 @@ describe('ApiHttp Timeout & Cancellation', () => {
     // a deadline that stops at the headers.
     let server: Server;
     let api: (options: { timeout: number }) => ApiHttp;
+    /** The status the server answers with, before its body stalls. */
+    let status: number;
 
     beforeEach(async () => {
+      status = 200;
       // Headers and the first byte of a JSON body, then nothing more.
       server = createServer((_request, response) => {
-        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.writeHead(status, { 'Content-Type': 'application/json' });
         response.write('{');
       });
       await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -541,6 +544,31 @@ describe('ApiHttp Timeout & Cancellation', () => {
         .catch((e: ShipError) => e);
 
       expect((error as ShipError).isType(ErrorType.Cancelled)).toBe(true);
+    });
+
+    describe('an error answer that stalls', () => {
+      // The status has arrived and the refusal's words have not. What ended
+      // the wait is the deadline or the caller, and that is what is reported.
+      beforeEach(() => {
+        status = 400;
+      });
+
+      it('is the timeout', async () => {
+        const error = await ping(api({ timeout: 50 })).catch((e) => e);
+
+        expect(error.isType(ErrorType.Timeout)).toBe(true);
+      });
+
+      it("is the caller's cancel", async () => {
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(), 50);
+
+        const error = await api({ timeout: 5000 })
+          .request('/ping', { method: 'GET', signal: controller.signal }, 'Ping')
+          .catch((e: ShipError) => e);
+
+        expect((error as ShipError).isType(ErrorType.Cancelled)).toBe(true);
+      });
     });
   });
 
