@@ -1,14 +1,10 @@
 /**
- * @file Single source of truth for ambient-config field validation.
+ * @file The fields a credential source may hold, and the rule for each.
  *
- * Both the SDK env reader (`config.ts`) and the CLI file loader
- * (`../cli/shiprc.ts`) import these — if we tighten or relax a rule,
- * both layers update together. The `token` field accepts any platform token;
- * strict prefix-classified format validation happens once, at the `Ship`
- * constructor boundary, for every source uniformly.
- *
- * Lives in its own file because it's a pure data constant: tests that mock
- * runtime config behavior shouldn't have to forward this through their mocks.
+ * Both the SDK's env reader (`config.ts`) and the CLI's file loader
+ * (`../cli/shiprc.ts`) read these, so a rule that is tightened or relaxed
+ * moves for both. The `token` field accepts any platform token: its format
+ * is judged once, by the `Ship` constructor, whatever the source.
  */
 
 import { z } from 'zod';

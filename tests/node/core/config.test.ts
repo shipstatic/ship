@@ -53,7 +53,14 @@ describe('Node.js SDK env-var resolution', () => {
       // produced "SHIP_APIURL", which doesn't exist. The message has to point
       // users at SHIP_API_URL or it's worse than no message at all.
       process.env.SHIP_API_URL = 'not-a-url';
-      expect(() => config.readEnvConfig()).toThrow(/SHIP_API_URL/);
+      expect(() => config.readEnvConfig().apiUrl).toThrow(/SHIP_API_URL/);
+    });
+
+    it('judges a variable when it is read, so a bad one nobody reads refuses nothing', () => {
+      process.env.SHIP_API_URL = 'not-a-url';
+      process.env.SHIP_TOKEN = 'env-token';
+
+      expect(config.readEnvConfig().token).toBe('env-token');
     });
   });
 });

@@ -21,7 +21,7 @@ const deployFiles = (
   files: File[],
   options: DeploymentOptions = {},
   limits: PlatformLimits = FREE_PLAN_LIMITS,
-) => processDeployFiles(fileSources(files), options, limits);
+) => processDeployFiles(fileSources(files), options, async () => limits);
 
 /** The home page every deployment carries at its root. */
 const home = () => new File(['<html></html>'], 'index.html', { type: 'text/html' });

@@ -351,7 +351,7 @@ const deployment = await ship.deploy([
 ]);
 ```
 
-Publishing from a path (`ship.deploy('./dist')`) needs Node.js or Bun.
+Publishing from a path (`ship.deploy('./dist')`) needs Node.js, Bun or Deno.
 
 ### Events
 

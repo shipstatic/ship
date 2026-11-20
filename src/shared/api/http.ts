@@ -362,6 +362,10 @@ export class ApiHttp extends SimpleEvents implements Transport {
    * One attempt: headers, timeout signal, the `request`/`response` events, and
    * error normalization.
    *
+   * An attempt ends when its answer has been read, not when its headers
+   * arrive: the timeout and the caller's signal cover the body too, and
+   * `response` is emitted for an answer that parsed.
+   *
    * It does NOT emit a failure event. An attempt cannot know whether its own
    * failure ended the call — that is `executeRequest`'s question — so it
    * normalizes and throws, and the loop names what happened.
@@ -393,21 +397,22 @@ export class ApiHttp extends SimpleEvents implements Transport {
       this.emit('request', url, fetchOptions);
 
       const response = await this.fetch(url, fetchOptions);
-      cleanup();
 
       if (!response.ok) {
         throw await ShipError.fromHttpResponse(response, operationName);
       }
 
-      this.emit('response', this.safeClone(response), url);
+      // A copy is parsed, so a listener is handed a response it can still read.
       const data = await this.parseResponse<T>(this.safeClone(response));
+      this.emit('response', response, url);
       return { data, status: response.status };
     } catch (error) {
-      cleanup();
       // Normalize anything thrown above (credential resolution, fetch
       // failure, abort, response error) into a ShipError.
       // fromFetchError passes existing ShipErrors through unchanged.
       throw ShipError.fromFetchError(error, operationName);
+    } finally {
+      cleanup();
     }
   }
 

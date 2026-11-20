@@ -35,7 +35,7 @@ export const FILES_EXPECTED =
 
 /** What a build with no filesystem is told when it is handed a path. */
 export const PATHS_NEED_A_FILESYSTEM =
-  'A deploy takes File objects here. Publishing from a path needs Node.js or Bun.';
+  'A deploy takes File objects here. Publishing from a path needs Node.js, Bun or Deno.';
 
 /** Each `File` as the shared pipeline takes it. */
 export function fileSources(files: File[]): DeploySource[] {

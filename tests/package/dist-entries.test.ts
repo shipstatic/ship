@@ -11,10 +11,12 @@
  * imports `dist/`, not `src/` — that IS its subject.
  */
 
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const DIST = resolve(__dirname, '../../dist');
@@ -73,35 +75,13 @@ describe('built package entries', () => {
     expect(required.ErrorType?.Validation).toBe('validation_failed');
   });
 
-  it('the star re-export of @shipstatic/types survives into BOTH entries', async () => {
-    // `ShipError`/`ErrorType` above are ALSO re-exported BY NAME in
-    // shared/index.ts, so they stayed green on 2026-08-07 while the whole
-    // `export * from '@shipstatic/types'` expansion silently vanished from the
-    // built entries — 2.0.0-beta.16 shipped with 26 exports instead of ~76,
-    // and every consumer of the vocabulary (the MCP's PASSWORD_CONSTRAINTS
-    // interpolation, first) broke at import time. The names below arrive
-    // ONLY through the star, so they fence the expansion itself.
-    const star = [
-      'PASSWORD_CONSTRAINTS',
-      'validateToken',
-      'AuthMethod',
-      'DEPLOY_FIELDS',
-      'SHIP_ENV',
-    ];
-    const cjs = require(resolve(DIST, 'index.cjs'));
-    const esm = await import(pathToFileURL(resolve(DIST, 'index.js')).href);
-
-    for (const name of star) {
-      expect(cjs[name], `CJS entry lost '${name}' from the types star re-export`).toBeDefined();
-      expect(esm[name], `ESM entry lost '${name}' from the types star re-export`).toBeDefined();
-    }
-  });
-
-  it('publishes six names of its own beside the vocabulary, the same six on both builds', async () => {
-    // Everything else a consumer can import is the `@shipstatic/types`
-    // vocabulary, which rides the star above. A name joins this list when a
-    // consumer reads it, and the transport, the resource factories and the
-    // helpers the pipeline keeps to itself are no part of it.
+  it('publishes the whole vocabulary and six names of its own, the same on every build', async () => {
+    // Every name a consumer can import, compared whole: the `@shipstatic/types`
+    // vocabulary, which reaches the entries through one star, and the six
+    // names this package adds. A name joins the six when a consumer reads it,
+    // and the transport, the resource factories and the helpers the pipeline
+    // keeps to itself are no part of it. Compared whole, because a build that
+    // drops one name of the vocabulary breaks the consumer that imports it.
     const own = [
       'Ship',
       'optimizeDeployPaths',
@@ -110,15 +90,18 @@ describe('built package entries', () => {
       'unreadable',
       'validateFiles',
     ];
-    const vocabulary = new Set(Object.keys(await import('@shipstatic/types')));
-    const published = (mod: object) =>
-      Object.keys(mod)
-        .filter((name) => name !== 'default' && !vocabulary.has(name))
-        .sort();
+    const vocabulary = Object.keys(await import('@shipstatic/types'));
+    const expected = [...vocabulary, ...own, 'default'].sort();
+    const published = (mod: object) => Object.keys(mod).sort();
 
-    expect(published(await import(pathToFileURL(resolve(DIST, 'index.js')).href))).toEqual(own);
-    expect(published(await import(pathToFileURL(resolve(DIST, 'browser.js')).href))).toEqual(own);
-    expect(published(require(resolve(DIST, 'index.cjs')))).toEqual(own);
+    expect(vocabulary.length).toBeGreaterThan(50);
+    expect(published(await import(pathToFileURL(resolve(DIST, 'index.js')).href))).toEqual(
+      expected,
+    );
+    expect(published(await import(pathToFileURL(resolve(DIST, 'browser.js')).href))).toEqual(
+      expected,
+    );
+    expect(published(require(resolve(DIST, 'index.cjs')))).toEqual(expected);
   });
 
   it('@shipstatic/types is NEVER a runtime dependency', () => {
@@ -190,6 +173,46 @@ describe('the exports map hands every tool a build it can load', () => {
     ['TypeScript resolving as Node, a require', ['types', 'node', 'require'], './dist/index.d.cts'],
   ])('%s reads the types of the build it would load', (_tool, conditions, file) => {
     expect(resolveExport(root, conditions)).toBe(file);
+  });
+
+  describe('as the tools themselves resolve it', () => {
+    // The table above reads the map by the standard's rule. These rows ask
+    // the tools: Node in a process of its own, and TypeScript's resolver.
+    const PACKAGE = resolve(DIST, '..');
+    const node = (...args: string[]) =>
+      execFileSync(process.execPath, args, { cwd: PACKAGE, encoding: 'utf-8' }).trim();
+
+    it('Node resolves an import and a require to the build with paths', () => {
+      expect(
+        node('--input-type=module', '-e', "console.log(import.meta.resolve('@shipstatic/ship'))"),
+      ).toBe(pathToFileURL(resolve(DIST, 'index.js')).href);
+      expect(node('-e', "console.log(require.resolve('@shipstatic/ship'))")).toBe(
+        resolve(DIST, 'index.cjs'),
+      );
+    });
+
+    const resolutions: Array<[string, ts.ModuleResolutionKind, ts.ResolutionMode, string]> = [
+      ['as a bundler', ts.ModuleResolutionKind.Bundler, ts.ModuleKind.ESNext, 'browser.d.ts'],
+      ['as Node, an import', ts.ModuleResolutionKind.Node16, ts.ModuleKind.ESNext, 'index.d.ts'],
+      ['as Node, a require', ts.ModuleResolutionKind.Node16, ts.ModuleKind.CommonJS, 'index.d.cts'],
+    ];
+
+    it.each(resolutions)(
+      'TypeScript resolving %s reads %4$s',
+      (_how, moduleResolution, format, file) => {
+        const { resolvedModule } = ts.resolveModuleName(
+          '@shipstatic/ship',
+          resolve(PACKAGE, 'consumer.ts'),
+          { moduleResolution },
+          ts.sys,
+          undefined,
+          undefined,
+          format,
+        );
+
+        expect(resolvedModule?.resolvedFileName).toBe(resolve(DIST, file));
+      },
+    );
   });
 
   it('the build handed to a tool that states nothing imports no module at all', async () => {

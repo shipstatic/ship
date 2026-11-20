@@ -1,5 +1,5 @@
 /**
- * @file Ship SDK for Node.js, and the runtimes that speak its API (Bun).
+ * @file Ship SDK for Node.js, and the runtimes that speak its API (Bun, Deno).
  *
  * The shared SDK, with the two things a process on a computer adds:
  *   1. Paths. A deploy takes a file or folder path, or a list of them, as
@@ -22,6 +22,8 @@ import type { ShipClientOptions } from '../shared/types.js';
 import { readEnvConfig } from './core/config.js';
 import { findSources } from './core/node-files.js';
 
+// Every name the shared entry publishes. This file's own `Ship` takes the
+// place of the shared one.
 export * from '../shared/index.js';
 
 /** What a deploy is told here when its input is no list of `File`s and no path. */
@@ -45,7 +47,9 @@ const FILES_OR_PATHS_EXPECTED =
 export class Ship extends BaseShip {
   constructor(options: ShipClientOptions = {}) {
     // Env vars sit under constructor options, so the credential and the HTTP
-    // client are fully formed when the constructor returns.
+    // client are fully formed when the constructor returns. A variable is
+    // read only where its option is not set, so a bad one under an option
+    // refuses nothing.
     //
     // Truthiness (not `??`) is deliberate: an empty-string token is absence
     // (shell expansion of an unset CI variable), so `token: ''` falls through

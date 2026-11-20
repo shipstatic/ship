@@ -26,7 +26,7 @@ const deployFrom = async (
   paths: string[],
   options: DeploymentOptions = {},
   limits: PlatformLimits = FREE_PLAN_LIMITS,
-) => processDeployFiles(await findSources(paths), options, limits);
+) => processDeployFiles(await findSources(paths), options, async () => limits);
 
 let root: string;
 
@@ -1033,6 +1033,92 @@ describe('a deploy from paths', () => {
       const result = await deployFrom([at('site/index.html')], {}, FREE_PLAN_LIMITS);
 
       expect(pathsOf(result)).toEqual(['index.html']);
+    });
+  });
+
+  describe('a folder that changes after the walk', () => {
+    // A deploy asks the platform for its limits between the walk and the
+    // first read, so what a path holds can change in between. Opened as it
+    // stands, a path that became a link would publish what the link reaches.
+    const CHANGED = (path: string) => `"${path}" changed while we were reading it. Deploy again.`;
+
+    const tree = () =>
+      writeTree({
+        'site/index.html': HOME,
+        'site/notes.txt': 'notes',
+        'site/v2/key.txt': 'public',
+        'secrets/key.txt': 'SECRET',
+      });
+
+    const changes: Array<[what: string, change: () => void, refused: string]> = [
+      [
+        'a file replaced by a link',
+        () => {
+          fs.rmSync(at('site/notes.txt'));
+          fs.symlinkSync(at('secrets/key.txt'), at('site/notes.txt'));
+        },
+        'notes.txt',
+      ],
+      [
+        'a folder replaced by a link to another',
+        () => {
+          fs.renameSync(at('site/v2'), at('v2-as-walked'));
+          fs.symlinkSync(at('secrets'), at('site/v2'));
+        },
+        'v2/key.txt',
+      ],
+      [
+        'a file replaced by another file',
+        () => {
+          // Moved aside, never removed: a removed file's place on disk can
+          // be given to the next file made.
+          fs.renameSync(at('site/notes.txt'), at('notes-as-walked'));
+          fs.copyFileSync(at('secrets/key.txt'), at('site/notes.txt'));
+        },
+        'notes.txt',
+      ],
+    ];
+
+    it.each(changes)('refuses %s, by name', async (_what, change, refused) => {
+      tree();
+      const sources = await findSources([at('site')]);
+      change();
+
+      const error: ShipError = await processDeployFiles(
+        sources,
+        {},
+        async () => FREE_PLAN_LIMITS,
+      ).catch((e) => e);
+
+      expect(error.type).toBe(ErrorType.File);
+      expect(error.message).toBe(CHANGED(refused));
+      expect(error.details).toEqual({ filePath: refused });
+    });
+
+    it('sends nothing when the folder changes while the limits are read', async () => {
+      tree();
+      const [, change] = changes[0];
+      const fetch = vi.fn<Fetch>(async () => {
+        change();
+        return Response.json(FREE_PLAN_LIMITS);
+      });
+      const ship = new Ship({ apiUrl: 'http://localhost:13579', fetch });
+
+      const error: ShipError = await ship.deploy(at('site')).catch((e) => e);
+
+      expect(error.message).toBe(CHANGED('notes.txt'));
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('opens a file that is still the file the walk found', async () => {
+      tree();
+      const sources = await findSources([at('site')]);
+      fs.appendFileSync(at('site/notes.txt'), ', and more');
+
+      const files = await processDeployFiles(sources, {}, async () => FREE_PLAN_LIMITS);
+
+      const [notes] = files.filter((file) => file.path === 'notes.txt');
+      expect(await (notes.content as Blob).text()).toBe('notes, and more');
     });
   });
 

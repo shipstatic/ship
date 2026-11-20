@@ -22,14 +22,13 @@ trusted-publisher registration.
 ```
 src/
 ├── shared/              # The SDK, the same on every runtime (most of the package)
-│   ├── index.ts         # What the package publishes beside `Ship`, written out
+│   ├── index.ts         # The entry with no filesystem code: `Ship`, and the names published beside it
 │   ├── ship.ts          # The Ship class (credential slot, resources, top-level calls)
 │   ├── api/http.ts      # The transport: headers, retries, timeout, events
 │   ├── resources.ts     # Resource factories: every endpoint, stated once
 │   ├── types.ts         # The `@shipstatic/types` vocabulary, and the SDK's option and event types
 │   ├── core/            # deploy input, file pipeline, deploy body, request planner
 │   └── lib/             # Pure functions: path naming, junk, MD5, validation, text
-├── browser/             # The entry with no filesystem code: `shared/` and nothing more
 └── node/
     ├── index.ts             # The Node entry: `Ship` with paths and the SHIP_* variables
     ├── core/config.ts       # readEnvConfig: SHIP_* env-var resolution (no filesystem)
@@ -155,8 +154,8 @@ the `*Resource` interfaces' business, and those live in `@shipstatic/types`.
 Resources are factory functions that receive a `ResourceContext` (`getApi`, a
 thunk resolving the `Transport`) instead of the whole Ship instance, so a
 factory depends only on what it uses. The deployment resource also receives
-`processInput`, which the `Ship` class composes: find the sources, read the
-limits, run the pipeline.
+`prepareFiles`, which the `Ship` class composes: find the sources, then run
+the pipeline, which reads the limits when the deploy is a site.
 
 ### HTTP Client Architecture
 
@@ -201,6 +200,15 @@ are emitted by `executeRequest`, not `attemptOnce`: terminality is a property
 of the loop, so an attempt cannot name its own failure. `attempt` counts from
 1, so attempt N failing IS retry N.
 
+**An attempt ends when its answer has been read, not when its headers
+arrive.** The timeout and the caller's signal stay on the request until the
+body has parsed (`attemptOnce` cleans up in `finally`), so a server that sends
+headers and stalls is timed out like one that sends nothing, and `response`
+is emitted for an answer that parsed: one that does not is an `error`. The
+SDK parses a copy, so a listener is handed a response it can still read.
+`http-timeout.test.ts` holds the stalled body against a real server, since
+only a real response body is tied to the request's signal.
+
 ### Authentication Flow
 
 The constructor is synchronous: the credential and the HTTP client are formed
@@ -221,6 +229,11 @@ inexpressible.
 
 **Token resolution (Node, in order):** the constructor argument, then
 `SHIP_TOKEN` (plus `SHIP_API_URL`). That is the whole SDK contract.
+**A variable is read, and judged, only when it is used**: `readEnvConfig`
+answers each one as it is asked for, and every caller asks under a value of
+its own (`options.apiUrl || env.apiUrl`), so a malformed `SHIP_API_URL` under
+an explicit `apiUrl` or `--api-url` refuses nothing, and one that would be
+used refuses the client by name ("Invalid SHIP_API_URL").
 `~/.shiprc` and `--config` are CLI-only, so the SDK cannot leak a developer's
 dotfile credential into an anonymous public deploy. The single env var
 follows the one-token idiom (`GITHUB_TOKEN`, `NPM_TOKEN`, `VERCEL_TOKEN`).
@@ -274,9 +287,9 @@ so `shared/ship.ts` is the whole SDK on all of them, and `deploy()` has
 one signature and one set of types: `DeployInput`, `File[] | string |
 string[]`. The package's two builds differ in one method. The Node entry's
 `Ship` overrides `sources()` to find the files under a path, and reads
-`SHIP_TOKEN` / `SHIP_API_URL`; the `browser` entry is the shared class
-re-exported, and is what a Worker or any runtime without a filesystem
-bundles ("Which build a tool is handed"). `sources()` is `protected` so the
+`SHIP_TOKEN` / `SHIP_API_URL`; the other build enters at `shared/index.ts`
+itself, and is what a Worker or any runtime without a filesystem bundles
+("Which build a tool is handed"). `sources()` is `protected` so the
 Node build can override it, and it is marked `@internal`: the seam between
 this package's two builds, never an extension point, free to change in any
 release.
@@ -293,7 +306,7 @@ ship.deploy(['./dist/index.html', './dist/app']);
 
 **The build is the one decision about where the SDK runs, and nothing checks
 it again at run time.** A build that cannot read a path refuses one in words ("A deploy takes
-File objects here. Publishing from a path needs Node.js or Bun."), with no
+File objects here. Publishing from a path needs Node.js, Bun or Deno."), with no
 request.
 **Refused: a run-time check** (reading `process` or `window` to decide what
 the SDK is). It disagrees with the build wherever a runtime is
@@ -344,10 +357,14 @@ was handed otherwise, so nothing downstream knows which: one MD5 over a `Blob`, 
 `content.text()` for `ship.json`, one `formData.append`. Node reads a file's
 bytes only while they are hashed and while they are sent, so a deployment of
 any size holds nothing in memory, at the price of reading each file twice.
-A file that changes between the two is refused, never sent wrong: the
-runtime rejects the read (`NotReadableError`), which `ShipError.fromFetchError`
-reads as a `File` error ("A file changed while it was being uploaded. Deploy
-again.") that is not retried. `md5.ts` uses the runtime's own hash where it
+What a file that changes between the two meets is the runtime's: Node and
+Deno hold the file as it was opened, and Node rejects a read of one that
+changed since (`NotReadableError`), which `ShipError.fromFetchError` reads as
+a `File` error ("A file changed while it was being uploaded. Deploy again.")
+that is not retried. Bun reads the path again when it sends, so there the
+changed bytes go out under the first read's checksum, and the API refuses
+them: it checks every file it stores against the manifest. No runtime
+publishes bytes the manifest does not describe. `md5.ts` uses the runtime's own hash where it
 has one (`crypto`) and `spark-md5` where it has none; the browser build
 resolves `crypto` to an empty module, so the same question is asked of both.
 
@@ -384,7 +401,22 @@ of inside or outside. A link is found as an entry and becomes a source whose
 `read()` refuses it by name. Being a source like any file, a link inside what
 the deploy sets aside (`.venv/bin/python`) is set aside with it and refuses
 nothing, and one the deploy would publish is refused when the deploy opens
-it, after the deploy rules have spoken. **Refused: following a link that
+it, after the deploy rules have spoken.
+
+**The file a deploy opens is the file the walk found.** A deploy asks for its
+limits between the walk and the first read, and a path is opened as it stands
+then: a file replaced by a link in between, or a folder above it replaced by
+a link to another, would be read through. So `open` (`node-files.ts`) opens
+the path and then asks the filesystem which file is there now (`stat`, its
+`dev` and `ino`), and a file that is not the one the walk found stops the
+deploy by name ("changed while we were reading it. Deploy again."). A file
+whose content changed in place is still that file, and is read. **The limit
+is Node's**: it has no way to open a path relative to an open folder, so two
+steps by path cannot be made one, and a folder rewritten in the instant
+between them is not covered. What is covered is every change that lasts
+longer than that instant, the limits read included. **Refused: reading each
+file into memory from a handle**, which closes that instant and makes a
+deployment's size its memory. **Refused: following a link that
 stays inside the folder.** Folders that link to each other are walked again
 under each other's names at every depth (eight folders are 109,601 paths),
 and no bound on that is anything but arbitrary. A path the person typed is
@@ -470,8 +502,9 @@ builds:
   `projectSource`, so this path takes nothing away: no junk filter (a build
   reads `.npmrc` and `.vitepress/`), no empty-file skip (an empty module a
   build imports is source), and none of the deploy rules, which describe a
-  build's OUTPUT. It still checksums. `filterJunk` judges a site's files only,
-  so it takes no option.
+  build's OUTPUT. It still checksums, and it asks for no limits, since no
+  limit judges a source. `filterJunk` judges a site's files only, so it takes
+  no option.
 - **A build or prerender never splits.** The planner refuses a project over
   one request before a byte is sent (`BUILD_TOO_LARGE`), reading the flags from
   the declaration's own fields, so what it plans is what is sent.
@@ -1048,6 +1081,8 @@ which name the same exports. Node, Bun and Deno set `node`.
 Held by `tests/package/dist-entries.test.ts`, which resolves the manifest's
 own map for each tool's conditions and asserts the file by name, and plants
 the map with `import` and `require` at the top to show it sees the defect.
+Beside the table it asks two tools themselves: Node, in a process of its own,
+and TypeScript's resolver, as a bundler and as Node.
 **Refused: `import` or `require` at the top of the map**, which is that
 defect: it makes the Node build the answer for every tool that never said it
 was Node.
@@ -1064,7 +1099,8 @@ deploy does: `sitePaths` and `optimizeDeployPaths` (each answers one path per
 path it was given), `validateFiles`, `unreadable` and `pluralize`. `shared/index.ts` writes the list out, with one
 star, over `shared/types.ts`, which carries the vocabulary and this SDK's
 option types. Both builds publish the same names, held by
-`tests/package/dist-entries.test.ts` against the list written out.
+`tests/package/dist-entries.test.ts`: every name each built entry exports,
+compared whole against the vocabulary's names and the six.
 
 **A name is published because a consumer reads it.** The transport
 (`ApiHttp`), the resource factories and their contexts, the hash and the junk
@@ -1126,7 +1162,7 @@ file contract, and it is given to `append(field, blob, path)`, never to a
 on disk by its disk path, and `append` is right on Node 20, Node 22 and Bun.
 Every part is typed `application/octet-stream`, since the API reads a file's
 type from its path. **No suite or CI job runs Bun**, so a release that
-touches the body is walked on it by hand (`bun dist/cli.cjs <folder>` against
+touches the body or how a file is opened is walked on it by hand (`bun dist/cli.cjs <folder>` against
 dev, then the deployment's paths read back). Tests read fields (`via`, the captcha proof)
 back off the real `FormData` handed to `fetch`, never assert `append` calls.
 
@@ -1420,7 +1456,7 @@ tests/
 ├── contract.ts       # The wire facts ship depends on, stated ONCE
 ├── contract.test.ts  # …run against the MOCK (CI). Its twin is in e2e/
 ├── architecture/     # Fences: integrity, naming, docs contract, SDK/CLI parity
-├── browser/ node/ shared/   # Mirror axis: tests/<path>/<module>.test.ts
+├── node/ shared/     # Mirror axis: tests/<path>/<module>.test.ts
 ├── node/cli/harness.ts      # In-process CLI runner (buildProgram + capture)
 ├── node/cli/smoke.test.ts   # The ONE child-process file (dist/cli.cjs)
 ├── package/          # The BUILT artifact (dist entries, bundle boundary, licences)
@@ -1579,8 +1615,10 @@ ShipStatic-specific levers stay out of the README; industry conventions go in.
 
 **`getLimits()` asks the server every time.** Limits are the account's policy
 and may change at any moment (a plan move, a grant), so the client never holds
-them. `getLimits()` issues `GET /limits` on every call; a deploy reads them
-once, when it has found its files (size, count and blocklist checks). Nothing else requests them. Holding them is refused: a client can live
+them. `getLimits()` issues `GET /limits` on every call; a deploy of a site
+reads them once, when it has found its files (size, count and blocklist
+checks). Nothing else requests them: a deploy that sends a project to be
+built is held to none of them, so it never asks. Holding them is refused: a client can live
 as long as a browser tab, so a memo would judge today's upload by the morning's
 limits and starve the caller's own cache of fresh data. `ship-limits.test.ts`
 fences it by request COUNTS and by a server that changes its answer between

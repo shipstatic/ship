@@ -45,7 +45,7 @@ describe('Deployment Resource', () => {
   let answer: unknown;
   /** The status each deploy request answers, in order; 201 once the list runs out. */
   let statuses: number[];
-  let mockProcessInput: Mock;
+  let mockPrepareFiles: Mock;
   // Parameterized exactly as `ship` declares it — since types
   // 2.5.0-beta.0 the interface admits the SDK's extended options directly.
   let deploymentResource: DeploymentResource<DeploymentOptions>;
@@ -82,14 +82,14 @@ describe('Deployment Resource', () => {
     // Resolved values come from the canonical builder, so this file cannot
     // drift into fictional wire shapes (the audit found an `{id, url}`
     // deployment here; the real field is `deployment`).
-    mockProcessInput = vi.fn().mockResolvedValue([
+    mockPrepareFiles = vi.fn().mockResolvedValue([
       { path: 'index.html', content: new Blob(['<html></html>']), size: 13, md5: 'a'.repeat(32) },
       { path: 'style.css', content: new Blob(['body {}']), size: 7, md5: 'b'.repeat(32) },
     ]);
 
     deploymentResource = createDeploymentResource({
       getApi: () => transport,
-      processInput: mockProcessInput,
+      prepareFiles: mockPrepareFiles,
     });
   });
 
@@ -100,17 +100,17 @@ describe('Deployment Resource', () => {
     it('collects, then sends, and resolves the wire’s own answer', async () => {
       const result = await upload();
 
-      expect(mockProcessInput).toHaveBeenCalledWith(['./dist'], {});
+      expect(mockPrepareFiles).toHaveBeenCalledWith(['./dist'], {});
       expect(deployCall().path).toBe('/deployments');
       expect(deployCall().init.method).toBe('POST');
       expect(result).toEqual(makeDeployment());
     });
 
-    it('passes per-call options to processInput unmodified', async () => {
+    it('passes per-call options to prepareFiles unmodified', async () => {
       const options: DeploymentOptions = { pathDetect: false, labels: ['audit'] };
       await upload(options);
 
-      expect(mockProcessInput.mock.calls[0][1]).toEqual(options);
+      expect(mockPrepareFiles.mock.calls[0][1]).toEqual(options);
     });
 
     it.each([
@@ -124,7 +124,7 @@ describe('Deployment Resource', () => {
       async (_what, options) => {
         await expect(upload(options as DeploymentOptions)).rejects.toThrow(ShipError);
 
-        expect(mockProcessInput).not.toHaveBeenCalled();
+        expect(mockPrepareFiles).not.toHaveBeenCalled();
         expect(carried).toHaveLength(0);
       },
     );
@@ -273,7 +273,7 @@ describe('Deployment Resource', () => {
     const names = (call: Carried) =>
       ((call.init.body as FormData).getAll('files[]') as File[]).map((f) => f.name);
 
-    beforeEach(() => mockProcessInput.mockResolvedValue(large()));
+    beforeEach(() => mockPrepareFiles.mockResolvedValue(large()));
 
     it('declares bare, then sends each batch to the files route, and answers the 201', async () => {
       statuses = [202, 202, 201];

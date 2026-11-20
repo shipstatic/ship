@@ -103,7 +103,7 @@ export interface ResourceContext {
  * judge and hash), because finding is the one step a build can add to.
  */
 export interface DeploymentResourceContext extends ResourceContext {
-  processInput: (input: DeployInput, options: DeploymentOptions) => Promise<StaticFile[]>;
+  prepareFiles: (input: DeployInput, options: DeploymentOptions) => Promise<StaticFile[]>;
 }
 
 /**
@@ -117,7 +117,7 @@ export interface DeploymentResourceContext extends ResourceContext {
 export function createDeploymentResource(
   ctx: DeploymentResourceContext,
 ): DeploymentResource<DeploymentOptions> {
-  const { getApi, processInput } = ctx;
+  const { getApi, prepareFiles } = ctx;
 
   return {
     /**
@@ -155,7 +155,7 @@ export function createDeploymentResource(
       };
 
       const http = getApi();
-      const files = await processInput(input, options);
+      const files = await prepareFiles(input, options);
       const fields = deployFields(deployManifest(files), declaration);
       const plan = planDeploy(files, fields);
 

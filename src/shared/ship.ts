@@ -1,7 +1,7 @@
 /**
  * @file The `Ship` class: the whole SDK, wherever it runs.
  *
- * A browser, a Worker, Node and Bun all have `File`, so this class deploys
+ * A browser, a Worker, Node, Bun and Deno all have `File`, so this class deploys
  * `File`s on every one of them. The one thing a runtime can add is another
  * way to find a deploy's files, by overriding `sources()`: Node's `Ship` adds
  * paths on a filesystem, and nothing else differs between the two.
@@ -12,10 +12,10 @@
  *
  * Platform limits are the account's policy, and the server may change them
  * at any time (a plan move, an operator's grant), so the client never holds
- * them: `getLimits()` asks every time, and each deploy reads them once, when
- * it has found its files. A client that lives as long as a browser tab would
- * otherwise judge today's upload by the limits of the morning, and the only
- * calls that pay the request are the two that read the answer.
+ * them: `getLimits()` asks every time, and each deploy of a site reads them
+ * once, when it has found its files. A client that lives as long as a browser
+ * tab would otherwise judge today's upload by the limits of the morning, and
+ * the only calls that pay the request are the two that read the answer.
  */
 
 import type {
@@ -120,18 +120,16 @@ export class Ship {
     this.deployments = createDeploymentResource({
       ...ctx,
       // A deploy's files, in the order it happens: find them, read the
-      // platform limits, judge and hash. The limits are read HERE, once per
-      // deploy and after the finding, so input that is refused on its own
-      // (a path that is not there, a project that is not built) costs no
-      // request, and the files are judged by the limits the server states
-      // now. No other resource method reads them, so none pays the request.
-      // The read carries the deploy's own signal, so a cancelled deploy
-      // stops here too, not only at its final POST.
-      processInput: async (input, opts) =>
-        processDeployFiles(
-          await this.sources(input),
-          opts,
-          await this.getLimits({ signal: opts.signal }),
+      // platform limits, judge and hash. The limits are read once per deploy
+      // and after the finding, so input that is refused on its own (a path
+      // that is not there, a project that is not built) costs no request,
+      // and the files are judged by the limits the server states now. The
+      // pipeline asks only for a site, which is all the limits judge. The
+      // read carries the deploy's own signal, so a cancelled deploy stops
+      // here too, not only at its final POST.
+      prepareFiles: async (input, opts) =>
+        processDeployFiles(await this.sources(input), opts, () =>
+          this.getLimits({ signal: opts.signal }),
         ),
     });
     this.domains = createDomainResource(ctx);

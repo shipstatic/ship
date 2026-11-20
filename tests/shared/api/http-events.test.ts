@@ -60,4 +60,25 @@ describe('ApiHttp Events', () => {
 
     mockFetch.mockRestore();
   });
+
+  test('an answer that does not parse is an error, and never a response', async () => {
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('{"success": tru', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const apiHttp = new ApiHttp({ apiUrl: 'https://api.example.com', getAuthHeaders: () => ({}) });
+    const responseHandler = vi.fn();
+    const errorHandler = vi.fn();
+    apiHttp.on('response', responseHandler);
+    apiHttp.on('error', errorHandler);
+
+    await expect(ping(apiHttp)).rejects.toThrow();
+
+    expect(errorHandler).toHaveBeenCalledTimes(1);
+    expect(responseHandler).not.toHaveBeenCalled();
+
+    mockFetch.mockRestore();
+  });
 });

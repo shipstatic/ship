@@ -1,9 +1,12 @@
-import { DEPLOY_REQUEST_CONSTRAINTS, ShipError } from '@shipstatic/types';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { DEPLOY_REQUEST_CONSTRAINTS, ErrorType, ShipError } from '@shipstatic/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiHttp, UPLOAD_FLOOR_BITS_PER_SECOND } from '../../../src/shared/api/http';
 import { deploy, getLimits, listDeployments, listDomains, ping } from './vehicles';
 
-// Mock deploy body creator
+/** The platform's fetch, kept before any row replaces the global one. */
+const platformFetch = globalThis.fetch;
 
 /** A real Response — see the note in `http.test.ts` on why this is not a fake. */
 function createMockResponse(data: any, status = 200) {
@@ -483,6 +486,61 @@ describe('ApiHttp Timeout & Cancellation', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('the ceiling covers the answer, not only its headers', () => {
+    // A real server and the platform's own fetch: only a real response body
+    // is tied to the request's signal, so a made-up `Response` could not see
+    // a deadline that stops at the headers.
+    let server: Server;
+    let api: (options: { timeout: number }) => ApiHttp;
+
+    beforeEach(async () => {
+      // Headers and the first byte of a JSON body, then nothing more.
+      server = createServer((_request, response) => {
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.write('{');
+      });
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const { port } = server.address() as AddressInfo;
+      api = ({ timeout }) =>
+        new ApiHttp({
+          apiUrl: `http://127.0.0.1:${port}`,
+          getAuthHeaders: () => ({}),
+          fetch: platformFetch,
+          maxRetries: 0,
+          timeout,
+        });
+    });
+
+    afterEach(() => {
+      server.closeAllConnections();
+      server.close();
+    });
+
+    it('times out a body that stalls, and emits no response', async () => {
+      const stalled = api({ timeout: 50 });
+      const onResponse = vi.fn();
+      stalled.on('response', onResponse);
+
+      const error = await ping(stalled).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ShipError);
+      expect(error.isType(ErrorType.Timeout)).toBe(true);
+      expect(onResponse).not.toHaveBeenCalled();
+    });
+
+    it("stops reading a body when the caller's signal aborts", async () => {
+      const stalled = api({ timeout: 5000 });
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 50);
+
+      const error = await stalled
+        .request('/ping', { method: 'GET', signal: controller.signal }, 'Ping')
+        .catch((e: ShipError) => e);
+
+      expect((error as ShipError).isType(ErrorType.Cancelled)).toBe(true);
     });
   });
 

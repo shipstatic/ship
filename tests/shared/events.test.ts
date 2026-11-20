@@ -218,18 +218,17 @@ describe('Ship event delegation', () => {
     new Ship({ apiUrl: 'https://api.example.com', token: apiKey('a'), fetch });
 
   it('hands the response event a body that is still readable', async () => {
-    // The emitted Response is a clone; handing out the original would consume
-    // the stream the SDK is about to parse.
+    // The SDK parses a copy, so the response a listener is handed is unread.
     const ship = newShip(stubApi(() => json({ success: true })));
-    const bodies: unknown[] = [];
+    const bodies: Promise<unknown>[] = [];
 
-    ship.on('response', async (response, url) => {
-      if (url.endsWith('/ping')) bodies.push(await response.json());
+    ship.on('response', (response, url) => {
+      if (url.endsWith('/ping')) bodies.push(response.json());
     });
 
     await ship.ping();
 
-    expect(bodies).toEqual([{ success: true }]);
+    expect(await Promise.all(bodies)).toEqual([{ success: true }]);
   });
 
   it('emits exactly one response event per request', async () => {

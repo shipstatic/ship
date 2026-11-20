@@ -13,8 +13,8 @@
 import path from 'node:path';
 import type { PlatformLimits } from '@shipstatic/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Ship as BrowserShip } from '../../src/browser/index';
 import { Ship as NodeShip } from '../../src/node/index';
+import { Ship as BrowserShip } from '../../src/shared/index';
 import { deployToken, FREE_PLAN_LIMITS } from '../fixtures/builders';
 import { fakeTransport } from '../mocks/transport';
 
@@ -138,6 +138,19 @@ describe('platform limits: asked every time, never held', () => {
       await ship.deploy(DEMO_SITE);
 
       expect(paths).toContain('/limits');
+    });
+
+    it('a deploy that sends a project to be built asks for none: no limit judges a source', async () => {
+      const { paths, fetchImpl } = jsonFetch();
+      const ship = new NodeShip({
+        token: TEST_DEPLOY_TOKEN,
+        apiUrl: 'https://api.test',
+        fetch: fetchImpl as unknown as typeof fetch,
+      });
+
+      await ship.deploy([new File(['{}'], 'package.json')], { build: true });
+
+      expect(paths).toEqual(['/deployments']);
     });
 
     it('getLimits() still fetches when asked directly', async () => {

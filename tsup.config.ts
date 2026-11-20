@@ -78,7 +78,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
   // 1. SDK for Node.js (ESM and CJS, main entry)
   {
     entry: {
-      index: 'src/index.ts',
+      index: 'src/node/index.ts',
     },
     outDir: 'dist',
     format: ['esm', 'cjs'],
@@ -100,7 +100,7 @@ export default defineConfig((tsupOptions: Options): Options[] => [
   //    `exports`). It keeps the name the `browser` condition gives it.
   {
     entry: {
-      browser: 'src/browser/index.ts',
+      browser: 'src/shared/index.ts',
     },
     outDir: 'dist',
     format: ['esm'],

@@ -72,13 +72,14 @@ export async function reading<T>(path: string, read: () => Promise<T>): Promise<
  * @param sources - What the deploy found, in the order it was found
  * @param options - Deploy options; `pathDetect` and the build flags are the
  *   ones this pipeline reads
- * @param limits - The caps and the blocklist the deploy read from
- *   `GET /limits`, passed in and never held
+ * @param readLimits - Reads the caps and the blocklist from `GET /limits`.
+ *   Called once, and only for a site: a project's source is held to none of
+ *   them, so its deploy never asks
  */
 export async function processDeployFiles(
   sources: DeploySource[],
   options: DeploymentOptions,
-  limits: PlatformLimits,
+  readLimits: () => Promise<PlatformLimits>,
 ): Promise<StaticFile[]> {
   // `build` and `prerender` send a project's SOURCE for the build service to
   // compile. Which files a source holds is decided before this pipeline
@@ -100,7 +101,7 @@ export async function processDeployFiles(
   // files as sent, empty ones included. All of them read paths and sizes.
   if (!built) {
     const sent = kept.map(({ source, path }) => ({ path, size: source.size }));
-    const refusal = deployRefusal(sent, limits);
+    const refusal = deployRefusal(sent, await readLimits());
     if (refusal) throw ShipError.validation(refusal);
   }
 

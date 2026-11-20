@@ -17,7 +17,7 @@ import type { DeploymentOptions } from '../src/shared/types';
 
 /** A deploy of `File`s, up to the request: sources, then the one pipeline. */
 const deployFiles = (files: File[], options: DeploymentOptions, limits: PlatformLimits) =>
-  processDeployFiles(fileSources(files), options, limits);
+  processDeployFiles(fileSources(files), options, async () => limits);
 
 /** A real File carrying the relative path drag-and-drop would give it. */
 function fileAt(relativePath: string, content = 'content'): File {

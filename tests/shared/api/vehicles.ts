@@ -46,13 +46,13 @@ export const listDomains = (api: ApiHttp) =>
  * three timeout budgets, a caller's own signal, cookie credentials. Everything
  * else about deploying is in `tests/shared/resources-deployments.test.ts`.
  *
- * `processInput` is the identity, so a row hands it the `StaticFile[]` it wants
+ * `prepareFiles` is the identity, so a row hands it the `StaticFile[]` it wants
  * on the wire and nothing collects anything.
  */
 export const deploymentsOver = (api: ApiHttp) =>
   createDeploymentResource({
     getApi: () => api,
-    processInput: async (input) => input as unknown as StaticFile[],
+    prepareFiles: async (input) => input as unknown as StaticFile[],
   });
 
 /**

@@ -51,7 +51,7 @@ function resources() {
     tokens: createTokenResource(ctx),
     deployments: createDeploymentResource({
       ...ctx,
-      processInput: async (input) => input as unknown as StaticFile[],
+      prepareFiles: async (input) => input as unknown as StaticFile[],
     }),
   };
 }
@@ -168,7 +168,7 @@ describe('the URLs the resources build', () => {
       });
       const deployments = createDeploymentResource({
         getApi: () => api,
-        processInput: async (input) => input as unknown as StaticFile[],
+        prepareFiles: async (input) => input as unknown as StaticFile[],
       });
       (global.fetch as any).mockResolvedValue(json({ deployment: 'd1' }));
 

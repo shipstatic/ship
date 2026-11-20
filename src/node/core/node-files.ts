@@ -7,18 +7,19 @@
  * a project folder and mean the folder its build makes.
  */
 
-import { openAsBlob } from 'node:fs';
+import { openAsBlob, type Stats } from 'node:fs';
 import { lstat, readdir, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { ShipError, UNBUILT_PROJECT_MARKERS } from '@shipstatic/types';
 import { type DeploySource, reading } from '../../shared/core/deploy-files.js';
 
-/** An entry the walk found, with the size the filesystem states for it. */
+/**
+ * An entry the walk found, as the filesystem states it: its size, whether it
+ * is a link, and which file it is (`dev` and `ino`).
+ */
 interface FoundFile {
   absPath: string;
-  size: number;
-  /** A link is found and never followed. */
-  link: boolean;
+  stats: Stats;
 }
 
 /** What one typed path gives the deploy: its files, and the folder they are named from. */
@@ -44,8 +45,7 @@ async function findFiles(folder: string): Promise<FoundFile[]> {
     if (entry.isDirectory()) {
       files.push(...(await reading(absPath, () => findFiles(absPath))));
     } else if (entry.isFile() || entry.isSymbolicLink()) {
-      const { size } = await reading(absPath, () => lstat(absPath));
-      files.push({ absPath, size, link: entry.isSymbolicLink() });
+      files.push({ absPath, stats: await reading(absPath, () => lstat(absPath)) });
     }
   }
   return files;
@@ -60,6 +60,24 @@ async function refuseLink(path: string): Promise<never> {
     `"${path}" is a link, and we don't publish links. Copy what it points to into the folder, then try again.`,
     { filePath: path },
   );
+}
+
+/**
+ * The file the walk found, opened. A deploy asks the platform for its limits
+ * between the walk and this, and the folder can change meanwhile: a file
+ * replaced by a link, or a folder above it by a link to another, would be
+ * read through, since a path is opened as it stands. So the file at the path
+ * now has to be the file the walk found, or the deploy stops.
+ */
+async function open(name: string, { absPath, stats }: FoundFile): Promise<Blob> {
+  const content = await openAsBlob(absPath);
+  const now = await stat(absPath);
+  if (now.ino !== stats.ino || now.dev !== stats.dev) {
+    throw ShipError.file(`"${name}" changed while we were reading it. Deploy again.`, {
+      filePath: name,
+    });
+  }
+  return content;
 }
 
 /**
@@ -103,7 +121,7 @@ async function find(typed: string): Promise<Found> {
   });
 
   if (stats.isFile()) {
-    return { base: path.dirname(absPath), files: [{ absPath, size: stats.size, link: false }] };
+    return { base: path.dirname(absPath), files: [{ absPath, stats }] };
   }
   if (!stats.isDirectory()) {
     throw ShipError.file(`"${typed}" isn't a file or a folder.`, { filePath: typed });
@@ -128,17 +146,17 @@ async function find(typed: string): Promise<Found> {
 export async function findSources(paths: string[]): Promise<DeploySource[]> {
   const sources = new Map<string, DeploySource>();
   for (const { base, files } of await Promise.all(paths.map(find))) {
-    for (const { absPath, size, link } of files) {
-      if (sources.has(absPath)) continue;
-      const name = path.relative(base, absPath);
-      sources.set(absPath, {
+    for (const file of files) {
+      if (sources.has(file.absPath)) continue;
+      const name = path.relative(base, file.absPath);
+      sources.set(file.absPath, {
         path: name,
-        size,
+        size: file.stats.size,
         // The file itself, as a `Blob`: nothing is read until it is hashed or
         // sent. A link is a source like any file, so one inside what the
         // deploy sets aside is set aside with it, and one the deploy would
         // publish is refused when the deploy opens it.
-        read: link ? () => refuseLink(name) : () => openAsBlob(absPath),
+        read: file.stats.isSymbolicLink() ? () => refuseLink(name) : () => open(name, file),
       });
     }
   }

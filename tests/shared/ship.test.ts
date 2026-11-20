@@ -116,7 +116,7 @@ describe('The Ship class', () => {
       ['a list of paths', ['/path/to/site']],
     ])('refuses %s in words, with no request', async (_what, input) => {
       await expect(plain.deploy(input)).rejects.toThrow(
-        'A deploy takes File objects here. Publishing from a path needs Node.js or Bun.',
+        'A deploy takes File objects here. Publishing from a path needs Node.js, Bun or Deno.',
       );
       expect(carried.carriedFor('Get limits')).toHaveLength(0);
     });
