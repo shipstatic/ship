@@ -38,16 +38,11 @@ describe('built package entries', () => {
   });
 
   it('require() of the CJS entry yields a constructible Ship', () => {
-    // The post-build shim reassigns module.exports to the class so
-    // `const Ship = require('@shipstatic/ship')` works (the axios convention).
     const required = require(resolve(DIST, 'index.cjs'));
 
-    expect(typeof required).toBe('function');
-    expect(new required({ apiUrl: 'https://api.example.com' })).toBeDefined();
-    // …while the named and default forms keep working alongside it.
-    expect(required.Ship).toBe(required);
-    expect(required.default).toBe(required);
-    expect(required.ShipError).toBeDefined();
+    expect(typeof required.Ship).toBe('function');
+    expect(new required.Ship({ apiUrl: 'https://api.example.com' })).toBeDefined();
+    expect(required.default).toBe(required.Ship);
   });
 
   it('import() of the ESM entry yields a constructible Ship', async () => {

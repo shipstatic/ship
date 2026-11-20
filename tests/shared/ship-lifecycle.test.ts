@@ -1,64 +1,49 @@
-import type { Mock } from 'vitest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DeploySource } from '../../src/shared/core/deploy-files';
+/**
+ * @file What a `Ship` lets its holder change after construction: the token
+ * (`setToken`) and the headers every request carries (`setHeaders`,
+ * `clearHeaders`). Each row reads the change on the next request it sends.
+ */
+
+import { describe, expect, it } from 'vitest';
 import { Ship } from '../../src/shared/ship';
-import { apiKey, deployToken } from '../fixtures/builders';
-import { fakeTransport } from '../mocks/transport';
+import type { ShipClientOptions } from '../../src/shared/types';
+import { apiKey, deployToken, FREE_PLAN_LIMITS } from '../fixtures/builders';
+import { fakeApi } from '../mocks/fetch';
 
 const TEST_API_KEY = apiKey('a');
 const TEST_DEPLOY_TOKEN = deployToken('b');
 
-const PAGE = '<html><body><div id="root"></div></body></html>';
+const DEPLOYED = { deployment: 'dep_123.shipstatic.com', url: 'https://dep_123.shipstatic.com' };
 
-// One fixed page, so these rows hold the client and never the finding of
-// files: the shared pipeline is real from here on.
-class TestShip extends Ship {
-  protected override async sources(): Promise<DeploySource[]> {
-    return [{ path: 'index.html', size: PAGE.length, read: async () => new Blob([PAGE]) }];
-  }
+/** A client, and the headers of each request it sends. */
+function client(options: ShipClientOptions = {}) {
+  const api = fakeApi({ '/limits': FREE_PLAN_LIMITS, '/deployments': DEPLOYED });
+  const ship = new Ship({ apiUrl: 'https://test-api.com', fetch: api.fetch, ...options });
+  const sentHeaders = async () => {
+    await ship.ping();
+    return api.sent[api.sent.length - 1].headers;
+  };
+  return { ship, api, sentHeaders };
 }
 
 describe('Credential Lifecycle', () => {
-  let mockApiDeploy: Mock;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-
-    mockApiDeploy = vi.fn().mockResolvedValue({
-      id: 'dep_123',
-      url: 'https://dep_123.shipstatic.com',
-    });
-  });
-
   describe('setToken()', () => {
     it('should take effect immediately, without rebuilding the client', async () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      // Override http with mock
-      (ship as any).http = fakeTransport({
-        Deploy: mockApiDeploy,
-        Ping: { success: true },
-        'Get limits': {},
-      });
+      const { ship, api, sentHeaders } = client();
 
       // Anonymous first — no Authorization header.
-      expect(await (ship as any).getAuthHeaders()).toEqual({});
+      expect((await sentHeaders()).Authorization).toBeUndefined();
 
       ship.setToken(TEST_DEPLOY_TOKEN);
-      expect(await (ship as any).getAuthHeaders()).toEqual({
-        Authorization: `Bearer ${TEST_DEPLOY_TOKEN}`,
-      });
 
-      const result = await ship.deploy(['./test'] as any);
-      expect(result).toEqual({
-        id: 'dep_123',
-        url: 'https://dep_123.shipstatic.com',
-      });
-      expect(mockApiDeploy).toHaveBeenCalled();
+      expect(await ship.deploy([new File(['<html></html>'], 'index.html')])).toEqual(DEPLOYED);
+      expect(api.sentTo('/deployments')[0].headers.Authorization).toBe(
+        `Bearer ${TEST_DEPLOY_TOKEN}`,
+      );
     });
 
     it('should validate input', () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
+      const { ship } = client();
 
       expect(() => ship.setToken('')).toThrow('Invalid token');
       expect(() => ship.setToken(null as any)).toThrow('Invalid token');
@@ -69,37 +54,25 @@ describe('Credential Lifecycle', () => {
     });
 
     it('should replace the previous credential — last write wins', async () => {
-      const ship = new TestShip({
-        apiUrl: 'https://test-api.com',
-        token: TEST_API_KEY,
-      });
+      const { ship, sentHeaders } = client({ token: TEST_API_KEY });
 
-      expect(await (ship as any).getAuthHeaders()).toEqual({
-        Authorization: `Bearer ${TEST_API_KEY}`,
-      });
+      expect((await sentHeaders()).Authorization).toBe(`Bearer ${TEST_API_KEY}`);
 
       ship.setToken(TEST_DEPLOY_TOKEN);
 
-      expect(await (ship as any).getAuthHeaders()).toEqual({
-        Authorization: `Bearer ${TEST_DEPLOY_TOKEN}`,
-      });
+      expect((await sentHeaders()).Authorization).toBe(`Bearer ${TEST_DEPLOY_TOKEN}`);
     });
 
     it('should accept a provider function', async () => {
-      const ship = new TestShip({
-        apiUrl: 'https://test-api.com',
-        token: TEST_API_KEY,
-      });
+      const { ship, sentHeaders } = client({ token: TEST_API_KEY });
 
       ship.setToken(() => 'minted-access-token');
 
-      expect(await (ship as any).getAuthHeaders()).toEqual({
-        Authorization: 'Bearer minted-access-token',
-      });
+      expect((await sentHeaders()).Authorization).toBe('Bearer minted-access-token');
     });
 
     it("rejects on a session client — the constructor exclusion holds for the client's life", async () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com', session: true });
+      const { ship, sentHeaders } = client({ session: true });
 
       expect(() => ship.setToken(TEST_API_KEY)).toThrow(
         'Provide either `token` or `session`, not both.',
@@ -108,51 +81,27 @@ describe('Credential Lifecycle', () => {
         'Provide either `token` or `session`, not both.',
       );
       // Still cookie-identified — no Authorization header was armed.
-      expect(await (ship as any).getAuthHeaders()).toEqual({});
-    });
-  });
-
-  describe('constructor initialization', () => {
-    it('should adopt a constructor token', async () => {
-      const ship = new TestShip({
-        apiUrl: 'https://test-api.com',
-        token: TEST_DEPLOY_TOKEN,
-      });
-
-      // Override http with mock
-      (ship as any).http = fakeTransport({
-        Deploy: mockApiDeploy,
-        Ping: { success: true },
-        'Get limits': {},
-      });
-
-      await ship.deploy(['./test'] as any);
-      expect(mockApiDeploy).toHaveBeenCalled();
+      expect((await sentHeaders()).Authorization).toBeUndefined();
     });
   });
 
   describe('setHeaders() / clearHeaders()', () => {
-    it('should set global headers on the HTTP client', () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      const mockSetGlobalHeaders = vi.fn();
-      (ship as any).http.setGlobalHeaders = mockSetGlobalHeaders;
+    it('should send the headers with every request from then on', async () => {
+      const { ship, sentHeaders } = client();
 
       ship.setHeaders({ 'X-Custom': 'value' });
 
-      expect(mockSetGlobalHeaders).toHaveBeenCalledWith({ 'X-Custom': 'value' });
+      expect((await sentHeaders())['X-Custom']).toBe('value');
+      expect((await sentHeaders())['X-Custom']).toBe('value');
     });
 
-    it('should clear global headers', () => {
-      const ship = new TestShip({ apiUrl: 'https://test-api.com' });
-
-      const mockSetGlobalHeaders = vi.fn();
-      (ship as any).http.setGlobalHeaders = mockSetGlobalHeaders;
+    it('should clear them', async () => {
+      const { ship, sentHeaders } = client();
 
       ship.setHeaders({ 'X-Custom': 'value' });
       ship.clearHeaders();
 
-      expect(mockSetGlobalHeaders).toHaveBeenLastCalledWith({});
+      expect((await sentHeaders())['X-Custom']).toBeUndefined();
     });
   });
 });

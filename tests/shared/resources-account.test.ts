@@ -26,7 +26,7 @@ function accountOver(answer: unknown) {
     requestWithStatus: vi.fn(),
     deploy: { endpoint: '/deployments', timeout: 1, buildTimeout: 2 },
   } as unknown as Transport;
-  const account: AccountResource = createAccountResource({ getApi: () => transport });
+  const account: AccountResource = createAccountResource(transport);
   return { account, request };
 }
 
@@ -44,11 +44,8 @@ describe('AccountResource', () => {
   it('does not catch — a failed read is the caller’s to handle', async () => {
     const { account } = accountOver(undefined);
     const failing = createAccountResource({
-      getApi: () =>
-        ({
-          request: vi.fn().mockRejectedValue(new Error('boom')),
-        }) as unknown as Transport,
-    });
+      request: vi.fn().mockRejectedValue(new Error('boom')),
+    } as unknown as Transport);
     void account;
 
     await expect(failing.get()).rejects.toThrow('boom');

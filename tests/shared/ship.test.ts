@@ -3,108 +3,60 @@
  * runs. Owns credential state, the per-deploy `/limits` read, the
  * resource factories, and the `deploy`/`whoami` shortcuts.
  *
- * The ordering rows run the real `ApiHttp` against an injected `fetch`
- * rather than reassigning `globalThis.fetch`: the `fetch` option is a
- * published contract (`ShipClientOptions.fetch`), so the test uses it, and
- * nothing global is mutated for other files to trip over.
+ * Every row builds a real client on an injected `fetch` and reads the
+ * requests that left it: the `fetch` option is a published contract
+ * (`ShipClientOptions.fetch`), and nothing global is replaced for other
+ * files to trip over.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DeploySource } from '../../src/shared/core/deploy-files';
 import { Ship } from '../../src/shared/ship';
 import type { Fetch } from '../../src/shared/types';
 import { apiKey, FREE_PLAN_LIMITS } from '../fixtures/builders';
-import { type FakeTransport, fakeTransport } from '../mocks/transport';
+import { fakeApi } from '../mocks/fetch';
 
 /** An API key in the platform's canonical shape, built from its constants. */
 const TEST_API_KEY = apiKey('a');
+const API_URL = 'http://localhost:13579';
 
 const PAGE = '<html><body><div id="root"></div></body></html>';
+const site = () => [new File([PAGE], 'index.html')];
 
-// One fixed page, so these rows hold the client and never the finding of
-// files: the shared pipeline is real from here on.
-class TestShip extends Ship {
-  protected override async sources(): Promise<DeploySource[]> {
-    return [{ path: 'index.html', size: PAGE.length, read: async () => new Blob([PAGE]) }];
-  }
-}
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
+const DEPLOYED = {
+  deployment: 'brave-otter-a1b2c3d.shipstatic.com',
+  url: 'https://brave-otter-a1b2c3d.shipstatic.com',
+};
 
 describe('The Ship class', () => {
-  let ship: TestShip;
-  let mockApiDeploy: ReturnType<typeof vi.fn>;
-  let transport: FakeTransport;
+  let api: ReturnType<typeof fakeApi>;
+  let ship: Ship;
 
   beforeEach(() => {
-    mockApiDeploy = vi.fn().mockResolvedValue({
-      deployment: 'brave-otter-a1b2c3d.shipstatic.com',
-      url: 'https://brave-otter-a1b2c3d.shipstatic.com',
+    api = fakeApi({
+      '/limits': FREE_PLAN_LIMITS,
+      '/deployments': DEPLOYED,
+      '/ping': { success: true, timestamp: 1_700_000_000 },
+      '/account': { email: 'test@example.com' },
     });
-
-    ship = new TestShip({ apiUrl: 'https://test-api.com', token: TEST_API_KEY });
-
-    // Only the operations this file's subject actually reaches. Keying on the
-    // operation NAME rather than on endpoint methods is what keeps the double
-    // honest: an earlier revision listed `listApiKeys`/`removeApiKey`/`get` —
-    // methods from removed eras — which no assertion could ever have caught.
-    transport = fakeTransport({
-      Deploy: mockApiDeploy,
-      Ping: { success: true, timestamp: 1_700_000_000 },
-      'Get limits': {},
-      'List deployments': { deployments: [], cursor: null },
-      'Get deployment': { deployment: 'brave-otter-a1b2c3d' },
-      'Get account': { email: 'test@example.com' },
-    });
-    (ship as any).http = transport;
-  });
-
-  describe('constructor', () => {
-    it('should initialize with provided options', () => {
-      const options = { apiUrl: 'https://custom-api.com', token: 'test-key' };
-      const testShip = new TestShip(options);
-
-      expect((testShip as any).clientOptions).toEqual(options);
-    });
-
-    it('should create resource instances', () => {
-      expect(ship.deployments).toBeDefined();
-      expect(ship.domains).toBeDefined();
-      expect(ship.account).toBeDefined();
-    });
+    ship = new Ship({ apiUrl: API_URL, token: TEST_API_KEY, fetch: api.fetch });
   });
 
   describe('deploy convenience method', () => {
     it('should call deployments.upload with input and options', async () => {
-      const result = await ship.deploy(['./test'] as any, { labels: ['audit'] });
+      const result = await ship.deploy(site(), { labels: ['audit'] });
 
-      expect(result).toEqual({
-        deployment: 'brave-otter-a1b2c3d.shipstatic.com',
-        url: 'https://brave-otter-a1b2c3d.shipstatic.com',
-      });
-      expect(transport.carriedFor('Deploy')).toHaveLength(1);
+      expect(result).toEqual(DEPLOYED);
+      const [deploy] = api.sentTo('/deployments');
+      expect((deploy.body as FormData).get('labels')).toBe('["audit"]');
     });
   });
 
   describe("a deploy's input, where there is no filesystem", () => {
-    let plain: Ship;
-    let carried: FakeTransport;
-
-    beforeEach(() => {
-      plain = new Ship({ apiUrl: 'https://test-api.com', token: TEST_API_KEY });
-      carried = fakeTransport({ Deploy: mockApiDeploy, 'Get limits': FREE_PLAN_LIMITS });
-      (plain as any).http = carried;
-    });
-
     it('sends Files under their names, judged by the limits it read once', async () => {
-      await plain.deploy([new File([PAGE], 'index.html'), new File(['body {}'], 'css/app.css')]);
+      await ship.deploy([new File([PAGE], 'index.html'), new File(['body {}'], 'css/app.css')]);
 
-      expect(carried.carriedFor('Get limits')).toHaveLength(1);
-      const body = carried.carriedFor('Deploy')[0].init.body as FormData;
+      expect(api.sentTo('/limits')).toHaveLength(1);
+      const body = api.sentTo('/deployments')[0].body as FormData;
       expect((body.getAll('files[]') as File[]).map((file) => file.name)).toEqual([
         'index.html',
         'css/app.css',
@@ -115,10 +67,10 @@ describe('The Ship class', () => {
       ['a path', '/path/to/site'],
       ['a list of paths', ['/path/to/site']],
     ])('refuses %s in words, with no request', async (_what, input) => {
-      await expect(plain.deploy(input)).rejects.toThrow(
+      await expect(ship.deploy(input)).rejects.toThrow(
         'A deploy takes File objects here. Publishing from a path needs Node.js, Bun or Deno.',
       );
-      expect(carried.carriedFor('Get limits')).toHaveLength(0);
+      expect(api.sent).toEqual([]);
     });
 
     it.each([
@@ -130,10 +82,10 @@ describe('The Ship class', () => {
       ['a list that mixes Files and paths', [new File(['x'], 'index.html'), './dist']],
       ['nothing', undefined],
     ])('tells %s how to become a list, and says nothing of paths', async (_what, input) => {
-      await expect(plain.deploy(input as any)).rejects.toThrow(
+      await expect(ship.deploy(input as any)).rejects.toThrow(
         'A deploy takes a list of File objects. To publish the files of a file input, pass Array.from(input.files).',
       );
-      expect(carried.carriedFor('Get limits')).toHaveLength(0);
+      expect(api.sent).toEqual([]);
     });
   });
 
@@ -142,7 +94,7 @@ describe('The Ship class', () => {
       const result = await ship.whoami();
 
       expect(result).toEqual({ email: 'test@example.com' });
-      expect(transport.carriedFor('Get account')).toHaveLength(1);
+      expect(api.sentTo('/account')).toHaveLength(1);
     });
   });
 
@@ -151,7 +103,7 @@ describe('The Ship class', () => {
       const result = await ship.ping();
 
       expect(result).toEqual({ success: true, timestamp: 1_700_000_000 });
-      expect(transport.carriedFor('Ping')).toHaveLength(1);
+      expect(api.sentTo('/ping')).toHaveLength(1);
     });
   });
 
@@ -173,69 +125,28 @@ describe('The Ship class', () => {
     });
   });
 
-  describe('initialization order (real transport, injected fetch)', () => {
-    /** Records every path the SDK requests, in order, and answers each. */
-    function recordingFetch(): { fetch: Fetch; paths: string[]; urls: string[] } {
-      const paths: string[] = [];
-      const urls: string[] = [];
-      const fetch = vi.fn(async (input: any) => {
-        const url = typeof input === 'string' ? input : input.url;
-        urls.push(url);
-        const { pathname } = new URL(url);
-        paths.push(pathname);
-
-        if (pathname === '/limits') {
-          return json({ maxFileSize: 20971520, maxFilesCount: 500, maxTotalSize: 52428800 });
-        }
-        if (pathname === '/deployments') {
-          return json({
-            deployment: 'brave-otter-a1b2c3d.shipstatic.com',
-            url: 'https://brave-otter-a1b2c3d.shipstatic.com',
-            files: 2,
-            size: 100,
-            status: 'success',
-          });
-        }
-        return json({ error: 'not_found', message: 'not found', status: 404 }, 404);
-      }) as unknown as Fetch;
-
-      return { fetch, paths, urls };
-    }
-
+  describe('the requests of a deploy', () => {
     it('reads limits before the deploy, and makes no other request', async () => {
       // Why the order is load-bearing: the deploy body is size-validated
       // against the limits, so a deploy that raced ahead of `/limits` would
       // validate against nothing. The single-page question rides the deploy.
-      const { fetch, paths } = recordingFetch();
-      const client = new TestShip({ apiUrl: 'http://localhost:13579', token: TEST_API_KEY, fetch });
+      await ship.deployments.upload(site());
 
-      await client.deployments.upload(['./ignored']);
-
-      expect(paths).toEqual(['/limits', '/deployments']);
+      expect(api.sent.map((request) => request.path)).toEqual(['/limits', '/deployments']);
     });
 
     it('sends every call to the configured apiUrl, never the default', async () => {
-      const apiUrl = 'http://localhost:13579';
-      const { fetch, urls } = recordingFetch();
-      const client = new TestShip({ apiUrl, token: TEST_API_KEY, fetch });
+      await ship.deployments.upload(site());
 
-      await client.deployments.upload(['./ignored']);
-
-      expect(urls.length).toBeGreaterThan(0);
-      for (const url of urls) {
-        expect(url.startsWith(apiUrl)).toBe(true);
-      }
+      expect(api.sent.map((request) => new URL(request.url).origin)).toEqual([API_URL, API_URL]);
     });
 
     it('reads limits once per call that uses them, and holds none between calls', async () => {
-      const { fetch, paths } = recordingFetch();
-      const client = new TestShip({ apiUrl: 'http://localhost:13579', token: TEST_API_KEY, fetch });
+      await ship.getLimits();
+      await ship.getLimits();
+      await ship.deployments.upload(site());
 
-      await client.getLimits();
-      await client.getLimits();
-      await client.deployments.upload(['./ignored']);
-
-      expect(paths.filter((p) => p === '/limits')).toHaveLength(3);
+      expect(api.sentTo('/limits')).toHaveLength(3);
     });
   });
 
@@ -245,7 +156,7 @@ describe('The Ship class', () => {
    * signal must reach each: a stop that only reached the last left the form
    * busy while the first ran.
    */
-  describe('cancellation reaches every request of a deploy (real transport)', () => {
+  describe('cancellation reaches every request of a deploy', () => {
     /** Answers every path, except one it holds open until its signal aborts. */
     function holdingFetch(held: string) {
       const paths: string[] = [];
@@ -254,8 +165,8 @@ describe('The Ship class', () => {
       const arrived = new Promise<void>((resolve) => {
         reached = resolve;
       });
-      const fetch = vi.fn(async (input: any, init?: RequestInit) => {
-        const { pathname } = new URL(typeof input === 'string' ? input : input.url);
+      const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+        const { pathname } = new URL(url);
         paths.push(pathname);
         if (pathname === held) {
           heldSignal = init?.signal ?? undefined;
@@ -266,10 +177,7 @@ describe('The Ship class', () => {
             );
           });
         }
-        if (pathname === '/limits') {
-          return json({ maxFileSize: 20971520, maxFilesCount: 500, maxTotalSize: 52428800 });
-        }
-        return json({ deployment: 'brave-otter-a1b2c3d.shipstatic.com', status: 'success' });
+        return Response.json(pathname === '/limits' ? FREE_PLAN_LIMITS : DEPLOYED);
       }) as unknown as Fetch;
       return { fetch, paths, arrived, heldSignal: () => heldSignal };
     }
@@ -281,14 +189,10 @@ describe('The Ship class', () => {
       'a stop while %s is in flight cancels it, and sends nothing after it',
       async (held, sent) => {
         const { fetch, paths, arrived, heldSignal } = holdingFetch(held);
-        const client = new TestShip({
-          apiUrl: 'http://localhost:13579',
-          token: TEST_API_KEY,
-          fetch,
-        });
+        const client = new Ship({ apiUrl: API_URL, token: TEST_API_KEY, fetch });
         const controller = new AbortController();
 
-        const upload = client.deployments.upload(['./ignored'], { signal: controller.signal });
+        const upload = client.deployments.upload(site(), { signal: controller.signal });
         await arrived;
         controller.abort();
 

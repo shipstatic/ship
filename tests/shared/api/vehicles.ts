@@ -50,10 +50,7 @@ export const listDomains = (api: ApiHttp) =>
  * on the wire and nothing collects anything.
  */
 export const deploymentsOver = (api: ApiHttp) =>
-  createDeploymentResource({
-    getApi: () => api,
-    prepareFiles: async (input) => input as unknown as StaticFile[],
-  });
+  createDeploymentResource(api, async (input) => input as unknown as StaticFile[]);
 
 /**
  * Deploy exactly these files through `api`, bypassing collection. The deploy

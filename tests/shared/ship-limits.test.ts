@@ -7,162 +7,131 @@
  * What only a server that changes its answer between calls can show is that
  * each read meets the limits stated NOW: the resolved values of a stale read
  * and a fresh one are otherwise identical, so the rows count requests and
- * change the transport's answer mid-test.
+ * change the server's answer mid-test.
  */
 
 import path from 'node:path';
-import type { PlatformLimits } from '@shipstatic/types';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Ship as NodeShip } from '../../src/node/index';
 import { Ship as BrowserShip } from '../../src/shared/index';
+import type { ShipClientOptions } from '../../src/shared/types';
 import { deployToken, FREE_PLAN_LIMITS } from '../fixtures/builders';
-import { fakeTransport } from '../mocks/transport';
+import { type Answer, fakeApi } from '../mocks/fetch';
 
 const DEMO_SITE = path.resolve(__dirname, '../fixtures/demo-site');
-const TEST_DEPLOY_TOKEN = deployToken('a');
-const mockLimits: PlatformLimits = FREE_PLAN_LIMITS;
 const MB = 1024 * 1024;
 
-describe('platform limits: asked every time, never held', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+/** A client and the server it talks to. */
+function client(
+  answers: Record<string, Answer> = {},
+  options: ShipClientOptions = {},
+  Ship: typeof BrowserShip = NodeShip,
+) {
+  const api = fakeApi({ '/limits': FREE_PLAN_LIMITS, ...answers });
+  const ship = new Ship({
+    token: deployToken('a'),
+    apiUrl: 'https://api.test',
+    fetch: api.fetch,
+    ...options,
   });
+  return { ship, api };
+}
 
+describe('platform limits: asked every time, never held', () => {
   it.each([
-    ['node', () => new NodeShip({ token: TEST_DEPLOY_TOKEN })],
-    ['browser', () => new BrowserShip({ token: TEST_DEPLOY_TOKEN })],
+    ['node', NodeShip],
+    ['browser', BrowserShip],
   ] as const)(
     'getLimits() in %s answers what the server states now, one request each',
-    async (_runtime, make) => {
-      const ship = make();
-      const transport = fakeTransport({ 'Get limits': { ...mockLimits, maxFileSize: 20 * MB } });
-      (ship as any).http = transport;
+    async (_runtime, Ship) => {
+      const { ship, api } = client(
+        { '/limits': { ...FREE_PLAN_LIMITS, maxFileSize: 20 * MB } },
+        {},
+        Ship,
+      );
 
       expect((await ship.getLimits()).maxFileSize).toBe(20 * MB);
       // The plan moved on the server: the next read sees it.
-      transport.answer('Get limits', { ...mockLimits, maxFileSize: 50 * MB });
+      api.answer('/limits', { ...FREE_PLAN_LIMITS, maxFileSize: 50 * MB });
       expect((await ship.getLimits()).maxFileSize).toBe(50 * MB);
-      expect(transport.carriedFor('Get limits')).toHaveLength(2);
+      expect(api.sentTo('/limits')).toHaveLength(2);
     },
   );
 
   it('a deploy reads the limits once, at its start, and validates against them', async () => {
-    const ship = new NodeShip({ token: TEST_DEPLOY_TOKEN });
-    const transport = fakeTransport({
-      'Get limits': { ...mockLimits, maxFileSize: 1 },
-      Deploy: { deployment: 'dep_123', url: 'https://dep_123.shipstatic.com' },
-    });
-    (ship as any).http = transport;
+    const { ship, api } = client({ '/limits': { ...FREE_PLAN_LIMITS, maxFileSize: 1 } });
 
     // A one-byte ceiling refuses the site before anything is sent.
     await expect(ship.deploy(DEMO_SITE)).rejects.toThrow();
-    expect(transport.carriedFor('Deploy')).toHaveLength(0);
+    expect(api.sentTo('/deployments')).toHaveLength(0);
 
     // The ceiling is raised on the server; the next deploy reads it.
-    transport.answer('Get limits', mockLimits);
+    api.answer('/limits', FREE_PLAN_LIMITS);
     await ship.deploy(DEMO_SITE);
-    expect(transport.carriedFor('Deploy')).toHaveLength(1);
-    expect(transport.carriedFor('Get limits')).toHaveLength(2);
+    expect(api.sentTo('/deployments')).toHaveLength(1);
+    expect(api.sentTo('/limits')).toHaveLength(2);
   });
 
   it('a failed read fails only its own call, and the next call asks again', async () => {
-    const ship = new NodeShip({ token: TEST_DEPLOY_TOKEN });
     let first = true;
-    const transport = fakeTransport({
-      'Get limits': () => {
-        if (first) {
-          first = false;
-          throw new Error('network down');
-        }
-        return mockLimits;
+    const { ship, api } = client(
+      {
+        '/limits': () => {
+          if (first) {
+            first = false;
+            throw new Error('network down');
+          }
+          return FREE_PLAN_LIMITS;
+        },
       },
-    });
-    (ship as any).http = transport;
+      // One attempt per call, so the second request is the second call's.
+      { maxRetries: 0 },
+    );
 
     await expect(ship.getLimits()).rejects.toThrow('network down');
-    expect(await ship.getLimits()).toEqual(mockLimits);
-    expect(transport.carriedFor('Get limits')).toHaveLength(2);
+    expect(await ship.getLimits()).toEqual(FREE_PLAN_LIMITS);
+    expect(api.sentTo('/limits')).toHaveLength(2);
   });
 
   describe('the limits fetch is earned, not automatic', () => {
-    const jsonFetch = () => {
-      const paths: string[] = [];
-      const fetchImpl = vi.fn(async (url: string) => {
-        paths.push(new URL(url).pathname);
-        return new Response(
-          JSON.stringify({
-            ...mockLimits,
-            deployments: [],
-            domains: [],
-            tokens: [],
-            cursor: null,
-            timestamp: 1,
-            deployment: 'mock-deploy-001.shipstatic.com',
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      });
-      return { paths, fetchImpl };
-    };
-
     it.each([
-      ['domains.list()', (s: NodeShip) => s.domains.list()],
-      ['tokens.list()', (s: NodeShip) => s.tokens.list()],
-      ['deployments.list()', (s: NodeShip) => s.deployments.list()],
-      ['ping()', (s: NodeShip) => s.ping()],
+      ['domains.list()', (s: BrowserShip) => s.domains.list()],
+      ['tokens.list()', (s: BrowserShip) => s.tokens.list()],
+      ['deployments.list()', (s: BrowserShip) => s.deployments.list()],
+      ['ping()', (s: BrowserShip) => s.ping()],
     ])('%s issues ONE request, and it is not /limits', async (_label, call) => {
-      const { paths, fetchImpl } = jsonFetch();
-      const ship = new NodeShip({
-        token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.test',
-        fetch: fetchImpl as unknown as typeof fetch,
-      });
+      const { ship, api } = client();
 
       await call(ship);
 
-      expect(paths).toHaveLength(1);
-      expect(paths).not.toContain('/limits');
+      expect(api.sent).toHaveLength(1);
+      expect(api.sentTo('/limits')).toEqual([]);
     });
 
     it('still fetches limits for a deploy, because the deploy reads them', async () => {
       // The other half: this is not "stop fetching limits", it is "fetch
       // them where they are consumed". A deploy validates against the
       // plan caps and the delivered blocklist, so it pays the request.
-      const { paths, fetchImpl } = jsonFetch();
-      const ship = new NodeShip({
-        token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.test',
-        fetch: fetchImpl as unknown as typeof fetch,
-      });
+      const { ship, api } = client();
 
       await ship.deploy(DEMO_SITE);
 
-      expect(paths).toContain('/limits');
+      expect(api.sentTo('/limits')).toHaveLength(1);
     });
 
     it('a deploy that sends a project to be built asks for none: no limit judges a source', async () => {
-      const { paths, fetchImpl } = jsonFetch();
-      const ship = new NodeShip({
-        token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.test',
-        fetch: fetchImpl as unknown as typeof fetch,
-      });
+      const { ship, api } = client();
 
       await ship.deploy([new File(['{}'], 'package.json')], { build: true });
 
-      expect(paths).toEqual(['/deployments']);
+      expect(api.sent.map((request) => request.path)).toEqual(['/deployments']);
     });
 
     it('getLimits() still fetches when asked directly', async () => {
-      const { paths, fetchImpl } = jsonFetch();
-      const ship = new NodeShip({
-        token: TEST_DEPLOY_TOKEN,
-        apiUrl: 'https://api.test',
-        fetch: fetchImpl as unknown as typeof fetch,
-      });
+      const { ship, api } = client();
 
-      expect(await ship.getLimits()).toMatchObject(mockLimits);
-      expect(paths).toEqual(['/limits']);
+      expect(await ship.getLimits()).toEqual(FREE_PLAN_LIMITS);
+      expect(api.sent.map((request) => request.path)).toEqual(['/limits']);
     });
   });
 });

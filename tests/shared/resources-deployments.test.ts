@@ -87,10 +87,7 @@ describe('Deployment Resource', () => {
       { path: 'style.css', content: new Blob(['body {}']), size: 7, md5: 'b'.repeat(32) },
     ]);
 
-    deploymentResource = createDeploymentResource({
-      getApi: () => transport,
-      prepareFiles: mockPrepareFiles,
-    });
+    deploymentResource = createDeploymentResource(transport, mockPrepareFiles);
   });
 
   const upload = (options: DeploymentOptions = {}) =>

@@ -86,25 +86,14 @@ function listQuery(options?: ListOptions): string {
 }
 
 /**
- * Shared context for all resource factories.
- *
- * A factory receives the callbacks it needs and nothing else. `getApi()` is
- * a thunk, read on each call: the transport is built once in the constructor,
- * and reading it lazily keeps the resources constructible before it exists
- * and swappable in tests.
+ * A deploy's files, ready to send. `Ship` composes it (find the files, read
+ * the limits, judge and hash), because finding is the one step a build can
+ * add to.
  */
-export interface ResourceContext {
-  getApi: () => Transport;
-}
-
-/**
- * What the deployment resource needs beside the transport: the files of a
- * deploy, ready to send. `Ship` composes it (find the files, read the limits,
- * judge and hash), because finding is the one step a build can add to.
- */
-export interface DeploymentResourceContext extends ResourceContext {
-  prepareFiles: (input: DeployInput, options: DeploymentOptions) => Promise<StaticFile[]>;
-}
+export type PrepareFiles = (
+  input: DeployInput,
+  options: DeploymentOptions,
+) => Promise<StaticFile[]>;
 
 /**
  * Upload deployment resource with all CRUD operations.
@@ -115,10 +104,9 @@ export interface DeploymentResourceContext extends ResourceContext {
  * response). The SDK stays a transparent pipe either way.
  */
 export function createDeploymentResource(
-  ctx: DeploymentResourceContext,
+  http: Transport,
+  prepareFiles: PrepareFiles,
 ): DeploymentResource<DeploymentOptions> {
-  const { getApi, prepareFiles } = ctx;
-
   return {
     /**
      * The whole deploy, in the order it happens: check the options, collect
@@ -154,7 +142,6 @@ export function createDeploymentResource(
         captcha: options.captcha,
       };
 
-      const http = getApi();
       const files = await prepareFiles(input, options);
       const fields = deployFields(deployManifest(files), declaration);
       const plan = planDeploy(files, fields);
@@ -201,21 +188,21 @@ export function createDeploymentResource(
     },
 
     list: async (options?: ListOptions) =>
-      getApi().request<DeploymentListResponse>(
+      http.request<DeploymentListResponse>(
         `${API_PATHS.DEPLOYMENTS}${listQuery(options)}`,
         { method: 'GET' },
         'List deployments',
       ),
 
     get: async (id: string) =>
-      getApi().request<Deployment>(
+      http.request<Deployment>(
         API_PATHS.DEPLOYMENT(encodeURIComponent(id)),
         { method: 'GET' },
         'Get deployment',
       ),
 
     set: async (id: string, options: { labels: string[] }) =>
-      getApi().request<Deployment>(
+      http.request<Deployment>(
         API_PATHS.DEPLOYMENT(encodeURIComponent(id)),
         {
           method: 'PATCH',
@@ -226,7 +213,7 @@ export function createDeploymentResource(
       ),
 
     delete: async (id: string) =>
-      getApi().request<DeploymentDeleteResponse>(
+      http.request<DeploymentDeleteResponse>(
         API_PATHS.DEPLOYMENT(encodeURIComponent(id)),
         { method: 'DELETE' },
         'Delete deployment',
@@ -241,9 +228,7 @@ export function createDeploymentResource(
  * The `name` parameter in all methods is an FQDN (Fully Qualified Domain Name).
  * The SDK does not validate or normalize domain names - the API handles all domain semantics.
  */
-export function createDomainResource(ctx: ResourceContext): DomainResource {
-  const { getApi } = ctx;
-
+export function createDomainResource(http: Transport): DomainResource {
   return {
     // INTENTIONAL DESIGN: The API does NOT support unlinking domains (setting deployment to null).
     // Once a domain is linked to a deployment, it must always have a deployment.
@@ -259,7 +244,7 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
       // The one operation whose STATUS is part of its answer: 201 means the
       // domain was created, 200 that it was repointed, and the body says the
       // same thing either way.
-      const { data, status } = await getApi().requestWithStatus<Domain>(
+      const { data, status } = await http.requestWithStatus<Domain>(
         API_PATHS.DOMAIN(encodeURIComponent(name)),
         { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(body) },
         'Set domain',
@@ -268,28 +253,28 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
     },
 
     list: async (options?: ListOptions) =>
-      getApi().request<DomainListResponse>(
+      http.request<DomainListResponse>(
         `${API_PATHS.DOMAINS}${listQuery(options)}`,
         { method: 'GET' },
         'List domains',
       ),
 
     get: async (name: string) =>
-      getApi().request<Domain>(
+      http.request<Domain>(
         API_PATHS.DOMAIN(encodeURIComponent(name)),
         { method: 'GET' },
         'Get domain',
       ),
 
     delete: async (name: string) =>
-      getApi().request<DomainDeleteResponse>(
+      http.request<DomainDeleteResponse>(
         API_PATHS.DOMAIN(encodeURIComponent(name)),
         { method: 'DELETE' },
         'Delete domain',
       ),
 
     verify: async (name: string) =>
-      getApi().request<DomainVerifyResponse>(
+      http.request<DomainVerifyResponse>(
         API_PATHS.DOMAIN_VERIFY(encodeURIComponent(name)),
         { method: 'POST' },
         'Verify domain',
@@ -298,28 +283,28 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
     // The name rides the JSON BODY, not the path: this is a pre-flight check on
     // a string that may not be a legal path segment yet.
     validate: async (name: string) =>
-      getApi().request<DomainValidateResponse>(
+      http.request<DomainValidateResponse>(
         API_PATHS.DOMAINS_VALIDATE,
         { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ domain: name }) },
         'Validate domain',
       ),
 
     dns: async (name: string) =>
-      getApi().request<DomainDnsResponse>(
+      http.request<DomainDnsResponse>(
         API_PATHS.DOMAIN_DNS(encodeURIComponent(name)),
         { method: 'GET' },
         'Get domain DNS',
       ),
 
     records: async (name: string) =>
-      getApi().request<DomainRecordsResponse>(
+      http.request<DomainRecordsResponse>(
         API_PATHS.DOMAIN_RECORDS(encodeURIComponent(name)),
         { method: 'GET' },
         'Get domain records',
       ),
 
     share: async (name: string) =>
-      getApi().request<DomainShareResponse>(
+      http.request<DomainShareResponse>(
         API_PATHS.DOMAIN_SHARE(encodeURIComponent(name)),
         { method: 'GET' },
         'Get domain share',
@@ -330,20 +315,16 @@ export function createDomainResource(ctx: ResourceContext): DomainResource {
 /**
  * Create account resource (whoami functionality).
  */
-export function createAccountResource(ctx: ResourceContext): AccountResource {
-  const { getApi } = ctx;
-
+export function createAccountResource(http: Transport): AccountResource {
   return {
-    get: async () => getApi().request<Account>(API_PATHS.ACCOUNT, { method: 'GET' }, 'Get account'),
+    get: async () => http.request<Account>(API_PATHS.ACCOUNT, { method: 'GET' }, 'Get account'),
   };
 }
 
 /**
  * Create token resource for managing deploy tokens.
  */
-export function createTokenResource(ctx: ResourceContext): TokenResource {
-  const { getApi } = ctx;
-
+export function createTokenResource(http: Transport): TokenResource {
   return {
     create: async (options: { ttl?: number; labels?: string[] } = {}) => {
       // Checked before the request, as a deploy's options are: the rules are
@@ -354,7 +335,7 @@ export function createTokenResource(ctx: ResourceContext): TokenResource {
       if (ttl !== undefined) body.ttl = ttl;
       if (labels !== undefined) body.labels = labels;
 
-      return getApi().request<TokenCreateResponse>(
+      return http.request<TokenCreateResponse>(
         API_PATHS.TOKENS,
         { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body) },
         'Create token',
@@ -362,21 +343,21 @@ export function createTokenResource(ctx: ResourceContext): TokenResource {
     },
 
     list: async (options?: ListOptions) =>
-      getApi().request<TokenListResponse>(
+      http.request<TokenListResponse>(
         `${API_PATHS.TOKENS}${listQuery(options)}`,
         { method: 'GET' },
         'List tokens',
       ),
 
     get: async (token: string) =>
-      getApi().request<Token>(
+      http.request<Token>(
         API_PATHS.TOKEN(encodeURIComponent(token)),
         { method: 'GET' },
         'Get token',
       ),
 
     delete: async (token: string) =>
-      getApi().request<TokenDeleteResponse>(
+      http.request<TokenDeleteResponse>(
         API_PATHS.TOKEN(encodeURIComponent(token)),
         { method: 'DELETE' },
         'Delete token',

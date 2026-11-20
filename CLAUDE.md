@@ -151,11 +151,11 @@ the `*Resource` interfaces' business, and those live in `@shipstatic/types`.
 
 ### Resource Factory Pattern
 
-Resources are factory functions that receive a `ResourceContext` (`getApi`, a
-thunk resolving the `Transport`) instead of the whole Ship instance, so a
-factory depends only on what it uses. The deployment resource also receives
-`prepareFiles`, which the `Ship` class composes: find the sources, then run
-the pipeline, which reads the limits when the deploy is a site.
+Resources are factory functions that receive the `Transport` instead of the
+whole Ship instance, so a factory depends only on what it uses. The deployment
+resource also receives `prepareFiles`, which the `Ship` class composes: find
+the sources, then run the pipeline, which reads the limits when the deploy is
+a site.
 
 ### HTTP Client Architecture
 
@@ -1462,7 +1462,7 @@ tests/
 ├── package/          # The BUILT artifact (dist entries, bundle boundary, licences)
 ├── e2e/              # Real API, opt-in: runs the SAME contract table
 ├── fixtures/         # builders.ts (the only fixture source) + site folders
-├── mocks/            # handler.ts + state.ts + server.ts
+├── mocks/            # handler.ts + state.ts + server.ts, and fetch.ts (a `fetch` that answers by path)
 ├── setup.ts          # Hermeticity (both in-process projects)
 ├── setup-e2e.ts      # e2e harness (scrubs SHIP_TOKEN)
 └── setup-server.ts   # Mock-server lifecycle (integration only)

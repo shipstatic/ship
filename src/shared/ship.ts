@@ -51,7 +51,7 @@ import type { DeploymentOptions, ShipClientOptions, ShipEvents, TokenProvider } 
  */
 export class Ship {
   // Resource handles, created once at construction. Each is a thin facade
-  // bound to `this.http`. The deployment resource is parameterized with the
+  // over the one transport. The deployment resource is parameterized with the
   // SDK's own deploy options (`signal`, `pathDetect`), the interface's
   // extension point, so a typed consumer passes them without a cast.
   public readonly deployments: DeploymentResource<DeploymentOptions>;
@@ -61,7 +61,6 @@ export class Ship {
 
   // The HTTP client and merged options are private: a subclass meets this
   // class through `sources()` and never by reaching into these fields.
-  // Tests bypass via `(ship as any).http = ...`.
   private readonly http: ApiHttp;
   private readonly clientOptions: ShipClientOptions;
 
@@ -115,26 +114,22 @@ export class Ship {
       getAuthHeaders: () => this.getAuthHeaders(),
     });
 
-    const ctx = { getApi: () => this.http };
-
-    this.deployments = createDeploymentResource({
-      ...ctx,
-      // A deploy's files, in the order it happens: find them, read the
-      // platform limits, judge and hash. The limits are read once per deploy
-      // and after the finding, so input that is refused on its own (a path
-      // that is not there, a project that is not built) costs no request,
-      // and the files are judged by the limits the server states now. The
-      // pipeline asks only for a site, which is all the limits judge. The
-      // read carries the deploy's own signal, so a cancelled deploy stops
-      // here too, not only at its final POST.
-      prepareFiles: async (input, opts) =>
-        processDeployFiles(await this.sources(input), opts, () =>
-          this.getLimits({ signal: opts.signal }),
-        ),
-    });
-    this.domains = createDomainResource(ctx);
-    this.account = createAccountResource(ctx);
-    this.tokens = createTokenResource(ctx);
+    // A deploy's files, in the order it happens: find them, read the platform
+    // limits, judge and hash. The limits are read once per deploy and after
+    // the finding, so input that is refused on its own (a path that is not
+    // there, a project that is not built) costs no request, and the files are
+    // judged by the limits the server states now. The pipeline asks only for
+    // a site, which is all the limits judge. The read carries the deploy's
+    // own signal, so a cancelled deploy stops here too, not only at its
+    // final POST.
+    this.deployments = createDeploymentResource(this.http, async (input, opts) =>
+      processDeployFiles(await this.sources(input), opts, () =>
+        this.getLimits({ signal: opts.signal }),
+      ),
+    );
+    this.domains = createDomainResource(this.http);
+    this.account = createAccountResource(this.http);
+    this.tokens = createTokenResource(this.http);
   }
 
   /**

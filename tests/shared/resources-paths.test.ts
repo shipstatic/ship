@@ -45,14 +45,10 @@ function resources() {
     apiUrl: 'https://api.test.com',
     getAuthHeaders: () => ({ Authorization: 'Bearer test' }),
   });
-  const ctx = { getApi: () => api };
   return {
-    domains: createDomainResource(ctx),
-    tokens: createTokenResource(ctx),
-    deployments: createDeploymentResource({
-      ...ctx,
-      prepareFiles: async (input) => input as unknown as StaticFile[],
-    }),
+    domains: createDomainResource(api),
+    tokens: createTokenResource(api),
+    deployments: createDeploymentResource(api, async (input) => input as unknown as StaticFile[]),
   };
 }
 
@@ -166,10 +162,10 @@ describe('the URLs the resources build', () => {
         getAuthHeaders: () => ({}),
         deployEndpoint: '/upload',
       });
-      const deployments = createDeploymentResource({
-        getApi: () => api,
-        prepareFiles: async (input) => input as unknown as StaticFile[],
-      });
+      const deployments = createDeploymentResource(
+        api,
+        async (input) => input as unknown as StaticFile[],
+      );
       (global.fetch as any).mockResolvedValue(json({ deployment: 'd1' }));
 
       await deployments.upload([
