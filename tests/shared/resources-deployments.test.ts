@@ -302,16 +302,21 @@ describe('Deployment Resource', () => {
       expect(deployCalls()).toHaveLength(2);
     });
 
-    it('marks every fill safe to repeat, and the declaration only when it carries a key', async () => {
+    it('marks every fill safe to repeat, and the declaration never, key or no key', async () => {
       statuses = [202, 202, 201];
       await upload();
-      expect(deployCalls().map((c) => c.init.idempotent)).toEqual([false, true, true]);
+      expect(deployCalls().map((c) => c.init.idempotent)).toEqual([undefined, true, true]);
 
       carried = [];
       statuses = [202, 202, 201];
       await upload({ idempotencyKey: 'run-42' });
-      expect(deployCalls().map((c) => c.init.idempotent)).toEqual([true, true, true]);
-      expect(fills().every((c) => c.init.headers === undefined)).toBe(true);
+      expect(deployCalls().map((c) => c.init.idempotent)).toEqual([undefined, true, true]);
+      // The key is the declaration's, for a deploy the caller sends again.
+      expect(deployCalls().map((c) => c.init.headers)).toEqual([
+        { 'Idempotency-Key': 'run-42' },
+        undefined,
+        undefined,
+      ]);
     });
 
     it('refuses a deployment still pending after its last batch, rather than report a success', async () => {

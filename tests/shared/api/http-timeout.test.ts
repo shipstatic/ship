@@ -73,7 +73,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
   describe('timeout configuration', () => {
     it('should pass signal to fetch for timeout support', async () => {
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
+      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
       await ping(apiHttp);
 
@@ -576,7 +576,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
     it('should clear timeout on successful response', async () => {
       const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
 
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
+      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
       await ping(apiHttp);
 
@@ -611,7 +611,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
   describe('concurrent requests', () => {
     it('should handle multiple concurrent requests', async () => {
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
+      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
       const promises = [ping(apiHttp), getLimits(apiHttp), listDeployments(apiHttp)];
 
@@ -625,7 +625,7 @@ describe('ApiHttp Timeout & Cancellation', () => {
 
       (global.fetch as any).mockImplementation((_url: string, options: RequestInit) => {
         signals.push(options.signal!);
-        return Promise.resolve(createMockResponse({ success: true }));
+        return Promise.resolve(createMockResponse({ timestamp: 1_700_000_000 }));
       });
 
       await Promise.all([ping(apiHttp), getLimits(apiHttp)]);

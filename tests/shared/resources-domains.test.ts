@@ -24,6 +24,7 @@ import { ErrorType, isShipError } from '@shipstatic/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../src/node';
 import { apiKey, deploymentId, platformDomain } from '../fixtures/builders';
+import { fakeApi } from '../mocks/fetch';
 import { getMockServerUrl, resetMockServer } from '../mocks/server';
 
 /** The deployment the mock state is seeded with. */
@@ -32,6 +33,28 @@ const DEPLOYMENT = deploymentId();
 const PLATFORM = platformDomain('preview-site');
 /** Anything not under the serve domain is custom. */
 const CUSTOM = 'www.example.com';
+
+describe('the body of a domain set', () => {
+  // What the caller left out is left out, and what they gave is sent as
+  // given: the API reserves a name whose body names no deployment, and it
+  // refuses an empty or a null one, so neither may be sent as the other.
+  const sentBody = async (options?: { deployment?: string; labels?: string[] }) => {
+    const api = fakeApi();
+    const ship = new Ship({ token: apiKey(), apiUrl: 'https://api.test', fetch: api.fetch });
+    await ship.domains.set(CUSTOM, options);
+    return api.sent[0].body;
+  };
+
+  it.each([
+    ['no options', undefined, '{}'],
+    ['a deployment', { deployment: DEPLOYMENT }, `{"deployment":"${DEPLOYMENT}"}`],
+    ['labels alone', { labels: ['prod'] }, '{"labels":["prod"]}'],
+    ['an empty deployment', { deployment: '' }, '{"deployment":""}'],
+    ['a null deployment', { deployment: null as never }, '{"deployment":null}'],
+  ])('%s', async (_what, options, body) => {
+    expect(await sentBody(options)).toBe(body);
+  });
+});
 
 describe('domain operations', () => {
   let ship: Ship;

@@ -94,10 +94,10 @@ export interface ShipClientOptions {
    * NOT retried, each deliberately: a maintenance 503 (a state, not a fault:
    * its message says when to come back), 429 (the rate limiter has just
    * answered), anything stopped by a `signal` you supplied, and any request
-   * that cannot be safely repeated. A read is repeated; a write only when it
-   * is known to be safe: every request that fills a deployment, and a deploy
-   * that carries an `idempotencyKey`, which replays its stored result rather
-   * than creating a second one.
+   * that cannot be safely repeated. A read is repeated, and so is a request
+   * that adds files to a deployment that exists. The request that creates a
+   * deployment is sent once: to send a deploy again yourself, give it an
+   * `idempotencyKey`.
    */
   maxRetries?: number | undefined;
   /**

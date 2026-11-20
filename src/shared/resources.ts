@@ -39,6 +39,7 @@ import type {
 } from '@shipstatic/types';
 import {
   API_PATHS,
+  DeploymentVia,
   IDEMPOTENCY_KEY_CONSTRAINTS,
   ShipError,
   validateBuildCommand,
@@ -60,18 +61,6 @@ import type { DeploymentOptions } from './types.js';
 
 /** JSON in, JSON out: the header every body-carrying request here sends. */
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
-
-/**
- * This client's identity in a deployment's `via` field.
- *
- * Every surface that deploys names itself: the CLI sends `cli`, the GitHub
- * Action `git`, the MCP server `mcp`, the VS Code extension `vsc`, the web
- * apps `web`. A direct SDK call is `sdk`.
- *
- * Applied at this one boundary, so a deploy through this SDK is never
- * unattributed.
- */
-const DEPLOY_VIA = 'sdk';
 
 /**
  * Serialize pagination options into a query string, or '' when there are
@@ -125,13 +114,16 @@ export function createDeploymentResource(
      * routing config itself when the deploy asks it to: every deploy asks
      * (`spa=true`) unless `spaDetect` is `false`, which sends nothing.
      */
-    upload: async (input: DeployInput, options: DeploymentOptions = {}) => {
+    upload: async (input, options = {}) => {
       // The options first: each check reads nothing but its option, so a
       // value the platform would refuse costs no request and opens no file.
       const idempotencyKey = validateIdempotencyKey(options.idempotencyKey);
       const declaration = {
         labels: validateLabels(options.labels),
-        via: options.via ?? DEPLOY_VIA,
+        // Every surface that deploys names itself, and a direct SDK call is
+        // the SDK: applied at this one boundary, so a deploy through this
+        // client is never unattributed.
+        via: options.via ?? DeploymentVia.SDK,
         password: validatePassword(options.password),
         ttl: validateTtl(options.ttl),
         spa: options.spaDetect !== false,
@@ -150,10 +142,13 @@ export function createDeploymentResource(
       // along with the boundary, and one set by hand would name a boundary
       // the body does not use.
       //
-      // The idempotency key rides the declaration's header, readable before
-      // the body is parsed: the API answers with the live deployment the key
-      // names, ahead of the write budget, so a keyed declaration is safe to
-      // repeat. Every fill is safe to repeat by construction.
+      // The declaration creates a deployment, so it is sent once. Its
+      // idempotency key is the caller's, for a deploy they send again: it
+      // rides the header, readable before the body is parsed, and the API
+      // answers it with the live deployment that key made in their account.
+      // Whether a repeat would be answered or made again is the API's to
+      // know, never this client's. Every fill is safe to repeat by
+      // construction.
       const signal = options.signal || null;
       const declared = await http.requestWithStatus<DeploymentCreateResponse>(
         http.deploy.endpoint,
@@ -164,7 +159,6 @@ export function createDeploymentResource(
             ? { headers: { [IDEMPOTENCY_KEY_CONSTRAINTS.HEADER]: idempotencyKey } }
             : {}),
           signal,
-          idempotent: idempotencyKey !== undefined,
         },
         'Deploy',
         // A build waits on the build service after the upload lands, so it
@@ -201,7 +195,7 @@ export function createDeploymentResource(
         'Get deployment',
       ),
 
-    set: async (id: string, options: { labels: string[] }) =>
+    set: async (id, options) =>
       http.request<Deployment>(
         API_PATHS.DEPLOYMENT(encodeURIComponent(id)),
         {
@@ -235,11 +229,11 @@ export function createDomainResource(http: Transport): DomainResource {
     // Supported: reserve (omit deployment), link, switch deployments atomically, delete entirely.
     // Not supported: unlink after linking (creates ambiguous state with no clear use case).
     // See npm/ship/CLAUDE.md "Domain Write Semantics" for full rationale.
-    set: async (name: string, options: { deployment?: string; labels?: string[] } = {}) => {
-      const labels = validateLabels(options.labels);
-      const body: { deployment?: string; labels?: string[] } = {};
-      if (options.deployment) body.deployment = options.deployment;
-      if (labels !== undefined) body.labels = labels;
+    set: async (name, options = {}) => {
+      // What the caller left out is left out of the body, and what they gave
+      // is sent as given: an empty deployment is the API's to refuse, never
+      // a reservation they did not ask for.
+      const body = { deployment: options.deployment, labels: validateLabels(options.labels) };
 
       // The one operation whose STATUS is part of its answer: 201 means the
       // domain was created, 200 that it was repointed, and the body says the
@@ -326,14 +320,10 @@ export function createAccountResource(http: Transport): AccountResource {
  */
 export function createTokenResource(http: Transport): TokenResource {
   return {
-    create: async (options: { ttl?: number; labels?: string[] } = {}) => {
+    create: async (options = {}) => {
       // Checked before the request, as a deploy's options are: the rules are
       // `@shipstatic/types`' own, so a bad value costs no round trip.
-      const ttl = validateTtl(options.ttl);
-      const labels = validateLabels(options.labels);
-      const body: { ttl?: number; labels?: string[] } = {};
-      if (ttl !== undefined) body.ttl = ttl;
-      if (labels !== undefined) body.labels = labels;
+      const body = { ttl: validateTtl(options.ttl), labels: validateLabels(options.labels) };
 
       return http.request<TokenCreateResponse>(
         API_PATHS.TOKENS,

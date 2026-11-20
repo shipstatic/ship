@@ -193,9 +193,8 @@ export interface Transport {
 export type ShipRequestInit = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
   /**
-   * The request may be sent twice with the same effect: a fill (every fill
-   * is safe to repeat), or a declaration carrying an `Idempotency-Key`, which
-   * the API answers with the deployment the key names.
+   * The request may be sent twice with the same effect, as every fill of a
+   * deployment may: the API answers a repeat from the deployment itself.
    */
   idempotent?: boolean;
 };
@@ -221,7 +220,9 @@ export class ApiHttp extends SimpleEvents implements Transport {
 
   constructor(options: ApiHttpOptions) {
     super();
-    this.apiUrl = options.apiUrl || DEFAULT_API;
+    // An origin is one address with a slash at its end or without: every
+    // path here starts with one.
+    this.apiUrl = (options.apiUrl || DEFAULT_API).replace(/\/$/, '');
     this.getAuthHeadersCallback = options.getAuthHeaders;
     this.session = options.session ?? false;
     this.caller = options.caller;

@@ -219,7 +219,7 @@ describe('Ship event delegation', () => {
 
   it('hands the response event a body that is still readable', async () => {
     // The SDK parses a copy, so the response a listener is handed is unread.
-    const ship = newShip(stubApi(() => json({ success: true })));
+    const ship = newShip(stubApi(() => json({ timestamp: 1_700_000_000 })));
     const bodies: Promise<unknown>[] = [];
 
     ship.on('response', (response, url) => {
@@ -228,11 +228,11 @@ describe('Ship event delegation', () => {
 
     await ship.ping();
 
-    expect(await Promise.all(bodies)).toEqual([{ success: true }]);
+    expect(await Promise.all(bodies)).toEqual([{ timestamp: 1_700_000_000 }]);
   });
 
   it('emits exactly one response event per request', async () => {
-    const ship = newShip(stubApi(() => json({ success: true })));
+    const ship = newShip(stubApi(() => json({ timestamp: 1_700_000_000 })));
     const urls: string[] = [];
 
     ship.on('response', (_response, url) => urls.push(url));
@@ -259,7 +259,7 @@ describe('Ship event delegation', () => {
   });
 
   it('emits request before response for the same URL', async () => {
-    const ship = newShip(stubApi(() => json({ success: true })));
+    const ship = newShip(stubApi(() => json({ timestamp: 1_700_000_000 })));
     const order: string[] = [];
 
     ship.on('request', (url) => {
@@ -275,7 +275,7 @@ describe('Ship event delegation', () => {
   });
 
   it('carries the Authorization header into the request event', async () => {
-    const ship = newShip(stubApi(() => json({ success: true })));
+    const ship = newShip(stubApi(() => json({ timestamp: 1_700_000_000 })));
     const auth: Array<string | undefined> = [];
 
     ship.on('request', (url, init) => {

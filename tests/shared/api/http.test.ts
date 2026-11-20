@@ -60,7 +60,7 @@ describe('ApiHttp', () => {
         if (this !== globalThis) {
           throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
         }
-        return createMockResponse({ success: true, message: 'pong' });
+        return createMockResponse({ timestamp: 1_700_000_000 });
       });
       globalThis.fetch = strictFetch as unknown as typeof fetch;
 
@@ -120,9 +120,7 @@ describe('ApiHttp', () => {
 
   describe('ping', () => {
     it('should make GET request to /ping endpoint', async () => {
-      (global.fetch as any).mockResolvedValue(
-        createMockResponse({ success: true, timestamp: 1_700_000_000 }),
-      );
+      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
       const result = await ping(apiHttp);
 
@@ -135,7 +133,7 @@ describe('ApiHttp', () => {
           }),
         }),
       );
-      expect(result).toEqual({ success: true, timestamp: 1_700_000_000 });
+      expect(result).toEqual({ timestamp: 1_700_000_000 });
     });
 
     it('should handle network errors', async () => {
@@ -237,9 +235,7 @@ describe('ApiHttp', () => {
     });
 
     it('should include credentials when session is true', async () => {
-      (global.fetch as any).mockResolvedValue(
-        createMockResponse({ success: true, message: 'pong' }),
-      );
+      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
       await ping(apiHttpCookieAuth);
 
@@ -260,9 +256,7 @@ describe('ApiHttp', () => {
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({}),
       });
-      (global.fetch as any).mockResolvedValue(
-        createMockResponse({ success: true, message: 'pong' }),
-      );
+      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
       await ping(apiHttpDefault);
 
@@ -276,9 +270,7 @@ describe('ApiHttp', () => {
         session: true,
         getAuthHeaders: () => ({ Authorization: 'Bearer test-key' }),
       });
-      (global.fetch as any).mockResolvedValue(
-        createMockResponse({ success: true, message: 'pong' }),
-      );
+      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
       await ping(apiHttpWithKey);
 
@@ -301,9 +293,7 @@ describe('ApiHttp', () => {
         apiUrl: 'https://api.test.com',
         getAuthHeaders: () => ({ Authorization: 'Bearer test-token' }),
       });
-      (global.fetch as any).mockResolvedValue(
-        createMockResponse({ success: true, message: 'pong' }),
-      );
+      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
       await ping(apiHttpWithToken);
 
@@ -521,7 +511,7 @@ describe('ApiHttp', () => {
         getAuthHeaders: () => ({}),
         timeout: 5000,
       });
-      (global.fetch as any).mockResolvedValue(createMockResponse({ success: true }));
+      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
       await ping(apiWithTimeout);
 
@@ -533,9 +523,7 @@ describe('ApiHttp', () => {
 
   describe('fetch injection', () => {
     it('should use globalThis.fetch by default', async () => {
-      (global.fetch as any).mockResolvedValue(
-        createMockResponse({ success: true, timestamp: 1_700_000_000 }),
-      );
+      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
       const api = new ApiHttp(mockOptions);
       const result = await ping(api);
@@ -544,15 +532,13 @@ describe('ApiHttp', () => {
         'https://api.test.com/ping',
         expect.objectContaining({ method: 'GET' }),
       );
-      expect(result).toEqual({ success: true, timestamp: 1_700_000_000 });
+      expect(result).toEqual({ timestamp: 1_700_000_000 });
     });
 
     it('should route every API call through the injected fetcher and bypass globalThis.fetch', async () => {
       const injected = vi
         .fn<Fetch>()
-        .mockResolvedValue(
-          createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
-        );
+        .mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }) as unknown as Response);
 
       const api = new ApiHttp({ ...mockOptions, fetch: injected });
       await ping(api);
@@ -566,9 +552,7 @@ describe('ApiHttp', () => {
     it('should pass the same RequestInit shape to the injected fetcher (headers, method, signal)', async () => {
       const injected = vi
         .fn<Fetch>()
-        .mockResolvedValue(
-          createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
-        );
+        .mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }) as unknown as Response);
 
       const api = new ApiHttp({ ...mockOptions, fetch: injected });
       await ping(api);
@@ -614,9 +598,7 @@ describe('ApiHttp', () => {
     it('should emit request/response events for injected-fetcher calls', async () => {
       const injected = vi
         .fn<Fetch>()
-        .mockResolvedValue(
-          createMockResponse({ success: true, message: 'pong' }) as unknown as Response,
-        );
+        .mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }) as unknown as Response);
       const api = new ApiHttp({ ...mockOptions, fetch: injected });
 
       const onRequest = vi.fn();

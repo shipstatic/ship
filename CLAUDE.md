@@ -316,6 +316,10 @@ ship.deploy('./dist');
 ship.deploy(['./dist/index.html', './dist/app']);
 ```
 
+**`apiUrl` is an origin, with a slash at its end or without.** The transport
+drops the slash once, where it stores the URL, since every path starts with
+one (`https://host//ping` is another route, and a 404).
+
 **The build is the one decision about where the SDK runs, and nothing checks
 it again at run time.** A build that cannot read a path refuses one in words ("A deploy takes
 File objects here. Publishing from a path needs Node.js, Bun or Deno."), with no
@@ -1009,8 +1013,16 @@ suite's "and is RETRIED" holds it.
 - **`PUT` / `DELETE`.** A DELETE whose response was lost answers 404 on retry,
   turning a success into a reported failure.
 - **Any other request its resource did not mark `idempotent`.** The deployment
-  resource marks every fill (the API answers a repeat from the deployment) and
-  a declaration carrying an `Idempotency-Key`. Everything else is sent once.
+  resource marks every fill (the API answers a repeat from the deployment),
+  and nothing else is marked. **A declaration is sent once, key or no key.**
+  It creates a deployment, and whether a repeat is answered with the first or
+  made again is the API's to know: a key replays only within an account, and
+  only a deployment already live, so a client that repeated one on its own
+  would make a second site for an anonymous deploy and for one still in
+  flight. The key is the caller's, for a deploy they send again. **Refused:
+  repeating a keyed declaration when the client holds a credential**, which
+  restates the API's rule here and still cannot see a first attempt in
+  flight.
 - **A file that changed under the request** (`ErrorType.File`, from a
   `NotReadableError`): nothing was exchanged, and the same unreadable file
   cannot be sent differently.
@@ -1756,7 +1768,10 @@ update, defaulted on create. It covers reserve (omit deployment), link, an
 atomic deployment switch, and label update.
 
 **No unlinking, by design.** `{ deployment: null }` returns 400. Reservation
-(forward-looking) is valid; unlinking (backward-looking) is not. To take a
+(forward-looking) is valid; unlinking (backward-looking) is not. **The SDK
+sends what it was given**: only a deployment left out is left out of the
+body, so `null` and `''` reach the API and are refused there, never read as
+a reservation. To take a
 site offline, deploy a maintenance page; to clean up, delete the domain.
 
 **PUT, not PATCH**, because a domain is a mutable routing record identified by

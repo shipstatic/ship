@@ -17,13 +17,13 @@
  * path is the class of restatement the fold existed to remove.
  */
 
-import { type Account, API_PATHS, type PlatformLimits } from '@shipstatic/types';
+import { type Account, API_PATHS, type PingResponse, type PlatformLimits } from '@shipstatic/types';
 import type { ApiHttp } from '../../../src/shared/api/http';
 import { createDeploymentResource } from '../../../src/shared/resources';
 import type { DeployInput, StaticFile } from '../../../src/shared/types';
 
 export const ping = (api: ApiHttp) =>
-  api.request<{ success: boolean; timestamp: number }>(API_PATHS.PING, { method: 'GET' }, 'Ping');
+  api.request<PingResponse>(API_PATHS.PING, { method: 'GET' }, 'Ping');
 
 export const getLimits = (api: ApiHttp) =>
   api.request<PlatformLimits>(API_PATHS.LIMITS, { method: 'GET' }, 'Get limits');

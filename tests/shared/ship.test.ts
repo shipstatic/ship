@@ -9,6 +9,7 @@
  * files to trip over.
  */
 
+import type { PingResponse } from '@shipstatic/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ship } from '../../src/shared/ship';
 import type { Fetch } from '../../src/shared/types';
@@ -35,7 +36,7 @@ describe('The Ship class', () => {
     api = fakeApi({
       '/limits': FREE_PLAN_LIMITS,
       '/deployments': DEPLOYED,
-      '/ping': { success: true, timestamp: 1_700_000_000 },
+      '/ping': { timestamp: 1_700_000_000 } satisfies PingResponse,
       '/account': { email: 'test@example.com' },
     });
     ship = new Ship({ apiUrl: API_URL, token: TEST_API_KEY, fetch: api.fetch });
@@ -99,10 +100,10 @@ describe('The Ship class', () => {
   });
 
   describe('ping method', () => {
-    it('reaches /ping, and resolves the answer rather than a boolean', async () => {
+    it('reaches /ping, and resolves the server clock', async () => {
       const result = await ship.ping();
 
-      expect(result).toEqual({ success: true, timestamp: 1_700_000_000 });
+      expect(result).toEqual({ timestamp: 1_700_000_000 });
       expect(api.sentTo('/ping')).toHaveLength(1);
     });
   });
@@ -139,6 +140,14 @@ describe('The Ship class', () => {
       await ship.deployments.upload(site());
 
       expect(api.sent.map((request) => new URL(request.url).origin)).toEqual([API_URL, API_URL]);
+    });
+
+    it('takes an origin with a slash at its end as the same origin', async () => {
+      const slashed = new Ship({ apiUrl: `${API_URL}/`, fetch: api.fetch });
+
+      await slashed.ping();
+
+      expect(api.sent[0].url).toBe(`${API_URL}/ping`);
     });
 
     it('reads limits once per call that uses them, and holds none between calls', async () => {

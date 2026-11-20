@@ -9,7 +9,7 @@ import { ping } from './vehicles';
 describe('ApiHttp Events', () => {
   test('should emit request event', async () => {
     const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ success: true }), {
+      new Response(JSON.stringify({ timestamp: 1_700_000_000 }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       }),
@@ -36,7 +36,7 @@ describe('ApiHttp Events', () => {
   });
 
   test('should emit response event', async () => {
-    const mockResponse = new Response(JSON.stringify({ success: true }), {
+    const mockResponse = new Response(JSON.stringify({ timestamp: 1_700_000_000 }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });

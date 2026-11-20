@@ -155,46 +155,34 @@ describe('retries', () => {
     expect(attempts(fetchImpl)).toBe(1);
   });
 
-  /**
-   * The deploy is the only call that carries a caller `signal`, and — with a
-   * key — the only non-GET that may be repeated at all. So these three drive
-   * the real deploy path rather than a stand-in.
-   */
-  describe('a deploy, which is where a signal and a key actually reach', () => {
-    /** `/limits` answers; the deploy POST runs the script. */
+  describe('a deploy', () => {
+    /** `/limits` answers; each deploy POST runs the script. */
     const deployFetch = (onDeploy: (n: number) => Response | Promise<Response>) => {
-      let posts = 0;
-      const mock = vi.fn(async (url: string | URL | Request) => {
-        const href = String(url);
-        if (href.endsWith('/limits')) return ok({ maxFileSize: 1e9, maxFilesCount: 100 });
-        posts += 1;
-        return onDeploy(posts);
+      const keys: Array<string | undefined> = [];
+      const mock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        if (String(url).endsWith('/limits')) return ok({ maxFileSize: 1e9, maxFilesCount: 100 });
+        const headers = init?.headers as Record<string, string> | undefined;
+        keys.push(headers?.[IDEMPOTENCY_KEY_CONSTRAINTS.HEADER]);
+        return onDeploy(keys.length);
       });
-      return Object.assign(mock, { posts: () => posts });
+      return Object.assign(mock, { posts: () => keys.length, keys });
     };
 
-    it('retries a deploy that carries an Idempotency-Key, and the replay wins', async () => {
-      // Safe by construction rather than by assumption: the stored 201 replays,
-      // so the retry cannot create a second deployment.
-      const deployed = { deployment: 'brave-otter-a1b2c3d.shipstatic.com', url: 'https://x' };
-      const fetchImpl = deployFetch((n) =>
-        n === 1 ? fail(ShipError.api('gateway', 502)) : ok(deployed, 201),
-      );
-
-      await expect(
-        newShip(fetchImpl).deploy(DEMO_SITE, { idempotencyKey: 'run-1-deploy' }),
-      ).resolves.toMatchObject({ deployment: deployed.deployment });
-      expect(fetchImpl.posts()).toBe(2);
-    });
-
-    it('does NOT retry a deploy without a key — it could deploy twice', async () => {
+    it.each([
+      // The request that creates a deployment is sent once. Whether a repeat
+      // would be answered with the first deployment or made again is the
+      // API's to know (it needs an account, and a deployment already live),
+      // so the key is for a deploy the caller sends again, and it rides.
+      ['with an idempotency key', { idempotencyKey: 'run-1-deploy' }, 'run-1-deploy'],
+      ['without one', {}, undefined],
+    ])('sends its first request once %s', async (_what, options, key) => {
       const fetchImpl = deployFetch(() => fail(ShipError.api('gateway', 502)));
 
-      await expect(newShip(fetchImpl).deploy(DEMO_SITE)).rejects.toThrow();
-      expect(fetchImpl.posts()).toBe(1);
+      await expect(newShip(fetchImpl).deploy(DEMO_SITE, options)).rejects.toThrow();
+      expect(fetchImpl.keys).toEqual([key]);
     });
 
-    describe('a deployment sent in several requests', () => {
+    describe('sent in several requests', () => {
       // A home page and two 33 MiB files: more than one request carries, so
       // the SDK declares with the page and fills twice.
       let largeSite: string;
@@ -207,7 +195,7 @@ describe('retries', () => {
       });
       afterAll(() => rmSync(largeSite, { recursive: true, force: true }));
 
-      it('retries a fill without a key, since every fill is safe to repeat', async () => {
+      it('retries a fill, since every fill is safe to repeat', async () => {
         const pending = { deployment: 'brave-otter-a1b2c3d.shipstatic.com', status: 'pending' };
         const live = { ...pending, status: 'success' };
         const fetchImpl = deployFetch((n) =>
@@ -223,9 +211,18 @@ describe('retries', () => {
         expect(fetchImpl.posts()).toBe(4);
       });
     });
+  });
 
-    it("a caller's abort ends the loop rather than being retried through", async () => {
-      // The retryable failure is a 502, so without the signal this deploy
+  /**
+   * A read is retried, and `getLimits` is a read that carries a caller's
+   * `signal`, so these two drive it.
+   */
+  describe("a caller's signal ends the loop", () => {
+    /** Every request runs the script, and is counted. */
+    const counted = (answer: () => Response | Promise<Response>) => vi.fn(async () => answer());
+
+    it('an abort is not retried through', async () => {
+      // The retryable failure is a 502, so without the signal this read
       // would go out three times. It goes out once.
       //
       // The reported error is the one that actually happened, not a
@@ -235,22 +232,17 @@ describe('retries', () => {
       // going, is the failure this guard exists for.
       const controller = new AbortController();
       controller.abort();
-      const fetchImpl = deployFetch(() => fail(ShipError.api('gateway', 502)));
+      const fetchImpl = counted(() => fail(ShipError.api('gateway', 502)));
 
       const started = Date.now();
-      await expect(
-        newShip(fetchImpl).deploy(DEMO_SITE, {
-          idempotencyKey: 'run-2-deploy',
-          signal: controller.signal,
-        }),
-      ).rejects.toThrow();
+      await expect(newShip(fetchImpl).getLimits({ signal: controller.signal })).rejects.toThrow();
 
-      expect(fetchImpl.posts()).toBe(1);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
       // No backoff was waited out on the way to giving up.
       expect(Date.now() - started).toBeLessThan(250);
     });
 
-    it("does not retry past a caller's own deadline, though a deadline IS retryable", async () => {
+    it("the caller's own deadline is not retried past, though a deadline IS retryable", async () => {
       // The subtle one, and the reason `isRetryable` reads the caller's signal
       // rather than only the error type: a caller's `AbortSignal.timeout()`
       // classifies as `Timeout`, exactly like our own ceiling, and the loop
@@ -261,18 +253,13 @@ describe('retries', () => {
       // `isRetryable` can tell whose clock ran out, which is what makes this
       // test the load-bearing one in this file.
       const controller = new AbortController();
-      const fetchImpl = deployFetch(() => {
+      const fetchImpl = counted(() => {
         controller.abort(new DOMException('Timed out', 'TimeoutError'));
         throw controller.signal.reason;
       });
 
-      await expect(
-        newShip(fetchImpl).deploy(DEMO_SITE, {
-          idempotencyKey: 'run-3-deploy',
-          signal: controller.signal,
-        }),
-      ).rejects.toThrow();
-      expect(fetchImpl.posts()).toBe(1);
+      await expect(newShip(fetchImpl).getLimits({ signal: controller.signal })).rejects.toThrow();
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
   });
 });

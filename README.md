@@ -276,10 +276,11 @@ const ship = new Ship({ token: 'ship-your-api-key', maxRetries: 5 });
 Deliberately never retried: a maintenance 503 (its message says when to come
 back), 429 (the rate limiter has answered), `PUT`/`DELETE` (a repeat can
 misreport a lost success as a failure), anything stopped by a `signal` you
-supplied, and any other request that is not safe to send twice. A deploy is
-safe to send twice when it carries an `idempotencyKey`: the API answers with
-the deployment that key already made, within your account, instead of making
-a second one.
+supplied, and the request that creates a deployment, which is sent once. To
+send a deploy again yourself, give it an `idempotencyKey`: within your
+account, the API answers with the deployment that key already made, once it
+is live, instead of making a second one. The requests that add files to a
+large deployment are retried, since each is safe to repeat.
 
 `timeout` is the ceiling on one ATTEMPT. For an overall deadline pass your
 own `signal` (`AbortSignal.timeout(ms)`), which is never retried past. Both
