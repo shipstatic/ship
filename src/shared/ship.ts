@@ -200,7 +200,8 @@ export class Ship {
   /**
    * Set global headers included in every request, such as the account a
    * cookie session acts for. The credential is no header: it is the token or
-   * the session, so `Authorization` is refused here in any spelling.
+   * the session, so `Authorization` is refused here in any spelling. The
+   * client keeps a copy, so the headers it sends are the ones it was given.
    */
   setHeaders(headers: Record<string, string>): void {
     // One client, one identity: a header beside the credential would be a
@@ -208,7 +209,7 @@ export class Ship {
     if (Object.keys(headers).some((name) => name.toLowerCase() === 'authorization')) {
       throw ShipError.config('`Authorization` is set with `token` or `setToken()`, not a header.');
     }
-    this.http.setGlobalHeaders(headers);
+    this.http.setGlobalHeaders({ ...headers });
   }
 
   /**

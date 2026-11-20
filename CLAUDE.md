@@ -207,7 +207,8 @@ headers and stalls is timed out like one that sends nothing, and `response`
 is emitted for an answer that parsed: one that does not is an `error`. An
 error answer is read under the same two: a refusal whose body is stopped
 while it arrives is reported as the timeout or the cancel that stopped it,
-never as its status with the words missing. The
+never as its status with the words missing. The check reads `aborted` and
+throws `reason`, which every browser the uploader is built for has. The
 SDK parses a copy, so a listener is handed a response it can still read.
 `http-timeout.test.ts` holds the stalled body against a real server, since
 only a real response body is tied to the request's signal.
@@ -235,7 +236,7 @@ the same slot supplies the token per request: minting and refresh live with
 the caller. `session: true` is the cookie-session identity for first-party
 browser apps; `token` + `session` together is a config error, and
 `setHeaders` refuses `Authorization` in any spelling, since a header beside
-the slot would be a second identity. **There is no credential precedence
+the slot would be a second identity, and keeps a copy of what it checked. **There is no credential precedence
 anywhere in the SDK**: one slot makes multiplicity inexpressible.
 
 **Token resolution (Node, in order):** the constructor argument, then

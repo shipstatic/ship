@@ -112,6 +112,16 @@ describe('Credential Lifecycle', () => {
       );
     });
 
+    it("keeps a copy: a header added to the caller's object later is not sent", async () => {
+      const { ship, sentHeaders } = client({ session: true });
+      const headers: Record<string, string> = { 'X-Custom': 'value' };
+
+      ship.setHeaders(headers);
+      headers.authorization = `Bearer ${TEST_API_KEY}`;
+
+      expect(await sentHeaders()).not.toHaveProperty('authorization');
+    });
+
     it('should clear them', async () => {
       const { ship, sentHeaders } = client();
 

@@ -273,7 +273,7 @@ export class ApiHttp extends SimpleEvents implements Transport {
    *
    * **The caller's `timeout` governs an ATTEMPT, not the wall clock.** Each
    * attempt is an honest request and deserves the ceiling the caller named;
-   * `maxRetries` is the lever on the total. A caller who wants a hard overall
+   * `maxRetries` is the lever on the total. A caller who wants an overall
    * deadline passes their own `signal` — see `isRetryable` for why that ends
    * the loop even when it is a timeout.
    */
@@ -402,7 +402,7 @@ export class ApiHttp extends SimpleEvents implements Transport {
         const refusal = await ShipError.fromHttpResponse(response, operationName);
         // An error answer that was stopped while it arrived is the stop, as
         // an answer that parsed would be: the status alone is half a refusal.
-        timeout.signal.throwIfAborted();
+        if (timeout.signal.aborted) throw timeout.signal.reason;
         throw refusal;
       }
 

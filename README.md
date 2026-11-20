@@ -281,8 +281,10 @@ safe to send twice when it carries an `idempotencyKey`: the API answers with
 the deployment that key already made, within your account, instead of making
 a second one.
 
-`timeout` is the ceiling on one ATTEMPT. For a hard overall deadline pass your
-own `signal` (`AbortSignal.timeout(ms)`), which is never retried past.
+`timeout` is the ceiling on one ATTEMPT. For an overall deadline pass your
+own `signal` (`AbortSignal.timeout(ms)`), which is never retried past. Both
+bound the request, which starts once a token provider has answered: a
+provider's own wait is yours to bound.
 
 ### Deploy options
 

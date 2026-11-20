@@ -42,6 +42,8 @@ export type Fetch = typeof fetch;
  * Supplies the client token per request — synchronously or asynchronously.
  * The provider owns freshness: callers holding short-lived credentials
  * (e.g. OAuth access tokens) refresh inside the provider; the SDK just asks.
+ * It owns its own wait too: the client's `timeout` and a caller's `signal`
+ * bound the request, which starts once the provider has answered.
  * A provider that yields nothing fails the request — a configured provider
  * is credential intent, and intent never degrades to an anonymous request.
  */
@@ -76,9 +78,10 @@ export interface ShipClientOptions {
    * With retries, this is the ceiling on an ATTEMPT rather than on the wall
    * clock — each attempt is an honest request and deserves the ceiling you
    * named, and {@link ShipClientOptions.maxRetries} is the lever on the total.
-   * For a hard overall deadline, pass your own `signal`
+   * For an overall deadline, pass your own `signal`
    * (`AbortSignal.timeout(ms)`): the client never retries past a signal you
-   * supplied.
+   * supplied. Both bound the request, which starts once a
+   * {@link TokenProvider} has answered.
    */
   timeout?: number | undefined;
   /**
