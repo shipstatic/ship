@@ -25,9 +25,17 @@ const ALT_TOKEN = apiKey('b');
 /** The scripted answer the mocked prompt returns. */
 let answer = '';
 
+// The prompt behaves as readline does at a terminal: it writes the question
+// to the stream it was given, then echoes what is typed to that same stream.
 vi.mock('node:readline/promises', () => ({
-  createInterface: () => ({
-    question: async () => answer,
+  createInterface: ({ output }: { output: NodeJS.WritableStream }) => ({
+    question: (question: string) => {
+      output.write(question);
+      return Promise.resolve().then(() => {
+        output.write(answer);
+        return answer;
+      });
+    },
     close: () => {},
   }),
 }));
@@ -35,6 +43,8 @@ vi.mock('node:readline/promises', () => ({
 let home: string;
 let configPath: string;
 let out: string[];
+/** Everything written to the terminal, the prompt included. */
+let screen: string;
 
 beforeEach(() => {
   home = mkdtempSync(join(tmpdir(), 'ship-config-'));
@@ -42,7 +52,12 @@ beforeEach(() => {
   vi.stubEnv('HOME', home);
   answer = '';
   out = [];
+  screen = '';
   vi.spyOn(console, 'log').mockImplementation((m) => out.push(String(m ?? '')));
+  vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+    screen += String(chunk);
+    return true;
+  });
 });
 
 afterEach(() => {
@@ -82,6 +97,16 @@ describe('--json is refused: this command has one personality', () => {
 });
 
 describe('interactive flow', () => {
+  it('asks for the token and never shows what is typed', async () => {
+    answer = TEST_TOKEN;
+
+    await runConfig({ noColor: true });
+
+    // The question, and at a terminal the line break of the unseen Enter.
+    expect(screen.trimEnd()).toBe('  Token:');
+    expect(out.join('\n')).not.toContain(TEST_TOKEN);
+  });
+
   it('writes the token the user typed', async () => {
     answer = TEST_TOKEN;
 

@@ -58,11 +58,13 @@ export function parseShipFile(filePath: string): Record<string, unknown> {
   // and any interrupted write produce one, and both are ordinary.
   if (!raw.trim()) return {};
 
+  // The file holds a credential, and a parser's own message quotes the text
+  // it could not read, so nothing of it is passed on.
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch (error) {
-    throw ShipError.config(`Invalid config in ${filePath}: ${detail(error)}`);
+  } catch {
+    throw ShipError.config(`Invalid config in ${filePath}: the file is not valid JSON`);
   }
 
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {

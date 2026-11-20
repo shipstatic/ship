@@ -201,6 +201,28 @@ describe('CLI shiprc loader', () => {
 
       expect(() => loadShipFile()).toThrow(/Invalid config in/);
     });
+
+    it.each([
+      // A parser's own message quotes the text it could not read, and this
+      // file holds a credential: a token saved with no JSON around it, or
+      // with a quote missing, is the file a person is most likely to break.
+      ['a token with no JSON around it', (token: string) => token],
+      ['a token in an unfinished object', (token: string) => `{"token": "${token}`],
+    ])('says %s is not valid JSON, and repeats none of it', async (_name, contents) => {
+      const token = apiKey('c');
+      const file = path.join(dirs.home, '.shiprc');
+      await fs.writeFile(file, contents(token));
+      process.chdir(dirs.project);
+
+      let message = '';
+      try {
+        loadShipFile();
+      } catch (error) {
+        message = (error as Error).message;
+      }
+
+      expect(message).toBe(`Invalid config in ${file}: the file is not valid JSON`);
+    });
   });
 
   describe('validation', () => {

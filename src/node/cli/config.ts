@@ -24,6 +24,7 @@ import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
+import { Writable } from 'node:stream';
 import {
   API_KEY,
   DEPLOY_TOKEN,
@@ -94,6 +95,35 @@ function readExistingConfig(configPath: string): Record<string, unknown> {
 }
 
 /**
+ * Ask for the token without showing it, so what is typed or pasted stays out
+ * of the terminal, its scrollback and any recording of the screen.
+ *
+ * readline echoes each key through its output stream, and it reads keys
+ * itself only as a terminal (otherwise the terminal echoes them). So the
+ * stream carries the question and then nothing.
+ */
+async function askToken(question: string): Promise<string> {
+  let asked = false;
+  const output = new Writable({
+    write(chunk, _encoding, done) {
+      if (!asked) process.stdout.write(chunk);
+      done();
+    },
+  });
+  const rl = createInterface({ input: process.stdin, output, terminal: process.stdin.isTTY });
+
+  try {
+    const answer = rl.question(question);
+    asked = true;
+    return (await answer).trim();
+  } finally {
+    rl.close();
+    // The line break of the Enter that was not shown.
+    if (process.stdin.isTTY) process.stdout.write('\n');
+  }
+}
+
+/**
  * Run the interactive config flow.
  *
  * Asks for a token, keeps the fields the schema permits, and writes the file.
@@ -113,23 +143,14 @@ export async function runConfig(
   const existingToken = typeof existing.token === 'string' ? existing.token : undefined;
   const dropped = Object.keys(existing).filter((key) => !ALLOWED_KEYS.includes(key));
 
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
   console.log('');
   console.log(`  ${applyDim('Create a free API key at')} ${MY_API_KEY_URL}`);
+  console.log(`  ${applyDim("Paste it here and press Enter. It isn't shown.")}`);
   console.log('');
 
-  const prompt = existingToken ? `  Token (${applyDim(maskToken(existingToken))}): ` : '  Token: ';
-
-  let input: string;
-  try {
-    input = (await rl.question(prompt)).trim();
-  } finally {
-    rl.close();
-  }
+  const input = await askToken(
+    existingToken ? `  Token (${applyDim(maskToken(existingToken))}): ` : '  Token: ',
+  );
 
   // Before anything is written: a rejected token must leave the file untouched.
   if (input) validateToken(input);

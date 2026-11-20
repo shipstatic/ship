@@ -234,7 +234,9 @@ a new token population needs no SDK change. A bearer with no known prefix
 still rides the slot; the server refuses it. A `TokenProvider` function in
 the same slot supplies the token per request: minting and refresh live with
 the caller. `session: true` is the cookie-session identity for first-party
-browser apps; `token` + `session` together is a config error, and
+browser apps, and the one client whose requests carry cookies
+(`credentials: 'include'`; every other client sends `'omit'`, since fetch's
+own default sends them to an API on the page's origin); `token` + `session` together is a config error, and
 `setHeaders` refuses `Authorization` in any spelling, since a header beside
 the slot would be a second identity, and keeps a copy of what it checked. **There is no credential precedence
 anywhere in the SDK**: one slot makes multiplicity inexpressible.
@@ -749,6 +751,15 @@ and `apiUrl` are the only fields a `.shiprc` may hold.
   own `parseShipFile`. One parse, two policies: the reader rejects, the writer
   repairs what the reader rejects. `tests/node/cli/config.test.ts` runs both
   over the same content and compares their verdicts per file.
+- **The file's text is never repeated.** A JSON parser's own message quotes
+  what it could not read, and this file holds a credential, so a file that
+  does not parse is told "the file is not valid JSON" beside its path and
+  nothing else (`shiprc.test.ts` plants a token and reads the whole message).
+- **The token is asked for unseen.** `askToken` gives readline an output
+  stream that carries the question and then nothing, and makes it read the
+  keys itself at a terminal, so what is pasted reaches no screen, scrollback
+  or recording. The test's prompt echoes as readline does, and the token must
+  not reach `process.stdout`.
 
 ### Composability
 

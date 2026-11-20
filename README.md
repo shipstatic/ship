@@ -372,6 +372,9 @@ One call emits `retry* (error | response)`: every failure is announced, and
 the event name says whether it ended the call. `attempt` counts from 1, so it
 names both the attempt that failed and which retry is happening.
 
+`request` hands you the request as it is sent, and its `init.headers` hold
+your token. Log the fields you need, never the whole `init`.
+
 ### Custom fetch
 
 Pass `fetch` to override the transport function used for every API call. Defaults to `globalThis.fetch`. Useful for wrapping requests with tracing, retries, or request signing, and for injecting a Cloudflare service-binding `Fetcher` from a Worker so calls reach a sibling Worker in-process instead of through the public hostname.

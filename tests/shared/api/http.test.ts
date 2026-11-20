@@ -251,64 +251,20 @@ describe('ApiHttp', () => {
       );
     });
 
-    it('should NOT include credentials when session is not set', async () => {
-      const apiHttpDefault = new ApiHttp({
-        apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({}),
-      });
+    it.each([
+      // Cookies ride for a session client and for no other: fetch's own
+      // default would send them to an API on the page's origin.
+      ['nothing', () => ({})],
+      ['a token', () => ({ Authorization: 'Bearer test-token' })],
+    ])('sends no cookies for a client that holds %s', async (_what, getAuthHeaders) => {
+      const client = new ApiHttp({ apiUrl: 'https://api.test.com', getAuthHeaders });
       (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
 
-      await ping(apiHttpDefault);
+      await ping(client);
 
-      const fetchCall = (fetch as any).mock.calls[0][1];
-      expect(fetchCall.credentials).toBeUndefined();
-    });
-
-    it('should NOT include credentials when Authorization header is present', async () => {
-      const apiHttpWithKey = new ApiHttp({
-        apiUrl: 'https://api.test.com',
-        session: true,
-        getAuthHeaders: () => ({ Authorization: 'Bearer test-key' }),
-      });
-      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
-
-      await ping(apiHttpWithKey);
-
-      expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/ping',
-        expect.objectContaining({
-          method: 'GET',
-          headers: expect.objectContaining({
-            Authorization: 'Bearer test-key',
-          }),
-        }),
-      );
-
-      const fetchCall = (fetch as any).mock.calls[0][1];
-      expect(fetchCall.credentials).toBeUndefined();
-    });
-
-    it('should support deploy tokens via callback', async () => {
-      const apiHttpWithToken = new ApiHttp({
-        apiUrl: 'https://api.test.com',
-        getAuthHeaders: () => ({ Authorization: 'Bearer test-token' }),
-      });
-      (global.fetch as any).mockResolvedValue(createMockResponse({ timestamp: 1_700_000_000 }));
-
-      await ping(apiHttpWithToken);
-
-      expect(fetch).toHaveBeenCalledWith(
-        'https://api.test.com/ping',
-        expect.objectContaining({
-          method: 'GET',
-          headers: expect.objectContaining({
-            Authorization: 'Bearer test-token',
-          }),
-        }),
-      );
-
-      const fetchCall = (fetch as any).mock.calls[0][1];
-      expect(fetchCall.credentials).toBeUndefined();
+      const sent = (fetch as any).mock.calls[0][1];
+      expect(sent.credentials).toBe('omit');
+      expect(sent.headers).toMatchObject(getAuthHeaders());
     });
 
     it('should use cookies for account operations', async () => {

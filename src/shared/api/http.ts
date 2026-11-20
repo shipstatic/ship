@@ -391,7 +391,9 @@ export class ApiHttp extends SimpleEvents implements Transport {
       const fetchOptions: RequestInit = {
         ...init,
         headers,
-        credentials: this.session && !headers.Authorization ? 'include' : undefined,
+        // Cookies ride for a session client and for no other: a client with a
+        // token, or with nothing, is not the person signed in to the page.
+        credentials: this.session ? 'include' : 'omit',
         signal: timeout.signal,
       };
 
