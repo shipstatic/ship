@@ -1375,8 +1375,8 @@ e2e tier must not run carry their reason as a string instead of `live: true`
 **`.github/workflows/e2e.yml` runs `pnpm test:e2e` daily**, plus
 `workflow_dispatch`. It is live once two repository secrets are set:
 `SHIP_E2E_API_KEY` (an API key for a non-production API, whose account is
-on a plan above Free: one row deploys more than Free holds, and the suite
-reads the account's limits before it creates anything) and
+on a plan above Free: one row of the wire contract deploys more than Free
+holds, and that block reads the account's limits in its setup) and
 `SHIP_E2E_API_URL` (that API's URL). Both are required, because without the
 URL the harness defaults to production. An unconfigured run emits a
 `::notice` and passes.

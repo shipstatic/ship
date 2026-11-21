@@ -15,9 +15,10 @@
  *   SHIP_E2E_API_KEY  Required. API key for the E2E account. Deliberately NOT
  *                     named `SHIP_TOKEN`: it is a harness variable, not part of
  *                     the SDK's env contract, and the CI secret name matches.
- *                     The account is on a plan above Free: one row deploys a
- *                     site larger than one request carries, and the suite
- *                     reads the account's limits before it creates anything.
+ *                     The account is on a plan above Free: one row of the
+ *                     wire contract deploys a site larger than one request
+ *                     carries, and that block reads the account's limits in
+ *                     its setup.
  *   SHIP_E2E_API_URL  Optional. Defaults to production — the only public value
  *                     this repo may carry. Non-production runs pass the target
  *                     explicitly (`SHIP_E2E_API_URL=… pnpm test:e2e --run`).

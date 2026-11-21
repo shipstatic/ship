@@ -320,8 +320,8 @@ export function makeDnsRecords(): Array<{ type: 'A' | 'CNAME'; name: string; val
 
 /**
  * What `writeLargeSite` asks of the account that deploys it: its largest
- * file, and its whole size (the page's few bytes aside). The live suite
- * reads the account's limits against these before it creates anything.
+ * file, and its whole size (the page's few bytes aside). The live suite's
+ * wire contract reads the account's limits against these in its setup.
  */
 export const LARGE_SITE = { file: 33 * 1024 * 1024, total: 2 * 33 * 1024 * 1024 } as const;
 
