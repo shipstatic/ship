@@ -27,7 +27,7 @@ import { ErrorType, isShipError, type ShipError } from '@shipstatic/types';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import Ship from '../../src/node';
 import { CONTRACT, type ContractContext, expected, observe } from '../contract';
-import { apiKey, writeLargeSite } from '../fixtures/builders';
+import { apiKey, LARGE_SITE, writeLargeSite } from '../fixtures/builders';
 import { E2E_API_KEY, E2E_API_URL, E2E_ENABLED, E2E_TEST_RUN_ID } from '../setup-e2e';
 
 const TEST_SITE_PATH = path.resolve(__dirname, '../fixtures/demo-site');
@@ -50,8 +50,21 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
   let ship: Ship;
   const deploymentsToCleanup: string[] = [];
 
-  beforeAll(() => {
+  beforeAll(async () => {
     ship = new Ship({ token: E2E_API_KEY!, apiUrl: E2E_API_URL });
+    // One row deploys a site larger than one request carries, which is more
+    // than the Free plan holds. The account's plan is read here, before
+    // anything is created, so a smaller one is named instead of failing that
+    // row with the API's size refusal.
+    const { maxFileSize, maxTotalSize } = await ship.getLimits();
+    if (maxFileSize < LARGE_SITE.file || maxTotalSize < LARGE_SITE.total) {
+      throw new Error(
+        'The e2e suite needs an account on a plan above Free: one row deploys a ' +
+          `${LARGE_SITE.file / 1024 / 1024} MiB file in a ${LARGE_SITE.total / 1024 / 1024} MiB site, ` +
+          `and this key's account takes ${Math.floor(maxFileSize / 1024 / 1024)} MiB a file ` +
+          `and ${Math.floor(maxTotalSize / 1024 / 1024)} MiB a site.`,
+      );
+    }
   });
 
   afterAll(async () => {

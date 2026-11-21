@@ -319,6 +319,13 @@ export function makeDnsRecords(): Array<{ type: 'A' | 'CNAME'; name: string; val
 }
 
 /**
+ * What `writeLargeSite` asks of the account that deploys it: its largest
+ * file, and its whole size (the page's few bytes aside). The live suite
+ * reads the account's limits against these before it creates anything.
+ */
+export const LARGE_SITE = { file: 33 * 1024 * 1024, total: 2 * 33 * 1024 * 1024 } as const;
+
+/**
  * A site larger than one deploy request carries: a page and two 33 MiB
  * images, 66 MiB against the 64 MiB ceiling, so the SDK declares it bare and
  * fills it in two requests. Written to a fresh temporary directory, which the
@@ -329,7 +336,7 @@ export function writeLargeSite(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'ship-large-site-'));
   writeFileSync(path.join(dir, 'index.html'), '<html><img src="a.png"><img src="b.png"></html>');
   for (const name of ['a.png', 'b.png']) {
-    writeFileSync(path.join(dir, name), Buffer.alloc(33 * 1024 * 1024));
+    writeFileSync(path.join(dir, name), Buffer.alloc(LARGE_SITE.file));
   }
   return dir;
 }
