@@ -196,7 +196,11 @@ describe.skipIf(!E2E_ENABLED)('E2E smoke', () => {
       }
       largeSitePath = writeLargeSite();
     });
-    afterAll(() => rmSync(largeSitePath, { recursive: true, force: true }));
+    // Nothing was written when the plan check above refused, and a second
+    // failure here would bury its sentence.
+    afterAll(() => {
+      if (largeSitePath) rmSync(largeSitePath, { recursive: true, force: true });
+    });
 
     beforeEach(async () => {
       // A fresh deployment per row, matching the mock half — a shared fixture

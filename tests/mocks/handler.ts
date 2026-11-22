@@ -605,15 +605,19 @@ async function upsertDomain(request: Request, name: string, state: MockState) {
     return fail(ShipError.validation('Invalid JSON in request body'));
   }
 
-  // `deployment` is `z.string().min(1).optional()` — NOT nullable. An explicit
-  // null fails the schema, which is how "no unlinking" is enforced. The
-  // previous mock answered 200 and unlinked, certifying behaviour the product
-  // forbids. wire: lib/validation.ts:498-512
+  // `deployment` is a string or left out, never null. An explicit null asks
+  // for an unlink, which the API refuses by design and in its own sentence;
+  // any other wrong type reads as a deployment of the wrong shape.
+  // wire: lib/validation.ts, `createDomainRequestSchema`
   if (body.deployment === null) {
-    return fail(ShipError.validation('Deployment cannot be empty'));
+    return fail(
+      ShipError.validation(
+        "A domain can't be unlinked. Link another deployment, or delete the domain.",
+      ),
+    );
   }
   if (body.deployment !== undefined && typeof body.deployment !== 'string') {
-    return fail(ShipError.validation('Deployment cannot be empty'));
+    return fail(ShipError.validation('Invalid deployment ID format'));
   }
 
   const deployment = body.deployment as string | undefined;
